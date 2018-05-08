@@ -8,7 +8,7 @@ cache:
 
 variables:
   REPO_DIR: gitlab.com/privategrity
-  REPO_NAME: channelbot
+  REPO_NAME: gateway
   DOCKER_IMAGE: carback1/golang-glide:1.9-4a49ace8cac8
   MIN_CODE_COVERAGE: "70.0"
 
@@ -102,10 +102,10 @@ build:
   script:
     - mkdir -p release
     - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' ./...
-    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/channelbot.linux64 main.go
-    - GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/channelbot.win64 main.go
-    - GOOS=windows GOARCH=386 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/channelbot.win32 main.go
-    - GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/channelbot.darwin64 main.go
+    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.linux64 main.go
+    - GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.win64 main.go
+    - GOOS=windows GOARCH=386 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.win32 main.go
+    - GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.darwin64 main.go
   artifacts:
     paths:
      - release/
