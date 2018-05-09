@@ -13,7 +13,7 @@ import (
 // Global instance of the in-memory Message Buffer
 var GlobalMessageBuffer MessageBuffer
 
-//
+// Interface for interacting with the MessageBuffer
 type MessageBuffer interface {
 	AddMessage(userId uint64, msgId string, msg pb.CmixMessage)
 	GetMessage(userId uint64, msgId string) (pb.CmixMessage, bool)
