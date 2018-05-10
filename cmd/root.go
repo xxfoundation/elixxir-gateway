@@ -13,6 +13,8 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"os"
+	"gitlab.com/privategrity/comms/gateway"
+	"gitlab.com/privategrity/gateway/buffer"
 )
 
 var cfgFile string
@@ -34,6 +36,7 @@ var RootCmd = &cobra.Command{
 		if !validConfig {
 			jww.WARN.Println("Invalid Config File")
 		}
+		gateway.StartGateway("", buffer.GlobalMessageBuffer)
 	},
 }
 
