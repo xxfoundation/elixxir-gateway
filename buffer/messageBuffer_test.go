@@ -12,22 +12,23 @@ import (
 )
 
 func TestMapBuffer(t *testing.T) {
-	GlobalMessageBuffer = newMessageBuffer()
-
+	buffer := MapBuffer{
+		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
+	}
 	msg := pb.CmixMessage{SenderID: uint64(666)}
 	userId := uint64(0)
 	msgId := "msg1"
 
-	GlobalMessageBuffer.AddMessage(userId, msgId, msg)
+	buffer.AddMessage(userId, msgId, &msg)
 
-	otherMsg, ok := GlobalMessageBuffer.GetMessage(userId, msgId)
+	otherMsg, ok := buffer.GetMessage(userId, msgId)
 
 	if msg.SenderID != otherMsg.SenderID || !ok {
 		t.Errorf("GetMessage: Retrieved wrong message!")
 	}
 
-	GlobalMessageBuffer.DeleteMessage(userId, msgId)
-	otherMsg, ok = GlobalMessageBuffer.GetMessage(userId, msgId)
+	buffer.DeleteMessage(userId, msgId)
+	otherMsg, ok = buffer.GetMessage(userId, msgId)
 
 	if ok {
 		t.Errorf("DeleteMessage: Failed to delete message!")
