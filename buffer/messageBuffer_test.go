@@ -19,11 +19,23 @@ func TestMapBuffer(t *testing.T) {
 	userId := uint64(0)
 	msgId := "msg1"
 
+	_, ok  := buffer.CheckMessages(userId)
+
+	if ok {
+		t.Errorf("CheckMessages: Expected no messages!")
+	}
+
 	buffer.AddMessage(userId, msgId, &msg)
 
-	otherMsg, ok := buffer.GetMessage(userId, msgId)
+	msgIds, ok := buffer.CheckMessages(userId)
 
-	if msg.SenderID != otherMsg.SenderID || !ok {
+	if !ok || msgIds[0] != msgId {
+		t.Errorf("CheckMessages: Expected to find a message!")
+	}
+
+	otherMsg, ok := buffer.GetMessage(userId, msgIds[0])
+
+	if !ok || msg.SenderID != otherMsg.SenderID {
 		t.Errorf("GetMessage: Retrieved wrong message!")
 	}
 
