@@ -16,6 +16,7 @@ var GlobalMessageBuffer MessageBuffer = newMessageBuffer()
 // Interface for interacting with the MessageBuffer
 type MessageBuffer interface {
 	GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool)
+	CheckMessages(userId uint64) ([]string, bool)
 }
 
 // MessageBuffer struct with map backend
@@ -44,6 +45,16 @@ func  (m *MapBuffer) AddMessage(userId uint64, msgId string, msg *pb.CmixMessage
 func  (m *MapBuffer) GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool) {
 	msg, ok := m.messageCollection[userId][msgId]
 	return msg, ok
+}
+
+// Return any MessageIDs in the buffer for this UserID
+func  (m *MapBuffer) CheckMessages(userId uint64) ([]string, bool) {
+	userMap, ok := m.messageCollection[userId]
+	msgIds := make([]string, 0, len(userMap))
+	for msgId := range userMap {
+		msgIds = append(msgIds, msgId)
+	}
+	return msgIds, ok
 }
 
 // Deletes a given message from the MessageBuffer
