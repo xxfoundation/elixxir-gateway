@@ -8,7 +8,7 @@
 # Sample Gateway Configuration
 ##
 
- Output log file
+# Output log file
 log: "gateway.log"
 
 # The cMix nodes in the network
