@@ -10,9 +10,6 @@ import (
 	pb "gitlab.com/privategrity/comms/mixmessages"
 )
 
-// Global instance of the in-memory Message Buffer
-var GlobalMessageBuffer MessageBuffer = newMessageBuffer()
-
 // Interface for interacting with the MessageBuffer
 type MessageBuffer interface {
 	GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool)
@@ -32,7 +29,7 @@ func newMessageBuffer() MessageBuffer {
 }
 
 // Adds a message to the MessageBuffer
-func  (m *MapBuffer) AddMessage(userId uint64, msgId string, msg *pb.CmixMessage) {
+func (m *MapBuffer) AddMessage(userId uint64, msgId string, msg *pb.CmixMessage) {
 	if len(m.messageCollection[userId]) == 0 {
 		// If the User->Message map hasn't been initialized, initialize it
 		m.messageCollection[userId] = make(map[string]*pb.CmixMessage)
@@ -42,13 +39,13 @@ func  (m *MapBuffer) AddMessage(userId uint64, msgId string, msg *pb.CmixMessage
 
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
-func  (m *MapBuffer) GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool) {
+func (m *MapBuffer) GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool) {
 	msg, ok := m.messageCollection[userId][msgId]
 	return msg, ok
 }
 
 // Return any MessageIDs in the buffer for this UserID
-func  (m *MapBuffer) CheckMessages(userId uint64) ([]string, bool) {
+func (m *MapBuffer) CheckMessages(userId uint64) ([]string, bool) {
 	userMap, ok := m.messageCollection[userId]
 	msgIds := make([]string, 0, len(userMap))
 	for msgId := range userMap {
@@ -58,6 +55,6 @@ func  (m *MapBuffer) CheckMessages(userId uint64) ([]string, bool) {
 }
 
 // Deletes a given message from the MessageBuffer
-func  (m *MapBuffer) DeleteMessage(userId uint64, msgId string) {
+func (m *MapBuffer) DeleteMessage(userId uint64, msgId string) {
 	delete(m.messageCollection[userId], msgId)
 }
