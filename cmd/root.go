@@ -72,34 +72,26 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	//Use default config location if none is passed
-	if cfgFile == "" {
-		// Find home directory.
-		home, err := homedir.Dir()
-		if err != nil {
-			jww.WARN.Println(err)
+	// Default search paths
+	searchDirs := []string{}
+	searchDirs = append(searchDirs, "./") // $PWD
+	// $HOME
+	home, _ := homedir.Dir()
+	searchDirs = append(searchDirs, home+"/.privategrity/")
+	// /etc/privategrity
+	searchDirs = append(searchDirs, "/etc/privategrity")
+	jww.DEBUG.Println("Configuration search directories: %v", searchDirs)
+
+	validConfig = false
+	for i := range searchDirs {
+		cfgFile := searchDirs[i] + "gateway.yaml"
+		_, err := os.Stat(cfgFile)
+		if !os.IsNotExist(err) {
+			validConfig = true
+			viper.SetConfigFile(cfgFile)
+			break
 		}
-
-		cfgFile = home + "/.privategrity/gateway.yaml"
-
 	}
-
-	f, err := os.Open(cfgFile)
-
-	_, err = f.Stat()
-
-	validConfig = true
-
-	if err != nil {
-		jww.WARN.Printf("Invalid config file (%s): %s", cfgFile,
-			err.Error())
-		validConfig = false
-	}
-
-	f.Close()
-
-	viper.SetConfigFile(cfgFile)
-
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
