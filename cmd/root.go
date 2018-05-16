@@ -12,9 +12,9 @@ import (
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	"os"
 	"gitlab.com/privategrity/comms/gateway"
 	"gitlab.com/privategrity/gateway/buffer"
+	"os"
 )
 
 var cfgFile string
@@ -36,7 +36,13 @@ var RootCmd = &cobra.Command{
 		if !validConfig {
 			jww.WARN.Println("Invalid Config File")
 		}
-		gateway.StartGateway("", buffer.GlobalMessageBuffer)
+
+		address := viper.GetString("GatewayAddress")
+		buffer.CMIX_NODES = viper.GetStringSlice("cMixNodes")
+		buffer.GATEWAY_NODE = buffer.CMIX_NODES[viper.GetInt("GatewayAddress")]
+		buffer.BATCH_SIZE = uint64(viper.GetInt("batchSize"))
+
+		gateway.StartGateway(address, buffer.GlobalMessageBuffer)
 	},
 }
 
@@ -72,34 +78,26 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	//Use default config location if none is passed
-	if cfgFile == "" {
-		// Find home directory.
-		home, err := homedir.Dir()
-		if err != nil {
-			jww.WARN.Println(err)
+	// Default search paths
+	searchDirs := []string{}
+	searchDirs = append(searchDirs, "./") // $PWD
+	// $HOME
+	home, _ := homedir.Dir()
+	searchDirs = append(searchDirs, home+"/.privategrity/")
+	// /etc/privategrity
+	searchDirs = append(searchDirs, "/etc/privategrity")
+	jww.DEBUG.Println("Configuration search directories: %v", searchDirs)
+
+	validConfig = false
+	for i := range searchDirs {
+		cfgFile := searchDirs[i] + "gateway.yaml"
+		_, err := os.Stat(cfgFile)
+		if !os.IsNotExist(err) {
+			validConfig = true
+			viper.SetConfigFile(cfgFile)
+			break
 		}
-
-		cfgFile = home + "/.privategrity/gateway.yaml"
-
 	}
-
-	f, err := os.Open(cfgFile)
-
-	_, err = f.Stat()
-
-	validConfig = true
-
-	if err != nil {
-		jww.WARN.Printf("Invalid config file (%s): %s", cfgFile,
-			err.Error())
-		validConfig = false
-	}
-
-	f.Close()
-
-	viper.SetConfigFile(cfgFile)
-
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
@@ -112,7 +110,7 @@ func initConfig() {
 
 // initLog initializes logging thresholds and the log path.
 func initLog() {
-	if viper.Get("logPath") != nil {
+	if viper.Get("log") != nil {
 		// If verbose flag set then log more info for debugging
 		if verbose || viper.GetBool("verbose") {
 			jww.SetLogThreshold(jww.LevelDebug)
@@ -122,7 +120,7 @@ func initLog() {
 			jww.SetStdoutThreshold(jww.LevelInfo)
 		}
 		// Create log file, overwrites if existing
-		logPath := viper.GetString("logPath")
+		logPath := viper.GetString("log")
 		logFile, err := os.Create(logPath)
 		if err != nil {
 			jww.WARN.Println("Invalid or missing log path, default path used.")

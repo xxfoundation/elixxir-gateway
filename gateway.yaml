@@ -1,0 +1,29 @@
+################################################################################
+## Copyright © 2018 Privategrity Corporation                                   #
+##                                                                             #
+## All rights reserved.                                                        #
+################################################################################
+
+##
+# Sample Gateway Configuration
+##
+
+# Output log file
+log: "gateway.log"
+
+# The cMix nodes in the network
+cMixNodes:
+ - "localhost:11420"
+# The index to which this Gateway is attached in the cMixNodes list
+GatewayNodeIndex: 0
+
+# The listening address of this gateway
+GatewayAddress: "localhost:8443"
+
+
+### Anything below this line is to be deprecated ###
+
+# Number of nodes in the cMix Network
+
+# Batch size of the cMix Network (to be deprecated)
+batchSize: 1
