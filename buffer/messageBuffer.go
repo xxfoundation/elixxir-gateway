@@ -10,6 +10,8 @@ import (
 	"gitlab.com/privategrity/comms/gateway"
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"sync"
+	"Rogue_cMix/Crypto/hash"
+	"encoding/base64"
 )
 
 // Interface for interacting with the MessageBuffer
@@ -99,13 +101,15 @@ func (m *MapBuffer) DeleteMessage(userId uint64, msgId string) {
 // ReceiveBatch adds a message to the outgoing queue and
 // calls SendBatch when it's size is the batch size
 func (m *MapBuffer) ReceiveBatch(msg *pb.OutputMessages) bool {
-	m.mux.Lock()
-	m.outgoingMessages = append(m.outgoingMessages, msg)
-	if uint64(len(m.outgoingMessages)) == BATCH_SIZE {
-		gateway.SendBatch(GATEWAY_NODE, m.outgoingMessages)
-		m.outgoingMessages = make([]*pb.CmixMessage, 0)
-	}
-	m.mux.Unlock()
-	return true
+	msgs := msg.Messages
+	h, _ := hash.NewCMixHash()
 
+	for i :=range  msgs {
+		userId := msgs[i].SenderID
+		h.Write(msgs[i].MessagePayload)
+		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
+		m.AddMessage(userId, msgId, msgs[i])
+		h.Reset()
+	}
+	return true
 }

@@ -40,6 +40,9 @@ func (m TestInterface) PutMessage(message *pb.CmixMessage) bool {
 	return true
 }
 
+func (m TestInterface) ReceiveBatch(message *pb.OutputMessages) {
+}
+
 func TestMapBuffer(t *testing.T) {
 	buffer := MapBuffer{
 		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
