@@ -95,3 +95,17 @@ func (m *MapBuffer) DeleteMessage(userId uint64, msgId string) {
 	delete(m.messageCollection[userId], msgId)
 	m.mux.Unlock()
 }
+
+// ReceiveBatch adds a message to the outgoing queue and
+// calls SendBatch when it's size is the batch size
+func (m *MapBuffer) ReceiveBatch(msg *pb.OutputMessages) bool {
+	m.mux.Lock()
+	m.outgoingMessages = append(m.outgoingMessages, msg)
+	if uint64(len(m.outgoingMessages)) == BATCH_SIZE {
+		gateway.SendBatch(GATEWAY_NODE, m.outgoingMessages)
+		m.outgoingMessages = make([]*pb.CmixMessage, 0)
+	}
+	m.mux.Unlock()
+	return true
+
+}
