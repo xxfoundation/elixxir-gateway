@@ -4,6 +4,10 @@ import:
   version: master
   repo: git@gitlab.com:privategrity/comms
   vcs: git
+- package: gitlab.com/privategrity/crypto
+  version: master
+  repo: git@gitlab.com:privategrity/crypto
+  vcs: git
 - package: github.com/spf13/cobra
   version: ^0.0.1
   subpackages:
