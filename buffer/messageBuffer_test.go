@@ -82,4 +82,15 @@ func TestMapBuffer(t *testing.T) {
 	if ok {
 		t.Errorf("DeleteMessage: Failed to delete message!")
 	}
+
+	testMsg := []*pb.CmixMessage{{SenderID: uint64(555), MessagePayload:[]byte("h"), RecipientID:[]byte("h")},
+		{SenderID: uint64(666), MessagePayload:[]byte("h"), RecipientID:[]byte("h")},}
+
+	outputMessage := pb.OutputMessages{Messages: testMsg}
+
+	y := buffer.ReceiveBatch(&outputMessage)
+
+	if !y{
+		t.Errorf("ReceiveBatch: Failed!")
+	}
 }
