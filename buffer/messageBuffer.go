@@ -22,6 +22,8 @@ type MessageBuffer interface {
 	GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool)
 	CheckMessages(userId uint64) ([]string, bool)
 	PutMessage(*pb.CmixMessage) bool
+	ReceiveBatch(*pb.OutputMessages) bool
+
 }
 
 // MessageBuffer struct with map backend
