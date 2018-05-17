@@ -10,7 +10,7 @@ import (
 	"gitlab.com/privategrity/comms/gateway"
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"sync"
-	"Rogue_cMix/Crypto/hash"
+	"gitlab.com/privategrity/crypto/hash"
 	"encoding/base64"
 )
 
