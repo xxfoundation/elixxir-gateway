@@ -22,8 +22,7 @@ type MessageBuffer interface {
 	GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool)
 	CheckMessages(userId uint64) ([]string, bool)
 	PutMessage(*pb.CmixMessage) bool
-	ReceiveBatch(*pb.OutputMessages) bool
-
+	ReceiveBatch(messages *pb.OutputMessages)
 }
 
 // MessageBuffer struct with map backend
@@ -102,7 +101,7 @@ func (m *MapBuffer) DeleteMessage(userId uint64, msgId string) {
 
 // ReceiveBatch adds a message to the outgoing queue and
 // calls SendBatch when it's size is the batch size
-func (m *MapBuffer) ReceiveBatch(msg *pb.OutputMessages) bool {
+func (m *MapBuffer) ReceiveBatch(msg *pb.OutputMessages) {
 	msgs := msg.Messages
 	h, _ := hash.NewCMixHash()
 
@@ -113,5 +112,4 @@ func (m *MapBuffer) ReceiveBatch(msg *pb.OutputMessages) bool {
 		m.AddMessage(userId, msgId, msgs[i])
 		h.Reset()
 	}
-	return true
 }

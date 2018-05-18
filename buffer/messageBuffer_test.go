@@ -88,9 +88,11 @@ func TestMapBuffer(t *testing.T) {
 
 	outputMessage := pb.OutputMessages{Messages: testMsg}
 
-	y := buffer.ReceiveBatch(&outputMessage)
+	buffer.ReceiveBatch(&outputMessage)
 
-	if !y{
-		t.Errorf("ReceiveBatch: Failed!")
+	_, ok2 := buffer.messageCollection[555]
+
+	if !ok2{
+		t.Errorf("ReceiveBatch: Could not receive batch")
 	}
 }
