@@ -10,6 +10,8 @@ import (
 	"gitlab.com/privategrity/comms/gateway"
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"sync"
+	"gitlab.com/privategrity/crypto/hash"
+	"encoding/base64"
 )
 
 // Interface for interacting with the MessageBuffer
@@ -20,6 +22,7 @@ type MessageBuffer interface {
 	GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool)
 	CheckMessages(userId uint64) ([]string, bool)
 	PutMessage(*pb.CmixMessage) bool
+	ReceiveBatch(messages *pb.OutputMessages)
 }
 
 // MessageBuffer struct with map backend
@@ -94,4 +97,19 @@ func (m *MapBuffer) DeleteMessage(userId uint64, msgId string) {
 	m.mux.Lock()
 	delete(m.messageCollection[userId], msgId)
 	m.mux.Unlock()
+}
+
+// ReceiveBatch adds a message to the outgoing queue and
+// calls SendBatch when it's size is the batch size
+func (m *MapBuffer) ReceiveBatch(msg *pb.OutputMessages) {
+	msgs := msg.Messages
+	h, _ := hash.NewCMixHash()
+
+	for i :=range  msgs {
+		userId := msgs[i].SenderID
+		h.Write(msgs[i].MessagePayload)
+		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
+		m.AddMessage(userId, msgId, msgs[i])
+		h.Reset()
+	}
 }

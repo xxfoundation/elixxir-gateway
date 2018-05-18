@@ -40,6 +40,9 @@ func (m TestInterface) PutMessage(message *pb.CmixMessage) bool {
 	return true
 }
 
+func (m TestInterface) ReceiveBatch(message *pb.OutputMessages) {
+}
+
 func TestMapBuffer(t *testing.T) {
 	buffer := MapBuffer{
 		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
@@ -78,5 +81,18 @@ func TestMapBuffer(t *testing.T) {
 
 	if ok {
 		t.Errorf("DeleteMessage: Failed to delete message!")
+	}
+
+	testMsg := []*pb.CmixMessage{{SenderID: uint64(555), MessagePayload:[]byte("h"), RecipientID:[]byte("h")},
+		{SenderID: uint64(666), MessagePayload:[]byte("h"), RecipientID:[]byte("h")},}
+
+	outputMessage := pb.OutputMessages{Messages: testMsg}
+
+	buffer.ReceiveBatch(&outputMessage)
+
+	_, ok2 := buffer.messageCollection[555]
+
+	if !ok2{
+		t.Errorf("ReceiveBatch: Could not receive batch")
 	}
 }
