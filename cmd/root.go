@@ -13,7 +13,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/privategrity/comms/gateway"
-	"gitlab.com/privategrity/gateway/buffer"
 	"os"
 )
 
@@ -24,8 +23,8 @@ var validConfig bool
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "gateway",
-	Short: "Runs a cMix gateway",
+	Use:   "globals",
+	Short: "Runs a cMix globals",
 	Long:  `The cMix gateways coordinate communications between servers and clients`,
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -38,11 +37,12 @@ var RootCmd = &cobra.Command{
 		}
 
 		address := viper.GetString("GatewayAddress")
-		buffer.CMIX_NODES = viper.GetStringSlice("cMixNodes")
-		buffer.GATEWAY_NODE = buffer.CMIX_NODES[viper.GetInt("GatewayAddress")]
-		buffer.BATCH_SIZE = uint64(viper.GetInt("batchSize"))
+		cmixNodes := viper.GetStringSlice("cMixNodes")
+		gatewayNode := cmixNodes[viper.GetInt("GatewayAddress")]
+		batchSize := uint64(viper.GetInt("batchSize"))
 
-		gateway.StartGateway(address, buffer.GlobalMessageBuffer)
+		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
+		gateway.StartGateway(address, gatewayImpl)
 	},
 }
 
@@ -69,17 +69,20 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.Flags().StringVarP(&cfgFile, "config", "", "",
-		"config file (default is $HOME/.privategrity/gateway.yaml)")
+		"config file (default is $HOME/.privategrity/globals.yaml)")
 	RootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
 		"Verbose mode for debugging")
 	RootCmd.Flags().BoolVarP(&showVer, "version", "V", false,
-		"Show the gateway version information.")
+		"Show the globals version information.")
+
+	// Set the default message timeout
+	viper.SetDefault("MessageTimeout", 60)
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	// Default search paths
-	searchDirs := []string{}
+	var searchDirs []string
 	searchDirs = append(searchDirs, "./") // $PWD
 	// $HOME
 	home, _ := homedir.Dir()
@@ -90,7 +93,7 @@ func initConfig() {
 
 	validConfig = false
 	for i := range searchDirs {
-		cfgFile := searchDirs[i] + "gateway.yaml"
+		cfgFile := searchDirs[i] + "globals.yaml"
 		_, err := os.Stat(cfgFile)
 		if !os.IsNotExist(err) {
 			validConfig = true
