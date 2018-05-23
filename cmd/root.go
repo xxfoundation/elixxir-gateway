@@ -13,7 +13,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/privategrity/comms/gateway"
-	"gitlab.com/privategrity/gateway/buffer"
 	"os"
 )
 
@@ -38,11 +37,12 @@ var RootCmd = &cobra.Command{
 		}
 
 		address := viper.GetString("GatewayAddress")
-		buffer.CMIX_NODES = viper.GetStringSlice("cMixNodes")
-		buffer.GATEWAY_NODE = buffer.CMIX_NODES[viper.GetInt("GatewayAddress")]
-		buffer.BATCH_SIZE = uint64(viper.GetInt("batchSize"))
+		cmixNodes := viper.GetStringSlice("cMixNodes")
+		gatewayNode := cmixNodes[viper.GetInt("GatewayAddress")]
+		batchSize := uint64(viper.GetInt("batchSize"))
 
-		gateway.StartGateway(address, buffer.GlobalMessageBuffer)
+		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
+		gateway.StartGateway(address, gatewayImpl)
 	},
 }
 
@@ -74,12 +74,15 @@ func init() {
 		"Verbose mode for debugging")
 	RootCmd.Flags().BoolVarP(&showVer, "version", "V", false,
 		"Show the gateway version information.")
+
+	// Set the default message timeout
+	viper.SetDefault("MessageTimeout", 60)
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	// Default search paths
-	searchDirs := []string{}
+	var searchDirs []string
 	searchDirs = append(searchDirs, "./") // $PWD
 	// $HOME
 	home, _ := homedir.Dir()

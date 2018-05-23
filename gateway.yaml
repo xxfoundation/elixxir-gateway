@@ -20,6 +20,9 @@ GatewayNodeIndex: 0
 # The listening address of this gateway
 GatewayAddress: "localhost:8443"
 
+# The number of seconds a message should remain in the globals before being
+# deleted from the user's message queue
+MessageTimeout: 60
 
 ### Anything below this line is to be deprecated ###
 
