@@ -23,8 +23,8 @@ var validConfig bool
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "globals",
-	Short: "Runs a cMix globals",
+	Use:   "gateway",
+	Short: "Runs a cMix gateway",
 	Long:  `The cMix gateways coordinate communications between servers and clients`,
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -69,11 +69,11 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.Flags().StringVarP(&cfgFile, "config", "", "",
-		"config file (default is $HOME/.privategrity/globals.yaml)")
+		"config file (default is $HOME/.privategrity/gateway.yaml)")
 	RootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
 		"Verbose mode for debugging")
 	RootCmd.Flags().BoolVarP(&showVer, "version", "V", false,
-		"Show the globals version information.")
+		"Show the gateway version information.")
 
 	// Set the default message timeout
 	viper.SetDefault("MessageTimeout", 60)
@@ -93,7 +93,7 @@ func initConfig() {
 
 	validConfig = false
 	for i := range searchDirs {
-		cfgFile := searchDirs[i] + "globals.yaml"
+		cfgFile := searchDirs[i] + "gateway.yaml"
 		_, err := os.Stat(cfgFile)
 		if !os.IsNotExist(err) {
 			validConfig = true
