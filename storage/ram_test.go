@@ -10,6 +10,7 @@ import (
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"os"
 	"testing"
+	"time"
 )
 
 var messageBuf *MapBuffer
@@ -20,6 +21,32 @@ func TestMain(m *testing.M) {
 		outgoingMessages:  make([]*pb.CmixMessage, 0),
 	}
 	os.Exit(m.Run())
+}
+
+func TestMapBuffer_StartMessageCleanup(t *testing.T) {
+	userId := uint64(520)
+	// Use a separate buffer to not interfere with other tests
+	cleanupBuf := &MapBuffer{
+		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
+		outgoingMessages:  make([]*pb.CmixMessage, 0),
+	}
+
+	// Add a few messages to the buffer
+	cleanupBuf.messageCollection[userId] = make(map[string]*pb.CmixMessage)
+	for i := 0; i < 5; i++ {
+		cleanupBuf.messageCollection[userId][string(i)] = &pb.CmixMessage{}
+	}
+
+	// Start the cleanup
+	go cleanupBuf.StartMessageCleanup(1)
+	time.Sleep(2 * time.Second)
+
+	// Make sure the messages no longer exist after
+	numMsgs := len(cleanupBuf.messageCollection[userId])
+	if numMsgs > 0 {
+		t.Errorf("StartMessageCleanup: Expected all messages to be cleared, "+
+			"%d messages still in buffer!", numMsgs)
+	}
 }
 
 func TestMapBuffer_GetMessage(t *testing.T) {

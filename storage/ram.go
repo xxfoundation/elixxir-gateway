@@ -7,23 +7,63 @@
 package storage
 
 import (
+	"github.com/spf13/viper"
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"sync"
+	"time"
 )
 
 // MessageBuffer struct with map backend
 type MapBuffer struct {
 	messageCollection map[uint64]map[string]*pb.CmixMessage
 	outgoingMessages  []*pb.CmixMessage
+	messagesToDelete  []*MessageKey
 	mux               sync.Mutex
+}
+
+// For storing userId and msgId key pairs in the message deletion queue
+type MessageKey struct {
+	userId uint64
+	msgId  string
 }
 
 // Initialize a MessageBuffer interface
 func NewMessageBuffer() MessageBuffer {
-	return MessageBuffer(&MapBuffer{
+	// Build the Message Buffer
+	buffer := MessageBuffer(&MapBuffer{
 		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
 		outgoingMessages:  make([]*pb.CmixMessage, 0),
+		messagesToDelete:  make([]*MessageKey, 0),
 	})
+	// Start the message cleanup loop with configured message timeout
+	go buffer.StartMessageCleanup(viper.GetInt("MessageTimeout"))
+	return buffer
+}
+
+// Clear all messages from the internal MessageBuffer after the given
+// message timeout. Intended to be ran in a separate thread.
+func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
+	for {
+		// Delete all messages already marked for deletion
+		for _, msgKey := range m.messagesToDelete {
+			m.DeleteMessage(msgKey.userId, msgKey.msgId)
+		}
+		// Clear the newly deleted messages from the deletion queue
+		m.messagesToDelete = nil
+		// Traverse the nested map structure and flag
+		// all messages for the next round of deletion
+		for userId, msgMap := range m.messageCollection {
+			for msgId := range msgMap {
+				m.messagesToDelete = append(m.messagesToDelete,
+					&MessageKey{
+						userId: userId,
+						msgId:  msgId,
+					})
+			}
+		}
+		// Sleep for the given message timeout
+		time.Sleep(time.Duration(msgTimeout) * time.Second)
+	}
 }
 
 // Returns message contents for MessageID, or a null/randomized message
