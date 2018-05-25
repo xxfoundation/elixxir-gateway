@@ -89,7 +89,7 @@ func initConfig() {
 	searchDirs = append(searchDirs, home+"/.privategrity/")
 	// /etc/privategrity
 	searchDirs = append(searchDirs, "/etc/privategrity")
-	jww.DEBUG.Println("Configuration search directories: %v", searchDirs)
+	jww.DEBUG.Printf("Configuration search directories: %v", searchDirs)
 
 	validConfig = false
 	for i := range searchDirs {
