@@ -21,7 +21,7 @@ type GatewayHandler interface {
 	GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool)
 	// Upload a message to the cMix Gateway
 	PutMessage(*pb.CmixMessage) bool
-	//
+	// Receives batch from server and stores it in the local MessageBuffer
 	ReceiveBatch(messages *pb.OutputMessages)
 }
 
@@ -59,8 +59,7 @@ func (m *GatewayImpl) CheckMessages(userId uint64) ([]string, bool) {
 	return m.buffer.GetMessageIDs(userId)
 }
 
-// ReceiveBatch adds a message to the outgoing queue and
-// calls SendBatch when it's size is the batch size
+// Receives batch from server and stores it in the local MessageBuffer
 func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 	msgs := msg.Messages
 	h, _ := hash.NewCMixHash()

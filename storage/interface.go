@@ -12,6 +12,7 @@ import (
 
 // Interface for interacting with the MessageBuffer (in prep for a db impl)
 type MessageBuffer interface {
+	StartMessageCleanup(msgTimeout int)
 	GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool)
 	GetMessageIDs(userId uint64) ([]string, bool)
 	DeleteMessage(userId uint64, msgId string)
