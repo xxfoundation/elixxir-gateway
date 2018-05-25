@@ -21,6 +21,7 @@ type MapBuffer struct {
 	mux               sync.Mutex
 }
 
+// For storing userId and msgId key pairs in the message deletion queue
 type MessageKey struct {
 	userId uint64
 	msgId  string
