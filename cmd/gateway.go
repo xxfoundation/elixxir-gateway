@@ -25,10 +25,10 @@ type GatewayImpl struct {
 	batchSize uint64
 }
 
-// Initialize a GatewayHandler interface
+// NewGatewayImpl initializes a gateway Handler interface
 func NewGatewayImpl(batchSize uint64, cmixNodes []string,
-	gatewayNode string) GatewayHandler {
-	return GatewayHandler(&GatewayImpl{
+	gatewayNode string) gateway.Handler {
+	return gateway.Handler(&GatewayImpl{
 		buffer:      storage.NewMessageBuffer(),
 		batchSize:   batchSize,
 		gatewayNode: gatewayNode,
@@ -38,14 +38,15 @@ func NewGatewayImpl(batchSize uint64, cmixNodes []string,
 
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
-func (m *GatewayImpl) GetMessage(userId uint64, msgId string) (*pb.CmixMessage,
+func (m *GatewayImpl) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
 	bool) {
-	return m.buffer.GetMessage(userId, msgId)
+	return m.buffer.GetMessage(userID, msgID)
 }
 
 // Return any MessageIDs in the globals for this UserID
-func (m *GatewayImpl) CheckMessages(userId uint64) ([]string, bool) {
-	return m.buffer.GetMessageIDs(userId)
+func (m *GatewayImpl) CheckMessages(userID uint64, messageID string) (
+	[]string, bool) {
+	return m.buffer.GetMessageIDs(userID, messageID)
 }
 
 // Receives batch from server and stores it in the local MessageBuffer
