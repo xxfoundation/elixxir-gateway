@@ -8,6 +8,7 @@ package cmd
 
 import (
 	"encoding/base64"
+	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/privategrity/comms/gateway"
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"gitlab.com/privategrity/crypto/hash"
@@ -51,6 +52,7 @@ func (m *GatewayImpl) CheckMessages(userID uint64, messageID string) (
 
 // Receives batch from server and stores it in the local MessageBuffer
 func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
+	jww.INFO.Println("Received batch from server")
 	msgs := msg.Messages
 	h, _ := hash.NewCMixHash()
 
@@ -66,6 +68,7 @@ func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 // PutMessage adds a message to the outgoing queue and
 // calls SendBatch when it's size is the batch size
 func (m *GatewayImpl) PutMessage(msg *pb.CmixMessage) bool {
+	jww.INFO.Println("Putting message on outgoing queue")
 	m.buffer.AddOutgoingMessage(msg)
 	batch := m.buffer.PopOutgoingBatch(m.batchSize)
 	if batch != nil {

@@ -38,7 +38,8 @@ var RootCmd = &cobra.Command{
 
 		address := viper.GetString("GatewayAddress")
 		cmixNodes := viper.GetStringSlice("cMixNodes")
-		gatewayNode := cmixNodes[viper.GetInt("GatewayAddress")]
+		gatewayNode := cmixNodes[viper.GetInt("GatewayNodeIndex")]
+		jww.INFO.Println("Gateway node: " + gatewayNode)
 		batchSize := uint64(viper.GetInt("batchSize"))
 
 		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
