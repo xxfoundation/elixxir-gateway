@@ -9,13 +9,14 @@ package cmd
 import (
 	"gitlab.com/privategrity/comms/gateway"
 	pb "gitlab.com/privategrity/comms/mixmessages"
+	"gitlab.com/privategrity/gateway/storage"
 	"os"
 	"testing"
-	"gitlab.com/privategrity/gateway/storage"
 )
 
 const GW_ADDRESS = "localhost:5555"
-var gatewayInterface GatewayHandler
+
+var gatewayInterface gateway.Handler
 
 // This sets up a dummy/mock globals instance for testing purposes
 func TestMain(m *testing.M) {
@@ -41,7 +42,7 @@ func TestGatewayImpl(t *testing.T) {
 		t.Errorf("PutMessage: Could not put any messages!")
 	}
 
-	_, ok = gatewayInterface.CheckMessages(userId)
+	_, ok = gatewayInterface.CheckMessages(userId, "")
 
 	if ok {
 		t.Errorf("CheckMessages: Expected no messages!")
