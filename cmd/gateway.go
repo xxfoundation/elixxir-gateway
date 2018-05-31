@@ -14,17 +14,6 @@ import (
 	"gitlab.com/privategrity/gateway/storage"
 )
 
-type GatewayHandler interface {
-	// Return any MessageIDs in the buffer for this UserID
-	CheckMessages(userId uint64) ([]string, bool)
-	// Returns the message matching the given parameters to the client
-	GetMessage(userId uint64, msgId string) (*pb.CmixMessage, bool)
-	// Upload a message to the cMix Gateway
-	PutMessage(*pb.CmixMessage) bool
-	// Receives batch from server and stores it in the local MessageBuffer
-	ReceiveBatch(messages *pb.OutputMessages)
-}
-
 type GatewayImpl struct {
 	// Storage buffer for inbound/outbound messages
 	buffer storage.MessageBuffer
