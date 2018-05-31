@@ -109,7 +109,7 @@ func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
 
 	// Delete this ID from the messageIDs slice
 	msgIDs, _ := m.messageIDs[userID]
-	newMsgIDs := make([]string, 0, len(msgIDs)-1)
+	newMsgIDs := make([]string, 0)
 	for i := range msgIDs {
 		if msgIDs[i] == msgID {
 			continue
@@ -121,7 +121,7 @@ func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
 	m.mux.Unlock()
 }
 
-// Adds a message to the MessageBuffer
+// AddMessage adds a message to the buffer for a specific user
 func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 	msg *pb.CmixMessage) {
 	m.mux.Lock()
@@ -135,14 +135,14 @@ func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 	m.mux.Unlock()
 }
 
-//
+// AddOutGoingMessage adds a message to send to the cMix node
 func (m *MapBuffer) AddOutgoingMessage(msg *pb.CmixMessage) {
 	m.mux.Lock()
 	m.outgoingMessages = append(m.outgoingMessages, msg)
 	m.mux.Unlock()
 }
 
-//
+// PopOutgoingBatch sends a batch of messages to the cMix node
 func (m *MapBuffer) PopOutgoingBatch(batchSize uint64) []*pb.CmixMessage {
 	if uint64(len(m.outgoingMessages)) < batchSize {
 		return nil

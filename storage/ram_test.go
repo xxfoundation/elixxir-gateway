@@ -18,6 +18,7 @@ var messageBuf *MapBuffer
 func TestMain(m *testing.M) {
 	messageBuf = &MapBuffer{
 		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
+		messageIDs:        make(map[uint64][]string),
 		outgoingMessages:  make([]*pb.CmixMessage, 0),
 	}
 	os.Exit(m.Run())
@@ -28,13 +29,17 @@ func TestMapBuffer_StartMessageCleanup(t *testing.T) {
 	// Use a separate buffer to not interfere with other tests
 	cleanupBuf := &MapBuffer{
 		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
+		messageIDs:        make(map[uint64][]string),
 		outgoingMessages:  make([]*pb.CmixMessage, 0),
 	}
 
 	// Add a few messages to the buffer
 	cleanupBuf.messageCollection[userId] = make(map[string]*pb.CmixMessage)
+	cleanupBuf.messageIDs[userId] = make([]string, 0)
 	for i := 0; i < 5; i++ {
-		cleanupBuf.messageCollection[userId][string(i)] = &pb.CmixMessage{}
+		id := string(i)
+		cleanupBuf.messageCollection[userId][id] = &pb.CmixMessage{}
+		cleanupBuf.messageIDs[userId] = append(cleanupBuf.messageIDs[userId], id)
 	}
 
 	// Start the cleanup
@@ -65,9 +70,15 @@ func TestMapBuffer_GetMessageIDs(t *testing.T) {
 	msgId := "msg1"
 	messageBuf.messageCollection[userId] = make(map[string]*pb.CmixMessage)
 	messageBuf.messageCollection[userId][msgId] = &pb.CmixMessage{SenderID: userId}
-	msgIds, ok := messageBuf.GetMessageIDs(userId)
+	messageBuf.messageIDs[userId] = make([]string, 1)
+	messageBuf.messageIDs[userId][0] = msgId
+	msgIds, ok := messageBuf.GetMessageIDs(userId, "")
 	if len(msgIds) < 1 || !ok {
 		t.Errorf("GetMessageIDs: Unable to get any message IDs!")
+	}
+	msgIds, ok = messageBuf.GetMessageIDs(userId, "msg1")
+	if len(msgIds) != 0 || !ok {
+		t.Errorf("GetMessageIDs: Could not get message IDs after 'msg1'")
 	}
 }
 
@@ -75,6 +86,8 @@ func TestMapBuffer_DeleteMessage(t *testing.T) {
 	userId := uint64(555)
 	msgId := "msg1"
 	messageBuf.messageCollection[userId] = make(map[string]*pb.CmixMessage)
+	messageBuf.messageIDs[userId] = make([]string, 0)
+	messageBuf.messageIDs[userId] = append(messageBuf.messageIDs[userId], "msgId")
 	messageBuf.messageCollection[userId][msgId] = &pb.CmixMessage{SenderID: userId}
 	messageBuf.DeleteMessage(userId, msgId)
 	_, ok := messageBuf.messageCollection[userId][msgId]
