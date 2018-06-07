@@ -44,6 +44,9 @@ var RootCmd = &cobra.Command{
 
 		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
 		gateway.StartGateway(address, gatewayImpl)
+
+		// Wait forever
+		select {}
 	},
 }
 
