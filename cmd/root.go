@@ -43,7 +43,7 @@ var RootCmd = &cobra.Command{
 		batchSize := uint64(viper.GetInt("batchSize"))
 
 		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
-		gateway.StartGateway(address, gatewayImpl)
+		go gateway.StartGateway(address, gatewayImpl)
 
 		// Wait forever
 		select {}
