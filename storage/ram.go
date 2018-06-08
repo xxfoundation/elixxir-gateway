@@ -73,7 +73,6 @@ func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
 // if that ID does not exist of the same size as a regular message
 func (m *MapBuffer) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
 	bool) {
-	jww.INFO.Printf("Getting actual message %v for user %v", msgID, userID)
 	m.mux.Lock()
 	msg, ok := m.messageCollection[userID][msgID]
 	m.mux.Unlock()
@@ -83,7 +82,6 @@ func (m *MapBuffer) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
 // Return any MessageIDs in the globals for this UserID
 func (m *MapBuffer) GetMessageIDs(userID uint64, messageID string) (
 	[]string, bool) {
-	jww.INFO.Printf("Getting message IDs for user %v after message %v", userID, messageID)
 	m.mux.Lock()
 	msgIDs, ok := m.messageIDs[userID]
 	m.mux.Unlock()
