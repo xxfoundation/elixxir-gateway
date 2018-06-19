@@ -125,7 +125,7 @@ func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
 // AddMessage adds a message to the buffer for a specific user
 func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 	msg *pb.CmixMessage) {
-	jww.INFO.Printf("Adding message %v from user %v to buffer.", msgID, userID)
+	jww.DEBUG.Printf("Adding message %v from user %v to buffer.", msgID, userID)
 	m.mux.Lock()
 	if len(m.messageCollection[userID]) == 0 {
 		// If the User->Message map hasn't been initialized, initialize it
