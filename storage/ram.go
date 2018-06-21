@@ -146,10 +146,10 @@ func (m *MapBuffer) AddOutgoingMessage(msg *pb.CmixMessage) {
 
 // PopOutgoingBatch sends a batch of messages to the cMix node
 func (m *MapBuffer) PopOutgoingBatch(batchSize uint64) []*pb.CmixMessage {
+	m.mux.Lock()
 	if uint64(len(m.outgoingMessages)) < batchSize {
 		return nil
 	}
-	m.mux.Lock()
 	outgoingBatch := m.outgoingMessages[:batchSize]
 	// If there are more outgoing messages than the batchSize
 	if uint64(len(m.outgoingMessages)) > batchSize {
