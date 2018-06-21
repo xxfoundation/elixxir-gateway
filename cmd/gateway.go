@@ -65,6 +65,7 @@ func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 		m.buffer.AddMessage(userId, msgId, msgs[i])
 		h.Reset()
 	}
+	go PrintProfilingStatistics()
 }
 
 // PutMessage adds a message to the outgoing queue and
