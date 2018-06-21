@@ -148,6 +148,7 @@ func (m *MapBuffer) AddOutgoingMessage(msg *pb.CmixMessage) {
 func (m *MapBuffer) PopOutgoingBatch(batchSize uint64) []*pb.CmixMessage {
 	m.mux.Lock()
 	if uint64(len(m.outgoingMessages)) < batchSize {
+		m.mux.Unlock()
 		return nil
 	}
 	outgoingBatch := m.outgoingMessages[:batchSize]
