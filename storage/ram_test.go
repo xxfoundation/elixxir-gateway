@@ -124,3 +124,37 @@ func TestMapBuffer_PopOutgoingBatch(t *testing.T) {
 		t.Errorf("PopOutgoingBatch: Batch was not popped correctly!")
 	}
 }
+
+func TestMapBuffer_ExceedUserMsgsLimit(t *testing.T) {
+	userId := uint64(10)
+	msgIDFmt := "msg1"
+
+	deleteme := messageBuf.messageIDs[userId]
+	for i := range deleteme {
+		messageBuf.DeleteMessage(userId, deleteme[i])
+	}
+
+	for i := 0; i < MaxUserMessagesLimit; i++ {
+		msgID := msgIDFmt + string(i)
+		messageBuf.AddMessage(userId, msgID, &pb.CmixMessage{SenderID: userId})
+	}
+
+	if len(messageBuf.messageIDs[userId]) != MaxUserMessagesLimit {
+		t.Errorf("Message limit not exceeded, but length incorrect: %d v. %d",
+			len(messageBuf.messageIDs[userId]), MaxUserMessagesLimit)
+	}
+
+	msgID := msgIDFmt + "Hello"
+	messageBuf.AddMessage(userId, msgID, &pb.CmixMessage{SenderID: userId})
+
+	if len(messageBuf.messageIDs[userId]) != MaxUserMessagesLimit {
+		t.Errorf("Message limit exceeded, but length incorrect: %d v. %d",
+			len(messageBuf.messageIDs[userId]), MaxUserMessagesLimit)
+	}
+
+	_, ok := messageBuf.messageCollection[userId][msgID]
+	if !ok {
+		t.Errorf("AddMessage: Message was not added to message buffer" +
+			" properly!")
+	}
+}

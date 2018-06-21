@@ -138,8 +138,12 @@ func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 	}
 
 	// Delete messages if we exceed the messages limit for this user
-	if len(m.messageIDs[userID]) > MaxUserMessagesLimit {
-		deleteCount := len(m.messageIDs[userID]) - MaxUserMessagesLimit
+	// NOTE: Careful if you decide on putting this outside the lock and removing
+	// the defer it's very easy to get in race condition territory there. This
+	// Code was put here intentionally to keep things more readable as well as
+	// make a decision inside of the lock.
+	if (len(m.messageIDs[userID]) + 1) > MaxUserMessagesLimit {
+		deleteCount := len(m.messageIDs[userID]) - MaxUserMessagesLimit + 1
 		msgIDsToDelete := m.messageIDs[userID][0:deleteCount]
 		jww.WARN.Printf("%s message limit exceeded, deleting %d messages: %v",
 			userID, deleteCount, msgIDsToDelete)
