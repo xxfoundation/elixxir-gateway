@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+// The Maximum number of user messages to keep. If this limit is eclipsed,
+// messages at the front of the buffer are deleted.
+const MaxUserMessagesLimit = 1000
+
 // MessageBuffer struct with map backend
 type MapBuffer struct {
 	messageCollection map[uint64]map[string]*pb.CmixMessage
@@ -132,6 +136,20 @@ func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 		m.messageCollection[userID] = make(map[string]*pb.CmixMessage)
 		m.messageIDs[userID] = make([]string, 0)
 	}
+
+	// Delete messages if we exceed the messages limit for this user
+	if len(m.messageIDs[userID]) > MaxUserMessagesLimit {
+		deleteCount := len(m.messageIDs[userID]) - MaxUserMessagesLimit
+		msgIDsToDelete := m.messageIDs[userID][0:deleteCount]
+		jww.WARN.Printf("%s message limit exceeded, deleting %d messages: %v",
+			userID, deleteCount, msgIDsToDelete)
+		defer func(m *MapBuffer, userID uint64, msgIDs []string) {
+			for i := range msgIDs {
+				m.DeleteMessage(userID, msgIDs[i])
+			}
+		}(m, userID, msgIDsToDelete)
+	}
+
 	m.messageCollection[userID][msgID] = msg
 	m.messageIDs[userID] = append(m.messageIDs[userID], msgID)
 	m.mux.Unlock()
