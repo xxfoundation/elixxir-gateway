@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+// The Maximum number of user messages to keep. If this limit is eclipsed,
+// messages at the front of the buffer are deleted.
+const MaxUserMessagesLimit = 1000
+
 // MessageBuffer struct with map backend
 type MapBuffer struct {
 	messageCollection map[uint64]map[string]*pb.CmixMessage
@@ -125,13 +129,32 @@ func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
 // AddMessage adds a message to the buffer for a specific user
 func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 	msg *pb.CmixMessage) {
-	jww.INFO.Printf("Adding message %v from user %v to buffer.", msgID, userID)
+	jww.DEBUG.Printf("Adding message %v from user %v to buffer.", msgID, userID)
 	m.mux.Lock()
 	if len(m.messageCollection[userID]) == 0 {
 		// If the User->Message map hasn't been initialized, initialize it
 		m.messageCollection[userID] = make(map[string]*pb.CmixMessage)
 		m.messageIDs[userID] = make([]string, 0)
 	}
+
+	// Delete messages if we exceed the messages limit for this user
+	// NOTE: Careful if you decide on putting this outside the lock and removing
+	// the defer it's very easy to get in race condition territory there. This
+	// Code was put here intentionally to keep things more readable as well as
+	// make a decision inside of the lock. Delete does not panic on an already
+	// deleted value, so it is ok to delete the same message multiple times.
+	if (len(m.messageIDs[userID]) + 1) > MaxUserMessagesLimit {
+		deleteCount := len(m.messageIDs[userID]) - MaxUserMessagesLimit + 1
+		msgIDsToDelete := m.messageIDs[userID][0:deleteCount]
+		jww.DEBUG.Printf("%s message limit exceeded, deleting %d messages: %v",
+			userID, deleteCount, msgIDsToDelete)
+		defer func(m *MapBuffer, userID uint64, msgIDs []string) {
+			for i := range msgIDs {
+				m.DeleteMessage(userID, msgIDs[i])
+			}
+		}(m, userID, msgIDsToDelete)
+	}
+
 	m.messageCollection[userID][msgID] = msg
 	m.messageIDs[userID] = append(m.messageIDs[userID], msgID)
 	m.mux.Unlock()
@@ -146,10 +169,11 @@ func (m *MapBuffer) AddOutgoingMessage(msg *pb.CmixMessage) {
 
 // PopOutgoingBatch sends a batch of messages to the cMix node
 func (m *MapBuffer) PopOutgoingBatch(batchSize uint64) []*pb.CmixMessage {
+	m.mux.Lock()
 	if uint64(len(m.outgoingMessages)) < batchSize {
+		m.mux.Unlock()
 		return nil
 	}
-	m.mux.Lock()
 	outgoingBatch := m.outgoingMessages[:batchSize]
 	// If there are more outgoing messages than the batchSize
 	if uint64(len(m.outgoingMessages)) > batchSize {
