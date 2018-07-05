@@ -146,7 +146,7 @@ func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 	if (len(m.messageIDs[userID]) + 1) > MaxUserMessagesLimit {
 		deleteCount := len(m.messageIDs[userID]) - MaxUserMessagesLimit + 1
 		msgIDsToDelete := m.messageIDs[userID][0:deleteCount]
-		jww.DEBUG.Printf("%s message limit exceeded, deleting %d messages: %v",
+		jww.DEBUG.Printf("%v message limit exceeded, deleting %d messages: %v",
 			userID, deleteCount, msgIDsToDelete)
 		defer func(m *MapBuffer, userID uint64, msgIDs []string) {
 			for i := range msgIDs {
