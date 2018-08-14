@@ -87,8 +87,9 @@ func (m *MapBuffer) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
 func (m *MapBuffer) GetMessageIDs(userID uint64, messageID string) (
 	[]string, bool) {
 	m.mux.Lock()
+	// msgIDs is a view into the same memory that m.messageIDs has, so we must
+	// hold the lock until the end to avoid a read-after-write hazard
 	msgIDs, ok := m.messageIDs[userID]
-	m.mux.Unlock()
 	foundIDs := make([]string, 0)
 	foundID := false
 	for i := range msgIDs {
@@ -104,6 +105,7 @@ func (m *MapBuffer) GetMessageIDs(userID uint64, messageID string) (
 	if foundID {
 		msgIDs = foundIDs
 	}
+	m.mux.Unlock()
 	return msgIDs, ok
 }
 
