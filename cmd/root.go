@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 	"gitlab.com/privategrity/comms/gateway"
 	"os"
+	"log"
 )
 
 var cfgFile string
@@ -122,6 +123,7 @@ func initLog() {
 		if verbose || viper.GetBool("verbose") {
 			jww.SetLogThreshold(jww.LevelDebug)
 			jww.SetStdoutThreshold(jww.LevelDebug)
+			jww.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 		} else {
 			jww.SetLogThreshold(jww.LevelInfo)
 			jww.SetStdoutThreshold(jww.LevelInfo)
