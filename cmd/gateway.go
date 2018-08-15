@@ -48,7 +48,8 @@ func (m *GatewayImpl) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
 // Return any MessageIDs in the globals for this UserID
 func (m *GatewayImpl) CheckMessages(userID uint64, messageID string) (
 	[]string, bool) {
-	jww.DEBUG.Printf("Getting message IDs for %d from buffer...", userID)
+	jww.DEBUG.Printf("Getting message IDs for %d after %s from buffer...",
+		userID, messageID)
 	return m.buffer.GetMessageIDs(userID, messageID)
 }
 
