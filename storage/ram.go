@@ -51,6 +51,7 @@ func NewMessageBuffer() MessageBuffer {
 // message timeout. Intended to be ran in a separate thread.
 func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
 	for {
+		m.mux.Lock()
 		// Delete all messages already marked for deletion
 		for _, msgKey := range m.messagesToDelete {
 			m.DeleteMessage(msgKey.userID, msgKey.msgID)
@@ -68,6 +69,7 @@ func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
 					})
 			}
 		}
+		m.mux.Unlock()
 		// Sleep for the given message timeout
 		time.Sleep(time.Duration(msgTimeout) * time.Second)
 	}
