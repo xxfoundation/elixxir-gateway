@@ -54,7 +54,7 @@ func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
 		m.mux.Lock()
 		// Delete all messages already marked for deletion
 		for _, msgKey := range m.messagesToDelete {
-			m.DeleteMessage(msgKey.userID, msgKey.msgID)
+			m.deleteMessage(msgKey.userID, msgKey.msgID)
 		}
 		// Clear the newly deleted messages from the deletion queue
 		m.messagesToDelete = nil
@@ -114,6 +114,13 @@ func (m *MapBuffer) GetMessageIDs(userID uint64, messageID string) (
 // Deletes a given message from the MessageBuffer
 func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
 	m.mux.Lock()
+	m.deleteMessage(userID, msgID)
+	m.mux.Unlock()
+}
+
+// Delete message without locking
+// Call this from a method that's already locked the mutex
+func (m *MapBuffer) deleteMessage(userID uint64, msgID string) {
 	delete(m.messageCollection[userID], msgID)
 
 	// Delete this ID from the messageIDs slice
@@ -126,8 +133,6 @@ func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
 		newMsgIDs = append(newMsgIDs, msgIDs[i])
 	}
 	m.messageIDs[userID] = newMsgIDs
-
-	m.mux.Unlock()
 }
 
 // AddMessage adds a message to the buffer for a specific user
