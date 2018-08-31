@@ -11,25 +11,26 @@ import (
 	"os"
 	"testing"
 	"time"
+	"gitlab.com/privategrity/crypto/id"
 )
 
 var messageBuf *MapBuffer
 
 func TestMain(m *testing.M) {
 	messageBuf = &MapBuffer{
-		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
-		messageIDs:        make(map[uint64][]string),
+		messageCollection: make(map[id.UserID]map[string]*pb.CmixMessage),
+		messageIDs:        make(map[id.UserID][]string),
 		outgoingMessages:  make([]*pb.CmixMessage, 0),
 	}
 	os.Exit(m.Run())
 }
 
 func TestMapBuffer_StartMessageCleanup(t *testing.T) {
-	userId := uint64(520)
+	userId := id.NewUserIDFromUint(520, t)
 	// Use a separate buffer to not interfere with other tests
 	cleanupBuf := &MapBuffer{
-		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
-		messageIDs:        make(map[uint64][]string),
+		messageCollection: make(map[id.UserID]map[string]*pb.CmixMessage),
+		messageIDs:        make(map[id.UserID][]string),
 		outgoingMessages:  make([]*pb.CmixMessage, 0),
 	}
 
@@ -37,9 +38,10 @@ func TestMapBuffer_StartMessageCleanup(t *testing.T) {
 	cleanupBuf.messageCollection[userId] = make(map[string]*pb.CmixMessage)
 	cleanupBuf.messageIDs[userId] = make([]string, 0)
 	for i := 0; i < 5; i++ {
-		id := string(i)
-		cleanupBuf.messageCollection[userId][id] = &pb.CmixMessage{}
-		cleanupBuf.messageIDs[userId] = append(cleanupBuf.messageIDs[userId], id)
+		msgId := string(i)
+		cleanupBuf.messageCollection[userId][msgId] = &pb.CmixMessage{}
+		cleanupBuf.messageIDs[userId] = append(cleanupBuf.messageIDs[userId],
+			msgId)
 	}
 
 	// Start the cleanup
@@ -55,10 +57,11 @@ func TestMapBuffer_StartMessageCleanup(t *testing.T) {
 }
 
 func TestMapBuffer_GetMessage(t *testing.T) {
-	userId := uint64(0)
+	userId := id.ZeroID
 	msgId := "msg1"
 	messageBuf.messageCollection[userId] = make(map[string]*pb.CmixMessage)
-	messageBuf.messageCollection[userId][msgId] = &pb.CmixMessage{SenderID: userId}
+	messageBuf.messageCollection[userId][msgId] = &pb.
+		CmixMessage{SenderID: string(userId)}
 	_, ok := messageBuf.GetMessage(userId, msgId)
 	if !ok {
 		t.Errorf("GetMessage: Unable to find message!")
@@ -66,10 +69,11 @@ func TestMapBuffer_GetMessage(t *testing.T) {
 }
 
 func TestMapBuffer_GetMessageIDs(t *testing.T) {
-	userId := uint64(5)
+	userId := id.NewUserIDFromUint(5, t)
 	msgId := "msg1"
 	messageBuf.messageCollection[userId] = make(map[string]*pb.CmixMessage)
-	messageBuf.messageCollection[userId][msgId] = &pb.CmixMessage{SenderID: userId}
+	messageBuf.messageCollection[userId][msgId] = &pb.
+		CmixMessage{SenderID: string(userId)}
 	messageBuf.messageIDs[userId] = make([]string, 1)
 	messageBuf.messageIDs[userId][0] = msgId
 	msgIds, ok := messageBuf.GetMessageIDs(userId, "")
@@ -83,12 +87,13 @@ func TestMapBuffer_GetMessageIDs(t *testing.T) {
 }
 
 func TestMapBuffer_DeleteMessage(t *testing.T) {
-	userId := uint64(555)
+	userId := id.NewUserIDFromUint(555, t)
 	msgId := "msg1"
 	messageBuf.messageCollection[userId] = make(map[string]*pb.CmixMessage)
 	messageBuf.messageIDs[userId] = make([]string, 0)
 	messageBuf.messageIDs[userId] = append(messageBuf.messageIDs[userId], "msgId")
-	messageBuf.messageCollection[userId][msgId] = &pb.CmixMessage{SenderID: userId}
+	messageBuf.messageCollection[userId][msgId] = &pb.
+		CmixMessage{SenderID: string(userId)}
 	messageBuf.DeleteMessage(userId, msgId)
 	_, ok := messageBuf.messageCollection[userId][msgId]
 	if ok {
@@ -97,9 +102,10 @@ func TestMapBuffer_DeleteMessage(t *testing.T) {
 }
 
 func TestMapBuffer_AddMessage(t *testing.T) {
-	userId := uint64(10)
+	userId := id.NewUserIDFromUint(10, t)
 	msgId := "msg1"
-	messageBuf.AddMessage(userId, msgId, &pb.CmixMessage{SenderID: userId})
+	messageBuf.AddMessage(userId, msgId,
+		&pb.CmixMessage{SenderID: string(userId)})
 	_, ok := messageBuf.messageCollection[userId][msgId]
 	if !ok {
 		t.Errorf("AddMessage: Message was not added to message buffer" +
@@ -109,7 +115,7 @@ func TestMapBuffer_AddMessage(t *testing.T) {
 
 func TestMapBuffer_AddOutgoingMessage(t *testing.T) {
 	numOutgoingMsgs := len(messageBuf.outgoingMessages)
-	messageBuf.AddOutgoingMessage(&pb.CmixMessage{SenderID: uint64(0)})
+	messageBuf.AddOutgoingMessage(&pb.CmixMessage{SenderID: string(id.ZeroID)})
 	if len(messageBuf.outgoingMessages) != numOutgoingMsgs+1 {
 		t.Errorf("AddOutgoingMessage: Message was not added to outgoing" +
 			" message buffer properly!")
@@ -118,7 +124,7 @@ func TestMapBuffer_AddOutgoingMessage(t *testing.T) {
 
 func TestMapBuffer_PopOutgoingBatch(t *testing.T) {
 	messageBuf.outgoingMessages = append(messageBuf.outgoingMessages,
-		&pb.CmixMessage{SenderID: uint64(0)})
+		&pb.CmixMessage{SenderID: string(id.ZeroID)})
 	messageBuf.PopOutgoingBatch(1)
 	if len(messageBuf.outgoingMessages) > 0 {
 		t.Errorf("PopOutgoingBatch: Batch was not popped correctly!")
@@ -126,7 +132,7 @@ func TestMapBuffer_PopOutgoingBatch(t *testing.T) {
 }
 
 func TestMapBuffer_ExceedUserMsgsLimit(t *testing.T) {
-	userId := uint64(10)
+	userId := id.NewUserIDFromUint(10, t)
 	msgIDFmt := "msg1"
 
 	deleteme := messageBuf.messageIDs[userId]
@@ -136,7 +142,8 @@ func TestMapBuffer_ExceedUserMsgsLimit(t *testing.T) {
 
 	for i := 0; i < MaxUserMessagesLimit; i++ {
 		msgID := msgIDFmt + string(i)
-		messageBuf.AddMessage(userId, msgID, &pb.CmixMessage{SenderID: userId})
+		messageBuf.AddMessage(userId, msgID,
+			&pb.CmixMessage{SenderID: string(userId)})
 	}
 
 	if len(messageBuf.messageIDs[userId]) != MaxUserMessagesLimit {
@@ -145,7 +152,8 @@ func TestMapBuffer_ExceedUserMsgsLimit(t *testing.T) {
 	}
 
 	msgID := msgIDFmt + "Hello"
-	messageBuf.AddMessage(userId, msgID, &pb.CmixMessage{SenderID: userId})
+	messageBuf.AddMessage(userId, msgID,
+		&pb.CmixMessage{SenderID: string(userId)})
 
 	if len(messageBuf.messageIDs[userId]) != MaxUserMessagesLimit {
 		t.Errorf("Message limit exceeded, but length incorrect: %d v. %d",

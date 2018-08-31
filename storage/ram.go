@@ -12,6 +12,7 @@ import (
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"sync"
 	"time"
+	"gitlab.com/privategrity/crypto/id"
 )
 
 // The Maximum number of user messages to keep. If this limit is eclipsed,
@@ -20,8 +21,8 @@ const MaxUserMessagesLimit = 1000
 
 // MessageBuffer struct with map backend
 type MapBuffer struct {
-	messageCollection map[uint64]map[string]*pb.CmixMessage
-	messageIDs        map[uint64][]string
+	messageCollection map[id.UserID]map[string]*pb.CmixMessage
+	messageIDs        map[id.UserID][]string
 	outgoingMessages  []*pb.CmixMessage
 	messagesToDelete  []*MessageKey
 	mux               sync.Mutex
@@ -29,7 +30,7 @@ type MapBuffer struct {
 
 // For storing userId and msgID key pairs in the message deletion queue
 type MessageKey struct {
-	userID uint64
+	userID id.UserID
 	msgID  string
 }
 
@@ -37,8 +38,8 @@ type MessageKey struct {
 func NewMessageBuffer() MessageBuffer {
 	// Build the Message Buffer
 	buffer := MessageBuffer(&MapBuffer{
-		messageCollection: make(map[uint64]map[string]*pb.CmixMessage),
-		messageIDs:        make(map[uint64][]string),
+		messageCollection: make(map[id.UserID]map[string]*pb.CmixMessage),
+		messageIDs:        make(map[id.UserID][]string),
 		outgoingMessages:  make([]*pb.CmixMessage, 0),
 		messagesToDelete:  make([]*MessageKey, 0),
 	})
@@ -77,7 +78,7 @@ func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
 
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
-func (m *MapBuffer) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
+func (m *MapBuffer) GetMessage(userID id.UserID, msgID string) (*pb.CmixMessage,
 	bool) {
 	m.mux.Lock()
 	msg, ok := m.messageCollection[userID][msgID]
@@ -86,7 +87,7 @@ func (m *MapBuffer) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
 }
 
 // Return any MessageIDs in the globals for this UserID
-func (m *MapBuffer) GetMessageIDs(userID uint64, messageID string) (
+func (m *MapBuffer) GetMessageIDs(userID id.UserID, messageID string) (
 	[]string, bool) {
 	m.mux.Lock()
 	// msgIDs is a view into the same memory that m.messageIDs has, so we must
@@ -112,7 +113,7 @@ func (m *MapBuffer) GetMessageIDs(userID uint64, messageID string) (
 }
 
 // Deletes a given message from the MessageBuffer
-func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
+func (m *MapBuffer) DeleteMessage(userID id.UserID, msgID string) {
 	m.mux.Lock()
 	m.deleteMessage(userID, msgID)
 	m.mux.Unlock()
@@ -120,7 +121,7 @@ func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
 
 // Delete message without locking
 // Call this from a method that's already locked the mutex
-func (m *MapBuffer) deleteMessage(userID uint64, msgID string) {
+func (m *MapBuffer) deleteMessage(userID id.UserID, msgID string) {
 	delete(m.messageCollection[userID], msgID)
 
 	// Delete this ID from the messageIDs slice
@@ -136,7 +137,7 @@ func (m *MapBuffer) deleteMessage(userID uint64, msgID string) {
 }
 
 // AddMessage adds a message to the buffer for a specific user
-func (m *MapBuffer) AddMessage(userID uint64, msgID string,
+func (m *MapBuffer) AddMessage(userID id.UserID, msgID string,
 	msg *pb.CmixMessage) {
 	jww.DEBUG.Printf("Adding message %v from user %v to buffer.", msgID, userID)
 	m.mux.Lock()
@@ -157,7 +158,7 @@ func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 		msgIDsToDelete := m.messageIDs[userID][0:deleteCount]
 		jww.DEBUG.Printf("%v message limit exceeded, deleting %d messages: %v",
 			userID, deleteCount, msgIDsToDelete)
-		defer func(m *MapBuffer, userID uint64, msgIDs []string) {
+		defer func(m *MapBuffer, userID id.UserID, msgIDs []string) {
 			for i := range msgIDs {
 				m.DeleteMessage(userID, msgIDs[i])
 			}
