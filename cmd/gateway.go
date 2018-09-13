@@ -13,6 +13,7 @@ import (
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"gitlab.com/privategrity/crypto/hash"
 	"gitlab.com/privategrity/gateway/storage"
+	"gitlab.com/privategrity/crypto/id"
 )
 
 type GatewayImpl struct {
@@ -41,14 +42,15 @@ func NewGatewayImpl(batchSize uint64, cmixNodes []string,
 // if that ID does not exist of the same size as a regular message
 func (m *GatewayImpl) GetMessage(userID *id.UserID,
 	msgID string) (*pb.CmixMessage, bool) {
-	jww.DEBUG.Printf("Getting message %d:%s from buffer...", userID, msgID)
+	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
 	return m.buffer.GetMessage(userID, msgID)
 }
 
 // Return any MessageIDs in the globals for this UserID
 func (m *GatewayImpl) CheckMessages(userID *id.UserID, messageID string) (
 	[]string, bool) {
-	jww.DEBUG.Printf("Getting message IDs for %d from buffer...", userID)
+	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
+		userID, messageID)
 	return m.buffer.GetMessageIDs(userID, messageID)
 }
 

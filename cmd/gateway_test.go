@@ -12,6 +12,7 @@ import (
 	"gitlab.com/privategrity/gateway/storage"
 	"os"
 	"testing"
+	"gitlab.com/privategrity/crypto/id"
 )
 
 const GW_ADDRESS = "localhost:5555"

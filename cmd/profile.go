@@ -9,6 +9,7 @@ package cmd
 import (
 	jww "github.com/spf13/jwalterweatherman"
 	"runtime"
+	"sync"
 )
 
 type stats struct {
@@ -17,8 +18,10 @@ type stats struct {
 }
 
 var prevStats *stats
+var statsMutex sync.Mutex
 
 func PrintProfilingStatistics() {
+	statsMutex.Lock()
 	// Get Total Allocated Memory
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
@@ -55,4 +58,5 @@ func PrintProfilingStatistics() {
 	}
 	jww.INFO.Printf("Total thread count: %d (%s%d)", numThreads,
 		plusOrMinus, threadDelta)
+	statsMutex.Unlock()
 }
