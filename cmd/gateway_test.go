@@ -33,9 +33,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestGatewayImpl(t *testing.T) {
-	msg := pb.CmixMessage{SenderID: uint64(666)}
-	userId := uint64(0)
-	// msgId := "msg1"
+	msg := pb.CmixMessage{SenderID: id.NewUserIDFromUint(666, t).Bytes()}
+	userId := id.ZeroID
 
 	ok := gatewayInterface.PutMessage(&msg)
 	if !ok {

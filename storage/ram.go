@@ -29,7 +29,7 @@ type MapBuffer struct {
 
 // For storing userId and msgID key pairs in the message deletion queue
 type MessageKey struct {
-	userID uint64
+	userID *id.UserID
 	msgID  string
 }
 
@@ -63,7 +63,7 @@ func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
 			for msgID := range msgMap {
 				m.messagesToDelete = append(m.messagesToDelete,
 					&MessageKey{
-						userID: userID,
+						userID: &userID,
 						msgID:  msgID,
 					})
 			}
@@ -75,20 +75,21 @@ func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
 
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
-func (m *MapBuffer) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
-	bool) {
+func (m *MapBuffer) GetMessage(userID *id.UserID,
+	msgID string) (*pb.CmixMessage, bool) {
 	m.mux.Lock()
-	msg, ok := m.messageCollection[userID][msgID]
+	msg, ok := m.messageCollection[*userID][msgID]
 	m.mux.Unlock()
 	return msg, ok
 }
 
 // Return any MessageIDs in the globals for this UserID
-func (m *MapBuffer) GetMessageIDs(userID uint64, messageID string) (
+func (m *MapBuffer) GetMessageIDs(userID *id.UserID, messageID string) (
 	[]string, bool) {
 	m.mux.Lock()
-	msgIDs, ok := m.messageIDs[userID]
-	m.mux.Unlock()
+	// msgIDs is a view into the same memory that m.messageIDs has, so we must
+	// hold the lock until the end to avoid a read-after-write hazard
+	msgIDs, ok := m.messageIDs[*userID]
 	foundIDs := make([]string, 0)
 	foundID := false
 	for i := range msgIDs {
@@ -108,12 +109,19 @@ func (m *MapBuffer) GetMessageIDs(userID uint64, messageID string) (
 }
 
 // Deletes a given message from the MessageBuffer
-func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
+func (m *MapBuffer) DeleteMessage(userID *id.UserID, msgID string) {
 	m.mux.Lock()
-	delete(m.messageCollection[userID], msgID)
+	m.deleteMessage(userID, msgID)
+	m.mux.Unlock()
+}
+
+// Delete message without locking
+// Call this from a method that's already locked the mutex
+func (m *MapBuffer) deleteMessage(userID *id.UserID, msgID string) {
+	delete(m.messageCollection[*userID], msgID)
 
 	// Delete this ID from the messageIDs slice
-	msgIDs, _ := m.messageIDs[userID]
+	msgIDs, _ := m.messageIDs[*userID]
 	newMsgIDs := make([]string, 0)
 	for i := range msgIDs {
 		if msgIDs[i] == msgID {
@@ -121,20 +129,18 @@ func (m *MapBuffer) DeleteMessage(userID uint64, msgID string) {
 		}
 		newMsgIDs = append(newMsgIDs, msgIDs[i])
 	}
-	m.messageIDs[userID] = newMsgIDs
-
-	m.mux.Unlock()
+	m.messageIDs[*userID] = newMsgIDs
 }
 
 // AddMessage adds a message to the buffer for a specific user
-func (m *MapBuffer) AddMessage(userID uint64, msgID string,
+func (m *MapBuffer) AddMessage(userID *id.UserID, msgID string,
 	msg *pb.CmixMessage) {
 	jww.DEBUG.Printf("Adding message %v from user %v to buffer.", msgID, userID)
 	m.mux.Lock()
-	if len(m.messageCollection[userID]) == 0 {
+	if len(m.messageCollection[*userID]) == 0 {
 		// If the User->Message map hasn't been initialized, initialize it
-		m.messageCollection[userID] = make(map[string]*pb.CmixMessage)
-		m.messageIDs[userID] = make([]string, 0)
+		m.messageCollection[*userID] = make(map[string]*pb.CmixMessage)
+		m.messageIDs[*userID] = make([]string, 0)
 	}
 
 	// Delete messages if we exceed the messages limit for this user
@@ -143,20 +149,20 @@ func (m *MapBuffer) AddMessage(userID uint64, msgID string,
 	// Code was put here intentionally to keep things more readable as well as
 	// make a decision inside of the lock. Delete does not panic on an already
 	// deleted value, so it is ok to delete the same message multiple times.
-	if (len(m.messageIDs[userID]) + 1) > MaxUserMessagesLimit {
-		deleteCount := len(m.messageIDs[userID]) - MaxUserMessagesLimit + 1
-		msgIDsToDelete := m.messageIDs[userID][0:deleteCount]
+	if (len(m.messageIDs[*userID]) + 1) > MaxUserMessagesLimit {
+		deleteCount := len(m.messageIDs[*userID]) - MaxUserMessagesLimit + 1
+		msgIDsToDelete := m.messageIDs[*userID][0:deleteCount]
 		jww.DEBUG.Printf("%v message limit exceeded, deleting %d messages: %v",
 			userID, deleteCount, msgIDsToDelete)
-		defer func(m *MapBuffer, userID uint64, msgIDs []string) {
+		defer func(m *MapBuffer, userID *id.UserID, msgIDs []string) {
 			for i := range msgIDs {
 				m.DeleteMessage(userID, msgIDs[i])
 			}
 		}(m, userID, msgIDsToDelete)
 	}
 
-	m.messageCollection[userID][msgID] = msg
-	m.messageIDs[userID] = append(m.messageIDs[userID], msgID)
+	m.messageCollection[*userID][msgID] = msg
+	m.messageIDs[*userID] = append(m.messageIDs[*userID], msgID)
 	m.mux.Unlock()
 }
 
