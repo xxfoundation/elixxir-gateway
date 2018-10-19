@@ -61,11 +61,7 @@ func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 	h, _ := hash.NewCMixHash()
 
 	for i := range msgs {
-		userId, err := new(id.UserID).SetBytes(msgs[i].SenderID)
-		if err != nil {
-			jww.ERROR.Printf("Error putting sender ID bytes in user ID: %v",
-				err.Error())
-		}
+		userId := new(id.UserID).SetBytes(msgs[i].SenderID)
 		h.Write(msgs[i].MessagePayload)
 		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
 		m.buffer.AddMessage(userId, msgId, msgs[i])
