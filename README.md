@@ -15,9 +15,19 @@ a time.
 
 ## How to run locally
 
-Tests: ` $ go test ./...`
+First, make sure dependencies are installed into the vendor folder by running
+`glide up`. Then, in the project directory, run `go run main.go --config
+gateway.yaml`.
 
-Gateway (example options): ` $ go run main.go --config gateway.yaml`
+If what you're working on requires you to change other repos, you can remove
+the other repo from the vendor folder and Go's build tools will look for those
+packages in your Go path instead. Knowing which dependencies to remove can be
+really helpful if you're changing a lot of repos at once.
+
+If glide isn't working and you don't know why, try removing glide.lock and
+~/.glide to brutally cleanse the cache.
+
+To run tests: ` $ go test ./...`
 
 ## Example configuration file
 
@@ -63,4 +73,4 @@ batchSize: 27
 
 To generate version information, including versions of dependencies, before building or running, run this command:
 
-` $ go generate cmd/version.go`
+`$ go generate cmd/version.go`
