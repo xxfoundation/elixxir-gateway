@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 	"gitlab.com/privategrity/comms/gateway"
 	"os"
+	"log"
 )
 
 var cfgFile string
@@ -37,6 +38,7 @@ var RootCmd = &cobra.Command{
 		}
 
 		address := viper.GetString("GatewayAddress")
+		jww.INFO.Println("Gateway address: " + address)
 		cmixNodes := viper.GetStringSlice("cMixNodes")
 		gatewayNode := cmixNodes[viper.GetInt("GatewayNodeIndex")]
 		jww.INFO.Println("Gateway node: " + gatewayNode)
@@ -97,7 +99,12 @@ func initConfig() {
 
 	validConfig = false
 	for i := range searchDirs {
-		cfgFile := searchDirs[i] + "gateway.yaml"
+		if cfgFile == "" {
+			cfgFile = searchDirs[i] + "gateway.yaml"
+		} else {
+			// Use config filename if we got one on the command line
+			cfgFile = searchDirs[i] + cfgFile
+		}
 		_, err := os.Stat(cfgFile)
 		if !os.IsNotExist(err) {
 			validConfig = true
@@ -122,6 +129,7 @@ func initLog() {
 		if verbose || viper.GetBool("verbose") {
 			jww.SetLogThreshold(jww.LevelDebug)
 			jww.SetStdoutThreshold(jww.LevelDebug)
+			jww.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 		} else {
 			jww.SetLogThreshold(jww.LevelInfo)
 			jww.SetStdoutThreshold(jww.LevelInfo)

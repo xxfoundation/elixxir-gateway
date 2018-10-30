@@ -12,6 +12,7 @@ import (
 	"gitlab.com/privategrity/gateway/storage"
 	"os"
 	"testing"
+	"gitlab.com/privategrity/crypto/id"
 )
 
 const GW_ADDRESS = "localhost:5555"
@@ -33,9 +34,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestGatewayImpl(t *testing.T) {
-	msg := pb.CmixMessage{SenderID: uint64(666)}
-	userId := uint64(0)
-	// msgId := "msg1"
+	msg := pb.CmixMessage{SenderID: id.NewUserIDFromUint(666, t).Bytes()}
+	userId := id.ZeroID
 
 	ok := gatewayInterface.PutMessage(&msg)
 	if !ok {

@@ -13,6 +13,7 @@ import (
 	pb "gitlab.com/privategrity/comms/mixmessages"
 	"gitlab.com/privategrity/crypto/hash"
 	"gitlab.com/privategrity/gateway/storage"
+	"gitlab.com/privategrity/crypto/id"
 )
 
 type GatewayImpl struct {
@@ -39,16 +40,17 @@ func NewGatewayImpl(batchSize uint64, cmixNodes []string,
 
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
-func (m *GatewayImpl) GetMessage(userID uint64, msgID string) (*pb.CmixMessage,
-	bool) {
-	jww.DEBUG.Printf("Getting message %d:%s from buffer...", userID, msgID)
+func (m *GatewayImpl) GetMessage(userID *id.UserID,
+	msgID string) (*pb.CmixMessage, bool) {
+	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
 	return m.buffer.GetMessage(userID, msgID)
 }
 
 // Return any MessageIDs in the globals for this UserID
-func (m *GatewayImpl) CheckMessages(userID uint64, messageID string) (
+func (m *GatewayImpl) CheckMessages(userID *id.UserID, messageID string) (
 	[]string, bool) {
-	jww.DEBUG.Printf("Getting message IDs for %d from buffer...", userID)
+	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
+		userID, messageID)
 	return m.buffer.GetMessageIDs(userID, messageID)
 }
 
@@ -59,7 +61,7 @@ func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 	h, _ := hash.NewCMixHash()
 
 	for i := range msgs {
-		userId := msgs[i].SenderID
+		userId := new(id.UserID).SetBytes(msgs[i].SenderID)
 		h.Write(msgs[i].MessagePayload)
 		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
 		m.buffer.AddMessage(userId, msgId, msgs[i])
