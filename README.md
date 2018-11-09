@@ -34,31 +34,36 @@ To run tests: ` $ go test ./...`
 Note: YAML prohibits the use of tabs because whitespace has meaning.
 
 ```yaml
-# This is really useful for tracing the sending/receiving of individual messages
-# Especially if you're testing clients and making sure that they're actually sending messages to the right people
-# Recommend turning off for production, because of the space that verbose logs take up on disk
-verbose: true
-# Log to a different log file if you like
+# Used for debugging
+verbose: True
+
+# Output log file
 log: "gateway.log"
-# This the port the gateway will listen on
-# To limit traffic to localhost only, use "localhost:port" instead of ":port", which listens for all incoming traffic
-# Clients connecting to this gateway must specify the gateway's IP address and this port
-GatewayAddress: ":8443"
-# This would be for four nodes on the local network
+
+# The cMix nodes in the network
 cMixNodes:
- - "localhost:50000"
- - "localhost:50001"
- - "localhost:50002"
- - "localhost:50003"
-# The gateway gets and puts message batches from/to this node from the cMixNodes list
-# This index is zero-based
+ - "0.0.0.0:11420"
+# The index to which this Gateway is attached in the cMixNodes list
 GatewayNodeIndex: 0
-# In the current implementation, messages waiting for individual users get
-# deleted between this amount of time and twice this amount of time
-MessageTimeout: 15600
-# We've assumed that the gateway uses the same batch size as the nodes do
-# We plan to deprecate this option
-batchSize: 27
+
+# The listening address of this gateway
+GatewayAddress: "0.0.0.0:8443"
+
+# The number of seconds a message should remain in the globals before being
+# deleted from the user's message queue
+MessageTimeout: 60
+
+# TLS-related file paths
+keyPath: "gateway.cmix.rip.key"
+certPath: "gateway.cmix.rip.crt"
+serverCertPath: "cmix.rip.crt"
+
+### Anything below this line is to be deprecated ###
+
+# Number of nodes in the cMix Network
+
+# Batch size of the cMix Network (to be deprecated)
+batchSize: 1
 ```
 
 ## Command line flags
