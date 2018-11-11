@@ -13,8 +13,9 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/privategrity/comms/gateway"
-	"os"
 	"log"
+	"os"
+	"strings"
 )
 
 var cfgFile string
@@ -45,7 +46,9 @@ var RootCmd = &cobra.Command{
 		batchSize := uint64(viper.GetInt("batchSize"))
 
 		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
-		gateway.StartGateway(address, gatewayImpl)
+		certPath := getFullPath(viper.GetString("certPath"))
+		keyPath := getFullPath(viper.GetString("keyPath"))
+		gateway.StartGateway(address, gatewayImpl, certPath, keyPath)
 
 		// Wait forever
 		select {}
@@ -83,6 +86,22 @@ func init() {
 
 	// Set the default message timeout
 	viper.SetDefault("MessageTimeout", 60)
+}
+
+// Given a path, replace a "~" character
+// with the home directory to return a full file path
+func getFullPath(path string) string {
+	if path[0] == '~' {
+		// Find home directory.
+		home, err := homedir.Dir()
+		if err != nil {
+			jww.ERROR.Println(err)
+			os.Exit(1)
+		}
+		// Append the home directory to the path
+		return home + strings.TrimLeft(path, "~")
+	}
+	return path
 }
 
 // initConfig reads in config file and ENV variables if set.
