@@ -48,7 +48,8 @@ var RootCmd = &cobra.Command{
 		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
 		certPath := getFullPath(viper.GetString("certPath"))
 		keyPath := getFullPath(viper.GetString("keyPath"))
-		gateway.StartGateway(address, gatewayImpl, certPath, keyPath)
+		serverCertPath := getFullPath(viper.GetString("serverCertPath"))
+		gateway.StartGateway(address, gatewayImpl, certPath, keyPath, serverCertPath)
 
 		// Wait forever
 		select {}

@@ -9,10 +9,10 @@ package cmd
 import (
 	"gitlab.com/privategrity/comms/gateway"
 	pb "gitlab.com/privategrity/comms/mixmessages"
+	"gitlab.com/privategrity/crypto/id"
 	"gitlab.com/privategrity/gateway/storage"
 	"os"
 	"testing"
-	"gitlab.com/privategrity/crypto/id"
 )
 
 const GW_ADDRESS = "localhost:5555"
@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 		gatewayNode: GW_ADDRESS,
 		cmixNodes:   cmixNodes,
 	}
-	go gateway.StartGateway(GW_ADDRESS, gatewayInterface)
+	go gateway.StartGateway(GW_ADDRESS, gatewayInterface, "", "")
 	os.Exit(m.Run())
 }
 
