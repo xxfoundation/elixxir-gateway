@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
+	"gitlab.com/privategrity/comms/connect"
 	"gitlab.com/privategrity/comms/gateway"
 	"log"
 	"os"
@@ -49,7 +50,8 @@ var RootCmd = &cobra.Command{
 		certPath := getFullPath(viper.GetString("certPath"))
 		keyPath := getFullPath(viper.GetString("keyPath"))
 		serverCertPath := getFullPath(viper.GetString("serverCertPath"))
-		gateway.StartGateway(address, gatewayImpl, certPath, keyPath, serverCertPath)
+		connect.ServerCertPath = serverCertPath
+		gateway.StartGateway(address, gatewayImpl, certPath, keyPath)
 
 		// Wait forever
 		select {}
@@ -92,7 +94,7 @@ func init() {
 // Given a path, replace a "~" character
 // with the home directory to return a full file path
 func getFullPath(path string) string {
-	if path[0] == '~' {
+	if len(path) > 0 && path[0] == '~' {
 		// Find home directory.
 		home, err := homedir.Dir()
 		if err != nil {
