@@ -54,9 +54,9 @@ GatewayAddress: "0.0.0.0:8443"
 MessageTimeout: 60
 
 # TLS-related file paths
-keyPath: "gateway.cmix.rip.key"
-certPath: "gateway.cmix.rip.crt"
-serverCertPath: "cmix.rip.crt"
+keyPath: ""
+certPath: ""
+serverCertPath: ""
 
 ### Anything below this line is to be deprecated ###
 
