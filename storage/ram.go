@@ -9,10 +9,10 @@ package storage
 import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	pb "gitlab.com/privategrity/comms/mixmessages"
+	pb "gitlab.com/elixxir/comms/mixmessages"
 	"sync"
 	"time"
-	"gitlab.com/privategrity/crypto/id"
+	"gitlab.com/elixxir/crypto/id"
 )
 
 // The Maximum number of user messages to keep. If this limit is eclipsed,

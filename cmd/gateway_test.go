@@ -7,12 +7,12 @@
 package cmd
 
 import (
-	"gitlab.com/privategrity/comms/gateway"
-	pb "gitlab.com/privategrity/comms/mixmessages"
-	"gitlab.com/privategrity/gateway/storage"
+	"gitlab.com/elixxir/comms/gateway"
+	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/gateway/storage"
 	"os"
 	"testing"
-	"gitlab.com/privategrity/crypto/id"
+	"gitlab.com/elixxir/crypto/id"
 )
 
 const GW_ADDRESS = "localhost:5555"

@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	"gitlab.com/privategrity/comms/gateway"
+	"gitlab.com/elixxir/comms/gateway"
 	"os"
 	"log"
 )

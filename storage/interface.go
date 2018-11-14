@@ -7,8 +7,8 @@
 package storage
 
 import (
-	pb "gitlab.com/privategrity/comms/mixmessages"
-	"gitlab.com/privategrity/crypto/id"
+	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/crypto/id"
 )
 
 // Interface for interacting with the MessageBuffer (in prep for a db impl)
