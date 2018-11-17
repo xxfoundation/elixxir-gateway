@@ -6,7 +6,7 @@
 
 package main
 
-import "gitlab.com/privategrity/gateway/cmd"
+import "gitlab.com/elixxir/gateway/cmd"
 
 func main() {
 	cmd.Execute()

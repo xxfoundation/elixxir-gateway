@@ -9,11 +9,11 @@ package cmd
 import (
 	"encoding/base64"
 	jww "github.com/spf13/jwalterweatherman"
-	"gitlab.com/privategrity/comms/gateway"
-	pb "gitlab.com/privategrity/comms/mixmessages"
-	"gitlab.com/privategrity/crypto/hash"
-	"gitlab.com/privategrity/gateway/storage"
-	"gitlab.com/privategrity/crypto/id"
+	"gitlab.com/elixxir/comms/gateway"
+	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/crypto/hash"
+	"gitlab.com/elixxir/gateway/storage"
+	"gitlab.com/elixxir/crypto/id"
 )
 
 type GatewayImpl struct {

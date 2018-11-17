@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"gitlab.com/privategrity/gateway/cmd"
+	"gitlab.com/elixxir/gateway/cmd"
 )
 
 // Smoke test for main

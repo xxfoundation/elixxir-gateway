@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	"gitlab.com/privategrity/comms/connect"
-	"gitlab.com/privategrity/comms/gateway"
+	"gitlab.com/elixxir/comms/gateway"
+	"gitlab.com/elixxir/comms/connect"
 	"log"
 	"os"
 	"strings"
@@ -82,7 +82,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.Flags().StringVarP(&cfgFile, "config", "", "",
-		"config file (default is $HOME/.privategrity/gateway.yaml)")
+		"config file (default is $HOME/.elixxir/gateway.yaml)")
 	RootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
 		"Verbose mode for debugging")
 	RootCmd.Flags().BoolVarP(&showVer, "version", "V", false,
@@ -115,9 +115,9 @@ func initConfig() {
 	searchDirs = append(searchDirs, "./") // $PWD
 	// $HOME
 	home, _ := homedir.Dir()
-	searchDirs = append(searchDirs, home+"/.privategrity/")
-	// /etc/privategrity
-	searchDirs = append(searchDirs, "/etc/privategrity")
+	searchDirs = append(searchDirs, home+"/.elixxir/")
+	// /etc/elixxir
+	searchDirs = append(searchDirs, "/etc/elixxir")
 	jww.DEBUG.Printf("Configuration search directories: %v", searchDirs)
 
 	validConfig = false
