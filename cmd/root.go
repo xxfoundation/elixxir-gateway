@@ -50,6 +50,7 @@ var RootCmd = &cobra.Command{
 		certPath := getFullPath(viper.GetString("certPath"))
 		keyPath := getFullPath(viper.GetString("keyPath"))
 		serverCertPath := getFullPath(viper.GetString("serverCertPath"))
+		// Set the serverCertPath explicitly to avoid data races
 		connect.ServerCertPath = serverCertPath
 		gateway.StartGateway(address, gatewayImpl, certPath, keyPath)
 
