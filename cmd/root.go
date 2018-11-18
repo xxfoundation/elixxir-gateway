@@ -12,11 +12,10 @@ import (
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	"gitlab.com/elixxir/comms/gateway"
 	"gitlab.com/elixxir/comms/connect"
+	"gitlab.com/elixxir/comms/gateway"
 	"log"
 	"os"
-	"strings"
 )
 
 var cfgFile string
@@ -47,9 +46,9 @@ var RootCmd = &cobra.Command{
 		batchSize := uint64(viper.GetInt("batchSize"))
 
 		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
-		certPath := getFullPath(viper.GetString("certPath"))
-		keyPath := getFullPath(viper.GetString("keyPath"))
-		serverCertPath := getFullPath(viper.GetString("serverCertPath"))
+		certPath := viper.GetString("certPath")
+		keyPath := viper.GetString("keyPath")
+		serverCertPath := viper.GetString("serverCertPath")
 		// Set the serverCertPath explicitly to avoid data races
 		connect.ServerCertPath = serverCertPath
 		gateway.StartGateway(address, gatewayImpl, certPath, keyPath)
@@ -90,22 +89,6 @@ func init() {
 
 	// Set the default message timeout
 	viper.SetDefault("MessageTimeout", 60)
-}
-
-// Given a path, replace a "~" character
-// with the home directory to return a full file path
-func getFullPath(path string) string {
-	if len(path) > 0 && path[0] == '~' {
-		// Find home directory.
-		home, err := homedir.Dir()
-		if err != nil {
-			jww.ERROR.Println(err)
-			os.Exit(1)
-		}
-		// Append the home directory to the path
-		return home + strings.TrimLeft(path, "~")
-	}
-	return path
 }
 
 // initConfig reads in config file and ENV variables if set.
