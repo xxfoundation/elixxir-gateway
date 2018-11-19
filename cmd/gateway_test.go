@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 		gatewayNode: GW_ADDRESS,
 		cmixNodes:   cmixNodes,
 	}
-	go gateway.StartGateway(GW_ADDRESS, gatewayInterface)
+	go gateway.StartGateway(GW_ADDRESS, gatewayInterface, "", "")
 	os.Exit(m.Run())
 }
 

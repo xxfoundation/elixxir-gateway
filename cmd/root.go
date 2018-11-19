@@ -12,9 +12,10 @@ import (
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
+	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
-	"os"
 	"log"
+	"os"
 )
 
 var cfgFile string
@@ -45,7 +46,12 @@ var RootCmd = &cobra.Command{
 		batchSize := uint64(viper.GetInt("batchSize"))
 
 		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
-		gateway.StartGateway(address, gatewayImpl)
+		certPath := viper.GetString("certPath")
+		keyPath := viper.GetString("keyPath")
+		serverCertPath := viper.GetString("serverCertPath")
+		// Set the serverCertPath explicitly to avoid data races
+		connect.ServerCertPath = serverCertPath
+		gateway.StartGateway(address, gatewayImpl, certPath, keyPath)
 
 		// Wait forever
 		select {}
