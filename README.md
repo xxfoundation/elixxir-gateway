@@ -53,9 +53,12 @@ GatewayAddress: "0.0.0.0:8443"
 # deleted from the user's message queue
 MessageTimeout: 60
 
-# TLS-related file paths
+# === REQUIRED FOR ENABLING TLS ===
+# Path to the gateway private key file
 keyPath: ""
+# Path to the gateway certificate file
 certPath: ""
+# Path to the gateway certificate file
 serverCertPath: ""
 
 ### Anything below this line is to be deprecated ###
