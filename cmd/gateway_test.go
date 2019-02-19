@@ -10,9 +10,9 @@ import (
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/gateway/storage"
+	"gitlab.com/elixxir/primitives/id"
 	"os"
 	"testing"
-	"gitlab.com/elixxir/primitives/userid"
 )
 
 const GW_ADDRESS = "localhost:5555"
@@ -34,8 +34,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestGatewayImpl(t *testing.T) {
-	msg := pb.CmixMessage{SenderID: userid.NewUserIDFromUint(666, t).Bytes()}
-	userId := userid.ZeroID
+	msg := pb.CmixMessage{SenderID: id.NewUserFromUint(666, t).Bytes()}
+	userId := id.ZeroID
 
 	ok := gatewayInterface.PutMessage(&msg)
 	if !ok {

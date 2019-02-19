@@ -13,7 +13,7 @@ import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/userid"
+	"gitlab.com/elixxir/primitives/id"
 )
 
 type GatewayImpl struct {
@@ -40,14 +40,14 @@ func NewGatewayImpl(batchSize uint64, cmixNodes []string,
 
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
-func (m *GatewayImpl) GetMessage(userID *userid.UserID,
+func (m *GatewayImpl) GetMessage(userID *id.User,
 	msgID string) (*pb.CmixMessage, bool) {
 	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
 	return m.buffer.GetMessage(userID, msgID)
 }
 
-// Return any MessageIDs in the globals for this UserID
-func (m *GatewayImpl) CheckMessages(userID *userid.UserID, messageID string) (
+// Return any MessageIDs in the globals for this User
+func (m *GatewayImpl) CheckMessages(userID *id.User, messageID string) (
 	[]string, bool) {
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, messageID)
@@ -61,7 +61,7 @@ func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 	h, _ := hash.NewCMixHash()
 
 	for i := range msgs {
-		userId := new(userid.UserID).SetBytes(msgs[i].SenderID)
+		userId := new(id.User).SetBytes(msgs[i].SenderID)
 		h.Write(msgs[i].MessagePayload)
 		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
 		m.buffer.AddMessage(userId, msgId, msgs[i])
