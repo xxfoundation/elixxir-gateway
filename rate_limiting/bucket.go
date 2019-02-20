@@ -42,14 +42,13 @@ func (b *Bucket) Add(token uint) bool {
 	elapsedTime := time.Now().Sub(b.lastUpdate).Nanoseconds()
 
 	// Calculate the amount of tokens have leaked over the elapsed time
-	r := elapsedTime * int64(b.rate)
+	r := uint(float64(elapsedTime) * b.rate)
 
-	// Update the remaining number tokens
-	b.remaining -= uint(r)
-
-	// Ensure remaining is no less than zero
-	if b.remaining < 0 {
+	// Update the remaining number tokens and ensure remaining is no less than zero
+	if r > b.remaining {
 		b.remaining = 0
+	} else {
+		b.remaining -= r
 	}
 
 	b.lastUpdate = time.Now()
@@ -58,6 +57,7 @@ func (b *Bucket) Add(token uint) bool {
 		b.mux.Unlock()
 		return false
 	} else {
+		b.remaining++
 		b.mux.Unlock()
 		return true
 	}
