@@ -105,25 +105,33 @@ func TestRemaining(t *testing.T) {
 func TestAdd(t *testing.T) {
 	b := Create(10, 0.000000001)
 
-	time.Sleep(3 * time.Second)
-	addBool := b.Add(15)
+	addBool := b.Add(7)
 
-	if addBool != true {
-		t.Errorf("Remaining() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.Remaining(), 7)
+	if addBool != false {
+		t.Errorf("Add() returned incorrect bool\n\treceived: %v\n\texpected: %v", addBool, false)
 	}
 
-	if b.remaining != 7 {
+	if b.remaining != 10 {
+		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 10)
+	}
+
+	time.Sleep(3 * time.Second)
+	addBool = b.Add(15)
+
+	if addBool != true {
+		t.Errorf("Add() returned incorrect bool\n\treceived: %v\n\texpected: %v", addBool, true)
+	}
+
+	if b.remaining != 8 {
 		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 8)
 	}
 
 	time.Sleep(8 * time.Second)
 	b.Add(15)
 
-	if b.Remaining() != 0 {
-		t.Errorf("Remaining() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.Remaining(), 0)
+	if b.Remaining() != 1 {
+		t.Errorf("Remaining() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.Remaining(), 1)
 	}
-
-	b = Create(10, 0.000000000001389)
 
 	result := make(chan bool)
 
