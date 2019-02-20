@@ -4,9 +4,17 @@ import:
   version: master
   repo: git@gitlab.com:elixxir/comms
   vcs: git
+- package: gitlab.com/elixxir/primitives
+  version: master
+  repo: git@gitlab.com:elixxir/primitives
+  vcs: git
 - package: gitlab.com/elixxir/crypto
   version: master
   repo: git@gitlab.com:elixxir/crypto
+  vcs: git
+- package: gitlab.com/elixxir/primitives
+  version: master
+  repo: git@gitlab.com:elixxir/primitives
   vcs: git
 - package: github.com/spf13/cobra
   version: ^0.0.1
