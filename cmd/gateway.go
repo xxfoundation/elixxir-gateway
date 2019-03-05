@@ -78,8 +78,23 @@ func (m *GatewayImpl) PutMessage(msg *pb.CmixMessage) bool {
 	batch := m.buffer.PopOutgoingBatch(m.batchSize)
 	if batch != nil {
 		jww.DEBUG.Printf("Sending batch to %s...", m.gatewayNode)
-		gateway.SendBatch(m.gatewayNode, batch)
+		err := gateway.SendBatch(m.gatewayNode, batch)
+		if err != nil {
+			// TODO: Handle failure sending batch
+		}
 		return true
 	}
 	return false
+}
+
+// Pass-through for Registration Nonce Communication
+func (m *GatewayImpl) RequestNonce(message *pb.RequestNonceMessage) (
+	*pb.NonceMessage, error) {
+	return gateway.SendRequestNonceMessage(m.gatewayNode, message)
+}
+
+// Pass-through for Registration Nonce Confirmation
+func (m *GatewayImpl) ConfirmNonce(message *pb.ConfirmNonceMessage) (*pb.
+	RegistrationConfirmation, error) {
+	return gateway.SendConfirmNonceMessage(m.gatewayNode, message)
 }
