@@ -98,3 +98,12 @@ func (m *GatewayImpl) ConfirmNonce(message *pb.ConfirmNonceMessage) (*pb.
 	RegistrationConfirmation, error) {
 	return gateway.SendConfirmNonceMessage(m.gatewayNode, message)
 }
+
+// StartGateway sets up the threads and network server to run the gateway
+func StartGateway(batchSize uint64, cMixNodes []string, gatewayNode, address,
+	certPath, keyPath string) {
+	gatewayImpl := NewGatewayImpl(batchSize, cMixNodes, gatewayNode)
+	gateway.StartGateway(address, gatewayImpl, certPath, keyPath)
+	// Wait forever
+	select {}
+}
