@@ -177,22 +177,31 @@ func (m *MapBuffer) AddOutgoingMessage(msg *pb.CmixMessage) {
 	m.mux.Unlock()
 }
 
-// PopOutgoingBatch sends a batch of messages to the cMix node
-func (m *MapBuffer) PopOutgoingBatch(batchSize uint64) []*pb.CmixMessage {
+// PopMessages pops messages off the message buffer stack
+func (m *MapBuffer) PopMessages(minCnt, maxCnt uint64) []*pb.CmixMessage {
 	m.mux.Lock()
-	if uint64(len(m.outgoingMessages)) < batchSize {
+	if uint64(len(m.outgoingMessages)) < minCnt {
 		m.mux.Unlock()
 		return nil
 	}
-	outgoingBatch := m.outgoingMessages[:batchSize]
-	// If there are more outgoing messages than the batchSize
-	if uint64(len(m.outgoingMessages)) > batchSize {
+	cnt := maxCnt
+	if cnt > uint64(len(m.outgoingMessages)) {
+		cnt = uint64(len(m.outgoingMessages))
+	}
+	outgoingBatch := m.outgoingMessages[:cnt]
+	// If there are more outgoing messages than the minCnt
+	if uint64(len(m.outgoingMessages)) > cnt {
 		// Empty the batch from the slice
-		m.outgoingMessages = m.outgoingMessages[batchSize+1:]
+		m.outgoingMessages = m.outgoingMessages[cnt+1:]
 	} else {
 		// Otherwise, empty the slice
 		m.outgoingMessages = nil
 	}
 	m.mux.Unlock()
 	return outgoingBatch
+}
+
+// Len returns # of messages in queue
+func (m *MapBuffer) Len() int {
+	return len(m.outgoingMessages)
 }

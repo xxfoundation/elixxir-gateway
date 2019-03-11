@@ -77,7 +77,9 @@ func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 func (m *GatewayImpl) PutMessage(msg *pb.CmixMessage) bool {
 	jww.DEBUG.Printf("Putting message in outgoing queue...")
 	m.buffer.AddOutgoingMessage(msg)
-	batch := m.buffer.PopOutgoingBatch(m.batchSize)
+
+	// If there are batchsize messages, send them now
+	batch := m.buffer.PopMessages(m.batchSize, m.batchSize)
 	if batch != nil {
 		jww.DEBUG.Printf("Sending batch to %s...", m.gatewayNode)
 		err := gateway.SendBatch(m.gatewayNode, batch)
