@@ -55,6 +55,8 @@ func (m *GatewayImpl) CheckMessages(userID *id.User, messageID string) (
 }
 
 // Receives batch from server and stores it in the local MessageBuffer
+// FIXME: This bidirectionality is problematic. Might make more sense to poll
+// instead OR have the receive be the return on SendBatch
 func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 	jww.DEBUG.Printf("Received batch of size %d from server", len(msg.Messages))
 	msgs := msg.Messages
