@@ -26,6 +26,8 @@ type MessageBuffer interface {
 	AddMessage(userId *id.User, msgId string, msg *pb.CmixMessage)
 	// AddOutGoingMessage adds a message to send to the cMix node
 	AddOutgoingMessage(msg *pb.CmixMessage)
-	// PopOutgoingBatch sends a batch of messages to the cMix node
-	PopOutgoingBatch(batchSize uint64) []*pb.CmixMessage
+	// PopMessages returns at least minCnt and at most maxCnt messages, or nil.
+	PopMessages(minCnt, maxCnt uint64) []*pb.CmixMessage
+	// Return the # of messages on the buffer
+	Len() int
 }

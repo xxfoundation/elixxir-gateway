@@ -13,7 +13,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/connect"
-	"gitlab.com/elixxir/comms/gateway"
 	"log"
 	"os"
 )
@@ -40,21 +39,17 @@ var RootCmd = &cobra.Command{
 
 		address := viper.GetString("GatewayAddress")
 		jww.INFO.Println("Gateway address: " + address)
-		cmixNodes := viper.GetStringSlice("cMixNodes")
-		gatewayNode := cmixNodes[viper.GetInt("GatewayNodeIndex")]
+		cMixNodes := viper.GetStringSlice("cMixNodes")
+		gatewayNode := cMixNodes[viper.GetInt("GatewayNodeIndex")]
 		jww.INFO.Println("Gateway node: " + gatewayNode)
 		batchSize := uint64(viper.GetInt("batchSize"))
 
-		gatewayImpl := NewGatewayImpl(batchSize, cmixNodes, gatewayNode)
 		certPath := viper.GetString("certPath")
 		keyPath := viper.GetString("keyPath")
 		serverCertPath := viper.GetString("serverCertPath")
 		// Set the serverCertPath explicitly to avoid data races
 		connect.ServerCertPath = serverCertPath
-		gateway.StartGateway(address, gatewayImpl, certPath, keyPath)
-
-		// Wait forever
-		select {}
+		StartGateway(batchSize, cMixNodes, gatewayNode, address, certPath, keyPath)
 	},
 }
 
