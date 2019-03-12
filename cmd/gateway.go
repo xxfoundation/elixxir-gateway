@@ -13,6 +13,7 @@ import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/storage"
+	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
 	"time"
 )
@@ -64,8 +65,10 @@ func (m *GatewayImpl) ReceiveBatch(msg *pb.OutputMessages) {
 	h, _ := hash.NewCMixHash()
 
 	for i := range msgs {
-		userId := new(id.User).SetBytes(msgs[i].SenderID)
+		associatedData := format.DeserializeAssociatedData(msgs[i].AssociatedData)
+		userId := associatedData.GetRecipient()
 		h.Write(msgs[i].MessagePayload)
+		h.Write(msgs[i].AssociatedData)
 		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
 		m.Buffer.AddMessage(userId, msgId, msgs[i])
 		h.Reset()
