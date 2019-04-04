@@ -109,7 +109,11 @@ func (m *GatewayImpl) ConfirmNonce(message *pb.ConfirmNonceMessage) (*pb.
 
 // GenJunkMsg generates a junk message using the gateway's client key
 func GenJunkMsg() *pb.CmixMessage {
-	return &pb.CmixMessage{} //TODO: Real junk message
+	//TODO: Real junk message
+	return &pb.CmixMessage{
+		AssociatedData: []byte{0x01},
+		MessagePayload: []byte{0x01},
+	}
 }
 
 // SendBatchWhenReady polls for the servers RoundBufferInfo object, checks
