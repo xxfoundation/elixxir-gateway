@@ -24,9 +24,9 @@ func TestMain(m *testing.M) {
 	cmixNodes := make([]string, 1)
 	cmixNodes[0] = GW_ADDRESS
 	gatewayInterface = &GatewayImpl{
-		buffer:      storage.NewMessageBuffer(),
-		batchSize:   1,
-		gatewayNode: GW_ADDRESS,
+		Buffer:      storage.NewMessageBuffer(),
+		BatchSize:   1,
+		GatewayNode: GW_ADDRESS,
 		cmixNodes:   cmixNodes,
 	}
 	go gateway.StartGateway(GW_ADDRESS, gatewayInterface, "", "")

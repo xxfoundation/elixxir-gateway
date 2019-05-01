@@ -122,12 +122,25 @@ func TestMapBuffer_AddOutgoingMessage(t *testing.T) {
 	}
 }
 
-func TestMapBuffer_PopOutgoingBatch(t *testing.T) {
+func TestMapBuffer_PopMessages(t *testing.T) {
+	messageBuf.outgoingMessages = make([]*pb.CmixMessage, 0)
+	if messageBuf.Len() != 0 {
+		t.Errorf("PopMessages: Queue should be empty! Has %d messages!",
+			messageBuf.Len())
+	}
+	if messageBuf.PopMessages(1, 1) != nil {
+		t.Errorf("PopMessages: Queue shouldbe nil, but has %d messages!",
+			messageBuf.Len())
+	}
 	messageBuf.outgoingMessages = append(messageBuf.outgoingMessages,
 		&pb.CmixMessage{SenderID: id.ZeroID.Bytes()})
-	messageBuf.PopOutgoingBatch(1)
+	//First confirm there's a message present
+	if messageBuf.Len() != 1 {
+		t.Errorf("PopMessages: Queue should have 1 message!")
+	}
+	messageBuf.PopMessages(1, 1)
 	if len(messageBuf.outgoingMessages) > 0 {
-		t.Errorf("PopOutgoingBatch: Batch was not popped correctly!")
+		t.Errorf("PopMessages: Batch was not popped correctly!")
 	}
 }
 
