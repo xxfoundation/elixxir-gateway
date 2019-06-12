@@ -131,17 +131,23 @@ func SendBatchWhenReady(g *GatewayImpl, minMsgCnt uint64) {
 		}
 
 		batch := g.Buffer.PopMessages(minMsgCnt, g.BatchSize)
-		if batch == nil {
-			jww.INFO.Printf("Server is ready, but only have %d messages to send, "+
-				"need %d! Waiting 10 seconds!", g.Buffer.Len(), minMsgCnt)
+
+		// If the batch length is zero or greater than 1, then fill the batch.
+		// If the length of batch is 1, then wait for another message.
+		if batch == nil || len(batch) > 1 {
+			// Fill the batch with junk
+			for i := uint64(len(batch)); i < g.BatchSize; i++ {
+				batch = append(batch, GenJunkMsg())
+			}
+		} else if len(batch) == 1 {
+			jww.INFO.Printf("Server is ready, but only have %d messages to "+
+				"send, need %d! Waiting 10 seconds!",
+				g.Buffer.Len(), minMsgCnt)
 			time.Sleep(10 * time.Second)
 			continue
 		}
 
-		// Now fill with junk and send
-		for i := uint64(len(batch)); i < g.BatchSize; i++ {
-			batch = append(batch, GenJunkMsg())
-		}
+		// Send the batch
 		err = gateway.SendBatch(g.GatewayNode, batch)
 		if err != nil {
 			// TODO: handle failure sending batch
