@@ -13,7 +13,8 @@ type Bucket struct {
 	mux        sync.Mutex
 }
 
-// This is an implementation of the leaky bucket algorithm: https://en.wikipedia.org/wiki/Leaky_bucket
+// This is an implementation of the leaky bucket algorithm:
+// https://en.wikipedia.org/wiki/Leaky_bucket
 
 // Generates a new empty bucket.
 func Create(capacity uint, rate float64) Bucket {
