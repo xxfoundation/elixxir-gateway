@@ -21,6 +21,7 @@ var cfgFile string
 var verbose bool
 var showVer bool
 var validConfig bool
+var gatewayNodeIdx int
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -40,7 +41,15 @@ var RootCmd = &cobra.Command{
 		address := viper.GetString("GatewayAddress")
 		jww.INFO.Println("Gateway address: " + address)
 		cMixNodes := viper.GetStringSlice("cMixNodes")
-		gatewayNode := cMixNodes[viper.GetInt("GatewayNodeIndex")]
+
+		var gatewayNode string
+		// If set on cmd arg, override config
+		if gatewayNodeIdx != -1 {
+			gatewayNode = cMixNodes[gatewayNodeIdx]
+		} else {
+			gatewayNode = cMixNodes[viper.GetInt("GatewayNodeIndex")]
+		}
+
 		jww.INFO.Println("Gateway node: " + gatewayNode)
 		batchSize := uint64(viper.GetInt("batchSize"))
 
@@ -81,6 +90,8 @@ func init() {
 		"Verbose mode for debugging")
 	RootCmd.Flags().BoolVarP(&showVer, "version", "V", false,
 		"Show the gateway version information.")
+	RootCmd.Flags().IntVarP(&gatewayNodeIdx, "gatewayNodeIndex", "i", -1,
+		"Specify which node from the list of nodes this gateway connects to.")
 
 	// Set the default message timeout
 	viper.SetDefault("MessageTimeout", 60)
