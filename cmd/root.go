@@ -8,11 +8,11 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	"gitlab.com/elixxir/comms/connect"
 	"log"
 	"os"
 )
@@ -20,11 +20,11 @@ import (
 var cfgFile string
 var verbose bool
 var showVer bool
-var validConfig bool
 var gatewayNodeIdx int
+var gwPort int
 
-// RootCmd represents the base command when called without any subcommands
-var RootCmd = &cobra.Command{
+// RootCmd represents the base command when called without any sub-commands
+var rootCmd = &cobra.Command{
 	Use:   "gateway",
 	Short: "Runs a cMix gateway",
 	Long:  `The cMix gateways coordinate communications between servers and clients`,
@@ -34,39 +34,61 @@ var RootCmd = &cobra.Command{
 			printVersion()
 			return
 		}
-		if !validConfig {
-			jww.WARN.Println("Invalid Config File")
-		}
+		params := InitParams(viper.GetViper())
 
-		address := viper.GetString("GatewayAddress")
-		jww.INFO.Println("Gateway address: " + address)
-		cMixNodes := viper.GetStringSlice("cMixNodes")
+		//Build gateway implementation object
+		gateway := NewGatewayInstance(params)
 
-		var gatewayNode string
-		// If set on cmd arg, override config
-		if gatewayNodeIdx != -1 {
-			gatewayNode = cMixNodes[gatewayNodeIdx]
-		} else {
-			gatewayNode = cMixNodes[viper.GetInt("GatewayNodeIndex")]
-		}
+		//start gateway network interactions
+		gateway.InitNetwork()
 
-		jww.INFO.Println("Gateway node: " + gatewayNode)
-		batchSize := uint64(viper.GetInt("batchSize"))
+		//Begin gateway persistent components
+		gateway.Start()
 
-		certPath := viper.GetString("certPath")
-		keyPath := viper.GetString("keyPath")
-		serverCertPath := viper.GetString("serverCertPath")
-		// Set the serverCertPath explicitly to avoid data races
-		connect.ServerCertPath = serverCertPath
-		StartGateway(batchSize, cMixNodes, gatewayNode, address, certPath, keyPath)
+		// Wait forever
+		select {}
 	},
+}
+
+func InitParams(vip *viper.Viper) Params {
+	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
+
+	gwPort := vip.GetInt("Port")
+	jww.INFO.Printf("Gateway Port: %d", gwPort)
+
+	cMixNodes := vip.GetStringSlice("CMixNodes")
+
+	gatewayNodeIdx = viper.GetInt("Index")
+	gatewayNode := cMixNodes[gatewayNodeIdx]
+	jww.INFO.Printf("Gateway node %d: %s", gatewayNodeIdx, gatewayNode)
+
+	batchSize := uint64(vip.GetInt("BatchSize"))
+
+	certPath := vip.GetString("CertPath")
+
+	keyPath := vip.GetString("KeyPath")
+
+	serverCertPath := vip.GetString("ServerCertPath")
+
+	cMixParams := vip.GetStringMapString("groups.cmix")
+
+	return Params{
+		Port:           gwPort,
+		CMixNodes:      cMixNodes,
+		GatewayNode:    connectionID(gatewayNode),
+		BatchSize:      batchSize,
+		CertPath:       certPath,
+		KeyPath:        keyPath,
+		ServerCertPath: serverCertPath,
+		CmixGrp:        cMixParams,
+	}
 }
 
 // Execute adds all child commands to the root command and sets flags
 // appropriately.  This is called by main.main(). It only needs to
 // happen once to the RootCmd.
 func Execute() {
-	if err := RootCmd.Execute(); err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		jww.ERROR.Println(err)
 		os.Exit(1)
 	}
@@ -78,58 +100,67 @@ func init() {
 	// NOTE: The point of init() is to be declarative.
 	// There is one init in each sub command. Do not put variable declarations
 	// here, and ensure all the Flags are of the *P variety, unless there's a
-	// very good reason not to have them as local params to sub command."
+	// very good reason not to have them as local Params to sub command."
 	cobra.OnInitialize(initConfig, initLog)
 
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-	RootCmd.Flags().StringVarP(&cfgFile, "config", "", "",
+	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
 		"config file (default is $HOME/.elixxir/gateway.yaml)")
-	RootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
+	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
 		"Verbose mode for debugging")
-	RootCmd.Flags().BoolVarP(&showVer, "version", "V", false,
+	rootCmd.Flags().BoolVarP(&showVer, "version", "V", false,
 		"Show the gateway version information.")
-	RootCmd.Flags().IntVarP(&gatewayNodeIdx, "gatewayNodeIndex", "i", -1,
-		"Specify which node from the list of nodes this gateway connects to.")
+	rootCmd.Flags().IntVarP(&gatewayNodeIdx, "index", "i", -1,
+		"Index of the node to connect to from the list of nodes.")
+	rootCmd.Flags().IntVarP(&gwPort, "port", "p", -1,
+		"Port for the gateway to listen on.")
+
+	// Bind command line flags to config file parameters
+	err := viper.BindPFlag("index", rootCmd.Flags().Lookup("index"))
+	handleBindingError(err, "index")
+	err = viper.BindPFlag("port", rootCmd.Flags().Lookup("port"))
+	handleBindingError(err, "index")
 
 	// Set the default message timeout
 	viper.SetDefault("MessageTimeout", 60)
 }
 
+// Handle flag binding errors
+func handleBindingError(err error, flag string) {
+	if err != nil {
+		jww.FATAL.Panicf("Error on binding flag \"%s\":%+v", flag, err)
+	}
+}
+
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	// Default search paths
-	var searchDirs []string
-	searchDirs = append(searchDirs, "./") // $PWD
-	// $HOME
-	home, _ := homedir.Dir()
-	searchDirs = append(searchDirs, home+"/.elixxir/")
-	// /etc/elixxir
-	searchDirs = append(searchDirs, "/etc/elixxir")
-	jww.DEBUG.Printf("Configuration search directories: %v", searchDirs)
+	if cfgFile == "" {
+		// Default search paths
+		var searchDirs []string
+		searchDirs = append(searchDirs, "./") // $PWD
+		// $HOME
+		home, _ := homedir.Dir()
+		searchDirs = append(searchDirs, home+"/.elixxir/")
+		// /etc/elixxir
+		searchDirs = append(searchDirs, "/etc/elixxir")
+		jww.DEBUG.Printf("Configuration search directories: %v", searchDirs)
 
-	validConfig = false
-	for i := range searchDirs {
-		if cfgFile == "" {
+		for i := range searchDirs {
 			cfgFile = searchDirs[i] + "gateway.yaml"
-		} else {
-			// Use config filename if we got one on the command line
-			cfgFile = searchDirs[i] + cfgFile
-		}
-		_, err := os.Stat(cfgFile)
-		if !os.IsNotExist(err) {
-			validConfig = true
-			viper.SetConfigFile(cfgFile)
-			break
+			_, err := os.Stat(cfgFile)
+			if !os.IsNotExist(err) {
+				break
+			}
 		}
 	}
+	viper.SetConfigFile(cfgFile)
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
-		jww.WARN.Printf("Unable to read config file (%s): %s", cfgFile, err.Error())
-		validConfig = false
+		fmt.Printf("Unable to read config file (%s): %+v", cfgFile, err.Error())
 	}
 
 }

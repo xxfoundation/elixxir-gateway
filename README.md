@@ -16,8 +16,7 @@ a time.
 ## How to run locally
 
 First, make sure dependencies are installed into the vendor folder by running
-`glide up`. Then, in the project directory, run `go run main.go --config
-gateway.yaml`.
+`glide up`. Then, in the project directory, run `go run main.go`.
 
 If what you're working on requires you to change other repos, you can remove
 the other repo from the vendor folder and Go's build tools will look for those
@@ -43,11 +42,11 @@ log: "gateway.log"
 # The cMix nodes in the network
 cMixNodes:
  - "0.0.0.0:11420"
-# The index to which this Gateway is attached in the cMixNodes list
-GatewayNodeIndex: 0
+ - "0.0.0.0:11421"
+ - "0.0.0.0:11422"
 
-# The listening address of this gateway
-GatewayAddress: "0.0.0.0:8443"
+# The listening port of this gateway
+Port: 8443
 
 # The number of seconds a message should remain in the globals before being
 # deleted from the user's message queue
@@ -55,18 +54,18 @@ MessageTimeout: 60
 
 # === REQUIRED FOR ENABLING TLS ===
 # Path to the gateway private key file
-keyPath: ""
+keyPath: "gateway.cmix.rip.key"
 # Path to the gateway certificate file
-certPath: ""
+certPath: "gateway.cmix.rip.crt"
 # Path to the gateway certificate file
-serverCertPath: ""
+serverCertPath: "cmix.rip.crt"
 
 ### Anything below this line is to be deprecated ###
 
 # Number of nodes in the cMix Network
 
 # Batch size of the cMix Network (to be deprecated)
-batchSize: 1
+batchSize: 2
 ```
 
 ## Command line flags
@@ -76,6 +75,9 @@ batchSize: 1
 |--help|-h|Shows a help message|
 |--verbose|-v|Log more things to help debugging|
 |--version|-V|Print full version information|
+|--config|-c|Specify alternate path to configuration file|
+|--index|-i|Index of the node to connect to from the list of nodes|
+|--port|-p|Port for the gateway to listen on|
 
 ### Generate version information
 

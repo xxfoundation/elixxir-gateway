@@ -42,8 +42,8 @@ func ReadGlideLock() string {
 }
 
 func main() {
-	gitversion := GenerateGitVersion()
-	glidedependencies := ReadGlideLock()
+	gitVersion := GenerateGitVersion()
+	glideDependencies := ReadGlideLock()
 
 	f, err := os.Create("version_vars.go")
 	die(err)
@@ -55,8 +55,8 @@ func main() {
 		GLIDEDEPS string
 	}{
 		Timestamp: time.Now(),
-		GITVER:    gitversion,
-		GLIDEDEPS: glidedependencies,
+		GITVER:    gitVersion,
+		GLIDEDEPS: glideDependencies,
 	})
 }
 
