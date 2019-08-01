@@ -9,18 +9,12 @@ package main
 import (
 	"os/exec"
 	"testing"
-
-	"gitlab.com/elixxir/gateway/cmd"
 )
 
 // Smoke test for main
 func TestMainSmoke(t *testing.T) {
-	cmd.RootCmd.SetArgs([]string{"--version"})
-	main()
-	cmd.RootCmd.SetArgs([]string{"--version", "--config", "sampleconfig.yaml"})
-	main()
-	cmd := exec.Command("go", "run", "main.go", "--version")
-	err := cmd.Run()
+	command := exec.Command("go", "run", "main.go", "--version")
+	err := command.Run()
 	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
 		t.Errorf("Smoke test failed with %v", e)
 	}

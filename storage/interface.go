@@ -15,19 +15,19 @@ import (
 type MessageBuffer interface {
 	// StartMessageCleanup is a thread that auto-removes old messages
 	StartMessageCleanup(msgTimeout int)
-	// GetMessage returns a given message for a specific user
-	GetMessage(userId *id.User, msgId string) (*pb.CmixMessage, bool)
-	// GetMessageIDs returns the mesage IDs received after the given messageID, or
-	// all message IDs if that ID cannot be found or is empty
-	GetMessageIDs(userId *id.User, messageID string) ([]string, bool)
-	// DeleteMessage deletes a specific message
-	DeleteMessage(userId *id.User, msgId string)
-	// AddMessage adds a message to the buffer for a specific user
-	AddMessage(userId *id.User, msgId string, msg *pb.CmixMessage)
+	// GetMixedMessage returns a given message for a specific user
+	GetMixedMessage(userId *id.User, msgId string) (*pb.Slot, bool)
+	// GetMixedMessageIDs returns the message IDs received after the given messageID,
+	// or all message IDs if that ID cannot be found or is empty
+	GetMixedMessageIDs(userId *id.User, messageID string) ([]string, bool)
+	// DeleteMixedMessage deletes a specific message
+	DeleteMixedMessage(userId *id.User, msgId string)
+	// AddMixedMessage adds a message to the buffer for a specific user
+	AddMixedMessage(userId *id.User, msgId string, msg *pb.Slot)
 	// AddOutGoingMessage adds a message to send to the cMix node
-	AddOutgoingMessage(msg *pb.CmixMessage)
-	// PopMessages returns at least minCnt and at most maxCnt messages, or nil.
-	PopMessages(minCnt, maxCnt uint64) []*pb.CmixMessage
+	AddUnmixedMessage(msg *pb.Slot)
+	// PopUnmixedMessages returns at least minCnt and at most maxCnt messages, or nil.
+	PopUnmixedMessages(minCnt, maxCnt uint64) *pb.Batch
 	// Return the # of messages on the buffer
-	Len() int
+	LenUnmixed() int
 }

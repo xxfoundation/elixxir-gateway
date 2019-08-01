@@ -15,7 +15,7 @@ import (
 // The above generates: GITVERSION, GLIDEDEPS, and SEMVER
 
 func init() {
-	RootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 func printVersion() {
