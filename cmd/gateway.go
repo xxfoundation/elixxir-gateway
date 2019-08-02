@@ -13,6 +13,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/comms/utils"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
@@ -77,11 +78,11 @@ func NewGatewayInstance(params Params) *Instance {
 // Shutdown() on the network object.
 func (gw *Instance) InitNetwork() {
 	address := fmt.Sprintf("0.0.0.0:%d", gw.Params.Port)
-	cert, err := ioutil.ReadFile(gw.Params.CertPath)
+	cert, err := ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
 	if err != nil {
 		jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
 	}
-	key, err := ioutil.ReadFile(gw.Params.KeyPath)
+	key, err := ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
 	if err != nil {
 		jww.ERROR.Printf("Failed to read key at %s: %+v", gw.Params.KeyPath, err)
 	}
@@ -89,7 +90,7 @@ func (gw *Instance) InitNetwork() {
 
 	var tlsCert []byte
 	if gw.Params.ServerCertPath != "" {
-		tlsCert, err = ioutil.ReadFile(gw.Params.ServerCertPath)
+		tlsCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
 		if err != nil {
 			jww.ERROR.Printf("Failed to read server cert at %s: %+v", gw.Params.ServerCertPath, err)
 		}
