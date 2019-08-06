@@ -77,6 +77,7 @@ func NewGatewayInstance(params Params) *Instance {
 // Additionally, to clean up the network object (especially in tests), call
 // Shutdown() on the network object.
 func (gw *Instance) InitNetwork() {
+	// Set up a comms server
 	address := fmt.Sprintf("0.0.0.0:%d", gw.Params.Port)
 	cert, err := ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
 	if err != nil {
@@ -88,6 +89,7 @@ func (gw *Instance) InitNetwork() {
 	}
 	gw.Comms = gateway.StartGateway(address, gw, cert, key)
 
+	// Connect to the associated Node
 	var tlsCert []byte
 	if gw.Params.ServerCertPath != "" {
 		tlsCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
@@ -96,6 +98,29 @@ func (gw *Instance) InitNetwork() {
 		}
 	}
 	err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), tlsCert)
+
+	if !disablePermissioning {
+		// Obtain signed certificates from the Node
+		var signedCerts *pb.SignedCerts
+		for signedCerts == nil {
+			msg, err := gw.Comms.PollSignedCerts(gw.Params.GatewayNode, &pb.Ping{})
+			if err != nil {
+				jww.ERROR.Printf("Error obtaining signed certificates: %+v", err)
+			}
+			if msg.ServerCertPEM != "" && msg.GatewayCertPEM != "" {
+				signedCerts = msg
+			}
+		}
+
+		// Replace the comms server with the newly-signed certificate
+		gw.Comms.Shutdown()
+		gw.Comms = gateway.StartGateway(address, gw,
+			[]byte(signedCerts.GatewayCertPEM), key)
+
+		// Use the signed Server certificate to open a new connection
+		err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode),
+			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM))
+	}
 }
 
 // Returns message contents for MessageID, or a null/randomized message
