@@ -101,6 +101,7 @@ func (gw *Instance) InitNetwork() {
 
 	if !disablePermissioning {
 		// Obtain signed certificates from the Node
+		jww.INFO.Printf("Beginning polling for signed certs...")
 		var signedCerts *pb.SignedCerts
 		for signedCerts == nil {
 			msg, err := gw.Comms.PollSignedCerts(gw.Params.GatewayNode, &pb.Ping{})
@@ -109,6 +110,7 @@ func (gw *Instance) InitNetwork() {
 			}
 			if msg.ServerCertPEM != "" && msg.GatewayCertPEM != "" {
 				signedCerts = msg
+				jww.INFO.Printf("Successfully obtained signed certs!")
 			}
 		}
 
