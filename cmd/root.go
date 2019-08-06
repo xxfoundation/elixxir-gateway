@@ -22,6 +22,7 @@ var verbose bool
 var showVer bool
 var gatewayNodeIdx int
 var gwPort int
+var disablePermissioning bool
 
 // RootCmd represents the base command when called without any sub-commands
 var rootCmd = &cobra.Command{
@@ -116,6 +117,8 @@ func init() {
 		"Index of the node to connect to from the list of nodes.")
 	rootCmd.Flags().IntVarP(&gwPort, "port", "p", -1,
 		"Port for the gateway to listen on.")
+	rootCmd.Flags().BoolVarP(&disablePermissioning, "disablePermissioning", "",
+		false, "Disables interaction with the Permissioning Server")
 
 	// Bind command line flags to config file parameters
 	err := viper.BindPFlag("index", rootCmd.Flags().Lookup("index"))

@@ -160,6 +160,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 	const gwPort = 6555
 	const nodeAddress = "0.0.0.0:6556"
+	disablePermissioning = true
 	serverCertPath := testkeys.GetNodeCertPath()
 	grp := make(map[string]string)
 	grp["prime"] = "9DB6FB5951B66BB6FE1E140F1D2CE5502374161FD6538DF1648218642F0B5C48" +
