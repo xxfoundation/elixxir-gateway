@@ -78,6 +78,7 @@ batchSize: 2
 |--config|-c|Specify alternate path to configuration file|
 |--index|-i|Index of the node to connect to from the list of nodes|
 |--port|-p|Port for the gateway to listen on|
+|--disablePermissioning|None|Disables interaction with the Permissioning Server|
 
 ### Generate version information
 
