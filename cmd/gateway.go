@@ -55,6 +55,9 @@ type Params struct {
 
 	ServerCertPath string
 	CmixGrp        map[string]string
+
+	FirstNode bool
+	LastNode  bool
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -274,15 +277,23 @@ func (gw *Instance) Start() {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
-		for true {
-			gw.SendBatchWhenReady(minMsgCnt, junkMsg)
+		if !gw.Params.FirstNode {
+			for true {
+				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
+			}
+		} else {
+			jww.INFO.Printf("SendBatchWhenReady() was skipped on first node.")
 		}
 	}()
 
 	//Begin the thread which polls the node for a completed batch
 	go func() {
-		for true {
-			gw.PollForBatch()
+		if !gw.Params.LastNode {
+			for true {
+				gw.PollForBatch()
+			}
+		} else {
+			jww.INFO.Printf("PollForBatch() was skipped on last node.")
 		}
 	}()
 }

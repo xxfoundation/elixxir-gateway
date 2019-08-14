@@ -73,6 +73,9 @@ func InitParams(vip *viper.Viper) Params {
 
 	cMixParams := vip.GetStringMapString("groups.cmix")
 
+	firstNode := vip.GetBool("firstNode")
+	lastNode := vip.GetBool("lastNode")
+
 	return Params{
 		Port:           gwPort,
 		CMixNodes:      cMixNodes,
@@ -82,6 +85,8 @@ func InitParams(vip *viper.Viper) Params {
 		KeyPath:        keyPath,
 		ServerCertPath: serverCertPath,
 		CmixGrp:        cMixParams,
+		FirstNode:      firstNode,
+		LastNode:       lastNode,
 	}
 }
 
