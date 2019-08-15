@@ -184,8 +184,8 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
 	return &pb.Slot{
-		AssociatedData: ecrMsg.GetPayloadB(),
-		MessagePayload: ecrMsg.GetPayloadA(),
+		PayloadB: ecrMsg.GetPayloadB(),
+		PayloadA: ecrMsg.GetPayloadA(),
 		Salt:           salt,
 		SenderID:       (*dummyUser)[:],
 	}
@@ -216,8 +216,8 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
 		newJunkMsg := &pb.Slot{
-			AssociatedData: junkMsg.AssociatedData,
-			MessagePayload: junkMsg.MessagePayload,
+			PayloadB: junkMsg.PayloadB,
+			PayloadA: junkMsg.PayloadA,
 			Salt:           junkMsg.Salt,
 			SenderID:       junkMsg.SenderID,
 		}
@@ -250,10 +250,10 @@ func (gw *Instance) PollForBatch() {
 	h, _ := hash.NewCMixHash()
 	for _, msg := range msgs {
 		serialmsg := format.NewMessage()
-		serialmsg.SetPayloadB(msg.AssociatedData)
+		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipient()
-		h.Write(msg.MessagePayload)
-		h.Write(msg.AssociatedData)
+		h.Write(msg.PayloadA)
+		h.Write(msg.PayloadB)
 		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
 		gw.Buffer.AddMixedMessage(userId, msgId, msg)
 		h.Reset()

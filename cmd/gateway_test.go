@@ -93,8 +93,8 @@ func TestMain(m *testing.M) {
 
 	mockMessage = &pb.Slot{
 		Index:          42,
-		MessagePayload: msg.GetPayloadA(),
-		AssociatedData: msg.GetPayloadB(),
+		PayloadA: msg.GetPayloadA(),
+		PayloadB: msg.GetPayloadB(),
 	}
 
 	defer gComm.Shutdown()
