@@ -127,7 +127,7 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
 }
 
 // Pass-through for Registration Nonce Confirmation
-func (gw *Instance) ConfirmNonce(msg *pb.RSASignature) (
+func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (
 	*pb.RegistrationConfirmation, error) {
 	return gw.Comms.SendConfirmNonceMessage(gw.Params.GatewayNode, msg)
 }
