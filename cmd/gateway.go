@@ -79,27 +79,33 @@ func NewGatewayInstance(params Params) *Instance {
 func (gw *Instance) InitNetwork() {
 	// Set up a comms server
 	address := fmt.Sprintf("0.0.0.0:%d", gw.Params.Port)
-	cert, err := ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
-	if err != nil {
-		jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
-	}
-	key, err := ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
-	if err != nil {
-		jww.ERROR.Printf("Failed to read key at %s: %+v", gw.Params.KeyPath, err)
-	}
-	gw.Comms = gateway.StartGateway(address, gw, cert, key)
+	var err error
+	var cert, key, tlsCert []byte
 
-	// Connect to the associated Node
-	var tlsCert []byte
-	if gw.Params.ServerCertPath != "" {
+	if !noTLS {
+		cert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
+		if err != nil {
+			jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
+		}
+		key, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
+		if err != nil {
+			jww.ERROR.Printf("Failed to read key at %s: %+v", gw.Params.KeyPath, err)
+		}
 		tlsCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
 		if err != nil {
 			jww.ERROR.Printf("Failed to read server cert at %s: %+v", gw.Params.ServerCertPath, err)
 		}
 	}
+	gw.Comms = gateway.StartGateway(address, gw, cert, key)
+
+	// Connect to the associated Node
+
 	err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), tlsCert)
 
 	if !disablePermissioning {
+		if noTLS {
+			jww.ERROR.Panicf("Panic: cannot have permissinoning on and TLS disabled")
+		}
 		// Obtain signed certificates from the Node
 		jww.INFO.Printf("Beginning polling for signed certs...")
 		var signedCerts *pb.SignedCerts
