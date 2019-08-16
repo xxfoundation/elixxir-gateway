@@ -80,7 +80,7 @@ func (gw *Instance) InitNetwork() {
 	// Set up a comms server
 	address := fmt.Sprintf("0.0.0.0:%d", gw.Params.Port)
 	var err error
-	var cert, key []byte
+	var cert, key, tlsCert []byte
 
 	if !noTLS {
 		cert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
@@ -91,17 +91,15 @@ func (gw *Instance) InitNetwork() {
 		if err != nil {
 			jww.ERROR.Printf("Failed to read key at %s: %+v", gw.Params.KeyPath, err)
 		}
-	}
-	gw.Comms = gateway.StartGateway(address, gw, cert, key)
-
-	// Connect to the associated Node
-	var tlsCert []byte
-	if gw.Params.ServerCertPath != "" && !noTLS {
 		tlsCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
 		if err != nil {
 			jww.ERROR.Printf("Failed to read server cert at %s: %+v", gw.Params.ServerCertPath, err)
 		}
 	}
+	gw.Comms = gateway.StartGateway(address, gw, cert, key)
+
+	// Connect to the associated Node
+
 	err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), tlsCert)
 
 	if !disablePermissioning {
