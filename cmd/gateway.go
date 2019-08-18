@@ -80,27 +80,27 @@ func (gw *Instance) InitNetwork() {
 	// Set up a comms server
 	address := fmt.Sprintf("0.0.0.0:%d", gw.Params.Port)
 	var err error
-	var cert, key, tlsCert []byte
+	var gwCert, gwKey, nodeCert []byte
 
 	if !noTLS {
-		cert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
+		gwCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
 		if err != nil {
 			jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
 		}
-		key, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
+		gwKey, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
 		if err != nil {
-			jww.ERROR.Printf("Failed to read key at %s: %+v", gw.Params.KeyPath, err)
+			jww.ERROR.Printf("Failed to read gwKey at %s: %+v", gw.Params.KeyPath, err)
 		}
-		tlsCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
+		nodeCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
 		if err != nil {
-			jww.ERROR.Printf("Failed to read server cert at %s: %+v", gw.Params.ServerCertPath, err)
+			jww.ERROR.Printf("Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err)
 		}
 	}
-	gw.Comms = gateway.StartGateway(address, gw, cert, key)
+	gw.Comms = gateway.StartGateway(address, gw, gwCert, gwKey)
 
 	// Connect to the associated Node
 
-	err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), tlsCert)
+	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert)
 
 	if !disablePermissioning {
 		if noTLS {
@@ -123,7 +123,7 @@ func (gw *Instance) InitNetwork() {
 		// Replace the comms server with the newly-signed certificate
 		gw.Comms.Shutdown()
 		gw.Comms = gateway.StartGateway(address, gw,
-			[]byte(signedCerts.GatewayCertPEM), key)
+			[]byte(signedCerts.GatewayCertPEM), gwKey)
 
 		// Use the signed Server certificate to open a new connection
 		err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode),
@@ -156,12 +156,14 @@ func (gw *Instance) PutMessage(msg *pb.Slot) bool {
 
 // Pass-through for Registration Nonce Communication
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
+	jww.INFO.Print("Passing on registration nonce request")
 	return gw.Comms.SendRequestNonceMessage(gw.Params.GatewayNode, msg)
 }
 
 // Pass-through for Registration Nonce Confirmation
 func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (
 	*pb.RegistrationConfirmation, error) {
+	jww.INFO.Print("Passing on registration nonce confirmation")
 	return gw.Comms.SendConfirmNonceMessage(gw.Params.GatewayNode, msg)
 }
 
