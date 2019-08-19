@@ -79,27 +79,33 @@ func NewGatewayInstance(params Params) *Instance {
 func (gw *Instance) InitNetwork() {
 	// Set up a comms server
 	address := fmt.Sprintf("0.0.0.0:%d", gw.Params.Port)
-	cert, err := ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
-	if err != nil {
-		jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
-	}
-	key, err := ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
-	if err != nil {
-		jww.ERROR.Printf("Failed to read key at %s: %+v", gw.Params.KeyPath, err)
-	}
-	gw.Comms = gateway.StartGateway(address, gw, cert, key)
+	var err error
+	var gwCert, gwKey, nodeCert []byte
 
-	// Connect to the associated Node
-	var tlsCert []byte
-	if gw.Params.ServerCertPath != "" {
-		tlsCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
+	if !noTLS {
+		gwCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
 		if err != nil {
-			jww.ERROR.Printf("Failed to read server cert at %s: %+v", gw.Params.ServerCertPath, err)
+			jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
+		}
+		gwKey, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
+		if err != nil {
+			jww.ERROR.Printf("Failed to read gwKey at %s: %+v", gw.Params.KeyPath, err)
+		}
+		nodeCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
+		if err != nil {
+			jww.ERROR.Printf("Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err)
 		}
 	}
-	err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), tlsCert)
+	gw.Comms = gateway.StartGateway(address, gw, gwCert, gwKey)
+
+	// Connect to the associated Node
+
+	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert)
 
 	if !disablePermissioning {
+		if noTLS {
+			jww.ERROR.Panicf("Panic: cannot have permissinoning on and TLS disabled")
+		}
 		// Obtain signed certificates from the Node
 		jww.INFO.Printf("Beginning polling for signed certs...")
 		var signedCerts *pb.SignedCerts
@@ -117,7 +123,7 @@ func (gw *Instance) InitNetwork() {
 		// Replace the comms server with the newly-signed certificate
 		gw.Comms.Shutdown()
 		gw.Comms = gateway.StartGateway(address, gw,
-			[]byte(signedCerts.GatewayCertPEM), key)
+			[]byte(signedCerts.GatewayCertPEM), gwKey)
 
 		// Use the signed Server certificate to open a new connection
 		err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode),
@@ -150,12 +156,14 @@ func (gw *Instance) PutMessage(msg *pb.Slot) bool {
 
 // Pass-through for Registration Nonce Communication
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
+	jww.INFO.Print("Passing on registration nonce request")
 	return gw.Comms.SendRequestNonceMessage(gw.Params.GatewayNode, msg)
 }
 
 // Pass-through for Registration Nonce Confirmation
-func (gw *Instance) ConfirmNonce(msg *pb.DSASignature) (
+func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (
 	*pb.RegistrationConfirmation, error) {
+	jww.INFO.Print("Passing on registration nonce confirmation")
 	return gw.Comms.SendConfirmNonceMessage(gw.Params.GatewayNode, msg)
 }
 
@@ -184,10 +192,10 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
 	return &pb.Slot{
-		AssociatedData: ecrMsg.GetPayloadB(),
-		MessagePayload: ecrMsg.GetPayloadA(),
-		Salt:           salt,
-		SenderID:       (*dummyUser)[:],
+		PayloadB: ecrMsg.GetPayloadB(),
+		PayloadA: ecrMsg.GetPayloadA(),
+		Salt:     salt,
+		SenderID: (*dummyUser)[:],
 	}
 }
 
@@ -216,10 +224,10 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
 		newJunkMsg := &pb.Slot{
-			AssociatedData: junkMsg.AssociatedData,
-			MessagePayload: junkMsg.MessagePayload,
-			Salt:           junkMsg.Salt,
-			SenderID:       junkMsg.SenderID,
+			PayloadB: junkMsg.PayloadB,
+			PayloadA: junkMsg.PayloadA,
+			Salt:     junkMsg.Salt,
+			SenderID: junkMsg.SenderID,
 		}
 
 		batch.Slots = append(batch.Slots, newJunkMsg)
@@ -250,10 +258,10 @@ func (gw *Instance) PollForBatch() {
 	h, _ := hash.NewCMixHash()
 	for _, msg := range msgs {
 		serialmsg := format.NewMessage()
-		serialmsg.SetPayloadB(msg.AssociatedData)
+		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipient()
-		h.Write(msg.MessagePayload)
-		h.Write(msg.AssociatedData)
+		h.Write(msg.PayloadA)
+		h.Write(msg.PayloadB)
 		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
 		gw.Buffer.AddMixedMessage(userId, msgId, msg)
 		h.Reset()
