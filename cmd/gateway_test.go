@@ -7,6 +7,7 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -49,7 +50,10 @@ func TestMain(m *testing.M) {
 	n = node.StartNode(NODE_ADDRESS, nodeHandler, nil, nil)
 
 	//Connect gateway comms to node
-	gComm.ConnectToNode(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil)
+	err := gComm.ConnectToNode(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil)
+	if err != nil {
+		fmt.Println("Could not connect to node")
+	}
 
 	grp := make(map[string]string)
 	grp["prime"] = "9DB6FB5951B66BB6FE1E140F1D2CE5502374161FD6538DF1648218642F0B5C48" +
@@ -92,9 +96,9 @@ func TestMain(m *testing.M) {
 	msg.AssociatedData.SetRecipientID(UserIDBytes)
 
 	mockMessage = &pb.Slot{
-		Index:          42,
-		MessagePayload: msg.GetPayloadA(),
-		AssociatedData: msg.GetPayloadB(),
+		Index:    42,
+		PayloadA: msg.GetPayloadA(),
+		PayloadB: msg.GetPayloadB(),
 	}
 
 	defer gComm.Shutdown()
