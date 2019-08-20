@@ -27,6 +27,8 @@ import (
 
 type connectionID string
 
+var dummyUser *id.User = id.MakeDummyUserID()
+
 func (c connectionID) String() string {
 	return (string)(c)
 }
@@ -170,7 +172,6 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (
 // GenJunkMsg generates a junk message using the gateway's client key
 func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 
-	dummyUser := id.MakeDummyUserID()
 	baseKey := grp.NewIntFromBytes((*dummyUser)[:])
 
 	var baseKeys []*cyclic.Int
@@ -253,6 +254,8 @@ func (gw *Instance) PollForBatch() {
 		return
 	}
 
+	numReal := 0
+
 	// At this point, the returned batch and its fields should be non-nil
 	msgs := batch.Slots
 	h, _ := hash.NewCMixHash()
@@ -260,12 +263,21 @@ func (gw *Instance) PollForBatch() {
 		serialmsg := format.NewMessage()
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipient()
-		h.Write(msg.PayloadA)
-		h.Write(msg.PayloadB)
-		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
-		gw.Buffer.AddMixedMessage(userId, msgId, msg)
+
+		if !userId.Cmp(dummyUser) {
+			numReal++
+			h.Write(msg.PayloadA)
+			h.Write(msg.PayloadB)
+			msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
+			gw.Buffer.AddMixedMessage(userId, msgId, msg)
+		}
+
 		h.Reset()
 	}
+	jww.INFO.Printf("Round %v recieved, %v real messages "+
+		"processed, %v dummies ignored", batch.Round.ID, numReal,
+		int(batch.Round.ID)-numReal)
+
 	go PrintProfilingStatistics()
 }
 
