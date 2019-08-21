@@ -192,11 +192,19 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
+	h, err := hash.NewCMixHash()
+	if err != nil {
+		jww.FATAL.Printf("Could not get hash: %+v", err)
+	}
+
+	KMACs := cmix.GenerateKMACs(salt, baseKeys, h)
+
 	return &pb.Slot{
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
 		Salt:     salt,
 		SenderID: (*dummyUser)[:],
+		KMACs:    KMACs,
 	}
 }
 
