@@ -50,7 +50,7 @@ func TestMain(m *testing.M) {
 	n = node.StartNode(NODE_ADDRESS, nodeHandler, nil, nil)
 
 	//Connect gateway comms to node
-	err := gComm.ConnectToNode(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil, true)
+	err := gComm.ConnectToRemote(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil, true)
 	if err != nil {
 		fmt.Println("Could not connect to node")
 	}
@@ -213,7 +213,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	connId := connectionID(nodeAddress)
 	nodeComms := gw.Comms.GetNodeConnection(connId)
 
-	ctx, cancel := connect.DefaultContext()
+	ctx, cancel := connect.MessagingContext()
 
 	_, err = nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.MAX_RETRIES))
 
