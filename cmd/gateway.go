@@ -102,7 +102,7 @@ func (gw *Instance) InitNetwork() {
 
 	// Connect to the associated Node
 
-	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert)
+	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert, true)
 
 	if !disablePermissioning {
 		if noTLS {
@@ -128,8 +128,8 @@ func (gw *Instance) InitNetwork() {
 			[]byte(signedCerts.GatewayCertPEM), gwKey)
 
 		// Use the signed Server certificate to open a new connection
-		err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode),
-			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM))
+		err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode),
+			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM), false)
 	}
 }
 
