@@ -237,6 +237,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 			PayloadA: junkMsg.PayloadA,
 			Salt:     junkMsg.Salt,
 			SenderID: junkMsg.SenderID,
+			KMACs:    junkMsg.KMACs,
 		}
 
 		batch.Slots = append(batch.Slots, newJunkMsg)
