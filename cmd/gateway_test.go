@@ -50,7 +50,7 @@ func TestMain(m *testing.M) {
 	n = node.StartNode(NODE_ADDRESS, nodeHandler, nil, nil)
 
 	//Connect gateway comms to node
-	err := gComm.ConnectToNode(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil, false)
+	err := gComm.ConnectToNode(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil, true)
 	if err != nil {
 		fmt.Println("Could not connect to node")
 	}
