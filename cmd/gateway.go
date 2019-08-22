@@ -129,7 +129,7 @@ func (gw *Instance) InitNetwork() {
 
 		// Use the signed Server certificate to open a new connection
 		err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode),
-			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM), true)
+			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM), false)
 	}
 }
 
