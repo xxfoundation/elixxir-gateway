@@ -158,6 +158,12 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 }
 
+
+func TestGatewayImpl_PollForBatch(t *testing.T) {
+	// Call PollForBatch and make sure it doesn't explode... setup done in main
+	gatewayInstance.PollForBatch()
+}
+
 // Calling InitNetwork after starting a node should cause
 // gateway to connect to the node
 func TestInitNetwork_ConnectsToNode(t *testing.T) {
