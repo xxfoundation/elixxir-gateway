@@ -163,11 +163,11 @@ func initConfig() {
 		home, _ := homedir.Dir()
 		searchDirs = append(searchDirs, home+"/.elixxir/")
 		// /etc/elixxir
-		searchDirs = append(searchDirs, "/etc/elixxir")
+		searchDirs = append(searchDirs, "/etc/.elixxir")
 		jww.DEBUG.Printf("Configuration search directories: %v", searchDirs)
 
 		for i := range searchDirs {
-			cfgFile = searchDirs[i] + "gateway.yaml"
+			cfgFile = searchDirs[i] + "/gateway.yaml"
 			_, err := os.Stat(cfgFile)
 			if !os.IsNotExist(err) {
 				break
