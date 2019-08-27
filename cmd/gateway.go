@@ -208,6 +208,14 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 
 	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.Params.GatewayNode)
 	if err != nil {
+		// Handle error indicating a server failure
+		if strings.Contains(err.Error(),
+			"TransientFailure") {
+			jww.FATAL.Panicf("Received error from GetRoundBufferInfo indicates"+
+				" a Server failure: %+v", errors.New(err.Error()))
+
+		}
+
 		jww.INFO.Printf("GetRoundBufferInfo error returned: %v", err)
 		return
 	}
