@@ -22,12 +22,13 @@ import (
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
 	"io/ioutil"
+	"strings"
 	"time"
 )
 
 type connectionID string
 
-var dummyUser *id.User = id.MakeDummyUserID()
+var dummyUser = id.MakeDummyUserID()
 
 func (c connectionID) String() string {
 	return (string)(c)
@@ -243,6 +244,13 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 func (gw *Instance) PollForBatch() {
 	batch, err := gw.Comms.GetCompletedBatch(gw.Params.GatewayNode)
 	if err != nil {
+		// Handle error indicating a server failure
+		if strings.Contains(err.Error(),
+			"TransientFailure") {
+			jww.FATAL.Panicf("Received error from GetCompletedBatch indicates"+
+				" a Server failure: %+v", errors.New(err.Error()))
+
+		}
 		// Would a timeout count as an error?
 		// No, because the server could just as easily return a batch
 		// with no slots/an empty slice of slots
