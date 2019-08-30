@@ -158,7 +158,6 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 }
 
-
 func TestGatewayImpl_PollForBatch(t *testing.T) {
 	// Call PollForBatch and make sure it doesn't explode... setup done in main
 	gatewayInstance.PollForBatch()
@@ -221,7 +220,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 	ctx, cancel := connect.MessagingContext()
 
-	_, err = nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.MAX_RETRIES))
+	_, err = nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.DefaultMaxRetries))
 
 	// Make sure there are no errors with sending the message
 	if err != nil {
