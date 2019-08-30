@@ -105,6 +105,11 @@ func (gw *Instance) InitNetwork() {
 
 	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert, true)
 
+	if err != nil {
+		jww.FATAL.Panicf("Could not connect to assoceated node %s: %+v",
+			gw.Params.GatewayNode.String(), err)
+	}
+
 	if !disablePermissioning {
 		if noTLS {
 			jww.ERROR.Panicf("Panic: cannot have permissinoning on and TLS disabled")
@@ -131,6 +136,11 @@ func (gw *Instance) InitNetwork() {
 		// Use the signed Server certificate to open a new connection
 		err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode),
 			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM), false)
+
+		if err != nil {
+			jww.FATAL.Panicf("Could not connect to assoceated node %s "+
+				"with signed cert: %+v", gw.Params.GatewayNode.String(), err)
+		}
 	}
 }
 
