@@ -22,12 +22,13 @@ import (
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
 	"io/ioutil"
+	"strings"
 	"time"
 )
 
 type connectionID string
 
-var dummyUser *id.User = id.MakeDummyUserID()
+var dummyUser = id.MakeDummyUserID()
 
 func (c connectionID) String() string {
 	return (string)(c)
@@ -102,7 +103,12 @@ func (gw *Instance) InitNetwork() {
 
 	// Connect to the associated Node
 
-	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert)
+	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert, true)
+
+	if err != nil {
+		jww.FATAL.Panicf("Could not connect to assoceated node %s: %+v",
+			gw.Params.GatewayNode.String(), err)
+	}
 
 	if !disablePermissioning {
 		if noTLS {
@@ -128,8 +134,13 @@ func (gw *Instance) InitNetwork() {
 			[]byte(signedCerts.GatewayCertPEM), gwKey)
 
 		// Use the signed Server certificate to open a new connection
-		err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode),
-			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM))
+		err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode),
+			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM), false)
+
+		if err != nil {
+			jww.FATAL.Panicf("Could not connect to assoceated node %s "+
+				"with signed cert: %+v", gw.Params.GatewayNode.String(), err)
+		}
 	}
 }
 
@@ -215,6 +226,14 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 
 	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.Params.GatewayNode)
 	if err != nil {
+		// Handle error indicating a server failure
+		if strings.Contains(err.Error(),
+			"TransientFailure") {
+			jww.FATAL.Panicf("Received error from GetRoundBufferInfo indicates"+
+				" a Server failure: %+v", errors.New(err.Error()))
+
+		}
+
 		jww.INFO.Printf("GetRoundBufferInfo error returned: %v", err)
 		return
 	}
@@ -252,6 +271,13 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 func (gw *Instance) PollForBatch() {
 	batch, err := gw.Comms.GetCompletedBatch(gw.Params.GatewayNode)
 	if err != nil {
+		// Handle error indicating a server failure
+		if strings.Contains(err.Error(),
+			"TransientFailure") {
+			jww.FATAL.Panicf("Received error from GetCompletedBatch indicates"+
+				" a Server failure: %+v", errors.New(err.Error()))
+
+		}
 		// Would a timeout count as an error?
 		// No, because the server could just as easily return a batch
 		// with no slots/an empty slice of slots

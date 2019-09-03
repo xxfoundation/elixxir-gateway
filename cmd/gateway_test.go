@@ -50,7 +50,7 @@ func TestMain(m *testing.M) {
 	n = node.StartNode(NODE_ADDRESS, nodeHandler, nil, nil)
 
 	//Connect gateway comms to node
-	err := gComm.ConnectToNode(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil)
+	err := gComm.ConnectToRemote(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil, true)
 	if err != nil {
 		fmt.Println("Could not connect to node")
 	}
@@ -158,6 +158,11 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 }
 
+func TestGatewayImpl_PollForBatch(t *testing.T) {
+	// Call PollForBatch and make sure it doesn't explode... setup done in main
+	gatewayInstance.PollForBatch()
+}
+
 // Calling InitNetwork after starting a node should cause
 // gateway to connect to the node
 func TestInitNetwork_ConnectsToNode(t *testing.T) {
@@ -213,9 +218,9 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	connId := connectionID(nodeAddress)
 	nodeComms := gw.Comms.GetNodeConnection(connId)
 
-	ctx, cancel := connect.DefaultContext()
+	ctx, cancel := connect.MessagingContext()
 
-	_, err = nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.MAX_RETRIES))
+	_, err = nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.DefaultMaxRetries))
 
 	// Make sure there are no errors with sending the message
 	if err != nil {
