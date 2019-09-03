@@ -13,7 +13,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/utils"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
@@ -21,7 +20,7 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
-	"io/ioutil"
+	"gitlab.com/elixxir/primitives/utils"
 	"strings"
 	"time"
 )
@@ -89,15 +88,15 @@ func (gw *Instance) InitNetwork() {
 	var gwCert, gwKey, nodeCert []byte
 
 	if !noTLS {
-		gwCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
+		gwCert, err = utils.ReadFile(gw.Params.CertPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
 		}
-		gwKey, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
+		gwKey, err = utils.ReadFile(gw.Params.KeyPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read gwKey at %s: %+v", gw.Params.KeyPath, err)
 		}
-		nodeCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
+		nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err)
 		}

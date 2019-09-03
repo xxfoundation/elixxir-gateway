@@ -14,7 +14,7 @@ package main
 
 import (
 	"bufio"
-	"io/ioutil"
+	"gitlab.com/elixxir/primitives/utils"
 	"log"
 	"os"
 	"os/exec"
@@ -37,7 +37,7 @@ func GenerateGitVersion() string {
 }
 
 func ReadGlideLock() string {
-	r, _ := ioutil.ReadFile("../glide.lock")
+	r, _ := utils.ReadFile("../glide.lock")
 	return string(r)
 }
 
