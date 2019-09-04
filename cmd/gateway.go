@@ -312,7 +312,7 @@ func (gw *Instance) PollForBatch() {
 // StartGateway sets up the threads and network server to run the gateway
 func (gw *Instance) Start() {
 
-	//Begin the thread which polls the node for a request to send a batch
+	// Begin the thread which polls the node for a request to send a batch
 	go func() {
 		// minMsgCnt should be no less than 33% of the BatchSize
 		// Note: this is security sensitive.. be careful if you pull this out to a
