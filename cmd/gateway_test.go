@@ -143,7 +143,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 
 	junkMsg := GenJunkMsg(gatewayInstance.CmixGrp, 1)
-
+	t.Logf("kmac for junk: %v", junkMsg.KMACs)
 	gatewayInstance.SendBatchWhenReady(1, junkMsg)
 
 	time.Sleep(1 * time.Second)
@@ -151,6 +151,8 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	if nodeIncomingBatch == nil {
 		t.Errorf("Batch not recieved by node!")
 	} else {
+		t.Logf("kmac is the following: %v", nodeIncomingBatch.Slots[1].KMACs)
+
 		if !reflect.DeepEqual(nodeIncomingBatch.Slots[0].SenderID, msg.SenderID) {
 			t.Errorf("Message in batch not the same as sent;"+
 				"\n  Expected: %+v \n  Recieved: %+v", msg, *nodeIncomingBatch.Slots[0])
