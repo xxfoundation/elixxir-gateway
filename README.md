@@ -60,6 +60,11 @@ certPath: "gateway.cmix.rip.crt"
 # Path to the gateway certificate file
 serverCertPath: "cmix.rip.crt"
 
+# Specifies if this is the first node
+firstNode: false
+# Specifies if this is the last node
+lastNode: false
+
 ### Anything below this line is to be deprecated ###
 
 # Number of nodes in the cMix Network

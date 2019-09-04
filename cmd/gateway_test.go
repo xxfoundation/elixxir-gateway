@@ -18,7 +18,7 @@ import (
 	"gitlab.com/elixxir/comms/testkeys"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
-	"io/ioutil"
+	"gitlab.com/elixxir/primitives/utils"
 	"os"
 	"reflect"
 	"testing"
@@ -203,11 +203,11 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 	gw := NewGatewayInstance(params)
 
-	cert, err := ioutil.ReadFile(testkeys.GetNodeCertPath())
+	cert, err := utils.ReadFile(testkeys.GetNodeCertPath())
 	if err != nil {
 		t.Errorf("Failed to read cert file: %+v", err)
 	}
-	key, err := ioutil.ReadFile(testkeys.GetNodeKeyPath())
+	key, err := utils.ReadFile(testkeys.GetNodeKeyPath())
 	if err != nil {
 		t.Errorf("Failed to read key file: %+v", err)
 	}

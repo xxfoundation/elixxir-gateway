@@ -13,7 +13,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/utils"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
@@ -21,7 +20,7 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
-	"io/ioutil"
+	"gitlab.com/elixxir/primitives/utils"
 	"strings"
 	"time"
 )
@@ -58,6 +57,9 @@ type Params struct {
 
 	ServerCertPath string
 	CmixGrp        map[string]string
+
+	FirstNode bool
+	LastNode  bool
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -86,15 +88,15 @@ func (gw *Instance) InitNetwork() {
 	var gwCert, gwKey, nodeCert []byte
 
 	if !noTLS {
-		gwCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
+		gwCert, err = utils.ReadFile(gw.Params.CertPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
 		}
-		gwKey, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
+		gwKey, err = utils.ReadFile(gw.Params.KeyPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read gwKey at %s: %+v", gw.Params.KeyPath, err)
 		}
-		nodeCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
+		nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err)
 		}
@@ -336,7 +338,7 @@ func (gw *Instance) PollForBatch() {
 // StartGateway sets up the threads and network server to run the gateway
 func (gw *Instance) Start() {
 
-	//Begin the thread which polls the node for a request to send a batch
+	// Begin the thread which polls the node for a request to send a batch
 	go func() {
 		// minMsgCnt should be no less than 33% of the BatchSize
 		// Note: this is security sensitive.. be careful if you pull this out to a
@@ -346,15 +348,23 @@ func (gw *Instance) Start() {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
-		for true {
-			gw.SendBatchWhenReady(minMsgCnt, junkMsg)
+		if !gw.Params.FirstNode {
+			for true {
+				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
+			}
+		} else {
+			jww.INFO.Printf("SendBatchWhenReady() was skipped on first node.")
 		}
 	}()
 
 	//Begin the thread which polls the node for a completed batch
 	go func() {
-		for true {
-			gw.PollForBatch()
+		if !gw.Params.LastNode {
+			for true {
+				gw.PollForBatch()
+			}
+		} else {
+			jww.INFO.Printf("PollForBatch() was skipped on last node.")
 		}
 	}()
 }
