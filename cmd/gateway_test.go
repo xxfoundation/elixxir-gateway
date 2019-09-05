@@ -112,6 +112,7 @@ func buildTestNodeImpl() *node.Implementation {
 		return 1, nil
 	}
 	nodeHandler.Functions.PostNewBatch = func(batch *pb.Batch) error {
+		fmt.Printf("batch for node incoming post new batch: %v", batch.Slots[1].KMACs)
 		nodeIncomingBatch = batch
 		return nil
 	}
@@ -136,7 +137,7 @@ func buildTestNodeImpl() *node.Implementation {
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
 	msg := pb.Slot{SenderID: id.NewUserFromUint(666, t).Bytes()}
-
+	t.Logf("message before put %v", msg)
 	ok := gatewayInstance.PutMessage(&msg)
 	if !ok {
 		t.Errorf("PutMessage: Could not put any messages!")
@@ -151,11 +152,12 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	if nodeIncomingBatch == nil {
 		t.Errorf("Batch not recieved by node!")
 	} else {
+		t.Logf("%v", msg.KMACs)
+		t.Logf("entire message %v", msg)
 		t.Logf("kmac is the following: %v", nodeIncomingBatch.Slots[1].KMACs)
-
-		if !reflect.DeepEqual(nodeIncomingBatch.Slots[0].SenderID, msg.SenderID) {
+		if !reflect.DeepEqual(nodeIncomingBatch.Slots[1].KMACs, msg.KMACs) {
 			t.Errorf("Message in batch not the same as sent;"+
-				"\n  Expected: %+v \n  Recieved: %+v", msg, *nodeIncomingBatch.Slots[0])
+				"\n  Expected: %+v \n  Recieved: %+v", msg.KMACs, nodeIncomingBatch.Slots[1].KMACs)
 		}
 	}
 }

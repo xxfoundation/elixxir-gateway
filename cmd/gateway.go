@@ -192,7 +192,7 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 	for i := 0; i < numnodes; i++ {
 		baseKeys = append(baseKeys, baseKey)
 	}
-
+	jww.INFO.Printf("in genJunkMsg, num of basekeys: %v", len(baseKeys))
 	salt := make([]byte, 32)
 	salt[0] = 0x01
 
@@ -211,7 +211,6 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 	}
 
 	KMACs := cmix.GenerateKMACs(salt, baseKeys, h)
-	jww.INFO.Printf("Kmacs being sent  %+v", KMACs)
 	return &pb.Slot{
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
@@ -253,15 +252,20 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	}
 
 	// Now fill with junk and send
-	fmt.Printf("about to loop in batchsize\n")
-	fmt.Printf("indx starts at %v and goes to %v\n", uint64(len(batch.Slots)),gw.Params.BatchSize)
+	jww.INFO.Printf("about to loop in batchsize\n")
 	//this makes it start at slot[1]
 	jww.INFO.Printf("amount of slots, %v", uint64(len(batch.Slots)))
 	jww.INFO.Printf("batchsize is %v", gw.Params.BatchSize)
-	//len(slots) vs len(slots) - 1
-	for i := uint64(len(batch.Slots))-1; i < gw.Params.BatchSize; i++ {
-		jww.INFO.Printf("iteration %v", i)
-		fmt.Printf("iteration %v\n", i)
+	//len(slots) vs len(slots) - 1'
+	jww.INFO.Printf("batch slot size rn is %d", uint64(len(batch.Slots)))
+	var i uint64
+	if uint64(len(batch.Slots)) == 0 {
+		i = uint64(len(batch.Slots))
+	} else {
+		i = uint64(len(batch.Slots)) - 1
+	}
+	for ; i < gw.Params.BatchSize; i++ {
+		jww.INFO.Printf("iteration %d", i)
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
@@ -270,19 +274,17 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 			KMACs:    junkMsg.KMACs,
 		}
 
-		jww.INFO.Printf("junk message's kmac about to be sent %v\n", junkMsg.KMACs)
-		fmt.Printf("send batch when ready: %v\n", junkMsg.KMACs)
+		jww.INFO.Printf("junk message's kmac about to be sent %v\n", newJunkMsg.KMACs)
 		batch.Slots = append(batch.Slots, newJunkMsg)
 	}
-	fmt.Printf("after loop batch is of length: %v\n", len(batch.Slots))
-
-	jww.INFO.Printf("after loop batch is of length: %v\n", len(batch.Slots))
-	jww.INFO.Printf("batch kmacs %v\n", batch.Slots)
-	fmt.Printf("batch kmacs %v\n", batch.Slots)
-
+	jww.INFO.Printf("the slots are of length: %v", len(batch.Slots))
+	for i := range batch.Slots {
+		jww.INFO.Printf("slot %d kmac: %v", i, batch.Slots[i].KMACs)
+	}
 	err = gw.Comms.PostNewBatch(gw.Params.GatewayNode, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
+		jww.WARN.Printf("i errored this whole time and didn't know it")
 	}
 
 }
@@ -348,6 +350,7 @@ func (gw *Instance) Start() {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
+		jww.INFO.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
 		if !gw.Params.FirstNode {
 			for true {
 				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
