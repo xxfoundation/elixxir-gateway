@@ -192,7 +192,6 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 	for i := 0; i < numnodes; i++ {
 		baseKeys = append(baseKeys, baseKey)
 	}
-	jww.INFO.Printf("in genJunkMsg, num of basekeys: %v", len(baseKeys))
 	salt := make([]byte, 32)
 	salt[0] = 0x01
 
@@ -224,9 +223,7 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 // if there are at least minRoundCnt rounds ready, and sends whenever there
 // are minMsgCnt messages available in the message queue
 func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
-	fmt.Printf("in send batch\n")
 	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.Params.GatewayNode)
-	fmt.Printf("buf size: %v\n", bufSize)
 	if err != nil {
 		// Handle error indicating a server failure
 		if strings.Contains(err.Error(),
@@ -252,12 +249,9 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	}
 
 	// Now fill with junk and send
-	jww.INFO.Printf("about to loop in batchsize\n")
-	//this makes it start at slot[1]
-	jww.INFO.Printf("amount of slots, %v", uint64(len(batch.Slots)))
-	jww.INFO.Printf("batchsize is %v", gw.Params.BatchSize)
+	jww.DEBUG.Printf("amount of slots, %v", uint64(len(batch.Slots)))
+	jww.DEBUG.Printf("batchsize is %v", gw.Params.BatchSize)
 	//len(slots) vs len(slots) - 1'
-	jww.INFO.Printf("batch slot size rn is %d", uint64(len(batch.Slots)))
 	var i uint64
 	if uint64(len(batch.Slots)) == 0 {
 		i = uint64(len(batch.Slots))
@@ -265,7 +259,6 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 		i = uint64(len(batch.Slots)) - 1
 	}
 	for ; i < gw.Params.BatchSize; i++ {
-		jww.INFO.Printf("iteration %d", i)
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
@@ -274,17 +267,14 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 			KMACs:    junkMsg.KMACs,
 		}
 
-		jww.INFO.Printf("junk message's kmac about to be sent %v\n", newJunkMsg.KMACs)
+		jww.DEBUG.Printf("Kmacs generated from junkMessage for sending: %v\n", newJunkMsg.KMACs)
 		batch.Slots = append(batch.Slots, newJunkMsg)
 	}
-	jww.INFO.Printf("the slots are of length: %v", len(batch.Slots))
-	for i := range batch.Slots {
-		jww.INFO.Printf("slot %d kmac: %v", i, batch.Slots[i].KMACs)
-	}
+
 	err = gw.Comms.PostNewBatch(gw.Params.GatewayNode, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
-		jww.WARN.Printf("i errored this whole time and didn't know it")
+		jww.WARN.Printf("Error while sending batch %v", err)
 	}
 
 }

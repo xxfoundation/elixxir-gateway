@@ -170,7 +170,6 @@ func (m *MapBuffer) AddMixedMessage(userID *id.User, msgID string, msg *pb.Slot)
 // AddUnmixedMessage adds a message to send to the cMix node
 func (m *MapBuffer) AddUnmixedMessage(msg *pb.Slot) {
 	m.mux.Lock()
-	jww.INFO.Printf("putting message into outgoing messages")
 	m.outgoingMessages.Slots = append(m.outgoingMessages.Slots, msg)
 	m.mux.Unlock()
 }
