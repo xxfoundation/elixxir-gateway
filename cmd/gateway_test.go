@@ -7,6 +7,7 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -17,7 +18,7 @@ import (
 	"gitlab.com/elixxir/comms/testkeys"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
-	"io/ioutil"
+	"gitlab.com/elixxir/primitives/utils"
 	"os"
 	"reflect"
 	"testing"
@@ -49,7 +50,10 @@ func TestMain(m *testing.M) {
 	n = node.StartNode(NODE_ADDRESS, nodeHandler, nil, nil)
 
 	//Connect gateway comms to node
-	gComm.ConnectToNode(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil)
+	err := gComm.ConnectToRemote(connectionID(NODE_ADDRESS), NODE_ADDRESS, nil, true)
+	if err != nil {
+		fmt.Println("Could not connect to node")
+	}
 
 	grp := make(map[string]string)
 	grp["prime"] = "9DB6FB5951B66BB6FE1E140F1D2CE5502374161FD6538DF1648218642F0B5C48" +
@@ -92,9 +96,9 @@ func TestMain(m *testing.M) {
 	msg.AssociatedData.SetRecipientID(UserIDBytes)
 
 	mockMessage = &pb.Slot{
-		Index:          42,
-		MessagePayload: msg.GetPayloadA(),
-		AssociatedData: msg.GetPayloadB(),
+		Index:    42,
+		PayloadA: msg.GetPayloadA(),
+		PayloadB: msg.GetPayloadB(),
 	}
 
 	defer gComm.Shutdown()
@@ -154,12 +158,18 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 }
 
+func TestGatewayImpl_PollForBatch(t *testing.T) {
+	// Call PollForBatch and make sure it doesn't explode... setup done in main
+	gatewayInstance.PollForBatch()
+}
+
 // Calling InitNetwork after starting a node should cause
 // gateway to connect to the node
 func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 	const gwPort = 6555
 	const nodeAddress = "0.0.0.0:6556"
+	disablePermissioning = true
 	serverCertPath := testkeys.GetNodeCertPath()
 	grp := make(map[string]string)
 	grp["prime"] = "9DB6FB5951B66BB6FE1E140F1D2CE5502374161FD6538DF1648218642F0B5C48" +
@@ -191,11 +201,11 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 	gw := NewGatewayInstance(params)
 
-	cert, err := ioutil.ReadFile(testkeys.GetNodeCertPath())
+	cert, err := utils.ReadFile(testkeys.GetNodeCertPath())
 	if err != nil {
 		t.Errorf("Failed to read cert file: %+v", err)
 	}
-	key, err := ioutil.ReadFile(testkeys.GetNodeKeyPath())
+	key, err := utils.ReadFile(testkeys.GetNodeKeyPath())
 	if err != nil {
 		t.Errorf("Failed to read key file: %+v", err)
 	}
@@ -208,9 +218,9 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	connId := connectionID(nodeAddress)
 	nodeComms := gw.Comms.GetNodeConnection(connId)
 
-	ctx, cancel := connect.DefaultContext()
+	ctx, cancel := connect.MessagingContext()
 
-	_, err = nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.MAX_RETRIES))
+	_, err = nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.DefaultMaxRetries))
 
 	// Make sure there are no errors with sending the message
 	if err != nil {

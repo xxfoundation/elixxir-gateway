@@ -60,6 +60,11 @@ certPath: "gateway.cmix.rip.crt"
 # Path to the gateway certificate file
 serverCertPath: "cmix.rip.crt"
 
+# Specifies if this is the first node
+firstNode: false
+# Specifies if this is the last node
+lastNode: false
+
 ### Anything below this line is to be deprecated ###
 
 # Number of nodes in the cMix Network
@@ -78,6 +83,7 @@ batchSize: 2
 |--config|-c|Specify alternate path to configuration file|
 |--index|-i|Index of the node to connect to from the list of nodes|
 |--port|-p|Port for the gateway to listen on|
+|--disablePermissioning|None|Disables interaction with the Permissioning Server|
 
 ### Generate version information
 

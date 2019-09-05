@@ -23,6 +23,8 @@ var showVer bool
 var gatewayNodeIdx int
 var gwPort int
 var logPath = "cmix-gateway.log"
+var disablePermissioning bool
+var noTLS bool
 
 // RootCmd represents the base command when called without any sub-commands
 var rootCmd = &cobra.Command{
@@ -35,6 +37,19 @@ var rootCmd = &cobra.Command{
 			printVersion()
 			return
 		}
+
+		if verbose {
+			err := os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
+			if err != nil {
+				jww.ERROR.Printf("Could not set GRPC_GO_LOG_SEVERITY_LEVEL: %+v", err)
+			}
+
+			err = os.Setenv("GRPC_GO_LOG_VERBOSITY_LEVEL", "2")
+			if err != nil {
+				jww.ERROR.Printf("Could not set GRPC_GO_LOG_VERBOSITY_LEVEL: %+v", err)
+			}
+		}
+
 		params := InitParams(viper.GetViper())
 
 		//Build gateway implementation object
@@ -73,6 +88,9 @@ func InitParams(vip *viper.Viper) Params {
 
 	cMixParams := vip.GetStringMapString("groups.cmix")
 
+	firstNode := vip.GetBool("firstNode")
+	lastNode := vip.GetBool("lastNode")
+
 	return Params{
 		Port:           gwPort,
 		CMixNodes:      cMixNodes,
@@ -82,6 +100,8 @@ func InitParams(vip *viper.Viper) Params {
 		KeyPath:        keyPath,
 		ServerCertPath: serverCertPath,
 		CmixGrp:        cMixParams,
+		FirstNode:      firstNode,
+		LastNode:       lastNode,
 	}
 }
 
@@ -117,6 +137,10 @@ func init() {
 		"Index of the node to connect to from the list of nodes.")
 	rootCmd.Flags().IntVarP(&gwPort, "port", "p", -1,
 		"Port for the gateway to listen on.")
+	rootCmd.Flags().BoolVarP(&disablePermissioning, "disablePermissioning", "",
+		false, "Disables interaction with the Permissioning Server")
+	rootCmd.Flags().BoolVarP(&noTLS, "noTLS", "", false,
+		"Set to ignore TLS")
 
 	// Bind command line flags to config file parameters
 	err := viper.BindPFlag("index", rootCmd.Flags().Lookup("index"))
@@ -145,11 +169,11 @@ func initConfig() {
 		home, _ := homedir.Dir()
 		searchDirs = append(searchDirs, home+"/.elixxir/")
 		// /etc/elixxir
-		searchDirs = append(searchDirs, "/etc/elixxir")
+		searchDirs = append(searchDirs, "/etc/.elixxir")
 		jww.DEBUG.Printf("Configuration search directories: %v", searchDirs)
 
 		for i := range searchDirs {
-			cfgFile = searchDirs[i] + "gateway.yaml"
+			cfgFile = searchDirs[i] + "/gateway.yaml"
 			_, err := os.Stat(cfgFile)
 			if !os.IsNotExist(err) {
 				break
