@@ -267,7 +267,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 			KMACs:    junkMsg.KMACs,
 		}
 
-		jww.DEBUG.Printf("Kmacs generated from junkMessage for sending: %v\n", newJunkMsg.KMACs)
+		//jww.DEBUG.Printf("Kmacs generated from junkMessage for sending: %v\n", newJunkMsg.KMACs)
 		batch.Slots = append(batch.Slots, newJunkMsg)
 	}
 

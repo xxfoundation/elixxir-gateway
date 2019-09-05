@@ -151,7 +151,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	} else {
 		if !reflect.DeepEqual(nodeIncomingBatch.Slots[0].SenderID, msg.SenderID) {
 			t.Errorf("Message in batch not the same as sent;"+
-				"\n  Expected: %+v \n  Recieved: %+v", msg.KMACs, nodeIncomingBatch.Slots[1].KMACs)
+				"\n  Expected: %+v \n  Recieved: %+v", msg, *nodeIncomingBatch.Slots[0])
 		}
 	}
 }
