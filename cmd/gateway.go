@@ -320,7 +320,7 @@ func (gw *Instance) PollForBatch() {
 
 		h.Reset()
 	}
-	jww.INFO.Printf("Round %v recieved, %v real messages "+
+	jww.DEBUG.Printf("Round %v recieved, %v real messages "+
 		"processed, %v dummies ignored", batch.Round.ID, numReal,
 		int(batch.Round.ID)-numReal)
 
