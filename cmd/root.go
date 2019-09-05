@@ -203,7 +203,7 @@ func initLog() {
 	}
 	if viper.Get("log") != nil {
 		// Create log file, overwrites if existing
-		logPath := viper.GetString("log")
+		logPath = viper.GetString("log")
 	} else {
 		fmt.Printf("Invalid or missing log path %s, "+
 			"default path used.\n", logPath)
