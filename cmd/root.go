@@ -22,6 +22,7 @@ var verbose bool
 var showVer bool
 var gatewayNodeIdx int
 var gwPort int
+var logPath = "cmix-gateway.log"
 var disablePermissioning bool
 var noTLS bool
 
@@ -191,23 +192,28 @@ func initConfig() {
 
 // initLog initializes logging thresholds and the log path.
 func initLog() {
+	// If verbose flag set then log more info for debugging
+	if verbose || viper.GetBool("verbose") {
+		jww.SetLogThreshold(jww.LevelDebug)
+		jww.SetStdoutThreshold(jww.LevelDebug)
+		jww.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	} else {
+		jww.SetLogThreshold(jww.LevelInfo)
+		jww.SetStdoutThreshold(jww.LevelInfo)
+	}
 	if viper.Get("log") != nil {
-		// If verbose flag set then log more info for debugging
-		if verbose || viper.GetBool("verbose") {
-			jww.SetLogThreshold(jww.LevelDebug)
-			jww.SetStdoutThreshold(jww.LevelDebug)
-			jww.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
-		} else {
-			jww.SetLogThreshold(jww.LevelInfo)
-			jww.SetStdoutThreshold(jww.LevelInfo)
-		}
 		// Create log file, overwrites if existing
-		logPath := viper.GetString("log")
-		logFile, err := os.Create(logPath)
-		if err != nil {
-			jww.WARN.Println("Invalid or missing log path, default path used.")
-		} else {
-			jww.SetLogOutput(logFile)
-		}
+		logPath = viper.GetString("log")
+	} else {
+		fmt.Printf("Invalid or missing log path %s, "+
+			"default path used.\n", logPath)
+	}
+	logFile, err := os.OpenFile(logPath,
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND,
+		0644)
+	if err != nil {
+		fmt.Printf("Could not open log file %s!\n", logPath)
+	} else {
+		jww.SetLogOutput(logFile)
 	}
 }
