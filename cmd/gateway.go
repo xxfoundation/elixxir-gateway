@@ -13,7 +13,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/utils"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
@@ -21,11 +20,14 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
-	"io/ioutil"
+	"gitlab.com/elixxir/primitives/utils"
+	"strings"
 	"time"
 )
 
 type connectionID string
+
+var dummyUser = id.MakeDummyUserID()
 
 func (c connectionID) String() string {
 	return (string)(c)
@@ -55,6 +57,9 @@ type Params struct {
 
 	ServerCertPath string
 	CmixGrp        map[string]string
+
+	FirstNode bool
+	LastNode  bool
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -83,15 +88,15 @@ func (gw *Instance) InitNetwork() {
 	var gwCert, gwKey, nodeCert []byte
 
 	if !noTLS {
-		gwCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.CertPath))
+		gwCert, err = utils.ReadFile(gw.Params.CertPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
 		}
-		gwKey, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.KeyPath))
+		gwKey, err = utils.ReadFile(gw.Params.KeyPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read gwKey at %s: %+v", gw.Params.KeyPath, err)
 		}
-		nodeCert, err = ioutil.ReadFile(utils.GetFullPath(gw.Params.ServerCertPath))
+		nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
 		if err != nil {
 			jww.ERROR.Printf("Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err)
 		}
@@ -100,7 +105,12 @@ func (gw *Instance) InitNetwork() {
 
 	// Connect to the associated Node
 
-	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert)
+	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert, true)
+
+	if err != nil {
+		jww.FATAL.Panicf("Could not connect to assoceated node %s: %+v",
+			gw.Params.GatewayNode.String(), err)
+	}
 
 	if !disablePermissioning {
 		if noTLS {
@@ -126,8 +136,13 @@ func (gw *Instance) InitNetwork() {
 			[]byte(signedCerts.GatewayCertPEM), gwKey)
 
 		// Use the signed Server certificate to open a new connection
-		err = gw.Comms.ConnectToNode(connectionID(gw.Params.GatewayNode),
-			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM))
+		err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode),
+			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM), false)
+
+		if err != nil {
+			jww.FATAL.Panicf("Could not connect to assoceated node %s "+
+				"with signed cert: %+v", gw.Params.GatewayNode.String(), err)
+		}
 	}
 }
 
@@ -170,7 +185,6 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (
 // GenJunkMsg generates a junk message using the gateway's client key
 func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 
-	dummyUser := id.MakeDummyUserID()
 	baseKey := grp.NewIntFromBytes((*dummyUser)[:])
 
 	var baseKeys []*cyclic.Int
@@ -206,6 +220,14 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 
 	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.Params.GatewayNode)
 	if err != nil {
+		// Handle error indicating a server failure
+		if strings.Contains(err.Error(),
+			"TransientFailure") {
+			jww.FATAL.Panicf("Received error from GetRoundBufferInfo indicates"+
+				" a Server failure: %+v", errors.New(err.Error()))
+
+		}
+
 		jww.INFO.Printf("GetRoundBufferInfo error returned: %v", err)
 		return
 	}
@@ -242,6 +264,13 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 func (gw *Instance) PollForBatch() {
 	batch, err := gw.Comms.GetCompletedBatch(gw.Params.GatewayNode)
 	if err != nil {
+		// Handle error indicating a server failure
+		if strings.Contains(err.Error(),
+			"TransientFailure") {
+			jww.FATAL.Panicf("Received error from GetCompletedBatch indicates"+
+				" a Server failure: %+v", errors.New(err.Error()))
+
+		}
 		// Would a timeout count as an error?
 		// No, because the server could just as easily return a batch
 		// with no slots/an empty slice of slots
@@ -253,6 +282,8 @@ func (gw *Instance) PollForBatch() {
 		return
 	}
 
+	numReal := 0
+
 	// At this point, the returned batch and its fields should be non-nil
 	msgs := batch.Slots
 	h, _ := hash.NewCMixHash()
@@ -260,19 +291,28 @@ func (gw *Instance) PollForBatch() {
 		serialmsg := format.NewMessage()
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipient()
-		h.Write(msg.PayloadA)
-		h.Write(msg.PayloadB)
-		msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
-		gw.Buffer.AddMixedMessage(userId, msgId, msg)
+
+		if !userId.Cmp(dummyUser) {
+			numReal++
+			h.Write(msg.PayloadA)
+			h.Write(msg.PayloadB)
+			msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
+			gw.Buffer.AddMixedMessage(userId, msgId, msg)
+		}
+
 		h.Reset()
 	}
+	jww.INFO.Printf("Round %v recieved, %v real messages "+
+		"processed, %v dummies ignored", batch.Round.ID, numReal,
+		int(batch.Round.ID)-numReal)
+
 	go PrintProfilingStatistics()
 }
 
 // StartGateway sets up the threads and network server to run the gateway
 func (gw *Instance) Start() {
 
-	//Begin the thread which polls the node for a request to send a batch
+	// Begin the thread which polls the node for a request to send a batch
 	go func() {
 		// minMsgCnt should be no less than 33% of the BatchSize
 		// Note: this is security sensitive.. be careful if you pull this out to a
@@ -282,15 +322,23 @@ func (gw *Instance) Start() {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
-		for true {
-			gw.SendBatchWhenReady(minMsgCnt, junkMsg)
+		if !gw.Params.FirstNode {
+			for true {
+				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
+			}
+		} else {
+			jww.INFO.Printf("SendBatchWhenReady() was skipped on first node.")
 		}
 	}()
 
 	//Begin the thread which polls the node for a completed batch
 	go func() {
-		for true {
-			gw.PollForBatch()
+		if !gw.Params.LastNode {
+			for true {
+				gw.PollForBatch()
+			}
+		} else {
+			jww.INFO.Printf("PollForBatch() was skipped on last node.")
 		}
 	}()
 }
