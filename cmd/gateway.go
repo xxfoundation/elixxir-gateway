@@ -192,6 +192,7 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 	for i := 0; i < numnodes; i++ {
 		baseKeys = append(baseKeys, baseKey)
 	}
+
 	salt := make([]byte, 32)
 	salt[0] = 0x01
 
@@ -223,6 +224,7 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 // if there are at least minRoundCnt rounds ready, and sends whenever there
 // are minMsgCnt messages available in the message queue
 func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
+
 	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.Params.GatewayNode)
 	if err != nil {
 		// Handle error indicating a server failure
@@ -251,14 +253,8 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	// Now fill with junk and send
 	jww.DEBUG.Printf("amount of slots, %v", uint64(len(batch.Slots)))
 	jww.DEBUG.Printf("batchsize is %v", gw.Params.BatchSize)
-	//len(slots) vs len(slots) - 1'
-	var i uint64
-	if uint64(len(batch.Slots)) == 0 {
-		i = uint64(len(batch.Slots))
-	} else {
-		i = uint64(len(batch.Slots)) - 1
-	}
-	for ; i < gw.Params.BatchSize; i++ {
+
+	for	i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
@@ -275,6 +271,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	if err != nil {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error while sending batch %v", err)
+
 	}
 
 }
@@ -320,7 +317,7 @@ func (gw *Instance) PollForBatch() {
 
 		h.Reset()
 	}
-	jww.DEBUG.Printf("Round %v recieved, %v real messages "+
+	jww.INFO.Printf("Round %v recieved, %v real messages "+
 		"processed, %v dummies ignored", batch.Round.ID, numReal,
 		int(batch.Round.ID)-numReal)
 
@@ -340,7 +337,7 @@ func (gw *Instance) Start() {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
-		jww.INFO.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
+		jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
 		if !gw.Params.FirstNode {
 			for true {
 				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
