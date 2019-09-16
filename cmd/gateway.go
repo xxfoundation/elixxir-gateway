@@ -254,7 +254,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	jww.DEBUG.Printf("amount of slots, %v", uint64(len(batch.Slots)))
 	jww.DEBUG.Printf("batchsize is %v", gw.Params.BatchSize)
 
-	for	i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
+	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
