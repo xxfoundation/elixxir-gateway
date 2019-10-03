@@ -37,7 +37,7 @@ var rootCmd = &cobra.Command{
 			printVersion()
 			return
 		}
-
+		jww.INFO.Printf(getVersionInfo())
 		if verbose {
 			err := os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
 			if err != nil {
