@@ -136,14 +136,12 @@ func buildTestNodeImpl() *node.Implementation {
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
 	msg := pb.Slot{SenderID: id.NewUserFromUint(666, t).Bytes()}
-
 	ok := gatewayInstance.PutMessage(&msg)
 	if !ok {
 		t.Errorf("PutMessage: Could not put any messages!")
 	}
 
 	junkMsg := GenJunkMsg(gatewayInstance.CmixGrp, 1)
-
 	gatewayInstance.SendBatchWhenReady(1, junkMsg)
 
 	time.Sleep(1 * time.Second)

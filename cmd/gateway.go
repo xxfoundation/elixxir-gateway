@@ -205,11 +205,18 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
+	h, err := hash.NewCMixHash()
+	if err != nil {
+		jww.FATAL.Printf("Could not get hash: %+v", err)
+	}
+
+	KMACs := cmix.GenerateKMACs(salt, baseKeys, h)
 	return &pb.Slot{
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
 		Salt:     salt,
 		SenderID: (*dummyUser)[:],
+		KMACs:    KMACs,
 	}
 }
 
@@ -244,19 +251,27 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	}
 
 	// Now fill with junk and send
+	jww.DEBUG.Printf("amount of slots, %v", uint64(len(batch.Slots)))
+	jww.DEBUG.Printf("batchsize is %v", gw.Params.BatchSize)
+
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
 			Salt:     junkMsg.Salt,
 			SenderID: junkMsg.SenderID,
+			KMACs:    junkMsg.KMACs,
 		}
 
+		//jww.DEBUG.Printf("Kmacs generated from junkMessage for sending: %v\n", newJunkMsg.KMACs)
 		batch.Slots = append(batch.Slots, newJunkMsg)
 	}
+
 	err = gw.Comms.PostNewBatch(gw.Params.GatewayNode, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
+		jww.WARN.Printf("Error while sending batch %v", err)
+
 	}
 
 }
@@ -322,6 +337,7 @@ func (gw *Instance) Start() {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
+		jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
 		if !gw.Params.FirstNode {
 			for true {
 				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
