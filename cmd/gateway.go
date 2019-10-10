@@ -65,9 +65,8 @@ type Params struct {
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
 	p := large.NewIntFromString(params.CmixGrp["prime"], 16)
-	q := large.NewIntFromString(params.CmixGrp["smallprime"], 16)
 	g := large.NewIntFromString(params.CmixGrp["generator"], 16)
-	grp := cyclic.NewGroup(p, g, q)
+	grp := cyclic.NewGroup(p, g)
 
 	return &Instance{
 		Buffer:  storage.NewMessageBuffer(),
