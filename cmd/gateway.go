@@ -52,6 +52,7 @@ type Params struct {
 	CMixNodes   []string
 	GatewayNode connectionID
 	Port        int
+	Address     string
 	CertPath    string
 	KeyPath     string
 
@@ -82,7 +83,7 @@ func NewGatewayInstance(params Params) *Instance {
 // Shutdown() on the network object.
 func (gw *Instance) InitNetwork() {
 	// Set up a comms server
-	address := fmt.Sprintf("0.0.0.0:%d", gw.Params.Port)
+	address := fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
 	var err error
 	var gwCert, gwKey, nodeCert []byte
 
@@ -131,6 +132,13 @@ func (gw *Instance) InitNetwork() {
 
 		// Replace the comms server with the newly-signed certificate
 		gw.Comms.Shutdown()
+
+		// HACK HACK HACK
+		// FIXME: coupling the connections with the server is horrible.
+		// Technically the servers can fail to bind for up to
+		// a couple minutes (depending on operating system), but
+		// in practice 10 seconds works
+		time.Sleep(10 * time.Second)
 		gw.Comms = gateway.StartGateway(address, gw,
 			[]byte(signedCerts.GatewayCertPEM), gwKey)
 
