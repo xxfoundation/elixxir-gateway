@@ -52,6 +52,7 @@ type Params struct {
 	CMixNodes   []string
 	GatewayNode connectionID
 	Port        int
+	Address     string
 	CertPath    string
 	KeyPath     string
 
@@ -65,9 +66,8 @@ type Params struct {
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
 	p := large.NewIntFromString(params.CmixGrp["prime"], 16)
-	q := large.NewIntFromString(params.CmixGrp["smallprime"], 16)
 	g := large.NewIntFromString(params.CmixGrp["generator"], 16)
-	grp := cyclic.NewGroup(p, g, q)
+	grp := cyclic.NewGroup(p, g)
 
 	return &Instance{
 		Buffer:  storage.NewMessageBuffer(),
@@ -83,7 +83,7 @@ func NewGatewayInstance(params Params) *Instance {
 // Shutdown() on the network object.
 func (gw *Instance) InitNetwork() {
 	// Set up a comms server
-	address := fmt.Sprintf("0.0.0.0:%d", gw.Params.Port)
+	address := fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
 	var err error
 	var gwCert, gwKey, nodeCert []byte
 
@@ -132,6 +132,13 @@ func (gw *Instance) InitNetwork() {
 
 		// Replace the comms server with the newly-signed certificate
 		gw.Comms.Shutdown()
+
+		// HACK HACK HACK
+		// FIXME: coupling the connections with the server is horrible.
+		// Technically the servers can fail to bind for up to
+		// a couple minutes (depending on operating system), but
+		// in practice 10 seconds works
+		time.Sleep(10 * time.Second)
 		gw.Comms = gateway.StartGateway(address, gw,
 			[]byte(signedCerts.GatewayCertPEM), gwKey)
 
@@ -205,11 +212,18 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
+	h, err := hash.NewCMixHash()
+	if err != nil {
+		jww.FATAL.Printf("Could not get hash: %+v", err)
+	}
+
+	KMACs := cmix.GenerateKMACs(salt, baseKeys, h)
 	return &pb.Slot{
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
 		Salt:     salt,
 		SenderID: (*dummyUser)[:],
+		KMACs:    KMACs,
 	}
 }
 
@@ -244,19 +258,27 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 	}
 
 	// Now fill with junk and send
+	jww.DEBUG.Printf("amount of slots, %v", uint64(len(batch.Slots)))
+	jww.DEBUG.Printf("batchsize is %v", gw.Params.BatchSize)
+
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
 			Salt:     junkMsg.Salt,
 			SenderID: junkMsg.SenderID,
+			KMACs:    junkMsg.KMACs,
 		}
 
+		//jww.DEBUG.Printf("Kmacs generated from junkMessage for sending: %v\n", newJunkMsg.KMACs)
 		batch.Slots = append(batch.Slots, newJunkMsg)
 	}
+
 	err = gw.Comms.PostNewBatch(gw.Params.GatewayNode, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
+		jww.WARN.Printf("Error while sending batch %v", err)
+
 	}
 
 }
@@ -322,6 +344,7 @@ func (gw *Instance) Start() {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
+		jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
 		if !gw.Params.FirstNode {
 			for true {
 				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
