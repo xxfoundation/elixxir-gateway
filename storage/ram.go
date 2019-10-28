@@ -7,6 +7,7 @@
 package storage
 
 import (
+	"fmt"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -93,6 +94,7 @@ func (m *MapBuffer) GetMixedMessageIDs(userID *id.User, messageID string) ([]str
 	msgIDs, ok := m.messageIDs[*userID]
 	foundIDs := make([]string, 0)
 	foundID := false
+	//Give every ID AFTER a found ID
 	for i := range msgIDs {
 		if foundID {
 			foundIDs = append(foundIDs, msgIDs[i])
