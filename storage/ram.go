@@ -7,7 +7,6 @@
 package storage
 
 import (
-	"fmt"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	pb "gitlab.com/elixxir/comms/mixmessages"
