@@ -68,7 +68,6 @@ func NewGatewayInstance(params Params) *Instance {
 	p := large.NewIntFromString(params.CmixGrp["prime"], 16)
 	g := large.NewIntFromString(params.CmixGrp["generator"], 16)
 	grp := cyclic.NewGroup(p, g)
-
 	return &Instance{
 		Buffer:  storage.NewMessageBuffer(),
 		Params:  params,
@@ -106,12 +105,10 @@ func (gw *Instance) InitNetwork() {
 	// Connect to the associated Node
 
 	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert, true)
-
 	if err != nil {
 		jww.FATAL.Panicf("Could not connect to assoceated node %s: %+v",
 			gw.Params.GatewayNode.String(), err)
 	}
-
 	if !disablePermissioning {
 		if noTLS {
 			jww.ERROR.Panicf("Panic: cannot have permissinoning on and TLS disabled")
