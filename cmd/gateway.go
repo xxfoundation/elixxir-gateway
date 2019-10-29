@@ -76,6 +76,26 @@ func NewGatewayInstance(params Params) *Instance {
 	}
 }
 
+func NewImplementation(instance *Instance) *gateway.Implementation {
+	impl := gateway.NewImplementation()
+	impl.Functions.CheckMessages = func(userID *id.User, messageID string) (i []string, b bool) {
+		return instance.CheckMessages(userID, messageID)
+	}
+	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation) (confirmation *pb.RegistrationConfirmation, e error) {
+		return instance.ConfirmNonce(message)
+	}
+	impl.Functions.GetMessage = func(userID *id.User, msgID string) (slot *pb.Slot, b bool) {
+		return instance.GetMessage(userID, msgID)
+	}
+	impl.Functions.PutMessage = func(message *pb.Slot) bool {
+		return instance.PutMessage(message)
+	}
+	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
+		return instance.RequestNonce(message)
+	}
+	return impl
+}
+
 // InitNetwork initializes the network on this gateway instance
 // After the network object is created, you need to use it to connect
 // to the corresponding server in the network using ConnectToNode.
@@ -101,7 +121,10 @@ func (gw *Instance) InitNetwork() {
 			jww.ERROR.Printf("Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err)
 		}
 	}
-	gw.Comms = gateway.StartGateway(address, gw, gwCert, gwKey)
+
+	gatewayHandler := NewImplementation(gw)
+
+	gw.Comms = gateway.StartGateway(address, gatewayHandler, gwCert, gwKey)
 
 	// Connect to the associated Node
 
@@ -139,7 +162,7 @@ func (gw *Instance) InitNetwork() {
 		// a couple minutes (depending on operating system), but
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
-		gw.Comms = gateway.StartGateway(address, gw,
+		gw.Comms = gateway.StartGateway(address, gatewayHandler,
 			[]byte(signedCerts.GatewayCertPEM), gwKey)
 
 		// Use the signed Server certificate to open a new connection
