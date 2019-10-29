@@ -10,6 +10,7 @@ import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/primitives/id"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -84,6 +85,16 @@ func TestMapBuffer_GetMessageIDs(t *testing.T) {
 	if len(msgIds) != 0 || !ok {
 		t.Errorf("GetMixedMessageIDs: Could not get message IDs after 'msg1'")
 	}
+	//Test that it returns every msg after a found id
+	msgId2 := "msg2"
+	messageBuf.messageIDs[*userId] = make([]string, 2)
+	messageBuf.messageIDs[*userId][0] = msgId
+	messageBuf.messageIDs[*userId][1] = msgId2
+	msgIds, ok = messageBuf.GetMixedMessageIDs(userId, "msg1")
+	if len(msgIds) == 0 || !ok || strings.Compare(msgIds[0], msgId2) != 0 {
+		t.Errorf("GetMixedMessageIDs: Could not get message IDs after 'msg1'")
+	}
+
 }
 
 func TestMapBuffer_DeleteMessage(t *testing.T) {
@@ -141,6 +152,18 @@ func TestMapBuffer_PopUnmixedMessages(t *testing.T) {
 	if len(messageBuf.outgoingMessages.Slots) > 0 {
 		t.Errorf("PopUnmixedMessages: Batch was not popped correctly!")
 	}
+	//Test that if minCount is greater than the amount of messages, the batch returned is nil
+	messageBuf.outgoingMessages.Slots = append(messageBuf.outgoingMessages.Slots,
+		&pb.Slot{SenderID: id.ZeroID.Bytes()})
+	batch := messageBuf.PopUnmixedMessages(4, 1)
+	if batch != nil {
+		t.Errorf("Error case of minCount being greater than the amount of messages, "+
+			"should recieved a nil batch but recieved: %v", batch)
+	}
+	//Test when the outgoing message is overfull
+	messageBuf.outgoingMessages.Slots = append(messageBuf.outgoingMessages.Slots,
+		&pb.Slot{SenderID: id.ZeroID.Bytes()})
+	messageBuf.PopUnmixedMessages(1, 1)
 }
 
 func TestMapBuffer_ExceedUserMsgsLimit(t *testing.T) {

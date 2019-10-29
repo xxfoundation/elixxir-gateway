@@ -93,6 +93,7 @@ func (m *MapBuffer) GetMixedMessageIDs(userID *id.User, messageID string) ([]str
 	msgIDs, ok := m.messageIDs[*userID]
 	foundIDs := make([]string, 0)
 	foundID := false
+	//Give every ID AFTER a found ID
 	for i := range msgIDs {
 		if foundID {
 			foundIDs = append(foundIDs, msgIDs[i])
