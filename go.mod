@@ -1,6 +1,6 @@
 module gitlab.com/elixxir/gateway
 
-go 1.12
+go 1.13
 
 require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0
