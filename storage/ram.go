@@ -7,6 +7,7 @@
 package storage
 
 import (
+	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -78,15 +79,19 @@ func (m *MapBuffer) StartMessageCleanup(msgTimeout int) {
 // GetMixedMessage returns message contents for MessageID, or a
 // null/randomized message if that ID does not exist of the same
 // size as a regular message
-func (m *MapBuffer) GetMixedMessage(userID *id.User, msgID string) (*pb.Slot, bool) {
+func (m *MapBuffer) GetMixedMessage(userID *id.User, msgID string) (*pb.Slot, error) {
 	m.mux.Lock()
 	msg, ok := m.messageCollection[*userID][msgID]
 	m.mux.Unlock()
-	return msg, ok
+	if ok {
+		return msg, nil
+	} else {
+		return msg, errors.New("Could not find any messages with the given ID")
+	}
 }
 
 // GetMixedMessageIDs return any MessageIDs in the globals for this User
-func (m *MapBuffer) GetMixedMessageIDs(userID *id.User, messageID string) ([]string, bool) {
+func (m *MapBuffer) GetMixedMessageIDs(userID *id.User, messageID string) ([]string, error) {
 	m.mux.Lock()
 	// msgIDs is a view into the same memory that m.messageIDs has, so we must
 	// hold the lock until the end to avoid a read-after-write hazard
@@ -108,7 +113,12 @@ func (m *MapBuffer) GetMixedMessageIDs(userID *id.User, messageID string) ([]str
 		msgIDs = foundIDs
 	}
 	m.mux.Unlock()
-	return msgIDs, ok
+
+	if ok {
+		return msgIDs, nil
+	} else {
+		return msgIDs, errors.New("Could not find any message IDs for this user")
+	}
 }
 
 // DeleteMixedMessage deletes a given message from the MessageBuffer

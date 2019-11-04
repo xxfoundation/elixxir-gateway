@@ -1,4 +1,4 @@
-package rate_limiting
+package rateLimiting
 
 import (
 	"math"
@@ -18,12 +18,12 @@ func TestCreate(t *testing.T) {
 		t.Errorf("Create() generated Bucket with incorrect capacity\n\treceived: %v\n\texpected: %v", b.capacity, capacity)
 	}
 
-	if b.remaining != capacity {
-		t.Errorf("Create() generated Bucket with incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, capacity)
+	if b.remaining != 0 {
+		t.Errorf("Create() generated Bucket with incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 0)
 	}
 
-	if b.rate != rate {
-		t.Errorf("Create() generated Bucket with incorrect rate\n\treceived: %v\n\texpected: %v", b.remaining, rate)
+	if b.leakRate != rate {
+		t.Errorf("Create() generated Bucket with incorrect rate\n\treceived: %v\n\texpected: %v", b.leakRate, rate)
 	}
 
 	if time.Now().Sub(b.lastUpdate).Nanoseconds() > lastUpdateWait {
@@ -42,8 +42,8 @@ func TestCreate(t *testing.T) {
 		t.Errorf("Create() generated Bucket with incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, capacity)
 	}
 
-	if b.rate != rate {
-		t.Errorf("Create() generated Bucket with incorrect rate\n\treceived: %v\n\texpected: %v", b.remaining, rate)
+	if b.leakRate != rate {
+		t.Errorf("Create() generated Bucket with incorrect rate\n\treceived: %v\n\texpected: %v", b.leakRate, rate)
 	}
 
 	if time.Now().Sub(b.lastUpdate).Nanoseconds() > lastUpdateWait {
@@ -56,12 +56,12 @@ func TestCreate(t *testing.T) {
 		t.Errorf("Create() generated Bucket with incorrect capacity\n\treceived: %v\n\texpected: %v", b.capacity, math.MaxUint32)
 	}
 
-	if b.remaining != math.MaxUint32 {
-		t.Errorf("Create() generated Bucket with incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, math.MaxUint32)
+	if b.remaining != 0 {
+		t.Errorf("Create() generated Bucket with incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 0)
 	}
 
-	if b.rate != 0 {
-		t.Errorf("Create() generated Bucket with incorrect rate\n\treceived: %v\n\texpected: %v", b.remaining, 0)
+	if b.leakRate != 0 {
+		t.Errorf("Create() generated Bucket with incorrect rate\n\treceived: %v\n\texpected: %v", b.leakRate, 0)
 	}
 
 	if time.Now().Sub(b.lastUpdate).Nanoseconds() > lastUpdateWait {
@@ -96,15 +96,15 @@ func TestRemaining(t *testing.T) {
 	capacity := uint(10)
 	b := Create(capacity, 0.000000000001389)
 
-	if b.Remaining() != capacity {
-		t.Errorf("Remaining() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.Remaining(), capacity)
+	if b.Remaining() != 0 {
+		t.Errorf("Remaining() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.Remaining(), 0)
 	}
 
 	capacity = math.MaxUint32
 	b = Create(capacity, 1)
 
-	if b.Remaining() != capacity {
-		t.Errorf("Remaining() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.Remaining(), capacity)
+	if b.Remaining() != 0 {
+		t.Errorf("Remaining() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.Remaining(), 0)
 	}
 
 	capacity = 0
@@ -118,8 +118,39 @@ func TestRemaining(t *testing.T) {
 func TestAdd_UnderLeakRate(t *testing.T) {
 	b := Create(10, 0.000000003) // 3 per second
 
-	time.Sleep(1 * time.Second)
-	addReturnVal := b.Add(7)
+	addReturnVal := b.Add(9)
+
+	if addReturnVal != true {
+		t.Errorf("Add() failed to add when adding under the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, true)
+	}
+
+	if b.remaining != 9 {
+		t.Errorf("Add() returned incorrect remaining when adding under the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 9)
+	}
+
+	time.Sleep(2 * time.Second)
+	addReturnVal = b.Add(7)
+
+	if addReturnVal != true {
+		t.Errorf("Add() failed to add when adding under the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, true)
+	}
+
+	if b.remaining != 10 {
+		t.Errorf("Add() returned incorrect remaining when adding under the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 10)
+	}
+
+	time.Sleep(4 * time.Second)
+	addReturnVal = b.Add(2)
+
+	if addReturnVal != true {
+		t.Errorf("Add() failed to add when adding under the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, true)
+	}
+
+	if b.remaining != 2 {
+		t.Errorf("Add() returned incorrect remaining when adding under the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 2)
+	}
+
+	addReturnVal = b.Add(6)
 
 	if addReturnVal != true {
 		t.Errorf("Add() failed to add when adding under the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, true)
@@ -128,61 +159,30 @@ func TestAdd_UnderLeakRate(t *testing.T) {
 	if b.remaining != 8 {
 		t.Errorf("Add() returned incorrect remaining when adding under the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 8)
 	}
-
-	time.Sleep(2 * time.Second)
-	addReturnVal = b.Add(54)
-
-	if addReturnVal != true {
-		t.Errorf("Add() failed to add when adding under the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, true)
-	}
-
-	if b.remaining != 3 {
-		t.Errorf("Add() returned incorrect remaining when adding under the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 3)
-	}
-
-	addReturnVal = b.Add(2)
-
-	if addReturnVal != true {
-		t.Errorf("Add() failed to add when adding under the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, true)
-	}
-
-	if b.remaining != 4 {
-		t.Errorf("Add() returned incorrect remaining when adding under the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 4)
-	}
-
-	time.Sleep(2 * time.Second)
-	addReturnVal = b.Add(54)
-
-	if addReturnVal != true {
-		t.Errorf("Add() failed to add when adding under the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, true)
-	}
-
-	if b.remaining != 1 {
-		t.Errorf("Add() returned incorrect remaining when adding under the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 1)
-	}
 }
 
 func TestAdd_OverLeakRate(t *testing.T) {
 	b := Create(10, 0.000000003) // 3 per second
 
-	addReturnVal := b.Add(7)
+	addReturnVal := b.Add(17)
 
 	if addReturnVal != false {
 		t.Errorf("Add() incorrectly added when adding over the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, false)
 	}
 
-	if b.remaining != 10 {
-		t.Errorf("Add() returned incorrect remaining when adding over the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 10)
+	if b.remaining != 17 {
+		t.Errorf("Add() returned incorrect remaining when adding over the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 17)
 	}
 
+	time.Sleep(6 * time.Second)
 	addReturnVal = b.Add(712)
 
 	if addReturnVal != false {
 		t.Errorf("Add() incorrectly added when adding over the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, false)
 	}
 
-	if b.remaining != 10 {
-		t.Errorf("Add() returned incorrect remaining when adding over the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 10)
+	if b.remaining != 712 {
+		t.Errorf("Add() returned incorrect remaining when adding over the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 712)
 	}
 
 	addReturnVal = b.Add(85)
@@ -191,26 +191,26 @@ func TestAdd_OverLeakRate(t *testing.T) {
 		t.Errorf("Add() incorrectly added when adding over the leak rate\n\treceived: %v\n\texpected: %v", addReturnVal, false)
 	}
 
-	if b.remaining != 10 {
-		t.Errorf("Add() returned incorrect remaining when adding over the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 10)
+	if b.remaining != 797 {
+		t.Errorf("Add() returned incorrect remaining when adding over the leak rate\n\treceived: %v\n\texpected: %v", b.remaining, 797)
 	}
 }
 
 func TestAdd_ReturnToNormal(t *testing.T) {
 	b := Create(10, 0.000000003) // 3 per second
 
-	addReturnVal := b.Add(7)
+	addReturnVal := b.Add(12)
 
 	if addReturnVal != false {
 		t.Errorf("Add() incorrectly added\n\treceived: %v\n\texpected: %v", addReturnVal, false)
 	}
 
-	if b.remaining != 10 {
-		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 10)
+	if b.remaining != 12 {
+		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 12)
 	}
 
-	time.Sleep(1 * time.Second)
-	addReturnVal = b.Add(7)
+	time.Sleep(2 * time.Second)
+	addReturnVal = b.Add(2)
 
 	if addReturnVal != true {
 		t.Errorf("Add() failed to add\n\treceived: %v\n\texpected: %v", addReturnVal, true)
@@ -220,25 +220,27 @@ func TestAdd_ReturnToNormal(t *testing.T) {
 		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 8)
 	}
 
-	time.Sleep(3 * time.Second)
-	addReturnVal = b.Add(7)
+	time.Sleep(1 * time.Second)
+	addReturnVal = b.Add(5)
 
 	if addReturnVal != true {
 		t.Errorf("Add() failed to add\n\treceived: %v\n\texpected: %v", addReturnVal, true)
 	}
 
-	if b.remaining != 1 {
-		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 1)
+	if b.remaining != 10 {
+		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 10)
 	}
 
-	addReturnVal = b.Add(7)
-	addReturnVal = b.Add(7)
-	addReturnVal = b.Add(7)
-	addReturnVal = b.Add(7)
-	addReturnVal = b.Add(7)
-	addReturnVal = b.Add(7)
-	addReturnVal = b.Add(7)
-	addReturnVal = b.Add(7)
+	time.Sleep(3 * time.Second)
+
+	addReturnVal = b.Add(1)
+	addReturnVal = b.Add(1)
+	addReturnVal = b.Add(1)
+	addReturnVal = b.Add(1)
+	addReturnVal = b.Add(1)
+	addReturnVal = b.Add(1)
+	addReturnVal = b.Add(1)
+	addReturnVal = b.Add(1)
 
 	if addReturnVal != true {
 		t.Errorf("Add() failed to add\n\treceived: %v\n\texpected: %v", addReturnVal, true)
@@ -250,22 +252,23 @@ func TestAdd_ReturnToNormal(t *testing.T) {
 
 	addReturnVal = b.Add(7)
 
-	if addReturnVal != true {
-		t.Errorf("Add() failed to add\n\treceived: %v\n\texpected: %v", addReturnVal, true)
+	if addReturnVal != false {
+		t.Errorf("Add() failed to add\n\treceived: %v\n\texpected: %v", addReturnVal, false)
 	}
 
-	if b.remaining != 10 {
-		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 10)
+	if b.remaining != 16 {
+		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 16)
 	}
 
+	time.Sleep(3 * time.Second)
 	addReturnVal = b.Add(7)
 
 	if addReturnVal != false {
 		t.Errorf("Add() incorrectly added\n\treceived: %v\n\texpected: %v", addReturnVal, false)
 	}
 
-	if b.remaining != 10 {
-		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 10)
+	if b.remaining != 14 {
+		t.Errorf("Add() returned incorrect remaining\n\treceived: %v\n\texpected: %v", b.remaining, 14)
 	}
 }
 

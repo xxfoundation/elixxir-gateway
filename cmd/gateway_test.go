@@ -16,6 +16,7 @@ import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/node"
 	"gitlab.com/elixxir/comms/testkeys"
+	"gitlab.com/elixxir/gateway/rateLimiting"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
 	"gitlab.com/elixxir/primitives/utils"
@@ -93,6 +94,21 @@ func TestMain(m *testing.M) {
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 	}
+
+	cleanPeriodDur := 3 * time.Second
+	maxDurationDur := 10 * time.Second
+
+	params.Params = rateLimiting.Params{
+		IpLeakRate:        0.0000012,
+		UserLeakRate:      0.0000012,
+		IpCapacity:        1240,
+		UserCapacity:      500,
+		CleanPeriod:       cleanPeriodDur,
+		MaxDuration:       maxDurationDur,
+		IpWhitelistFile:   "../rateLimiting/whitelists/ip_whitelist2.txt",
+		UserWhitelistFile: "../rateLimiting/whitelists/user_whitelist.txt",
+	}
+
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
 
@@ -157,8 +173,8 @@ func buildTestNodeImpl() *node.Implementation {
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
 	msg := pb.Slot{SenderID: id.NewUserFromUint(666, t).Bytes()}
-	ok := gatewayInstance.PutMessage(&msg)
-	if !ok {
+	err := gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!")
 	}
 
@@ -179,8 +195,8 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	msg := pb.Slot{SenderID: id.NewUserFromUint(666, t).Bytes()}
-	ok := gatewayInstance.PutMessage(&msg)
-	if !ok {
+	err := gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!")
 	}
 
@@ -216,7 +232,22 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		CertPath:       testkeys.GetGatewayCertPath(),
 	}
 
+	cleanPeriodDur := 3 * time.Second
+	maxDurationDur := 10 * time.Second
+
+	params.Params = rateLimiting.Params{
+		IpLeakRate:        0.0000012,
+		UserLeakRate:      0.0000012,
+		IpCapacity:        1240,
+		UserCapacity:      500,
+		CleanPeriod:       cleanPeriodDur,
+		MaxDuration:       maxDurationDur,
+		IpWhitelistFile:   "../rateLimiting/whitelists/ip_whitelist2.txt",
+		UserWhitelistFile: "../rateLimiting/whitelists/user_whitelist.txt",
+	}
+
 	gw := NewGatewayInstance(params)
+
 	gw.Comms = gComm
 
 	gw.SendBatchWhenReady(1, junkMsg)
@@ -303,4 +334,198 @@ func disconnectServers() {
 	gatewayInstance.Comms.DisconnectAll()
 	n.ConnectionManager.DisconnectAll()
 	n.DisconnectAll()
+}
+
+// Tests that messages can get through when its IP address bucket is not full
+// and checks that they are blocked when the bucket is full.
+func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
+	time.Sleep(2 * time.Second)
+
+	msg := pb.Slot{SenderID: id.NewUserFromUint(255, t).Bytes()}
+	err := gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(67, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(34, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "1")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err == nil {
+		t.Errorf("PutMessage: Put message when it should have been blocked based on IP address")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(34, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "1")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "0")
+	if err == nil {
+		t.Errorf("PutMessage: Put message when it should have been blocked based on IP address")
+	}
+}
+
+// Tests that messages can get through when its user ID bucket is not full and
+// checks that they are blocked when the bucket is full.
+// TODO: re-enable after user ID limiting is working
+/*func TestGatewayImpl_PutMessage_UserBlock(t *testing.T) {
+	msg := pb.Slot{SenderID: id.NewUserFromUint(12, t).Bytes()}
+	ok := gatewayInstance.PutMessage(&msg, "12")
+	if !ok {
+		t.Errorf("PutMessage: Could not put any messages when user ID should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(234, t).Bytes()}
+	ok = gatewayInstance.PutMessage(&msg, "2")
+	if !ok {
+		t.Errorf("PutMessage: Could not put any messages when user ID should not be blocked")
+	}
+
+	ok = gatewayInstance.PutMessage(&msg, "2")
+	if !ok {
+		t.Errorf("PutMessage: Could not put any messages when user ID should not be blocked")
+	}
+
+	ok = gatewayInstance.PutMessage(&msg, "3")
+	if ok {
+		t.Errorf("PutMessage: Put message when it should have been blocked based on user ID")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	ok = gatewayInstance.PutMessage(&msg, "4")
+	if !ok {
+		t.Errorf("PutMessage: Could not put any messages when user ID should not be blocked")
+	}
+
+	ok = gatewayInstance.PutMessage(&msg, "4")
+	if !ok {
+		t.Errorf("PutMessage: Could not put any messages when user ID should not be blocked")
+	}
+
+	ok = gatewayInstance.PutMessage(&msg, "5")
+	if ok {
+		t.Errorf("PutMessage: Put message when it should have been blocked based on user ID")
+	}
+}*/
+
+// Tests that messages can get through even when their bucket is full.
+func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
+	var msg pb.Slot
+	var err error
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(128, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(129, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(130, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(131, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(132, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP bucket is full but message IP is on whitelist")
+	}
+}
+
+// Tests that messages can get through even when their bucket is full.
+func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
+	var msg pb.Slot
+	var err error
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "aa")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "bb")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when IP address should not be blocked")
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	err = gatewayInstance.PutMessage(&msg, "cc")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages when user ID bucket is full but user ID is on whitelist")
+	}
 }
