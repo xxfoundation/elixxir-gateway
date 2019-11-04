@@ -16,10 +16,10 @@ type MessageBuffer interface {
 	// StartMessageCleanup is a thread that auto-removes old messages
 	StartMessageCleanup(msgTimeout int)
 	// GetMixedMessage returns a given message for a specific user
-	GetMixedMessage(userId *id.User, msgId string) (*pb.Slot, bool)
+	GetMixedMessage(userId *id.User, msgId string) (*pb.Slot, error)
 	// GetMixedMessageIDs returns the message IDs received after the given messageID,
 	// or all message IDs if that ID cannot be found or is empty
-	GetMixedMessageIDs(userId *id.User, messageID string) ([]string, bool)
+	GetMixedMessageIDs(userId *id.User, messageID string) ([]string, error)
 	// DeleteMixedMessage deletes a specific message
 	DeleteMixedMessage(userId *id.User, msgId string)
 	// AddMixedMessage adds a message to the buffer for a specific user

@@ -62,8 +62,8 @@ func TestMapBuffer_GetMessage(t *testing.T) {
 	messageBuf.messageCollection[*userId][msgId] = &pb.Slot{
 		SenderID: userId.Bytes(),
 	}
-	_, ok := messageBuf.GetMixedMessage(userId, msgId)
-	if !ok {
+	_, err := messageBuf.GetMixedMessage(userId, msgId)
+	if err != nil {
 		t.Errorf("GetMixedMessage: Unable to find message!")
 	}
 }
@@ -77,12 +77,12 @@ func TestMapBuffer_GetMessageIDs(t *testing.T) {
 	}
 	messageBuf.messageIDs[*userId] = make([]string, 1)
 	messageBuf.messageIDs[*userId][0] = msgId
-	msgIds, ok := messageBuf.GetMixedMessageIDs(userId, "")
-	if len(msgIds) < 1 || !ok {
+	msgIds, err := messageBuf.GetMixedMessageIDs(userId, "")
+	if len(msgIds) < 1 || err != nil {
 		t.Errorf("GetMixedMessageIDs: Unable to get any message IDs!")
 	}
-	msgIds, ok = messageBuf.GetMixedMessageIDs(userId, "msg1")
-	if len(msgIds) != 0 || !ok {
+	msgIds, err = messageBuf.GetMixedMessageIDs(userId, "msg1")
+	if len(msgIds) != 0 || err != nil {
 		t.Errorf("GetMixedMessageIDs: Could not get message IDs after 'msg1'")
 	}
 	//Test that it returns every msg after a found id
@@ -90,8 +90,8 @@ func TestMapBuffer_GetMessageIDs(t *testing.T) {
 	messageBuf.messageIDs[*userId] = make([]string, 2)
 	messageBuf.messageIDs[*userId][0] = msgId
 	messageBuf.messageIDs[*userId][1] = msgId2
-	msgIds, ok = messageBuf.GetMixedMessageIDs(userId, "msg1")
-	if len(msgIds) == 0 || !ok || strings.Compare(msgIds[0], msgId2) != 0 {
+	msgIds, err = messageBuf.GetMixedMessageIDs(userId, "msg1")
+	if len(msgIds) == 0 || err != nil || strings.Compare(msgIds[0], msgId2) != 0 {
 		t.Errorf("GetMixedMessageIDs: Could not get message IDs after 'msg1'")
 	}
 
