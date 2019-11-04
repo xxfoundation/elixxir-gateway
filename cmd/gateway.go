@@ -207,11 +207,6 @@ func (gw *Instance) InitNetwork() {
 		time.Sleep(10 * time.Second)
 		gw.Comms = gateway.StartGateway(address, gatewayHandler,
 			gatewayCert, gwKey)
-
-		// Use the signed Server certificate to open a new connection
-		//err = gw.Comms.ConnectToRemote(connectionID(gw.Params.NodeAddress),
-		//	string(gw.Params.NodeAddress), []byte(signedCerts.ServerCertPEM), false)
-		//
 	}
 }
 
