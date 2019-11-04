@@ -23,7 +23,6 @@ var cfgFile string
 var verbose bool
 var showVer bool
 var gatewayNodeIdx int
-var gwListenIP string
 var gwPort int
 var logPath = "cmix-gateway.log"
 var disablePermissioning bool
@@ -108,7 +107,7 @@ func InitParams(vip *viper.Viper) Params {
 		Port:           gwPort,
 		Address:        gwListenIP,
 		CMixNodes:      cMixNodes,
-		GatewayNode:    connectionID(gatewayNode),
+		NodeAddress:    gatewayNode,
 		BatchSize:      batchSize,
 		CertPath:       certPath,
 		KeyPath:        keyPath,

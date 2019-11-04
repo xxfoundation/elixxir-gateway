@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
+	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/crypto/cmix"
@@ -29,13 +30,7 @@ import (
 	"time"
 )
 
-type connectionID string
-
 var dummyUser = id.MakeDummyUserID()
-
-func (c connectionID) String() string {
-	return (string)(c)
-}
 
 var rateLimitErr = errors.New("Client has exceeded communications rate limit")
 
@@ -43,8 +38,6 @@ var rateLimitErr = errors.New("Client has exceeded communications rate limit")
 const TokensPutMessage = uint(250)  // Sends a message, the networks does n * 5 exponentiations, n = 5, 25
 const TokensRequestNonce = uint(30) // Requests a nonce from the node to verify the user, 3 exponentiations
 const TokensConfirmNonce = uint(10) // Requests a nonce from the node to verify the user, 1 exponentiation
-const TokensGetMessage = uint(1)    // Gets a message by id from the gateway
-const TokensCheckMessages = uint(1) // Checks if there are messages available for the user on the gateway
 
 var IPWhiteListArr = []string{"test"}
 
@@ -55,8 +48,11 @@ type Instance struct {
 	// Contains all Gateway relevant fields
 	Params Params
 
+	// Contains Server Host Information
+	ServerHost *connect.Host
+
 	// Gateway object created at start
-	Comms *gateway.GatewayComms
+	Comms *gateway.Comms
 
 	//Group that cmix operates within
 	CmixGrp *cyclic.Group
@@ -74,7 +70,7 @@ type Instance struct {
 type Params struct {
 	BatchSize   uint64
 	CMixNodes   []string
-	GatewayNode connectionID
+	NodeAddress string
 	Port        int
 	Address     string
 	CertPath    string
@@ -111,7 +107,10 @@ func NewGatewayInstance(params Params) *Instance {
 		),
 	}
 
-	err := rateLimiting.CreateWhitelistFile(params.IpWhitelistFile, IPWhiteListArr)
+	i.ServerHost = &connect.Host{}
+
+	err := rateLimiting.CreateWhitelistFile(params.IpWhitelistFile,
+		IPWhiteListArr)
 
 	if err != nil {
 		jww.WARN.Printf("Could not load whitelist: %s", err)
@@ -169,30 +168,30 @@ func (gw *Instance) InitNetwork() {
 	}
 
 	gatewayHandler := NewImplementation(gw)
-
 	gw.Comms = gateway.StartGateway(address, gatewayHandler, gwCert, gwKey)
-
-	// Connect to the associated Node
-
-	err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode), string(gw.Params.GatewayNode), nodeCert, true)
-	if err != nil {
-		jww.FATAL.Panicf("Could not connect to assoceated node %s: %+v",
-			gw.Params.GatewayNode.String(), err)
-	}
+	var gatewayCert []byte
 	if !disablePermissioning {
 		if noTLS {
 			jww.ERROR.Panicf("Panic: cannot have permissinoning on and TLS disabled")
 		}
 		// Obtain signed certificates from the Node
 		jww.INFO.Printf("Beginning polling for signed certs...")
-		var signedCerts *pb.SignedCerts
-		for signedCerts == nil {
-			msg, err := gw.Comms.PollSignedCerts(gw.Params.GatewayNode, &pb.Ping{})
+		for gw.ServerHost == nil {
+			msg, err := gw.Comms.PollSignedCerts(&connect.Host{
+				Address:        gw.Params.NodeAddress,
+				Cert:           nodeCert,
+				DisableTimeout: true,
+			}, &pb.Ping{})
 			if err != nil {
 				jww.ERROR.Printf("Error obtaining signed certificates: %+v", err)
 			}
 			if msg.ServerCertPEM != "" && msg.GatewayCertPEM != "" {
-				signedCerts = msg
+				gw.ServerHost = &connect.Host{
+					Address:        gw.Params.NodeAddress,
+					Cert:           []byte(msg.ServerCertPEM),
+					DisableTimeout: true,
+				}
+				gatewayCert = []byte(msg.GatewayCertPEM)
 				jww.INFO.Printf("Successfully obtained signed certs!")
 			}
 		}
@@ -207,16 +206,12 @@ func (gw *Instance) InitNetwork() {
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
 		gw.Comms = gateway.StartGateway(address, gatewayHandler,
-			[]byte(signedCerts.GatewayCertPEM), gwKey)
+			gatewayCert, gwKey)
 
 		// Use the signed Server certificate to open a new connection
-		err = gw.Comms.ConnectToRemote(connectionID(gw.Params.GatewayNode),
-			string(gw.Params.GatewayNode), []byte(signedCerts.ServerCertPEM), false)
-
-		if err != nil {
-			jww.FATAL.Panicf("Could not connect to assoceated node %s "+
-				"with signed cert: %+v", gw.Params.GatewayNode.String(), err)
-		}
+		//err = gw.Comms.ConnectToRemote(connectionID(gw.Params.NodeAddress),
+		//	string(gw.Params.NodeAddress), []byte(signedCerts.ServerCertPEM), false)
+		//
 	}
 }
 
@@ -292,7 +287,7 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.No
 	}
 
 	jww.INFO.Print("Passing on registration nonce request")
-	return gw.Comms.SendRequestNonceMessage(gw.Params.GatewayNode, msg)
+	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
 
 }
 
@@ -307,17 +302,17 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 	}
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
-	return gw.Comms.SendConfirmNonceMessage(gw.Params.GatewayNode, msg)
+	return gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
 }
 
 // GenJunkMsg generates a junk message using the gateway's client key
-func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
+func GenJunkMsg(grp *cyclic.Group, numNodes int) *pb.Slot {
 
 	baseKey := grp.NewIntFromBytes((*dummyUser)[:])
 
 	var baseKeys []*cyclic.Int
 
-	for i := 0; i < numnodes; i++ {
+	for i := 0; i < numNodes; i++ {
 		baseKeys = append(baseKeys, baseKey)
 	}
 
@@ -353,7 +348,7 @@ func GenJunkMsg(grp *cyclic.Group, numnodes int) *pb.Slot {
 // are minMsgCnt messages available in the message queue
 func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 
-	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.Params.GatewayNode)
+	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.ServerHost)
 	if err != nil {
 		// Handle error indicating a server failure
 		if strings.Contains(err.Error(),
@@ -392,7 +387,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 		batch.Slots = append(batch.Slots, newJunkMsg)
 	}
 
-	err = gw.Comms.PostNewBatch(gw.Params.GatewayNode, batch)
+	err = gw.Comms.PostNewBatch(gw.ServerHost, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error while sending batch %v", err)
@@ -402,7 +397,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 }
 
 func (gw *Instance) PollForBatch() {
-	batch, err := gw.Comms.GetCompletedBatch(gw.Params.GatewayNode)
+	batch, err := gw.Comms.GetCompletedBatch(gw.ServerHost)
 	if err != nil {
 		// Handle error indicating a server failure
 		if strings.Contains(err.Error(),
