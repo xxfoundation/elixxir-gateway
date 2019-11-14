@@ -146,7 +146,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 // to the corresponding server in the network using ConnectToNode.
 // Additionally, to clean up the network object (especially in tests), call
 // Shutdown() on the network object.
-func (gw *Instance) InitNetwork() {
+func (gw *Instance) InitNetwork() error {
 	// Set up a comms server
 	address := fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
 	var err error
@@ -155,15 +155,18 @@ func (gw *Instance) InitNetwork() {
 	if !noTLS {
 		gwCert, err = utils.ReadFile(gw.Params.CertPath)
 		if err != nil {
-			jww.ERROR.Printf("Failed to read certificate at %s: %+v", gw.Params.CertPath, err)
+			return errors.New(fmt.Sprintf("Failed to read certificate at %s: %+v",
+				gw.Params.CertPath, err))
 		}
 		gwKey, err = utils.ReadFile(gw.Params.KeyPath)
 		if err != nil {
-			jww.ERROR.Printf("Failed to read gwKey at %s: %+v", gw.Params.KeyPath, err)
+			return errors.New(fmt.Sprintf("Failed to read gwKey at %s: %+v",
+				gw.Params.KeyPath, err))
 		}
 		nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
 		if err != nil {
-			jww.ERROR.Printf("Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err)
+			return errors.New(fmt.Sprintf(
+				"Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err))
 		}
 	}
 
@@ -172,24 +175,27 @@ func (gw *Instance) InitNetwork() {
 	var gatewayCert []byte
 	if !disablePermissioning {
 		if noTLS {
-			jww.ERROR.Panicf("Panic: cannot have permissinoning on and TLS disabled")
+			return errors.New(fmt.Sprintf(
+				"Cannot have permissinoning on and TLS disabled"))
 		}
 		// Obtain signed certificates from the Node
 		jww.INFO.Printf("Beginning polling for signed certs...")
+		tmpHost, err := connect.NewHost(gw.Params.NodeAddress, nodeCert, true)
+		if err != nil {
+			return errors.New(fmt.Sprintf("Unable to create host: %+v", err))
+		}
 		for gw.ServerHost == nil {
-			msg, err := gw.Comms.PollSignedCerts(&connect.Host{
-				Address:        gw.Params.NodeAddress,
-				Cert:           nodeCert,
-				DisableTimeout: true,
-			}, &pb.Ping{})
+			// Poll for updated certificate
+			msg, err := gw.Comms.PollSignedCerts(tmpHost, &pb.Ping{})
 			if err != nil {
 				jww.ERROR.Printf("Error obtaining signed certificates: %+v", err)
 			}
 			if msg.ServerCertPEM != "" && msg.GatewayCertPEM != "" {
-				gw.ServerHost = &connect.Host{
-					Address:        gw.Params.NodeAddress,
-					Cert:           []byte(msg.ServerCertPEM),
-					DisableTimeout: true,
+				// Once we get the updated certificate
+				gw.ServerHost, err = connect.NewHost(gw.Params.NodeAddress,
+					[]byte(msg.ServerCertPEM), true)
+				if err != nil {
+					return errors.New(fmt.Sprintf("Unable to create host: %+v", err))
 				}
 				gatewayCert = []byte(msg.GatewayCertPEM)
 				jww.INFO.Printf("Successfully obtained signed certs!")
@@ -208,6 +214,8 @@ func (gw *Instance) InitNetwork() {
 		gw.Comms = gateway.StartGateway(address, gatewayHandler,
 			gatewayCert, gwKey)
 	}
+
+	return nil
 }
 
 // Returns message contents for MessageID, or a null/randomized message
@@ -356,7 +364,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 		jww.INFO.Printf("GetRoundBufferInfo error returned: %v", err)
 		return
 	}
-	if bufSize == 0 {
+	if bufSize.RoundBufferSize == 0 {
 		return
 	}
 

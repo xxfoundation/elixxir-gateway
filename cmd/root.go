@@ -64,7 +64,10 @@ var rootCmd = &cobra.Command{
 		gateway := NewGatewayInstance(params)
 
 		//start gateway network interactions
-		gateway.InitNetwork()
+		err := gateway.InitNetwork()
+		if err != nil {
+			jww.FATAL.Panicf(err.Error())
+		}
 
 		//Begin gateway persistent components
 		gateway.Start()
