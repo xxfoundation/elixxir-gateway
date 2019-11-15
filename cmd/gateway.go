@@ -107,8 +107,6 @@ func NewGatewayInstance(params Params) *Instance {
 		),
 	}
 
-	i.ServerHost = &connect.Host{}
-
 	err := rateLimiting.CreateWhitelistFile(params.IpWhitelistFile,
 		IPWhiteListArr)
 
