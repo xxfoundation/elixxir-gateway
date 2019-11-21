@@ -1,4 +1,4 @@
-package rate_limiting
+package rateLimiting
 
 import (
 	"sync"
@@ -8,8 +8,8 @@ import (
 type Bucket struct {
 	capacity   uint      // maximum number of tokens the bucket can hold
 	remaining  uint      // current number of tokens in the bucket
-	rate       float64   // rate that the bucket leaks at [leaks/nanosecond]
-	lastUpdate time.Time // last time the bucket was updated
+	leakRate   float64   // rate that the bucket leaks at [tokens/nanosecond]
+	lastUpdate time.Time // time that the bucket was most recently updated
 	mux        sync.Mutex
 }
 
@@ -17,11 +17,11 @@ type Bucket struct {
 // https://en.wikipedia.org/wiki/Leaky_bucket
 
 // Generates a new empty bucket.
-func Create(capacity uint, rate float64) Bucket {
-	return Bucket{
+func Create(capacity uint, rate float64) *Bucket {
+	return &Bucket{
 		capacity:   capacity,
-		remaining:  capacity,
-		rate:       rate,
+		remaining:  0,
+		leakRate:   rate,
 		lastUpdate: time.Now(),
 	}
 }
@@ -36,7 +36,7 @@ func (b *Bucket) Remaining() uint {
 	return b.remaining
 }
 
-// Add token to the bucket and updates the remaining number of tokens. Returns
+// Adds token to the bucket and updates the remaining number of tokens. Returns
 // true if token was added; false if there was insufficient capacity to do so.
 func (b *Bucket) Add(token uint) bool {
 	b.mux.Lock()
@@ -45,22 +45,25 @@ func (b *Bucket) Add(token uint) bool {
 	elapsedTime := time.Now().Sub(b.lastUpdate).Nanoseconds()
 
 	// Calculate the amount of tokens have leaked over the elapsed time
-	r := uint(float64(elapsedTime) * b.rate)
+	r := uint(float64(elapsedTime) * b.leakRate)
 
-	// Update the remaining number tokens and ensure remaining is no less than zero
+	// Subtract the number of leaked tokens from the remaining tokens ensuring
+	// that remaining is no less than zero.
 	if r > b.remaining {
 		b.remaining = 0
 	} else {
 		b.remaining -= r
 	}
 
+	// Add the token value to the bucket
+	b.remaining += token
+
 	b.lastUpdate = time.Now()
 
-	if b.remaining >= b.capacity {
+	if b.remaining > b.capacity {
 		b.mux.Unlock()
 		return false
 	} else {
-		b.remaining++
 		b.mux.Unlock()
 		return true
 	}
