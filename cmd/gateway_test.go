@@ -7,10 +7,7 @@
 package cmd
 
 import (
-	"fmt"
-	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/pkg/errors"
-	jww "github.com/spf13/jwalterweatherman"
+	"github.com/golang/protobuf/ptypes/any"
 	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -20,6 +17,7 @@ import (
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
 	"gitlab.com/elixxir/primitives/utils"
+	"google.golang.org/grpc"
 	"os"
 	"reflect"
 	"testing"
@@ -30,8 +28,8 @@ const GW_ADDRESS = "0.0.0.0:5555"
 const NODE_ADDRESS = "0.0.0.0:5556"
 
 var gatewayInstance *Instance
-var gComm *gateway.GatewayComms
-var n *node.NodeComms
+var gComm *gateway.Comms
+var n *node.Comms
 
 var mockMessage *pb.Slot
 var nodeIncomingBatch *pb.Batch
@@ -61,12 +59,6 @@ func TestMain(m *testing.M) {
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
 	n = node.StartNode(NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
 
-	//Connect gateway comms to node
-	err := gComm.ConnectToRemote(connectionID(NODE_ADDRESS), NODE_ADDRESS, nodeCert, true)
-	if err != nil {
-		fmt.Println("Could not connect to node")
-	}
-
 	grp := make(map[string]string)
 	grp["prime"] = "9DB6FB5951B66BB6FE1E140F1D2CE5502374161FD6538DF1648218642F0B5C48" +
 		"C8F7A41AADFA187324B87674FA1822B00F1ECF8136943D7C55757264E5A1A44F" +
@@ -88,11 +80,12 @@ func TestMain(m *testing.M) {
 	//Build the gateway instance
 	params := Params{
 		BatchSize:      1,
-		GatewayNode:    NODE_ADDRESS,
+		NodeAddress:    NODE_ADDRESS,
 		CMixNodes:      cmixNodes,
 		CmixGrp:        grp,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
+		KeyPath:        testkeys.GetGatewayKeyPath(),
 	}
 
 	cleanPeriodDur := 3 * time.Second
@@ -111,6 +104,8 @@ func TestMain(m *testing.M) {
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
+	gatewayInstance.ServerHost, _ = connect.NewHost(NODE_ADDRESS, nodeCert,
+		true)
 
 	//build a single mock message
 	msg := format.NewMessage()
@@ -225,7 +220,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	//Build the gateway instance
 	params := Params{
 		BatchSize:      3,
-		GatewayNode:    NODE_ADDRESS,
+		NodeAddress:    NODE_ADDRESS,
 		CMixNodes:      cmixNodes,
 		CmixGrp:        grp,
 		ServerCertPath: testkeys.GetNodeCertPath(),
@@ -249,6 +244,11 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw := NewGatewayInstance(params)
 
 	gw.Comms = gComm
+	gw.ServerHost, err = connect.NewHost(NODE_ADDRESS, nodeCert,
+		true)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 
 	gw.SendBatchWhenReady(1, junkMsg)
 
@@ -264,22 +264,27 @@ func TestGatewayImpl_PollForBatch(t *testing.T) {
 func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	defer disconnectServers()
 
-	const gwPort = 6555
 	disablePermissioning = true
 
-	gatewayInstance.InitNetwork()
-
-	connId := connectionID(NODE_ADDRESS)
-	nodeComms := gatewayInstance.Comms.GetNodeConnection(connId)
+	err := gatewayInstance.InitNetwork()
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 
 	ctx, cancel := connect.MessagingContext()
 
-	_, err := nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.DefaultMaxRetries))
+	_, err = gatewayInstance.ServerHost.Send(func(conn *grpc.ClientConn) (*any.
+		Any, error) {
+		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
 
-	// Make sure there are no errors with sending the message
+		// Make sure there are no errors with sending the message
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	})
 	if err != nil {
-		err = errors.New(err.Error())
-		jww.ERROR.Printf("AskOnline: Error received: %+v", err)
+		t.Errorf(err.Error())
 	}
 
 	disconnectServers()
@@ -311,19 +316,20 @@ func TestInitNetwork_GetSignedCert(t *testing.T) {
 		"BA9AE3F1DD2487199874393CD4D832186800654760E1E34C09E4D155179F9EC0" +
 		"DC4473F996BDCE6EED1CABED8B6F116F7AD9CF505DF0F998E34AB27514B0FFE7"
 
-	gatewayInstance.InitNetwork()
-
-	connId := connectionID(NODE_ADDRESS)
-	nodeComms := gatewayInstance.Comms.GetNodeConnection(connId)
-
 	ctx, cancel := connect.MessagingContext()
 
-	_, err := nodeComms.AskOnline(ctx, &pb.Ping{}, grpc_retry.WithMax(connect.DefaultMaxRetries))
+	_, err := gatewayInstance.ServerHost.Send(func(conn *grpc.ClientConn) (*any.
+		Any, error) {
+		_, err := pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
 
-	// Make sure there are no errors with sending the message
+		// Make sure there are no errors with sending the message
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	})
 	if err != nil {
-		err = errors.New(err.Error())
-		jww.ERROR.Printf("AskOnline: Error received: %+v", err)
+		t.Errorf(err.Error())
 	}
 
 	cancel()
@@ -332,7 +338,7 @@ func TestInitNetwork_GetSignedCert(t *testing.T) {
 
 func disconnectServers() {
 	gatewayInstance.Comms.DisconnectAll()
-	n.ConnectionManager.DisconnectAll()
+	n.Manager.DisconnectAll()
 	n.DisconnectAll()
 }
 

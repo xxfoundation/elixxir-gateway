@@ -23,7 +23,6 @@ var cfgFile string
 var verbose bool
 var showVer bool
 var gatewayNodeIdx int
-var gwListenIP string
 var gwPort int
 var logPath = "cmix-gateway.log"
 var disablePermissioning bool
@@ -65,7 +64,10 @@ var rootCmd = &cobra.Command{
 		gateway := NewGatewayInstance(params)
 
 		//start gateway network interactions
-		gateway.InitNetwork()
+		err := gateway.InitNetwork()
+		if err != nil {
+			jww.FATAL.Panicf(err.Error())
+		}
 
 		//Begin gateway persistent components
 		gateway.Start()
@@ -108,7 +110,7 @@ func InitParams(vip *viper.Viper) Params {
 		Port:           gwPort,
 		Address:        gwListenIP,
 		CMixNodes:      cMixNodes,
-		GatewayNode:    connectionID(gatewayNode),
+		NodeAddress:    gatewayNode,
 		BatchSize:      batchSize,
 		CertPath:       certPath,
 		KeyPath:        keyPath,
