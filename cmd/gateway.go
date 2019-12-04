@@ -245,13 +245,8 @@ func (gw *Instance) installNdf(networkDef,
 			}
 
 			// Configure gateway according to its node's index
-			if i == 0 {
-				gw.Params.LastNode = false
-				gw.Params.FirstNode = true
-			} else if i == len(gw.Ndf.Nodes)-1 {
-				gw.Params.LastNode = true
-				gw.Params.FirstNode = false
-			}
+			gw.Params.LastNode = i == len(gw.Ndf.Nodes)-1
+			gw.Params.FirstNode = i == 0
 			return []byte(gw.Ndf.Gateways[i].TlsCertificate), nil
 		}
 	}

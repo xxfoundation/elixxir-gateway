@@ -156,10 +156,10 @@ func buildTestNodeImpl() *node.Implementation {
 		return &b, nil
 	}
 
-	nodeHandler.Functions.GetSignedCert = func(p *pb.Ping) (*pb.SignedCerts, error) {
-		signedCerts := pb.SignedCerts{GatewayCertPEM: string(gatewayCert),
-			ServerCertPEM: string(nodeCert)}
-		return &signedCerts, nil
+	nodeHandler.Functions.PollNdf = func(p *pb.Ping) (*pb.GatewayNdf, error) {
+		netDef := pb.GatewayNdf{}
+		//GatewayCertPEM: string(gatewayCert), ServerCertPEM: string(nodeCert)
+		return &netDef, nil
 	}
 
 	return nodeHandler
