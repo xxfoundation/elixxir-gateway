@@ -7,6 +7,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
+	"gitlab.com/elixxir/primitives/ndf"
 	"gitlab.com/elixxir/primitives/utils"
 	"strings"
 	"time"
@@ -47,6 +49,9 @@ type Instance struct {
 
 	// Contains all Gateway relevant fields
 	Params Params
+
+	// Contains system NDF
+	Ndf *ndf.NetworkDefinition
 
 	// Contains Server Host Information
 	ServerHost *connect.Host
@@ -173,32 +178,33 @@ func (gw *Instance) InitNetwork() error {
 	var gatewayCert []byte
 	if !disablePermissioning {
 		if noTLS {
-			return errors.New(fmt.Sprintf(
-				"Cannot have permissinoning on and TLS disabled"))
+			return errors.Errorf("Cannot have permissioning on and TLS disabled")
 		}
-		// Obtain signed certificates from the Node
-		jww.INFO.Printf("Beginning polling for signed certs...")
+
+		// Set up temporary server host
+		jww.INFO.Printf("Beginning polling NDF...")
 		tmpHost, err := connect.NewHost(gw.Params.NodeAddress, nodeCert, true)
 		if err != nil {
-			return errors.New(fmt.Sprintf("Unable to create host: %+v", err))
+			return errors.Errorf("Unable to create tmp server host: %+v",
+				err)
 		}
-		for gw.ServerHost == nil {
-			// Poll for updated certificate
-			msg, err := gw.Comms.PollSignedCerts(tmpHost, &pb.Ping{})
+
+		// Begin polling server for NDF
+		for gw.ServerHost == nil || gatewayCert == nil {
+			msg, err := gw.Comms.PollNdf(tmpHost, &pb.Ping{})
 			if err != nil {
-				jww.ERROR.Printf("Error obtaining signed certificates: %+v", err)
+				jww.ERROR.Printf("Error polling NDF: %+v", err)
 			}
-			if msg.ServerCertPEM != "" && msg.GatewayCertPEM != "" {
-				// Once we get the updated certificate
-				gw.ServerHost, err = connect.NewHost(gw.Params.NodeAddress,
-					[]byte(msg.ServerCertPEM), true)
+
+			// Install the NDF once we get it
+			if msg.Ndf != nil && msg.Id != nil {
+				gatewayCert, err = gw.installNdf(msg.Ndf.Ndf, msg.Id)
 				if err != nil {
-					return errors.New(fmt.Sprintf("Unable to create host: %+v", err))
+					return err
 				}
-				gatewayCert = []byte(msg.GatewayCertPEM)
-				jww.INFO.Printf("Successfully obtained signed certs!")
 			}
 		}
+		jww.INFO.Printf("Successfully obtained NDF!")
 
 		// Replace the comms server with the newly-signed certificate
 		gw.Comms.Shutdown()
@@ -214,6 +220,43 @@ func (gw *Instance) InitNetwork() error {
 	}
 
 	return nil
+}
+
+// Helper that configures gateway instance according to the NDF
+func (gw *Instance) installNdf(networkDef,
+	nodeId []byte) (gatewayCert []byte, err error) {
+
+	// Decode the NDF
+	gw.Ndf, _, err = ndf.DecodeNDF(string(networkDef))
+	if err != nil {
+		return nil, errors.Errorf("Unable to decode NDF: %+v", err)
+	}
+
+	// Determine the index of this gateway
+	for i, node := range gw.Ndf.Nodes {
+		if bytes.Compare(node.ID, nodeId) == 0 {
+
+			// Create the updated server host
+			gw.ServerHost, err = connect.NewHost(gw.Params.NodeAddress,
+				[]byte(node.TlsCertificate), true)
+			if err != nil {
+				return nil, errors.Errorf(
+					"Unable to create updated server host: %+v", err)
+			}
+
+			// Configure gateway according to its node's index
+			if i == 0 {
+				gw.Params.LastNode = false
+				gw.Params.FirstNode = true
+			} else if i == len(gw.Ndf.Nodes)-1 {
+				gw.Params.LastNode = true
+				gw.Params.FirstNode = false
+			}
+			return []byte(gw.Ndf.Gateways[i].TlsCertificate), nil
+		}
+	}
+
+	return nil, errors.Errorf("Unable to locate ID %v in NDF!", nodeId)
 }
 
 // Returns message contents for MessageID, or a null/randomized message
