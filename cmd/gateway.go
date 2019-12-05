@@ -150,11 +150,11 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 // Additionally, to clean up the network object (especially in tests), call
 // Shutdown() on the network object.
 func (gw *Instance) InitNetwork() error {
-	// Set up a comms server
 	address := fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
 	var err error
 	var gwCert, gwKey, nodeCert []byte
 
+	// TLS-enabled pathway
 	if !noTLS {
 		gwCert, err = utils.ReadFile(gw.Params.CertPath)
 		if err != nil {
@@ -173,25 +173,28 @@ func (gw *Instance) InitNetwork() error {
 		}
 	}
 
+	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
 	gw.Comms = gateway.StartGateway(address, gatewayHandler, gwCert, gwKey)
-	var gatewayCert []byte
+
+	// Set up temporary server host
+	gw.ServerHost, err = connect.NewHost(gw.Params.NodeAddress, nodeCert, true)
+	if err != nil {
+		return errors.Errorf("Unable to create tmp server host: %+v",
+			err)
+	}
+
+	// Permissioning-enabled pathway
 	if !disablePermissioning {
 		if noTLS {
 			return errors.Errorf("Cannot have permissioning on and TLS disabled")
 		}
 
-		// Set up temporary server host
-		jww.INFO.Printf("Beginning polling NDF...")
-		tmpHost, err := connect.NewHost(gw.Params.NodeAddress, nodeCert, true)
-		if err != nil {
-			return errors.Errorf("Unable to create tmp server host: %+v",
-				err)
-		}
-
 		// Begin polling server for NDF
-		for gw.ServerHost == nil || gatewayCert == nil {
-			msg, err := gw.Comms.PollNdf(tmpHost, &pb.Ping{})
+		jww.INFO.Printf("Beginning polling NDF...")
+		var gatewayCert []byte
+		for gatewayCert == nil {
+			msg, err := gw.Comms.PollNdf(gw.ServerHost, &pb.Ping{})
 			if err != nil {
 				jww.ERROR.Printf("Error polling NDF: %+v", err)
 			}
