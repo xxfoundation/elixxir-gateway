@@ -104,8 +104,7 @@ func TestMain(m *testing.M) {
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
-	gatewayInstance.ServerHost, _ = connect.NewHost(NODE_ADDRESS, nodeCert,
-		true)
+	gatewayInstance.ServerHost, _ = connect.NewHost("test", NODE_ADDRESS, nodeCert, true, false)
 
 	//build a single mock message
 	msg := format.NewMessage()
@@ -244,8 +243,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw := NewGatewayInstance(params)
 
 	gw.Comms = gComm
-	gw.ServerHost, err = connect.NewHost(NODE_ADDRESS, nodeCert,
-		true)
+	gw.ServerHost, err = connect.NewHost("test", NODE_ADDRESS, nodeCert, true, false)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -273,7 +271,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 	ctx, cancel := connect.MessagingContext()
 
-	_, err = gatewayInstance.ServerHost.Send(func(conn *grpc.ClientConn) (*any.
+	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(conn *grpc.ClientConn) (*any.
 		Any, error) {
 		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
 
@@ -318,7 +316,8 @@ func TestInitNetwork_GetSignedCert(t *testing.T) {
 
 	ctx, cancel := connect.MessagingContext()
 
-	_, err := gatewayInstance.ServerHost.Send(func(conn *grpc.ClientConn) (*any.
+
+	_, err := gatewayInstance.Comms.Send( gatewayInstance.ServerHost ,func(conn *grpc.ClientConn) (*any.
 		Any, error) {
 		_, err := pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
 

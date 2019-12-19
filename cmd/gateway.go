@@ -178,7 +178,8 @@ func (gw *Instance) InitNetwork() error {
 	gw.Comms = gateway.StartGateway(address, gatewayHandler, gwCert, gwKey)
 
 	// Set up temporary server host
-	gw.ServerHost, err = connect.NewHost(gw.Params.NodeAddress, nodeCert, true)
+	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
+	gw.ServerHost, err = connect.NewHost("an id",gw.Params.NodeAddress, nodeCert, true, true)
 	if err != nil {
 		return errors.Errorf("Unable to create tmp server host: %+v",
 			err)
@@ -240,8 +241,7 @@ func (gw *Instance) installNdf(networkDef,
 		if bytes.Compare(node.ID, nodeId) == 0 {
 
 			// Create the updated server host
-			gw.ServerHost, err = connect.NewHost(gw.Params.NodeAddress,
-				[]byte(node.TlsCertificate), true)
+			gw.ServerHost, err = connect.NewHost(string(node.ID), gw.Params.NodeAddress, []byte(node.TlsCertificate), true, false)
 			if err != nil {
 				return nil, errors.Errorf(
 					"Unable to create updated server host: %+v", err)
