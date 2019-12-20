@@ -179,7 +179,8 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary server host
 	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
-	gw.ServerHost, err = connect.NewHost("an id", gw.Params.NodeAddress, nodeCert, true, true)
+	gw.ServerHost, err = connect.NewHost("tmp", gw.Params.NodeAddress,
+		nodeCert, true, true)
 	if err != nil {
 		return errors.Errorf("Unable to create tmp server host: %+v",
 			err)
