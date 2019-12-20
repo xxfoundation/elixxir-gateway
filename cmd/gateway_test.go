@@ -7,6 +7,7 @@
 package cmd
 
 import (
+	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
@@ -133,14 +134,14 @@ func testWrapperShutdown() {
 
 func buildTestNodeImpl() *node.Implementation {
 	nodeHandler := node.NewImplementation()
-	nodeHandler.Functions.GetRoundBufferInfo = func() (int, error) {
+	nodeHandler.Functions.GetRoundBufferInfo = func(auth *connect.Auth) (int, error) {
 		return 1, nil
 	}
-	nodeHandler.Functions.PostNewBatch = func(batch *pb.Batch) error {
+	nodeHandler.Functions.PostNewBatch = func(batch *pb.Batch, auth *connect.Auth) error {
 		nodeIncomingBatch = batch
 		return nil
 	}
-	nodeHandler.Functions.GetCompletedBatch = func() (*pb.Batch, error) {
+	nodeHandler.Functions.GetCompletedBatch = func(auth *connect.Auth) (*pb.Batch, error) {
 		//build a batch
 		b := pb.Batch{
 			Round: &pb.RoundInfo{
@@ -155,7 +156,9 @@ func buildTestNodeImpl() *node.Implementation {
 		return &b, nil
 	}
 
-	nodeHandler.Functions.PollNdf = func(p *pb.Ping) (*pb.GatewayNdf, error) {
+	nodeHandler.Functions.PollNdf = func(p *pb.Ping,
+		auth *connect.Auth) (*pb.GatewayNdf,
+		error) {
 		netDef := pb.GatewayNdf{}
 		//GatewayCertPEM: string(gatewayCert), ServerCertPEM: string(nodeCert)
 		return &netDef, nil
@@ -273,7 +276,12 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(conn *grpc.ClientConn) (*any.
 		Any, error) {
-		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
+		msg := &pb.Ping{}
+		resultMsg, err := ptypes.MarshalAny(msg)
+		if err != nil {
+			t.Errorf("Unable to marshal: %+v", err)
+		}
+		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.AuthenticatedMessage{Message: resultMsg})
 
 		// Make sure there are no errors with sending the message
 		if err != nil {
@@ -316,10 +324,15 @@ func TestInitNetwork_GetSignedCert(t *testing.T) {
 
 	ctx, cancel := connect.MessagingContext()
 
-
-	_, err := gatewayInstance.Comms.Send( gatewayInstance.ServerHost ,func(conn *grpc.ClientConn) (*any.
+	_, err := gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(conn *grpc.ClientConn) (*any.
 		Any, error) {
-		_, err := pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
+		msg := &pb.Ping{}
+		resultMsg, err := ptypes.MarshalAny(msg)
+		if err != nil {
+			t.Errorf("Unable to marshal: %+v", err)
+		}
+		_, err = pb.NewNodeClient(conn).AskOnline(ctx,
+			&pb.AuthenticatedMessage{Message: resultMsg})
 
 		// Make sure there are no errors with sending the message
 		if err != nil {
