@@ -196,7 +196,7 @@ func (gw *Instance) InitNetwork() error {
 		jww.INFO.Printf("Beginning polling NDF...")
 		var gatewayCert []byte
 		for gatewayCert == nil {
-			msg, err := gw.Comms.PollNdf(gw.ServerHost, &pb.Ping{})
+			msg, err := gw.Comms.PollNdf(gw.ServerHost)
 			if err != nil {
 				jww.ERROR.Printf("Error polling NDF: %+v", err)
 			}
