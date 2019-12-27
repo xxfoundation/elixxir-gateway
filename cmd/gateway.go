@@ -175,7 +175,7 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
-	gw.Comms = gateway.StartGateway(address, gatewayHandler, gwCert, gwKey)
+	gw.Comms = gateway.StartGateway("tmp", address, gatewayHandler, gwCert, gwKey)
 
 	// Set up temporary server host
 	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
@@ -220,7 +220,7 @@ func (gw *Instance) InitNetwork() error {
 		// a couple minutes (depending on operating system), but
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
-		gw.Comms = gateway.StartGateway(address, gatewayHandler,
+		gw.Comms = gateway.StartGateway("tmp", address, gatewayHandler,
 			gatewayCert, gwKey)
 	}
 

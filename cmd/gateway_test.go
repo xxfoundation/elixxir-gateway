@@ -51,14 +51,14 @@ func TestMain(m *testing.M) {
 	gatewayCert, _ = utils.ReadFile(testkeys.GetGatewayCertPath())
 	gatewayKey, _ = utils.ReadFile(testkeys.GetGatewayKeyPath())
 
-	gComm = gateway.StartGateway(GW_ADDRESS, gatewayInstance, gatewayCert, gatewayKey)
+	gComm = gateway.StartGateway("tmp", GW_ADDRESS, gatewayInstance, gatewayCert, gatewayKey)
 
 	//Start mock node
 	nodeHandler := buildTestNodeImpl()
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
-	n = node.StartNode(NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
+	n = node.StartNode("node", NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
 
 	grp := make(map[string]string)
 	grp["prime"] = "9DB6FB5951B66BB6FE1E140F1D2CE5502374161FD6538DF1648218642F0B5C48" +
@@ -105,7 +105,7 @@ func TestMain(m *testing.M) {
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
-	gatewayInstance.ServerHost, _ = connect.NewHost("test", NODE_ADDRESS, nodeCert, true, false)
+	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS, nodeCert, true, false)
 
 	//build a single mock message
 	msg := format.NewMessage()
@@ -273,6 +273,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	}
 
 	ctx, cancel := connect.MessagingContext()
+	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS, nodeCert, true, false)
 
 	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(conn *grpc.ClientConn) (*any.
 		Any, error) {
