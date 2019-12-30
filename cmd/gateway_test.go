@@ -7,7 +7,6 @@
 package cmd
 
 import (
-	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/any"
 	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
@@ -277,12 +276,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(conn *grpc.ClientConn) (*any.
 		Any, error) {
-		msg := &pb.Ping{}
-		resultMsg, err := ptypes.MarshalAny(msg)
-		if err != nil {
-			t.Errorf("Unable to marshal: %+v", err)
-		}
-		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.AuthenticatedMessage{Message: resultMsg})
+		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
 
 		// Make sure there are no errors with sending the message
 		if err != nil {
@@ -327,13 +321,7 @@ func TestInitNetwork_GetSignedCert(t *testing.T) {
 
 	_, err := gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(conn *grpc.ClientConn) (*any.
 		Any, error) {
-		msg := &pb.Ping{}
-		resultMsg, err := ptypes.MarshalAny(msg)
-		if err != nil {
-			t.Errorf("Unable to marshal: %+v", err)
-		}
-		_, err = pb.NewNodeClient(conn).AskOnline(ctx,
-			&pb.AuthenticatedMessage{Message: resultMsg})
+		_, err := pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
 
 		// Make sure there are no errors with sending the message
 		if err != nil {

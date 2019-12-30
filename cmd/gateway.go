@@ -197,6 +197,12 @@ func (gw *Instance) InitNetwork() error {
 		var gatewayCert []byte
 		for gatewayCert == nil {
 			msg, err := gw.Comms.PollNdf(gw.ServerHost)
+
+			// FIXME: there might be a better way to do this
+			if strings.Contains(err.Error(), "Invalid host ID: tmp") {
+				continue
+			}
+
 			if err != nil {
 				jww.ERROR.Printf("Error polling NDF: %+v", err)
 			}
