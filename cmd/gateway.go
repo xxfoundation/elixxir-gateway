@@ -245,7 +245,8 @@ func (gw *Instance) installNdf(networkDef,
 	// Decode the NDF
 	gw.Ndf, _, err = ndf.DecodeNDF(string(networkDef))
 	if err != nil {
-		return nil, errors.Errorf("Unable to decode NDF: %+v", err)
+		return nil, errors.Errorf("Unable to decode NDF: %+v\n%+v", err,
+			string(networkDef))
 	}
 
 	// Determine the index of this gateway
