@@ -207,6 +207,8 @@ func (gw *Instance) InitNetwork() error {
 				if err != nil {
 					return err
 				}
+			} else {
+				time.Sleep(3 * time.Second)
 			}
 		}
 		jww.INFO.Printf("Successfully obtained NDF!")
