@@ -233,7 +233,7 @@ func (gw *Instance) InitNetwork() error {
 		// a couple minutes (depending on operating system), but
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
-		gw.Comms = gateway.StartGateway(string(nodeId), address, gatewayHandler,
+		gw.Comms = gateway.StartGateway(id.NewNodeFromBytes(nodeId).String(), address, gatewayHandler,
 			gatewayCert, gwKey)
 	}
 
@@ -256,7 +256,7 @@ func (gw *Instance) installNdf(networkDef,
 		if bytes.Compare(node.ID, nodeId) == 0 {
 
 			// Create the updated server host
-			gw.ServerHost, err = connect.NewHost(string(node.ID),
+			gw.ServerHost, err = connect.NewHost(id.NewNodeFromBytes(node.ID).String(),
 				gw.Params.NodeAddress, []byte(node.TlsCertificate), true, true)
 			if err != nil {
 				return nil, errors.Errorf(
