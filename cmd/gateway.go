@@ -196,15 +196,20 @@ func (gw *Instance) InitNetwork() error {
 		jww.INFO.Printf("Beginning polling NDF...")
 		var gatewayCert []byte
 		for gatewayCert == nil {
+			// TODO: Probably not great to always sleep immediately
+			time.Sleep(3 * time.Second)
+
+			// Poll for the NDF
 			msg, err := gw.Comms.PollNdf(gw.ServerHost)
-
-			// FIXME: there might be a better way to do this
-			if strings.Contains(err.Error(), "Invalid host ID: tmp") {
-				continue
-			}
-
 			if err != nil {
-				jww.ERROR.Printf("Error polling NDF: %+v", err)
+				// Catch recoverable error
+				if strings.Contains(err.Error(),
+					"Invalid host ID: tmp") {
+					jww.WARN.Printf("Server not yet ready...")
+					continue
+				} else {
+					return errors.Errorf("Error polling NDF: %+v", err)
+				}
 			}
 
 			// Install the NDF once we get it
@@ -213,8 +218,6 @@ func (gw *Instance) InitNetwork() error {
 				if err != nil {
 					return err
 				}
-			} else {
-				time.Sleep(3 * time.Second)
 			}
 		}
 		jww.INFO.Printf("Successfully obtained NDF!")
