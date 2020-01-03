@@ -233,8 +233,9 @@ func (gw *Instance) InitNetwork() error {
 		// a couple minutes (depending on operating system), but
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
-		gw.Comms = gateway.StartGateway(id.NewNodeFromBytes(nodeId).String(), address, gatewayHandler,
-			gatewayCert, gwKey)
+		gw.Comms = gateway.StartGateway(
+			id.NewNodeFromBytes(nodeId).NewGateway().String(),
+			address, gatewayHandler, gatewayCert, gwKey)
 	}
 
 	return nil
