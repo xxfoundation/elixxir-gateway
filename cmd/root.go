@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
+	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/gateway/rateLimiting"
 	"log"
 	"os"
@@ -279,6 +280,7 @@ func initLog() {
 		jww.SetLogThreshold(jww.LevelDebug)
 		jww.SetStdoutThreshold(jww.LevelDebug)
 		jww.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+		mixmessages.DebugMode()
 	} else {
 		jww.SetLogThreshold(jww.LevelInfo)
 		jww.SetStdoutThreshold(jww.LevelInfo)

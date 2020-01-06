@@ -175,10 +175,12 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
-	gw.Comms = gateway.StartGateway(address, gatewayHandler, gwCert, gwKey)
+	gw.Comms = gateway.StartGateway("tmp", address, gatewayHandler, gwCert, gwKey)
 
 	// Set up temporary server host
-	gw.ServerHost, err = connect.NewHost(gw.Params.NodeAddress, nodeCert, true)
+	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
+	gw.ServerHost, err = connect.NewHost("tmp", gw.Params.NodeAddress,
+		nodeCert, true, true)
 	if err != nil {
 		return errors.Errorf("Unable to create tmp server host: %+v",
 			err)
@@ -193,15 +195,28 @@ func (gw *Instance) InitNetwork() error {
 		// Begin polling server for NDF
 		jww.INFO.Printf("Beginning polling NDF...")
 		var gatewayCert []byte
+		var nodeId []byte
 		for gatewayCert == nil {
-			msg, err := gw.Comms.PollNdf(gw.ServerHost, &pb.Ping{})
+			// TODO: Probably not great to always sleep immediately
+			time.Sleep(3 * time.Second)
+
+			// Poll for the NDF
+			msg, err := gw.Comms.PollNdf(gw.ServerHost)
 			if err != nil {
-				jww.ERROR.Printf("Error polling NDF: %+v", err)
+				// Catch recoverable error
+				if strings.Contains(err.Error(),
+					"Invalid host ID: tmp") {
+					jww.WARN.Printf("Server not yet ready...")
+					continue
+				} else {
+					return errors.Errorf("Error polling NDF: %+v", err)
+				}
 			}
 
 			// Install the NDF once we get it
 			if msg.Ndf != nil && msg.Id != nil {
 				gatewayCert, err = gw.installNdf(msg.Ndf.Ndf, msg.Id)
+				nodeId = msg.Id
 				if err != nil {
 					return err
 				}
@@ -218,8 +233,9 @@ func (gw *Instance) InitNetwork() error {
 		// a couple minutes (depending on operating system), but
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
-		gw.Comms = gateway.StartGateway(address, gatewayHandler,
-			gatewayCert, gwKey)
+		gw.Comms = gateway.StartGateway(
+			id.NewNodeFromBytes(nodeId).NewGateway().String(),
+			address, gatewayHandler, gatewayCert, gwKey)
 	}
 
 	return nil
@@ -232,7 +248,8 @@ func (gw *Instance) installNdf(networkDef,
 	// Decode the NDF
 	gw.Ndf, _, err = ndf.DecodeNDF(string(networkDef))
 	if err != nil {
-		return nil, errors.Errorf("Unable to decode NDF: %+v", err)
+		return nil, errors.Errorf("Unable to decode NDF: %+v\n%+v", err,
+			string(networkDef))
 	}
 
 	// Determine the index of this gateway
@@ -240,8 +257,8 @@ func (gw *Instance) installNdf(networkDef,
 		if bytes.Compare(node.ID, nodeId) == 0 {
 
 			// Create the updated server host
-			gw.ServerHost, err = connect.NewHost(gw.Params.NodeAddress,
-				[]byte(node.TlsCertificate), true)
+			gw.ServerHost, err = connect.NewHost(id.NewNodeFromBytes(node.ID).String(),
+				gw.Params.NodeAddress, []byte(node.TlsCertificate), true, true)
 			if err != nil {
 				return nil, errors.Errorf(
 					"Unable to create updated server host: %+v", err)
@@ -494,29 +511,29 @@ func (gw *Instance) Start() {
 		// minMsgCnt should be no less than 33% of the BatchSize
 		// Note: this is security sensitive.. be careful if you pull this out to a
 		// config option.
-		minMsgCnt := uint64(gw.Params.BatchSize / 3)
+		minMsgCnt := gw.Params.BatchSize / 3
 		if minMsgCnt == 0 {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
 		jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
-		if !gw.Params.FirstNode {
+		if gw.Params.FirstNode {
 			for true {
 				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
 			}
 		} else {
-			jww.INFO.Printf("SendBatchWhenReady() was skipped on first node.")
+			jww.INFO.Printf("SendBatchWhenReady() was skipped on this node.")
 		}
 	}()
 
 	//Begin the thread which polls the node for a completed batch
 	go func() {
-		if !gw.Params.LastNode {
+		if gw.Params.LastNode {
 			for true {
 				gw.PollForBatch()
 			}
 		} else {
-			jww.INFO.Printf("PollForBatch() was skipped on last node.")
+			jww.INFO.Printf("PollForBatch() was skipped on this node.")
 		}
 	}()
 }

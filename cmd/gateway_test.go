@@ -50,14 +50,14 @@ func TestMain(m *testing.M) {
 	gatewayCert, _ = utils.ReadFile(testkeys.GetGatewayCertPath())
 	gatewayKey, _ = utils.ReadFile(testkeys.GetGatewayKeyPath())
 
-	gComm = gateway.StartGateway(GW_ADDRESS, gatewayInstance, gatewayCert, gatewayKey)
+	gComm = gateway.StartGateway("tmp", GW_ADDRESS, gatewayInstance, gatewayCert, gatewayKey)
 
 	//Start mock node
 	nodeHandler := buildTestNodeImpl()
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
-	n = node.StartNode(NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
+	n = node.StartNode("node", NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
 
 	grp := make(map[string]string)
 	grp["prime"] = "9DB6FB5951B66BB6FE1E140F1D2CE5502374161FD6538DF1648218642F0B5C48" +
@@ -104,8 +104,7 @@ func TestMain(m *testing.M) {
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
-	gatewayInstance.ServerHost, _ = connect.NewHost(NODE_ADDRESS, nodeCert,
-		true)
+	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS, nodeCert, true, false)
 
 	//build a single mock message
 	msg := format.NewMessage()
@@ -134,14 +133,14 @@ func testWrapperShutdown() {
 
 func buildTestNodeImpl() *node.Implementation {
 	nodeHandler := node.NewImplementation()
-	nodeHandler.Functions.GetRoundBufferInfo = func() (int, error) {
+	nodeHandler.Functions.GetRoundBufferInfo = func(auth *connect.Auth) (int, error) {
 		return 1, nil
 	}
-	nodeHandler.Functions.PostNewBatch = func(batch *pb.Batch) error {
+	nodeHandler.Functions.PostNewBatch = func(batch *pb.Batch, auth *connect.Auth) error {
 		nodeIncomingBatch = batch
 		return nil
 	}
-	nodeHandler.Functions.GetCompletedBatch = func() (*pb.Batch, error) {
+	nodeHandler.Functions.GetCompletedBatch = func(auth *connect.Auth) (*pb.Batch, error) {
 		//build a batch
 		b := pb.Batch{
 			Round: &pb.RoundInfo{
@@ -156,7 +155,9 @@ func buildTestNodeImpl() *node.Implementation {
 		return &b, nil
 	}
 
-	nodeHandler.Functions.PollNdf = func(p *pb.Ping) (*pb.GatewayNdf, error) {
+	nodeHandler.Functions.PollNdf = func(p *pb.Ping,
+		auth *connect.Auth) (*pb.GatewayNdf,
+		error) {
 		netDef := pb.GatewayNdf{}
 		//GatewayCertPEM: string(gatewayCert), ServerCertPEM: string(nodeCert)
 		return &netDef, nil
@@ -244,8 +245,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw := NewGatewayInstance(params)
 
 	gw.Comms = gComm
-	gw.ServerHost, err = connect.NewHost(NODE_ADDRESS, nodeCert,
-		true)
+	gw.ServerHost, err = connect.NewHost("test", NODE_ADDRESS, nodeCert, true, false)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -272,8 +272,9 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	}
 
 	ctx, cancel := connect.MessagingContext()
+	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS, nodeCert, true, false)
 
-	_, err = gatewayInstance.ServerHost.Send(func(conn *grpc.ClientConn) (*any.
+	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(conn *grpc.ClientConn) (*any.
 		Any, error) {
 		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
 
@@ -318,7 +319,7 @@ func TestInitNetwork_GetSignedCert(t *testing.T) {
 
 	ctx, cancel := connect.MessagingContext()
 
-	_, err := gatewayInstance.ServerHost.Send(func(conn *grpc.ClientConn) (*any.
+	_, err := gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(conn *grpc.ClientConn) (*any.
 		Any, error) {
 		_, err := pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
 
