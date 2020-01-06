@@ -511,29 +511,29 @@ func (gw *Instance) Start() {
 		// minMsgCnt should be no less than 33% of the BatchSize
 		// Note: this is security sensitive.. be careful if you pull this out to a
 		// config option.
-		minMsgCnt := uint64(gw.Params.BatchSize / 3)
+		minMsgCnt := gw.Params.BatchSize / 3
 		if minMsgCnt == 0 {
 			minMsgCnt = 1
 		}
 		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
 		jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
-		if !gw.Params.FirstNode {
+		if gw.Params.FirstNode {
 			for true {
 				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
 			}
 		} else {
-			jww.INFO.Printf("SendBatchWhenReady() was skipped on first node.")
+			jww.INFO.Printf("SendBatchWhenReady() was skipped on this node.")
 		}
 	}()
 
 	//Begin the thread which polls the node for a completed batch
 	go func() {
-		if !gw.Params.LastNode {
+		if gw.Params.LastNode {
 			for true {
 				gw.PollForBatch()
 			}
 		} else {
-			jww.INFO.Printf("PollForBatch() was skipped on last node.")
+			jww.INFO.Printf("PollForBatch() was skipped on this node.")
 		}
 	}()
 }
