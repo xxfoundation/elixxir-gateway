@@ -177,6 +177,12 @@ func (gw *Instance) InitNetwork() error {
 	gatewayHandler := NewImplementation(gw)
 	gw.Comms = gateway.StartGateway("tmp", address, gatewayHandler, gwCert, gwKey)
 
+	// If we are in the TLS-disabled pathway, we inherently want to disable
+	// authentication
+	if noTLS {
+		gw.Comms.DisableAuth()
+	}
+
 	// Set up temporary server host
 	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
 	gw.ServerHost, err = connect.NewHost("tmp", gw.Params.NodeAddress,
