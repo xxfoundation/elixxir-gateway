@@ -201,7 +201,7 @@ func (gw *Instance) InitNetwork() error {
 		// Begin polling server for NDF
 		jww.INFO.Printf("Beginning polling NDF...")
 		var gatewayCert []byte
-		//var nodeId []byte
+		var nodeId []byte
 
 		for gatewayCert == nil {
 			// TODO: Probably not great to always sleep immediately
@@ -223,7 +223,7 @@ func (gw *Instance) InitNetwork() error {
 			// Install the NDF once we get it
 			if msg.Ndf != nil && msg.Id != nil {
 				gatewayCert, err = gw.installNdf(msg.Ndf.Ndf, msg.Id)
-				//nodeId = msg.Id
+				nodeId = msg.Id
 				if err != nil {
 					return err
 				}
@@ -241,7 +241,7 @@ func (gw *Instance) InitNetwork() error {
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
 		gw.Comms = gateway.StartGateway(
-			"tmp",
+			id.NewNodeFromBytes(nodeId).NewGateway().String(),
 			address, gatewayHandler, gatewayCert, gwKey)
 	}
 
