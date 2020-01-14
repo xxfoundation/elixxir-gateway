@@ -177,6 +177,12 @@ func (gw *Instance) InitNetwork() error {
 	gatewayHandler := NewImplementation(gw)
 	gw.Comms = gateway.StartGateway("tmp", address, gatewayHandler, gwCert, gwKey)
 
+	// If we are in the TLS-disabled pathway, we inherently want to disable
+	// authentication
+	if noTLS {
+		gw.Comms.DisableAuth()
+	}
+
 	// Set up temporary server host
 	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
 	gw.ServerHost, err = connect.NewHost("tmp", gw.Params.NodeAddress,
@@ -196,6 +202,7 @@ func (gw *Instance) InitNetwork() error {
 		jww.INFO.Printf("Beginning polling NDF...")
 		var gatewayCert []byte
 		var nodeId []byte
+
 		for gatewayCert == nil {
 			// TODO: Probably not great to always sleep immediately
 			time.Sleep(3 * time.Second)
@@ -406,7 +413,6 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int) *pb.Slot {
 // if there are at least minRoundCnt rounds ready, and sends whenever there
 // are minMsgCnt messages available in the message queue
 func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
-
 	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.ServerHost)
 	if err != nil {
 		// Handle error indicating a server failure
@@ -525,7 +531,6 @@ func (gw *Instance) Start() {
 			jww.INFO.Printf("SendBatchWhenReady() was skipped on this node.")
 		}
 	}()
-
 	//Begin the thread which polls the node for a completed batch
 	go func() {
 		if gw.Params.LastNode {
