@@ -57,6 +57,7 @@ var rootCmd = &cobra.Command{
 			if err != nil {
 				jww.ERROR.Printf("Could not set GRPC_GO_LOG_VERBOSITY_LEVEL: %+v", err)
 			}
+			jww.SetLogThreshold(jww.LevelDebug)
 		}
 
 		params := InitParams(viper.GetViper())

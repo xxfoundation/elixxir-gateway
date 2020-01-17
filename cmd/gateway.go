@@ -185,8 +185,8 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary server host
 	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
-	gw.ServerHost, err = connect.NewHost("tmp", gw.Params.NodeAddress,
-		nodeCert, true, true)
+	gw.ServerHost, err = connect.NewHost("node", gw.Params.NodeAddress,
+		nodeCert, false, true)
 	if err != nil {
 		return errors.Errorf("Unable to create tmp server host: %+v",
 			err)
@@ -462,7 +462,9 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 }
 
 func (gw *Instance) PollForBatch() {
+
 	batch, err := gw.Comms.GetCompletedBatch(gw.ServerHost)
+
 	if err != nil {
 		// Handle error indicating a server failure
 		if strings.Contains(err.Error(),
@@ -493,6 +495,7 @@ func (gw *Instance) PollForBatch() {
 		userId := serialmsg.GetRecipient()
 
 		if !userId.Cmp(dummyUser) {
+			jww.DEBUG.Printf("Message Recieved for: %v",userId.Bytes())
 			numReal++
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
@@ -514,16 +517,17 @@ func (gw *Instance) Start() {
 
 	// Begin the thread which polls the node for a request to send a batch
 	go func() {
-		// minMsgCnt should be no less than 33% of the BatchSize
-		// Note: this is security sensitive.. be careful if you pull this out to a
-		// config option.
-		minMsgCnt := gw.Params.BatchSize / 3
-		if minMsgCnt == 0 {
-			minMsgCnt = 1
-		}
-		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
-		jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
+
 		if gw.Params.FirstNode {
+			// minMsgCnt should be no less than 33% of the BatchSize
+			// Note: this is security sensitive.. be careful if you pull this out to a
+			// config option.
+			minMsgCnt := gw.Params.BatchSize / 3
+			if minMsgCnt == 0 {
+				minMsgCnt = 1
+			}
+			junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
+			jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
 			for true {
 				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
 			}
