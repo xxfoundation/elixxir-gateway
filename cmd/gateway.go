@@ -212,8 +212,8 @@ func (gw *Instance) InitNetwork() error {
 			if err != nil {
 				// Catch recoverable error
 				if strings.Contains(err.Error(),
-					"Invalid host ID: tmp") {
-					jww.WARN.Printf("Server not yet ready...")
+					"Invalid host ID:") {
+					jww.WARN.Printf("Server not yet ready...: %s", err)
 					continue
 				} else {
 					return errors.Errorf("Error polling NDF: %+v", err)
@@ -437,6 +437,8 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 		time.Sleep(10 * time.Second)
 		return
 	}
+
+	jww.INFO.Printf("Sending batch with real messages: %v",batch)
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
