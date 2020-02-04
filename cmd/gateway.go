@@ -259,6 +259,13 @@ func (gw *Instance) installNdf(networkDef,
 			string(networkDef))
 	}
 
+	// Initialize hosts for reverse-authentication
+	_, err = gw.Comms.AddHost(id.NOTIFICATION_BOT, gw.Ndf.Notification.Address,
+		[]byte(gw.Ndf.Notification.TlsCertificate), false, true)
+	if err != nil {
+		return nil, errors.Errorf("Unable to add notifications host: %+v", err)
+	}
+
 	// Determine the index of this gateway
 	for i, node := range gw.Ndf.Nodes {
 		if bytes.Compare(node.ID, nodeId) == 0 {
