@@ -146,7 +146,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.RequestNonce(message, ipaddress)
 	}
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []string, e error) {
-		return instance.un.Notified(), nil
+		return instance.PollForNotifications(auth)
 	}
 	return impl
 }
@@ -588,4 +588,8 @@ func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
 	// Otherwise, if the user ID bucket has room OR the user ID is on the
 	// whitelist, then let the message through
 	return nil
+}
+
+func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []string, e error) {
+	return gw.un.Notified(), nil
 }
