@@ -22,6 +22,7 @@ import (
 	"gitlab.com/elixxir/crypto/large"
 	"gitlab.com/elixxir/crypto/registration"
 	"gitlab.com/elixxir/crypto/signature/rsa"
+	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/rateLimiting"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
@@ -70,6 +71,9 @@ type Instance struct {
 	ipWhitelist rateLimiting.Whitelist
 	// Whitelist of IP addresses
 	userWhitelist rateLimiting.Whitelist
+
+	// struct for tracking notifications
+	un notifications.UserNotifications
 }
 
 type Params struct {
@@ -140,6 +144,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest, ipaddress string) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message, ipaddress)
+	}
+	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []string, e error) {
+		return instance.un.Notified(), nil
 	}
 	return impl
 }
@@ -500,6 +507,7 @@ func (gw *Instance) PollForBatch() {
 		userId := serialmsg.GetRecipient()
 
 		if !userId.Cmp(dummyUser) {
+			gw.un.Notify(userId)
 			numReal++
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
