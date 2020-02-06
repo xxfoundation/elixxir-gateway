@@ -32,11 +32,14 @@ stages:
   - setup
   - test
   - build
+  - tag
   - trigger_integration
 
 setup:
   stage: setup
   image: $DOCKER_IMAGE
+  except:
+    - tags
   script:
     - go mod vendor -v
     - go build ./...
@@ -49,6 +52,8 @@ setup:
 test:
   stage: test
   image: $DOCKER_IMAGE
+  except:
+    - tags
   script:
     - GO111MODULE=off go get -u github.com/haya14busa/goverage
     - apt-get update
@@ -74,6 +79,8 @@ test:
 build:
   stage: build
   image: $DOCKER_IMAGE
+  except:
+    - tags
   script:
     - mkdir -p release
     - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' ./...
@@ -81,9 +88,21 @@ build:
     - GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.win64 main.go
     - GOOS=windows GOARCH=386 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.win32 main.go
     - GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.darwin64 main.go
+    
   artifacts:
     paths:
      - release/
+
+tag:
+    stage: tag
+    only:
+        - master
+    image: $DOCKER_IMAGE
+    script:
+        - git remote add origin_tags git@gitlab.com:elixxir/gateway.git || true
+        - git remote set-url origin_tags git@gitlab.com:elixxir/gateway.git || true
+        - git tag $(./release/gateway.linux64 --version | grep "Elixxir Gateway v"| cut -d ' ' -f3) -f
+        - git push origin_tags -f --tags
 
 trigger_integration:
   stage: trigger_integration
