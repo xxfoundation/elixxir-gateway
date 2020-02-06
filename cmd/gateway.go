@@ -175,7 +175,7 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
-	gw.Comms = gateway.StartGateway("tmp", address, gatewayHandler, gwCert, gwKey)
+	gw.Comms = gateway.StartGateway(id.NewTmpGateway().String(), address, gatewayHandler, gwCert, gwKey)
 
 	// If we are in the TLS-disabled pathway, we inherently want to disable
 	// authentication
@@ -185,7 +185,7 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary server host
 	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
-	gw.ServerHost, err = connect.NewHost("tmp", gw.Params.NodeAddress,
+	gw.ServerHost, err = connect.NewHost("node", gw.Params.NodeAddress,
 		nodeCert, true, true)
 	if err != nil {
 		return errors.Errorf("Unable to create tmp server host: %+v",
@@ -212,8 +212,8 @@ func (gw *Instance) InitNetwork() error {
 			if err != nil {
 				// Catch recoverable error
 				if strings.Contains(err.Error(),
-					"Invalid host ID: tmp") {
-					jww.WARN.Printf("Server not yet ready...")
+					"Invalid host ID:") {
+					jww.WARN.Printf("Server not yet ready...: %s", err)
 					continue
 				} else {
 					return errors.Errorf("Error polling NDF: %+v", err)
@@ -438,6 +438,8 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 		return
 	}
 
+	jww.INFO.Printf("Sending batch with real messages: %v",batch)
+
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
 		newJunkMsg := &pb.Slot{
@@ -462,7 +464,9 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 }
 
 func (gw *Instance) PollForBatch() {
+
 	batch, err := gw.Comms.GetCompletedBatch(gw.ServerHost)
+
 	if err != nil {
 		// Handle error indicating a server failure
 		if strings.Contains(err.Error(),
@@ -493,6 +497,7 @@ func (gw *Instance) PollForBatch() {
 		userId := serialmsg.GetRecipient()
 
 		if !userId.Cmp(dummyUser) {
+			jww.DEBUG.Printf("Message Recieved for: %v",userId.Bytes())
 			numReal++
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
@@ -514,16 +519,17 @@ func (gw *Instance) Start() {
 
 	// Begin the thread which polls the node for a request to send a batch
 	go func() {
-		// minMsgCnt should be no less than 33% of the BatchSize
-		// Note: this is security sensitive.. be careful if you pull this out to a
-		// config option.
-		minMsgCnt := gw.Params.BatchSize / 3
-		if minMsgCnt == 0 {
-			minMsgCnt = 1
-		}
-		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
-		jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
+
 		if gw.Params.FirstNode {
+			// minMsgCnt should be no less than 33% of the BatchSize
+			// Note: this is security sensitive.. be careful if you pull this out to a
+			// config option.
+			minMsgCnt := gw.Params.BatchSize / 3
+			if minMsgCnt == 0 {
+				minMsgCnt = 1
+			}
+			junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
+			jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
 			for true {
 				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
 			}
