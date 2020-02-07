@@ -22,7 +22,6 @@ import (
 
 var cfgFile string
 var verbose bool
-var showVer bool
 var gatewayNodeIdx int
 var gwPort int
 var logPath = "cmix-gateway.log"
@@ -42,11 +41,6 @@ var rootCmd = &cobra.Command{
 	Long:  `The cMix gateways coordinate communications between servers and clients`,
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		if showVer {
-			printVersion()
-			return
-		}
-		jww.INFO.Printf(getVersionInfo())
 		if verbose {
 			err := os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
 			if err != nil {
@@ -171,8 +165,6 @@ func init() {
 		"config file (default is $HOME/.elixxir/gateway.yaml)")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
 		"Verbose mode for debugging")
-	rootCmd.Flags().BoolVarP(&showVer, "version", "V", false,
-		"Show the gateway version information.")
 	rootCmd.Flags().IntVarP(&gatewayNodeIdx, "index", "i", -1,
 		"Index of the node to connect to from the list of nodes.")
 	rootCmd.Flags().IntVarP(&gwPort, "port", "p", -1,
