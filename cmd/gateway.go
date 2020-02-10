@@ -452,7 +452,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 		return
 	}
 
-	jww.INFO.Printf("Sending batch with real messages: %v",batch)
+	jww.INFO.Printf("Sending batch with real messages: %v", batch)
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
@@ -511,7 +511,7 @@ func (gw *Instance) PollForBatch() {
 		userId := serialmsg.GetRecipient()
 
 		if !userId.Cmp(dummyUser) {
-			jww.DEBUG.Printf("Message Recieved for: %v",userId.Bytes())
+			jww.DEBUG.Printf("Message Recieved for: %v", userId.Bytes())
 			gw.un.Notify(userId)
 			numReal++
 			h.Write(msg.PayloadA)
@@ -596,6 +596,13 @@ func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
 	return nil
 }
 
+// Notification Server polls Gateway for mobile notifications at this endpoint
 func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []string, e error) {
+	// Check that authentication is good and the sender is our gateway, otherwise error
+	if !auth.IsAuthenticated || auth.Sender.GetId() != id.NOTIFICATION_BOT {
+		jww.WARN.Printf("PollForNotifications failed auth (sender ID: %s, auth: %v, expected: %s)",
+			auth.Sender.GetId(), auth.IsAuthenticated, id.NOTIFICATION_BOT)
+		return nil, connect.AuthError(auth.Sender.GetId())
+	}
 	return gw.un.Notified(), nil
 }
