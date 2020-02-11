@@ -599,7 +599,7 @@ func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
 // Notification Server polls Gateway for mobile notifications at this endpoint
 func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []string, e error) {
 	// Check that authentication is good and the sender is our gateway, otherwise error
-	if !auth.IsAuthenticated || auth.Sender.GetId() != id.NOTIFICATION_BOT {
+	if !auth.IsAuthenticated || auth.Sender.GetId() != id.NOTIFICATION_BOT || auth.Sender.IsDynamicHost() {
 		jww.WARN.Printf("PollForNotifications failed auth (sender ID: %s, auth: %v, expected: %s)",
 			auth.Sender.GetId(), auth.IsAuthenticated, id.NOTIFICATION_BOT)
 		return nil, connect.AuthError(auth.Sender.GetId())
