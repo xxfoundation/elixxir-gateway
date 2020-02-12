@@ -50,7 +50,7 @@ func TestMain(m *testing.M) {
 	gatewayCert, _ = utils.ReadFile(testkeys.GetGatewayCertPath())
 	gatewayKey, _ = utils.ReadFile(testkeys.GetGatewayKeyPath())
 
-	gComm = gateway.StartGateway("tmp", GW_ADDRESS, gatewayInstance, gatewayCert, gatewayKey)
+	gComm = gateway.StartGateway(id.NewTmpGateway().String(), GW_ADDRESS, gatewayInstance, gatewayCert, gatewayKey)
 
 	//Start mock node
 	nodeHandler := buildTestNodeImpl()
