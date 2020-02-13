@@ -250,6 +250,13 @@ func (gw *Instance) InitNetwork() error {
 		gw.Comms = gateway.StartGateway(
 			id.NewNodeFromBytes(nodeId).NewGateway().String(),
 			address, gatewayHandler, gatewayCert, gwKey)
+
+		// Initialize hosts for reverse-authentication
+		_, err = gw.Comms.AddHost(id.NOTIFICATION_BOT, gw.Ndf.Notification.Address,
+			[]byte(gw.Ndf.Notification.TlsCertificate), false, true)
+		if err != nil {
+			return errors.Errorf("Unable to add notifications host: %+v", err)
+		}
 	}
 
 	return nil
@@ -264,13 +271,6 @@ func (gw *Instance) installNdf(networkDef,
 	if err != nil {
 		return nil, errors.Errorf("Unable to decode NDF: %+v\n%+v", err,
 			string(networkDef))
-	}
-
-	// Initialize hosts for reverse-authentication
-	_, err = gw.Comms.AddHost(id.NOTIFICATION_BOT, gw.Ndf.Notification.Address,
-		[]byte(gw.Ndf.Notification.TlsCertificate), false, true)
-	if err != nil {
-		return nil, errors.Errorf("Unable to add notifications host: %+v", err)
 	}
 
 	// Determine the index of this gateway
