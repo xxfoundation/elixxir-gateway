@@ -32,6 +32,9 @@ func TestUserNotifications_Notified(t *testing.T) {
 	un.Notify(id.NewUserFromBytes([]byte("test")))
 	ret := un.Notified()
 	if len(ret) != 1 && ret[0] != "test" {
-		t.Errorf("Did not properly return list of ids")
+		t.Error("Did not properly return list of ids")
+	}
+	if un.ids != nil {
+		t.Error("Did not clear IDs after returning")
 	}
 }

@@ -18,6 +18,9 @@ type UserNotifications struct {
 // Notify adds a user to the list of users to be notified
 // If the user is already in the list, a duplicate record is not added
 func (n *UserNotifications) Notify(uid *id.User) {
+	if n.ids == nil {
+		n.ids = make([]*id.User, 0)
+	}
 	_, found := find(n.ids, uid)
 	if found {
 		return
@@ -31,6 +34,7 @@ func (n *UserNotifications) Notified() []string {
 	for _, uid := range n.ids {
 		ret = append(ret, uid.String())
 	}
+	n.ids = nil
 	return ret
 }
 
