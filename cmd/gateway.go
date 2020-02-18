@@ -22,6 +22,7 @@ import (
 	"gitlab.com/elixxir/crypto/large"
 	"gitlab.com/elixxir/crypto/registration"
 	"gitlab.com/elixxir/crypto/signature/rsa"
+	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/rateLimiting"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
@@ -70,6 +71,9 @@ type Instance struct {
 	ipWhitelist rateLimiting.Whitelist
 	// Whitelist of IP addresses
 	userWhitelist rateLimiting.Whitelist
+
+	// struct for tracking notifications
+	un notifications.UserNotifications
 }
 
 type Params struct {
@@ -140,6 +144,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest, ipaddress string) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message, ipaddress)
+	}
+	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []string, e error) {
+		return instance.PollForNotifications(auth)
 	}
 	return impl
 }
@@ -243,6 +250,13 @@ func (gw *Instance) InitNetwork() error {
 		gw.Comms = gateway.StartGateway(
 			id.NewNodeFromBytes(nodeId).NewGateway().String(),
 			address, gatewayHandler, gatewayCert, gwKey)
+
+		// Initialize hosts for reverse-authentication
+		_, err = gw.Comms.AddHost(id.NOTIFICATION_BOT, gw.Ndf.Notification.Address,
+			[]byte(gw.Ndf.Notification.TlsCertificate), false, true)
+		if err != nil {
+			return errors.Errorf("Unable to add notifications host: %+v", err)
+		}
 	}
 
 	return nil
@@ -438,7 +452,7 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 		return
 	}
 
-	jww.INFO.Printf("Sending batch with real messages: %v",batch)
+	jww.INFO.Printf("Sending batch with real messages: %v", batch)
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
@@ -497,7 +511,8 @@ func (gw *Instance) PollForBatch() {
 		userId := serialmsg.GetRecipient()
 
 		if !userId.Cmp(dummyUser) {
-			jww.DEBUG.Printf("Message Recieved for: %v",userId.Bytes())
+			jww.DEBUG.Printf("Message Recieved for: %v", userId.Bytes())
+			gw.un.Notify(userId)
 			numReal++
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
@@ -579,4 +594,15 @@ func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
 	// Otherwise, if the user ID bucket has room OR the user ID is on the
 	// whitelist, then let the message through
 	return nil
+}
+
+// Notification Server polls Gateway for mobile notifications at this endpoint
+func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []string, e error) {
+	// Check that authentication is good and the sender is our gateway, otherwise error
+	if !auth.IsAuthenticated || auth.Sender.GetId() != id.NOTIFICATION_BOT || auth.Sender.IsDynamicHost() {
+		jww.WARN.Printf("PollForNotifications failed auth (sender ID: %s, auth: %v, expected: %s)",
+			auth.Sender.GetId(), auth.IsAuthenticated, id.NOTIFICATION_BOT)
+		return nil, connect.AuthError(auth.Sender.GetId())
+	}
+	return gw.un.Notified(), nil
 }
