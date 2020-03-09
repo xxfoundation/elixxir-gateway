@@ -530,12 +530,21 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	// minMsgCnt should be no less than 33% of the BatchSize
 	// Note: this is security sensitive.. be careful modifying it
-	minMsgCnt := roundInfo.BatchSize / 3
+	minMsgCnt := uint64(roundInfo.BatchSize / 3)
 	if minMsgCnt == 0 {
 		minMsgCnt = 1
 	}
 
-	batch := gw.Buffer.PopUnmixedMessages(0, gw.Params.BatchSize)
+	// FIXME: HACK HACK HACK -- disable the minMsgCnt
+	// We're unable to use this right now because we are moving to
+	// multi-team setups and adding a time out to rounds. So it is
+	// likely we will loop forever and/or drop a lot of rounds due to
+	// not receiving messages quickly enough for a certain round.
+	// Will revisit if we add the ability to re-encrypt messages for
+	// a different round or another mechanism becomes available.
+	minMsgCnt = 0
+
+	batch := gw.Buffer.PopUnmixedMessages(minMsgCnt, gw.Params.BatchSize)
 	for batch == nil {
 		jww.INFO.Printf(
 			"Server is ready, but only have %d messages to send, "+
@@ -543,7 +552,8 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 			gw.Buffer.LenUnmixed(),
 			minMsgCnt)
 		time.Sleep(1 * time.Second)
-		batch = gw.Buffer.PopUnmixedMessages(0, gw.Params.BatchSize)
+		batch = gw.Buffer.PopUnmixedMessages(minMsgCnt,
+			gw.Params.BatchSize)
 	}
 
 	jww.INFO.Printf("Sending batch with real messages: %v", batch)
