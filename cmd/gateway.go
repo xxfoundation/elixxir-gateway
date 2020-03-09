@@ -16,6 +16,8 @@ import (
 	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/comms/network"
+	ds "gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
@@ -74,6 +76,11 @@ type Instance struct {
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
+
+	// TODO: Integrate and remove duplication with the stuff above.
+	// NetInfo is the network interface for working with the NDF poll
+	// functionality in comms.
+	NetInf *network.Instance
 }
 
 type Params struct {
@@ -151,6 +158,59 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	return impl
 }
 
+func PollNdf(gw *Instance, pollee *connect.Host, ndf,
+	partialNdf *network.SecuredNdf, lastUpdate uint64) (
+	*ndf.NetworkDefinition, error) {
+	pollMsg := &pb.ServerPoll{
+		Full:       &pb.NDFHash{Hash: ndf.GetHash()},
+		Partial:    &pb.NDFHash{Hash: partialNdf.GetHash()},
+		LastUpdate: lastUpdate,
+		Error:      "",
+	}
+
+	resp, err := gw.Comms.SendPoll(pollee, pollMsg)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the netinfo is nil, then set it up using this ndf with no checking
+	if gw.NetInf == nil {
+		ndf := &ds.Ndf{}
+		partialNdf := &ds.Ndf{}
+		ndf.Update(resp.FullNDF)
+		partialNdf.Update(resp.PartialNDF)
+		// FIXME: Why can't we send existing comms object?
+		pc := &connect.ProtoComms{Id: gw.Comms.Id}
+		gw.NetInf, err = network.NewInstance(pc,
+			ndf.Get(), partialNdf.Get())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Handle server updates from Poll
+	if resp.FullNDF != nil {
+		gw.NetInf.UpdateFullNdf(resp.FullNDF)
+	}
+	if resp.PartialNDF != nil {
+		gw.NetInf.UpdatePartialNdf(resp.PartialNDF)
+	}
+	if resp.Updates != nil {
+		for _, update := range resp.Updates {
+			gw.NetInf.RoundUpdate(update)
+		}
+	}
+	if resp.BatchRequest != nil {
+		jww.WARN.Println("BatchRequest updates unimplemented")
+	}
+	if resp.Slots != nil {
+		jww.WARN.Println("Slots updates unimplemented")
+	}
+
+	// Return the NDF
+	return gw.NetInf.GetFullNdf().Get(), nil
+}
+
 // InitNetwork initializes the network on this gateway instance
 // After the network object is created, you need to use it to connect
 // to the corresponding server in the network using ConnectToNode.
@@ -215,7 +275,9 @@ func (gw *Instance) InitNetwork() error {
 			time.Sleep(3 * time.Second)
 
 			// Poll for the NDF
-			msg, err := gw.Comms.PollNdf(gw.ServerHost)
+			pollMsg := &pb.ServerPoll
+			msg, err := gw.Comms.SendPoll(gw.ServerHost)
+
 			if err != nil {
 				// Catch recoverable error
 				if strings.Contains(err.Error(),
