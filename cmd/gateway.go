@@ -548,14 +548,9 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	jww.INFO.Printf("Sending batch with real messages: %v", batch)
 
-	// FIXME: this looks super broken. Explain it or fix it.
-	junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
-	jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
-
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
-		// NOTE: Copying and not generating randomly looks
-		// broken. We need to explain why this is OK or fix it.
+		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
