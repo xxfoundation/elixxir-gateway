@@ -155,14 +155,12 @@ func buildTestNodeImpl() *node.Implementation {
 		return &b, nil
 	}
 
-	nodeHandler.Functions.PollNdf = func(p *pb.Ping,
-		auth *connect.Auth) (*pb.GatewayNdf,
+	nodeHandler.Functions.Poll = func(p *pb.ServerPoll,
+		auth *connect.Auth) (*pb.ServerPollResponse,
 		error) {
-		netDef := pb.GatewayNdf{}
-		//GatewayCertPEM: string(gatewayCert), ServerCertPEM: string(nodeCert)
+		netDef := pb.ServerPollResponse{}
 		return &netDef, nil
 	}
-
 	return nodeHandler
 }
 
@@ -174,8 +172,8 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 		t.Errorf("PutMessage: Could not put any messages!")
 	}
 
-	junkMsg := GenJunkMsg(gatewayInstance.CmixGrp, 1)
-	gatewayInstance.SendBatchWhenReady(1, junkMsg)
+	ri := &pb.RoundInfo{ID: 1, BatchSize: 4}
+	gatewayInstance.SendBatchWhenReady(ri)
 
 	time.Sleep(1 * time.Second)
 
@@ -196,7 +194,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		t.Errorf("PutMessage: Could not put any messages!")
 	}
 
-	junkMsg := GenJunkMsg(gatewayInstance.CmixGrp, 1)
 	grp := make(map[string]string)
 	grp["prime"] = "9DB6FB5951B66BB6FE1E140F1D2CE5502374161FD6538DF1648218642F0B5C48" +
 		"C8F7A41AADFA187324B87674FA1822B00F1ECF8136943D7C55757264E5A1A44F" +
@@ -250,13 +247,9 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 
-	gw.SendBatchWhenReady(1, junkMsg)
+	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
+	gw.SendBatchWhenReady(si)
 
-}
-
-func TestGatewayImpl_PollForBatch(t *testing.T) {
-	// Call PollForBatch and make sure it doesn't explode... setup done in main
-	gatewayInstance.PollForBatch()
 }
 
 // Calling InitNetwork after starting a node should cause
