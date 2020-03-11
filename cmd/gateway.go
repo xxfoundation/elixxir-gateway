@@ -194,8 +194,14 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 	*network.Instance, error) {
 	newNdf := &ds.Ndf{}
 	newPartialNdf := &ds.Ndf{}
-	newNdf.Update(ndf)
-	newPartialNdf.Update(partialNdf)
+	err := newNdf.Update(ndf)
+	if err != nil {
+		return nil, err
+	}
+	err = newPartialNdf.Update(partialNdf)
+	if err != nil {
+		return nil, err
+	}
 	pc := conn.ProtoComms
 	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get())
 }
@@ -214,7 +220,10 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) {
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
-			gw.NetInf.RoundUpdate(update)
+			err := gw.NetInf.RoundUpdate(update)
+			if err != nil {
+				jww.ERROR.Printf("RoundUpdate Error: %v", err)
+			}
 		}
 	}
 
@@ -523,7 +532,8 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int) *pb.Slot {
 // are minMsgCnt messages available in the message queue
 func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
-	if roundInfo.BatchSize == 0 {
+	batchSize := uint64(roundInfo.BatchSize)
+	if batchSize == 0 {
 		jww.WARN.Printf("Server sent empty roundBufferSize!")
 		return
 	}
@@ -544,7 +554,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 	// a different round or another mechanism becomes available.
 	minMsgCnt = 0
 
-	batch := gw.Buffer.PopUnmixedMessages(minMsgCnt, gw.Params.BatchSize)
+	batch := gw.Buffer.PopUnmixedMessages(minMsgCnt, batchSize)
 	for batch == nil {
 		jww.INFO.Printf(
 			"Server is ready, but only have %d messages to send, "+
@@ -553,7 +563,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 			minMsgCnt)
 		time.Sleep(1 * time.Second)
 		batch = gw.Buffer.PopUnmixedMessages(minMsgCnt,
-			gw.Params.BatchSize)
+			batchSize)
 	}
 
 	jww.INFO.Printf("Sending batch with real messages: %v", batch)

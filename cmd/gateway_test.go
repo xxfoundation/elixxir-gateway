@@ -13,9 +13,12 @@ import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/node"
 	"gitlab.com/elixxir/comms/testkeys"
+	"gitlab.com/elixxir/crypto/signature"
+	"gitlab.com/elixxir/crypto/signature/rsa"
 	"gitlab.com/elixxir/gateway/rateLimiting"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
+	"gitlab.com/elixxir/primitives/ndf"
 	"gitlab.com/elixxir/primitives/utils"
 	"google.golang.org/grpc"
 	"os"
@@ -526,4 +529,159 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 		t.Errorf("PutMessage: Could not put any messages when user " +
 			"ID bucket is full but user ID is on whitelist")
 	}
+}
+
+// TestPollServer tests that the message is properly formed when sent to the
+// connection manager.
+func TestPollServer(t *testing.T) {
+	// FIXME: This does nothing since the SendPoll in gateway comms uses
+	//        a type and not the interface (so we can't do a unit test)
+}
+
+func buildMockNdf(nodeId *id.Node, nodeAddress, gwAddress string, cert,
+	key []byte) *ndf.NetworkDefinition {
+	node := ndf.Node{
+		ID:             nodeId.Bytes(),
+		TlsCertificate: string(cert),
+		Address:        nodeAddress,
+	}
+	gw := ndf.Gateway{
+		Address:        gwAddress,
+		TlsCertificate: string(cert),
+	}
+	testNdf := &ndf.NetworkDefinition{
+		Timestamp: time.Now(),
+		Nodes:     []ndf.Node{node},
+		Gateways:  []ndf.Gateway{gw},
+		E2E: ndf.Group{
+			Prime:      "123",
+			SmallPrime: "456",
+			Generator:  "2",
+		},
+		CMIX: ndf.Group{
+			Prime:      "123",
+			SmallPrime: "456",
+			Generator:  "2",
+		},
+		UDB: ndf.UDB{},
+	}
+	return testNdf
+}
+
+// TestCreateNetworkInstance tests that, without an NDF, we can
+// build a netinf object in the instance object
+func TestCreateNetworkInstance(t *testing.T) {
+	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
+	_, err := gatewayInstance.Comms.AddHost(id.PERMISSIONING,
+		"0.0.0.0:4200", pub, false, true)
+	if err != nil {
+		t.Errorf("Failed to add permissioning host: %+v", err)
+	}
+
+	nodeB := []byte{'n', 'o', 'd', 'e'}
+	nodeId := id.NewNodeFromBytes(nodeB)
+	ndf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
+
+	ndfBytes, err := ndf.Marshal()
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+	ndfMsg := &pb.NDF{
+		Ndf: ndfBytes,
+	}
+	pKey, err := rsa.LoadPrivateKeyFromPem(nodeKey)
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+	err = signature.Sign(ndfMsg, pKey)
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+
+	netInst, err := CreateNetworkInstance(
+		gatewayInstance.Comms, ndfMsg, ndfMsg)
+
+	gatewayInstance.NetInf = netInst
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+	if netInst == nil {
+		t.Errorf("Could not create network instance!")
+	}
+
+}
+
+// TestUpdateInstance tests that the instance updates itself appropriately
+// FIXME: This test cannot test the Ndf functionality, since we don't have
+//        signable ndf function that would enforce correctness, so not useful
+//        at the moment.
+func TestUpdateInstance(t *testing.T) {
+	nodeB := []byte{'n', 'o', 'd', 'e'}
+	nodeId := id.NewNodeFromBytes(nodeB)
+	ndf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
+
+	ndfBytes, err := ndf.Marshal()
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+	ndfMsg := &pb.NDF{
+		Ndf: ndfBytes,
+	}
+	pKey, err := rsa.LoadPrivateKeyFromPem(nodeKey)
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+	err = signature.Sign(ndfMsg, pKey)
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+
+	// FIXME: the following will fail with a nil pointer deref if the
+	//        CreateNetworkInstance test doesn't run....
+	ri := &pb.RoundInfo{
+		ID:        uint64(1),
+		UpdateID:  uint64(1),
+		State:     6,
+		BatchSize: 8,
+	}
+	err = signature.Sign(ri, pKey)
+	roundUpdates := []*pb.RoundInfo{ri}
+
+	slots := []*pb.Slot{mockMessage}
+
+	update := &pb.ServerPollResponse{
+		FullNDF:      ndfMsg,
+		PartialNDF:   ndfMsg,
+		Updates:      roundUpdates,
+		BatchRequest: ri,
+		Slots:        slots,
+	}
+
+	gatewayInstance.UpdateInstance(update)
+
+	// Check that updates made it
+	r, err := gatewayInstance.NetInf.GetRoundUpdate(1)
+	if err != nil || r == nil {
+		t.Errorf("Failed to retrieve round update: %+v", err)
+	}
+
+	// Check that mockMessage made it
+	mockmsgId := "sHge1HVeKNiroYklqduPLYcy0TaSl3FVm/97P7ZhoLE="
+	UserIDBytes := make([]byte, id.UserLen)
+	UserIDBytes[0] = 1
+	mockMsgUserId := id.NewUserFromBytes(UserIDBytes)
+	msgTst, err := gatewayInstance.Buffer.GetMixedMessage(mockMsgUserId,
+		mockmsgId)
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+	if msgTst == nil {
+		t.Errorf("Did not return mock message!")
+	}
+
+	// Check that batchRequest was sent
+	if len(nodeIncomingBatch.Slots) != 8 {
+		t.Errorf("Did not send batch: %d", len(nodeIncomingBatch.Slots))
+	}
+
 }
