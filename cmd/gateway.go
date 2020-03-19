@@ -169,8 +169,14 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 	*pb.ServerPollResponse, error) {
 
 	var ndfHash, partialNdfHash *pb.NDFHash
-	ndfHash = nil
-	partialNdfHash = nil
+	ndfHash = &pb.NDFHash{
+		Hash: make([]byte, 0),
+	}
+
+	partialNdfHash = &pb.NDFHash{
+		Hash: make([]byte, 0),
+	}
+
 	if ndf != nil {
 		ndfHash = &pb.NDFHash{Hash: ndf.GetHash()}
 	}
@@ -302,9 +308,7 @@ func (gw *Instance) InitNetwork() error {
 
 			// Poll Server for the NDFs, then use it to create the
 			// network instance and begin polling for server updates
-			msg, err := PollServer(gw.Comms, gw.ServerHost,
-				nil, nil, 0)
-
+			msg, err := PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
 			if err != nil {
 				// Catch recoverable error
 				if strings.Contains(err.Error(),
@@ -320,6 +324,7 @@ func (gw *Instance) InitNetwork() error {
 				}
 			}
 
+			jww.DEBUG.Printf("Creating instance!")
 			gw.NetInf, err = CreateNetworkInstance(gw.Comms,
 				msg.FullNDF,
 				msg.PartialNDF)
@@ -332,10 +337,10 @@ func (gw *Instance) InitNetwork() error {
 
 			// Install the NDF once we get it
 			if msg.FullNDF != nil && msg.Id != nil {
-				gatewayCert, err = gw.installNdf(
-					msg.FullNDF.Ndf, msg.Id)
+				gatewayCert, err = gw.installNdf(msg.FullNDF.Ndf, msg.Id)
 				nodeId = msg.Id
 				if err != nil {
+					jww.DEBUG.Printf("failed to install ndf: %+v", err)
 					return err
 				}
 			}
