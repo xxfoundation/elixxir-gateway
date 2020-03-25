@@ -571,6 +571,8 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 			batchSize)
 	}
 
+	batch.Round = roundInfo
+
 	jww.INFO.Printf("Sending batch with real messages: %v", batch)
 
 	// Now fill with junk and send
@@ -586,6 +588,8 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 		batch.Slots = append(batch.Slots, newJunkMsg)
 	}
+
+	jww.DEBUG.Printf("batch being sent: %+v", batch.Round)
 
 	err := gw.Comms.PostNewBatch(gw.ServerHost, batch)
 	if err != nil {
