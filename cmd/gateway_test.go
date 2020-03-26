@@ -670,7 +670,7 @@ func TestUpdateInstance(t *testing.T) {
 	UserIDBytes := make([]byte, id.UserLen)
 	UserIDBytes[0] = 1
 	mockMsgUserId := id.NewUserFromBytes(UserIDBytes)
-	msgTst, err := gatewayInstance.Buffer.GetMixedMessage(mockMsgUserId,
+	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId,
 		mockmsgId)
 	if err != nil {
 		t.Errorf("%v", err)

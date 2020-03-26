@@ -48,7 +48,8 @@ var IPWhiteListArr = []string{"test"}
 
 type Instance struct {
 	// Storage buffer for inbound/outbound messages
-	Buffer storage.MessageBuffer
+	MixedBuffer   storage.MixedMessageBuffer
+	UnmixedBuffer storage.UnmixedMessageBuffer
 
 	// Contains all Gateway relevant fields
 	Params Params
@@ -113,9 +114,10 @@ func NewGatewayInstance(params Params) *Instance {
 	grp := cyclic.NewGroup(p, g)
 
 	i := &Instance{
-		Buffer:  storage.NewMessageBuffer(),
-		Params:  params,
-		CmixGrp: grp,
+		MixedBuffer:   storage.NewMixedMessageBuffer(),
+		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
+		Params:        params,
+		CmixGrp:       grp,
 
 		ipBuckets: rateLimiting.CreateBucketMap(
 			params.IpCapacity, params.IpLeakRate,
@@ -407,7 +409,7 @@ func (gw *Instance) installNdf(networkDef,
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
 func (gw *Instance) GetMessage(userID *id.User, msgID string, ipAddress string) (*pb.Slot, error) {
-	//disabled from rate limiting for now
+	// disabled from rate limiting for now
 	/*uIDStr := hex.EncodeToString(userID.Bytes())
 	err := gw.FilterMessage(uIDStr, ipAddress, TokensGetMessage)
 
@@ -417,7 +419,7 @@ func (gw *Instance) GetMessage(userID *id.User, msgID string, ipAddress string) 
 	}*/
 
 	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
-	return gw.Buffer.GetMixedMessage(userID, msgID)
+	return gw.MixedBuffer.GetMixedMessage(userID, msgID)
 }
 
 // Return any MessageIDs in the globals for this User
@@ -434,7 +436,7 @@ func (gw *Instance) CheckMessages(userID *id.User, msgID string, ipAddress strin
 
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
-	return gw.Buffer.GetMixedMessageIDs(userID, msgID)
+	return gw.MixedBuffer.GetMixedMessageIDs(userID, msgID)
 }
 
 // PutMessage adds a message to the outgoing queue and calls PostNewBatch when
@@ -452,7 +454,7 @@ func (gw *Instance) PutMessage(msg *pb.Slot, ipAddress string) error {
 
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.GetSenderID())
-	gw.Buffer.AddUnmixedMessage(msg)
+	gw.UnmixedBuffer.AddUnmixedMessage(msg)
 	return nil
 }
 
@@ -559,15 +561,15 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 	// a different round or another mechanism becomes available.
 	minMsgCnt = 0
 
-	batch := gw.Buffer.PopUnmixedMessages(minMsgCnt, batchSize)
+	batch := gw.UnmixedBuffer.PopUnmixedMessages(minMsgCnt, batchSize)
 	for batch == nil {
 		jww.INFO.Printf(
 			"Server is ready, but only have %d messages to send, "+
 				"need %d! Waiting 1 seconds!",
-			gw.Buffer.LenUnmixed(),
+			gw.UnmixedBuffer.LenUnmixed(),
 			minMsgCnt)
 		time.Sleep(1 * time.Second)
-		batch = gw.Buffer.PopUnmixedMessages(minMsgCnt,
+		batch = gw.UnmixedBuffer.PopUnmixedMessages(minMsgCnt,
 			batchSize)
 	}
 
@@ -623,7 +625,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
 			msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
-			gw.Buffer.AddMixedMessage(userId, msgId, msg)
+			gw.MixedBuffer.AddMixedMessage(userId, msgId, msg)
 		}
 
 		h.Reset()
@@ -642,7 +644,7 @@ func (gw *Instance) Start() {
 	go func() {
 		lastUpdate := uint64(time.Now().Unix())
 		ticker := time.NewTicker(5 * time.Millisecond)
-		for range ticker.C{
+		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,
 				gw.NetInf.GetFullNdf(),
