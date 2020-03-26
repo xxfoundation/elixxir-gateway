@@ -641,8 +641,8 @@ func (gw *Instance) Start() {
 	// polls for updates
 	go func() {
 		lastUpdate := uint64(time.Now().Unix())
-		for {
-			time.Sleep(250 * time.Millisecond)
+		ticker := time.NewTicker(5 * time.Millisecond)
+		for range ticker.C{
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,
 				gw.NetInf.GetFullNdf(),
