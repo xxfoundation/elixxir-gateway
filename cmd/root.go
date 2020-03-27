@@ -17,6 +17,7 @@ import (
 	"gitlab.com/elixxir/gateway/rateLimiting"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -60,7 +61,8 @@ var rootCmd = &cobra.Command{
 
 		//start gateway network interactions
 		err := gateway.InitNetwork()
-		for err.Error().Contains("Node is not ready for gateway") {
+		for strings.Contains(err.Error(),
+			"Node is not ready for gateway") {
 			err = gateway.InitNetwork()
 		}
 		if err != nil {
