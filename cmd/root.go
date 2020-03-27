@@ -17,7 +17,6 @@ import (
 	"gitlab.com/elixxir/gateway/rateLimiting"
 	"log"
 	"os"
-	"strings"
 	"time"
 )
 
