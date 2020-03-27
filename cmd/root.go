@@ -60,6 +60,9 @@ var rootCmd = &cobra.Command{
 
 		//start gateway network interactions
 		err := gateway.InitNetwork()
+		for err.Error().Contains("Node is not ready for gateway") {
+			err = gateway.InitNetwork()
+		}
 		if err != nil {
 			jww.FATAL.Panicf(err.Error())
 		}
