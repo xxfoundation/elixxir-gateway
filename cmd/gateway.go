@@ -656,6 +656,7 @@ func (gw *Instance) Start() {
 				jww.WARN.Printf(
 					"Failed to Poll: %v",
 					err)
+				continue
 			}
 			gw.UpdateInstance(msg)
 		}
