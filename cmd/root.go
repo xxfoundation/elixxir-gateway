@@ -15,8 +15,10 @@ import (
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/gateway/rateLimiting"
+	"gitlab.com/elixxir/primitives/ndf"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -60,6 +62,9 @@ var rootCmd = &cobra.Command{
 
 		//start gateway network interactions
 		err := gateway.InitNetwork()
+		for strings.Contains(err.Error(), ndf.NO_NDF) {
+			err = gateway.InitNetwork()
+		}
 		if err != nil {
 			jww.FATAL.Panicf(err.Error())
 		}
