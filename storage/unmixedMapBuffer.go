@@ -11,7 +11,8 @@ import (
 	"sync"
 )
 
-// UnmixedMapBuffer
+// UnmixedMapBuffer holds messages that have been received by gateway but have
+// yet to been submitted to the network for mixing.
 type UnmixedMapBuffer struct {
 	outgoingMessages pb.Batch
 	mux              sync.Mutex

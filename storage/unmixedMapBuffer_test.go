@@ -12,6 +12,7 @@ import (
 	"testing"
 )
 
+// tests that unmixed messages are properly added to the unmixed buffer
 func TestUnmixedMapBuffer_AddUnmixedMessage(t *testing.T) {
 	unmixedMessageBuf := &UnmixedMapBuffer{}
 	numOutgoingMsgs := len(unmixedMessageBuf.outgoingMessages.Slots)
@@ -24,6 +25,7 @@ func TestUnmixedMapBuffer_AddUnmixedMessage(t *testing.T) {
 	}
 }
 
+// tests that removing messages from unmixed buffer works correctly
 func TestUnmixedMapBuffer_PopUnmixedMessages(t *testing.T) {
 	unmixedMessageBuf := &UnmixedMapBuffer{}
 	unmixedMessageBuf.outgoingMessages.Slots = make([]*pb.Slot, 0)

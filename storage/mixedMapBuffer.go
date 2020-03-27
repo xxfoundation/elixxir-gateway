@@ -20,7 +20,7 @@ import (
 // messages at the front of the buffer are deleted.
 const MaxUserMessagesLimit = 1000
 
-// MixedMapBuffer struct with map backend
+// MixedMapBuffer struct with map backend.
 type MixedMapBuffer struct {
 	messageCollection map[id.User]map[string]*pb.Slot // Received messages
 	messageIDs        map[id.User][]string

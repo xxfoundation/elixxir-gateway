@@ -47,8 +47,9 @@ const TokensConfirmNonce = uint(10) // Requests a nonce from the node to verify 
 var IPWhiteListArr = []string{"test"}
 
 type Instance struct {
-	// Storage buffer for inbound/outbound messages
-	MixedBuffer   storage.MixedMessageBuffer
+	// Storage buffer for messages after being processed by the network
+	MixedBuffer storage.MixedMessageBuffer
+	// Storage buffer for messages to be submitted to the network
 	UnmixedBuffer storage.UnmixedMessageBuffer
 
 	// Contains all Gateway relevant fields
