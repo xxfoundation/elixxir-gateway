@@ -321,6 +321,9 @@ func (gw *Instance) InitNetwork() error {
 							"ready...: %s",
 						err)
 					continue
+				} else if strings.Contains(err.Error(),
+					ndf.NO_NDF) {
+					continue
 				} else {
 					return errors.Errorf(
 						"Error polling NDF: %+v", err)
