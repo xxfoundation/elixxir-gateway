@@ -16,6 +16,8 @@ import (
 	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/comms/network"
+	ds "gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
@@ -45,8 +47,10 @@ const TokensConfirmNonce = uint(10) // Requests a nonce from the node to verify 
 var IPWhiteListArr = []string{"test"}
 
 type Instance struct {
-	// Storage buffer for inbound/outbound messages
-	Buffer storage.MessageBuffer
+	// Storage buffer for messages after being processed by the network
+	MixedBuffer storage.MixedMessageBuffer
+	// Storage buffer for messages to be submitted to the network
+	UnmixedBuffer storage.UnmixedMessageBuffer
 
 	// Contains all Gateway relevant fields
 	Params Params
@@ -74,6 +78,16 @@ type Instance struct {
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
+
+	// TODO: Integrate and remove duplication with the stuff above.
+	// NetInf is the network interface for working with the NDF poll
+	// functionality in comms.
+	NetInf *network.Instance
+}
+
+func (gw *Instance) Poll(*pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
+	jww.FATAL.Panicf("Unimplemented!")
+	return nil, nil
 }
 
 type Params struct {
@@ -101,9 +115,10 @@ func NewGatewayInstance(params Params) *Instance {
 	grp := cyclic.NewGroup(p, g)
 
 	i := &Instance{
-		Buffer:  storage.NewMessageBuffer(),
-		Params:  params,
-		CmixGrp: grp,
+		MixedBuffer:   storage.NewMixedMessageBuffer(),
+		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
+		Params:        params,
+		CmixGrp:       grp,
 
 		ipBuckets: rateLimiting.CreateBucketMap(
 			params.IpCapacity, params.IpLeakRate,
@@ -149,6 +164,86 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.PollForNotifications(auth)
 	}
 	return impl
+}
+
+// PollServer sends a poll message to the server and returns a response.
+func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
+	partialNdf *network.SecuredNdf, lastUpdate uint64) (
+	*pb.ServerPollResponse, error) {
+
+	var ndfHash, partialNdfHash *pb.NDFHash
+	ndfHash = &pb.NDFHash{
+		Hash: make([]byte, 0),
+	}
+
+	partialNdfHash = &pb.NDFHash{
+		Hash: make([]byte, 0),
+	}
+
+	if ndf != nil {
+		ndfHash = &pb.NDFHash{Hash: ndf.GetHash()}
+	}
+	if partialNdf != nil {
+		partialNdfHash = &pb.NDFHash{Hash: partialNdf.GetHash()}
+	}
+	pollMsg := &pb.ServerPoll{
+		Full:       ndfHash,
+		Partial:    partialNdfHash,
+		LastUpdate: lastUpdate,
+		Error:      "",
+	}
+
+	resp, err := conn.SendPoll(pollee, pollMsg)
+	return resp, err
+}
+
+// CreateNetworkInstance will generate a new network instance object given
+// properly formed ndf, partialNdf, and connection object
+func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
+	*network.Instance, error) {
+	newNdf := &ds.Ndf{}
+	newPartialNdf := &ds.Ndf{}
+	err := newNdf.Update(ndf)
+	if err != nil {
+		return nil, err
+	}
+	err = newPartialNdf.Update(partialNdf)
+	if err != nil {
+		return nil, err
+	}
+	pc := conn.ProtoComms
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get())
+}
+
+// UpdateInstance reads a ServerPollResponse object and updates the instance
+// state accordingly.
+func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) {
+	// Update the NDFs, and update the round info, which is currently
+	// recorded but not used for anything. (maybe we should print state
+	// of each round?)
+	if newInfo.FullNDF != nil {
+		gw.NetInf.UpdateFullNdf(newInfo.FullNDF)
+	}
+	if newInfo.PartialNDF != nil {
+		gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
+	}
+	if newInfo.Updates != nil {
+		for _, update := range newInfo.Updates {
+			err := gw.NetInf.RoundUpdate(update)
+			if err != nil {
+				jww.ERROR.Printf("RoundUpdate Error: %v", err)
+			}
+		}
+	}
+
+	// Send a new batch to the server when it asks for one
+	if newInfo.BatchRequest != nil {
+		gw.SendBatchWhenReady(newInfo.BatchRequest)
+	}
+	// Process a batch that has been completed by this server
+	if newInfo.Slots != nil {
+		gw.ProcessCompletedBatch(newInfo.Slots)
+	}
 }
 
 // InitNetwork initializes the network on this gateway instance
@@ -214,24 +309,44 @@ func (gw *Instance) InitNetwork() error {
 			// TODO: Probably not great to always sleep immediately
 			time.Sleep(3 * time.Second)
 
-			// Poll for the NDF
-			msg, err := gw.Comms.PollNdf(gw.ServerHost)
+			// Poll Server for the NDFs, then use it to create the
+			// network instance and begin polling for server updates
+			msg, err := PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
 			if err != nil {
 				// Catch recoverable error
 				if strings.Contains(err.Error(),
 					"Invalid host ID:") {
-					jww.WARN.Printf("Server not yet ready...: %s", err)
+					jww.WARN.Printf(
+						"Server not yet "+
+							"ready...: %s",
+						err)
+					continue
+				} else if strings.Contains(err.Error(),
+					ndf.NO_NDF) {
 					continue
 				} else {
-					return errors.Errorf("Error polling NDF: %+v", err)
+					return errors.Errorf(
+						"Error polling NDF: %+v", err)
 				}
 			}
 
+			jww.DEBUG.Printf("Creating instance!")
+			gw.NetInf, err = CreateNetworkInstance(gw.Comms,
+				msg.FullNDF,
+				msg.PartialNDF)
+			if err != nil {
+				jww.ERROR.Printf("Unable to create network"+
+					" instance: %v", err)
+				continue
+			}
+			gw.UpdateInstance(msg)
+
 			// Install the NDF once we get it
-			if msg.Ndf != nil && msg.Id != nil {
-				gatewayCert, err = gw.installNdf(msg.Ndf.Ndf, msg.Id)
+			if msg.FullNDF != nil && msg.Id != nil {
+				gatewayCert, err = gw.installNdf(msg.FullNDF.Ndf, msg.Id)
 				nodeId = msg.Id
 				if err != nil {
+					jww.DEBUG.Printf("failed to install ndf: %+v", err)
 					return err
 				}
 			}
@@ -298,7 +413,7 @@ func (gw *Instance) installNdf(networkDef,
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
 func (gw *Instance) GetMessage(userID *id.User, msgID string, ipAddress string) (*pb.Slot, error) {
-	//disabled from rate limiting for now
+	// disabled from rate limiting for now
 	/*uIDStr := hex.EncodeToString(userID.Bytes())
 	err := gw.FilterMessage(uIDStr, ipAddress, TokensGetMessage)
 
@@ -308,7 +423,7 @@ func (gw *Instance) GetMessage(userID *id.User, msgID string, ipAddress string) 
 	}*/
 
 	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
-	return gw.Buffer.GetMixedMessage(userID, msgID)
+	return gw.MixedBuffer.GetMixedMessage(userID, msgID)
 }
 
 // Return any MessageIDs in the globals for this User
@@ -325,7 +440,7 @@ func (gw *Instance) CheckMessages(userID *id.User, msgID string, ipAddress strin
 
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
-	return gw.Buffer.GetMixedMessageIDs(userID, msgID)
+	return gw.MixedBuffer.GetMixedMessageIDs(userID, msgID)
 }
 
 // PutMessage adds a message to the outgoing queue and calls PostNewBatch when
@@ -343,7 +458,7 @@ func (gw *Instance) PutMessage(msg *pb.Slot, ipAddress string) error {
 
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.GetSenderID())
-	gw.Buffer.AddUnmixedMessage(msg)
+	gw.UnmixedBuffer.AddUnmixedMessage(msg)
 	return nil
 }
 
@@ -426,36 +541,49 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int) *pb.Slot {
 // SendBatchWhenReady polls for the servers RoundBufferInfo object, checks
 // if there are at least minRoundCnt rounds ready, and sends whenever there
 // are minMsgCnt messages available in the message queue
-func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
-	bufSize, err := gw.Comms.GetRoundBufferInfo(gw.ServerHost)
-	if err != nil {
-		// Handle error indicating a server failure
-		if strings.Contains(err.Error(),
-			"TransientFailure") {
-			jww.FATAL.Panicf("Received error from GetRoundBufferInfo indicates"+
-				" a Server failure: %+v", errors.New(err.Error()))
+func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
-		}
-
-		jww.INFO.Printf("GetRoundBufferInfo error returned: %v", err)
-		return
-	}
-	if bufSize.RoundBufferSize == 0 {
+	batchSize := uint64(roundInfo.BatchSize)
+	if batchSize == 0 {
+		jww.WARN.Printf("Server sent empty roundBufferSize!")
 		return
 	}
 
-	batch := gw.Buffer.PopUnmixedMessages(0, gw.Params.BatchSize)
-	if batch == nil {
-		jww.INFO.Printf("Server is ready, but only have %d messages to send, "+
-			"need %d! Waiting 10 seconds!", gw.Buffer.LenUnmixed(), minMsgCnt)
-		time.Sleep(10 * time.Second)
-		return
+	// minMsgCnt should be no less than 33% of the BatchSize
+	// Note: this is security sensitive.. be careful modifying it
+	minMsgCnt := uint64(roundInfo.BatchSize / 3)
+	if minMsgCnt == 0 {
+		minMsgCnt = 1
 	}
+
+	// FIXME: HACK HACK HACK -- disable the minMsgCnt
+	// We're unable to use this right now because we are moving to
+	// multi-team setups and adding a time out to rounds. So it is
+	// likely we will loop forever and/or drop a lot of rounds due to
+	// not receiving messages quickly enough for a certain round.
+	// Will revisit if we add the ability to re-encrypt messages for
+	// a different round or another mechanism becomes available.
+	minMsgCnt = 0
+
+	batch := gw.UnmixedBuffer.PopUnmixedMessages(minMsgCnt, batchSize)
+	for batch == nil {
+		jww.INFO.Printf(
+			"Server is ready, but only have %d messages to send, "+
+				"need %d! Waiting 1 seconds!",
+			gw.UnmixedBuffer.LenUnmixed(),
+			minMsgCnt)
+		time.Sleep(1 * time.Second)
+		batch = gw.UnmixedBuffer.PopUnmixedMessages(minMsgCnt,
+			batchSize)
+	}
+
+	batch.Round = roundInfo
 
 	jww.INFO.Printf("Sending batch with real messages: %v", batch)
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < gw.Params.BatchSize; i++ {
+		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
@@ -464,11 +592,12 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 			KMACs:    junkMsg.KMACs,
 		}
 
-		//jww.DEBUG.Printf("Kmacs generated from junkMessage for sending: %v\n", newJunkMsg.KMACs)
 		batch.Slots = append(batch.Slots, newJunkMsg)
 	}
 
-	err = gw.Comms.PostNewBatch(gw.ServerHost, batch)
+	jww.DEBUG.Printf("batch being sent: %+v", batch.Round)
+
+	err := gw.Comms.PostNewBatch(gw.ServerHost, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error while sending batch %v", err)
@@ -477,33 +606,15 @@ func (gw *Instance) SendBatchWhenReady(minMsgCnt uint64, junkMsg *pb.Slot) {
 
 }
 
-func (gw *Instance) PollForBatch() {
-
-	batch, err := gw.Comms.GetCompletedBatch(gw.ServerHost)
-
-	if err != nil {
-		// Handle error indicating a server failure
-		if strings.Contains(err.Error(),
-			"TransientFailure") {
-			jww.FATAL.Panicf("Received error from GetCompletedBatch indicates"+
-				" a Server failure: %+v", errors.New(err.Error()))
-
-		}
-		// Would a timeout count as an error?
-		// No, because the server could just as easily return a batch
-		// with no slots/an empty slice of slots
-		jww.ERROR.Printf("Received error from GetCompletedBatch"+
-			" call: %+v", errors.New(err.Error()))
-		return
-	}
-	if len(batch.Slots) == 0 {
+// ProcessCompletedBatch handles messages coming out of the mixnet
+func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
+	if len(msgs) == 0 {
 		return
 	}
 
 	numReal := 0
 
 	// At this point, the returned batch and its fields should be non-nil
-	msgs := batch.Slots
 	h, _ := hash.NewCMixHash()
 	for _, msg := range msgs {
 		serialmsg := format.NewMessage()
@@ -511,55 +622,46 @@ func (gw *Instance) PollForBatch() {
 		userId := serialmsg.GetRecipient()
 
 		if !userId.Cmp(dummyUser) {
-			jww.DEBUG.Printf("Message Recieved for: %v", userId.Bytes())
+			jww.DEBUG.Printf("Message Recieved for: %v",
+				userId.Bytes())
 			gw.un.Notify(userId)
 			numReal++
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
 			msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
-			gw.Buffer.AddMixedMessage(userId, msgId, msg)
+			gw.MixedBuffer.AddMixedMessage(userId, msgId, msg)
 		}
 
 		h.Reset()
 	}
-	jww.INFO.Printf("Round %v recieved, %v real messages "+
-		"processed, %v dummies ignored", batch.Round.ID, numReal,
-		int(batch.Round.ID)-numReal)
+	// FIXME: How do we get round info now?
+	jww.INFO.Printf("Round UNK received, %v real messages "+
+		"processed, ??? dummies ignored", numReal)
 
 	go PrintProfilingStatistics()
 }
 
-// StartGateway sets up the threads and network server to run the gateway
+// Start sets up the threads and network server to run the gateway
 func (gw *Instance) Start() {
-
-	// Begin the thread which polls the node for a request to send a batch
+	// Now that we're set up, run a thread that constantly
+	// polls for updates
 	go func() {
-
-		if gw.Params.FirstNode {
-			// minMsgCnt should be no less than 33% of the BatchSize
-			// Note: this is security sensitive.. be careful if you pull this out to a
-			// config option.
-			minMsgCnt := gw.Params.BatchSize / 3
-			if minMsgCnt == 0 {
-				minMsgCnt = 1
+		lastUpdate := uint64(time.Now().Unix())
+		ticker := time.NewTicker(5 * time.Millisecond)
+		for range ticker.C {
+			msg, err := PollServer(gw.Comms,
+				gw.ServerHost,
+				gw.NetInf.GetFullNdf(),
+				gw.NetInf.GetPartialNdf(),
+				lastUpdate)
+			lastUpdate = uint64(time.Now().Unix())
+			if err != nil {
+				jww.WARN.Printf(
+					"Failed to Poll: %v",
+					err)
+				continue
 			}
-			junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
-			jww.DEBUG.Printf("in start, junk msg kmacs: %v", junkMsg.KMACs)
-			for true {
-				gw.SendBatchWhenReady(minMsgCnt, junkMsg)
-			}
-		} else {
-			jww.INFO.Printf("SendBatchWhenReady() was skipped on this node.")
-		}
-	}()
-	//Begin the thread which polls the node for a completed batch
-	go func() {
-		if gw.Params.LastNode {
-			for true {
-				gw.PollForBatch()
-			}
-		} else {
-			jww.INFO.Printf("PollForBatch() was skipped on this node.")
+			gw.UpdateInstance(msg)
 		}
 	}()
 }
