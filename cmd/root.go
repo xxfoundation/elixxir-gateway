@@ -88,8 +88,6 @@ func InitParams(vip *viper.Viper) Params {
 	gatewayNode := cMixNodes[gatewayNodeIdx]
 	jww.INFO.Printf("Gateway node %d: %s", gatewayNodeIdx, gatewayNode)
 
-	batchSize := uint64(vip.GetInt("BatchSize"))
-
 	certPath := vip.GetString("CertPath")
 
 	keyPath := vip.GetString("KeyPath")
@@ -106,7 +104,6 @@ func InitParams(vip *viper.Viper) Params {
 		Address:        gwListenIP,
 		CMixNodes:      cMixNodes,
 		NodeAddress:    gatewayNode,
-		BatchSize:      batchSize,
 		CertPath:       certPath,
 		KeyPath:        keyPath,
 		ServerCertPath: serverCertPath,
