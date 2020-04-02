@@ -90,7 +90,6 @@ func TestMain(m *testing.M) {
 
 	//Build the gateway instance
 	params := Params{
-		BatchSize:      1,
 		NodeAddress:    NODE_ADDRESS,
 		CMixNodes:      cmixNodes,
 		CmixGrp:        grp,
@@ -218,7 +217,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	cmixNodes[0] = GW_ADDRESS
 	//Build the gateway instance
 	params := Params{
-		BatchSize:      3,
 		NodeAddress:    NODE_ADDRESS,
 		CMixNodes:      cmixNodes,
 		CmixGrp:        grp,

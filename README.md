@@ -69,8 +69,6 @@ lastNode: false
 
 # Number of nodes in the cMix Network
 
-# Batch size of the cMix Network (to be deprecated)
-batchSize: 2
 ```
 
 ## Command line flags
