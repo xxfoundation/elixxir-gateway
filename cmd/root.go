@@ -15,13 +15,12 @@ import (
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/gateway/rateLimiting"
-	"log"
 	"os"
 	"time"
 )
 
 var cfgFile string
-var verbose bool
+var logLevel uint // 0 = info, 1 = debug, >1 = trace
 var gatewayNodeIdx int
 var gwPort int
 var logPath = "cmix-gateway.log"
@@ -41,18 +40,6 @@ var rootCmd = &cobra.Command{
 	Long:  `The cMix gateways coordinate communications between servers and clients`,
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		if verbose {
-			err := os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
-			if err != nil {
-				jww.ERROR.Printf("Could not set GRPC_GO_LOG_SEVERITY_LEVEL: %+v", err)
-			}
-
-			err = os.Setenv("GRPC_GO_LOG_VERBOSITY_LEVEL", "2")
-			if err != nil {
-				jww.ERROR.Printf("Could not set GRPC_GO_LOG_VERBOSITY_LEVEL: %+v", err)
-			}
-		}
-
 		params := InitParams(viper.GetViper())
 
 		//Build gateway implementation object
@@ -160,8 +147,8 @@ func init() {
 	// will be global for your application.
 	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
 		"config file (default is $HOME/.elixxir/gateway.yaml)")
-	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
-		"Verbose mode for debugging")
+	rootCmd.Flags().UintVarP(&logLevel, "logLevel", "l", 0,
+		"Level of debugging to display. 0 = info, 1 = debug, >1 = trace")
 	rootCmd.Flags().IntVarP(&gatewayNodeIdx, "index", "i", -1,
 		"Index of the node to connect to from the list of nodes.")
 	rootCmd.Flags().IntVarP(&gwPort, "port", "p", -1,
@@ -264,16 +251,35 @@ func initConfig() {
 
 // initLog initializes logging thresholds and the log path.
 func initLog() {
-	// If verbose flag set then log more info for debugging
-	if verbose || viper.GetBool("verbose") {
+	vipLogLevel := viper.GetUint("logLevel")
+
+	// Check the level of logs to display
+	if vipLogLevel > 1 {
+		// Set the GRPC log level
+		err := os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
+		if err != nil {
+			jww.ERROR.Printf("Could not set GRPC_GO_LOG_SEVERITY_LEVEL: %+v", err)
+		}
+
+		err = os.Setenv("GRPC_GO_LOG_VERBOSITY_LEVEL", "99")
+		if err != nil {
+			jww.ERROR.Printf("Could not set GRPC_GO_LOG_VERBOSITY_LEVEL: %+v", err)
+		}
+		// Turn on trace logs
+		jww.SetLogThreshold(jww.LevelTrace)
+		jww.SetStdoutThreshold(jww.LevelTrace)
+		mixmessages.TraceMode()
+	} else if vipLogLevel == 1 {
+		// Turn on debugging logs
 		jww.SetLogThreshold(jww.LevelDebug)
 		jww.SetStdoutThreshold(jww.LevelDebug)
-		jww.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 		mixmessages.DebugMode()
 	} else {
+		// Turn on info logs
 		jww.SetLogThreshold(jww.LevelInfo)
 		jww.SetStdoutThreshold(jww.LevelInfo)
 	}
+
 	if viper.Get("log") != nil {
 		// Create log file, overwrites if existing
 		logPath = viper.GetString("log")
