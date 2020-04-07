@@ -33,8 +33,8 @@ To run tests: ` $ go test ./...`
 Note: YAML prohibits the use of tabs because whitespace has meaning.
 
 ```yaml
-# Used for debugging
-verbose: True
+# Log message level
+logLevel: 1
 
 # Output log file
 log: "gateway.log"
@@ -76,7 +76,7 @@ lastNode: false
 | Long flag | Short flag | Effect |
 |---|---|---|
 |--help|-h|Shows a help message|
-|--verbose|-v|Log more things to help debugging|
+|--logLevel|-l|Sets the log message level to print. (0 = info, 1 = debug, >1 = trace)|
 |--version|-V|Print full version information|
 |--config|-c|Specify alternate path to configuration file|
 |--index|-i|Index of the node to connect to from the list of nodes|
