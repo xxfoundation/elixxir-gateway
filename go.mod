@@ -3,7 +3,6 @@ module gitlab.com/elixxir/gateway
 go 1.13
 
 require (
-	github.com/fsnotify/fsnotify v1.4.7
 	github.com/golang/protobuf v1.3.4
 	github.com/gopherjs/gopherjs v0.0.0-20200209183636-89e6cbcd0b6d // indirect
 	github.com/mitchellh/go-homedir v1.1.0
@@ -18,7 +17,7 @@ require (
 	github.com/spf13/viper v1.6.2
 	gitlab.com/elixxir/comms v0.0.0-20200407204710-45e8b09c39b8
 	gitlab.com/elixxir/crypto v0.0.0-20200229000841-b1ee7117a1d0
-	gitlab.com/elixxir/primitives v0.0.0-20200401200647-87f186de48f6
+	gitlab.com/elixxir/primitives v0.0.0-20200407222719-766be7829e75
 	google.golang.org/grpc v1.27.1
 	gopkg.in/ini.v1 v1.54.0 // indirect
 )

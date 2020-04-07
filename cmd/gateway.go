@@ -25,11 +25,11 @@ import (
 	"gitlab.com/elixxir/crypto/registration"
 	"gitlab.com/elixxir/crypto/signature/rsa"
 	"gitlab.com/elixxir/gateway/notifications"
-	"gitlab.com/elixxir/gateway/rateLimiting"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
 	"gitlab.com/elixxir/primitives/ndf"
+	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"strings"
 	"time"
@@ -137,7 +137,12 @@ func NewGatewayInstance(params Params) *Instance {
 		jww.WARN.Printf("Could not load whitelist: %s", err)
 	}
 
-	i.ipWhitelist = *rateLimiting.InitWhitelist(params.IpWhitelistFile, nil)
+	whitelistTemp, err := rateLimiting.InitWhitelist(params.IpWhitelistFile, nil)
+	if err != nil {
+		jww.ERROR.Printf("Could not load initiate whitelist: %s", err)
+	}
+
+	i.ipWhitelist = *whitelistTemp
 
 	return i
 }
