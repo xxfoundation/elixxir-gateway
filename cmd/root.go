@@ -14,7 +14,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/gateway/rateLimiting"
+	"gitlab.com/elixxir/primitives/rateLimiting"
 	"os"
 	"time"
 )
