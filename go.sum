@@ -170,6 +170,8 @@ github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
 gitlab.com/elixxir/comms v0.0.0-20200410232129-e3f516f98266 h1:EbRklNX8Xs7eOC+jxd/n9Wt1EDPJbojkO2DTVLuTktg=
 gitlab.com/elixxir/comms v0.0.0-20200410232129-e3f516f98266/go.mod h1:MwHh/nBO405n0ELW11tnetpDj1oh5Un+RFThxIngFJc=
+gitlab.com/elixxir/comms v0.0.0-20200415204952-6d63dd94a0ea h1:LVQuXjq26hjnuw2isxSpYHFBql80VLnhcrNQ+IJ4QH0=
+gitlab.com/elixxir/comms v0.0.0-20200415204952-6d63dd94a0ea/go.mod h1:EeRHiSIfVYqTaMZGb6eE2kz1Rw5zGXuuBow4Pi2VFg0=
 gitlab.com/elixxir/crypto v0.0.0-20200229000841-b1ee7117a1d0 h1:2oq/Y1pA3bwCdlRjhFjoOtb2somDY+wYz2vuiOQkVVA=
 gitlab.com/elixxir/crypto v0.0.0-20200229000841-b1ee7117a1d0/go.mod h1:QPClJr3F90ejz6iHaCZuhexytd6PP97dDnt93iRCTDo=
 gitlab.com/elixxir/crypto v0.0.0-20200410231849-90e859940f5d h1:+g7tGMO3g20Su3pdTJg30n5XhEGZ3avEd4ccN33CtdU=
