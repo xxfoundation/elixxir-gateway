@@ -64,17 +64,17 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
-	//Group that cmix operates within
+	// Group that cmix operates within
 	CmixGrp *cyclic.Group
 
 	// Map of leaky buckets for IP addresses
-	ipBuckets rateLimiting.BucketMap
+	ipBuckets *rateLimiting.BucketMap
 	// Map of leaky buckets for user IDs
-	userBuckets rateLimiting.BucketMap
+	userBuckets *rateLimiting.BucketMap
 	// Whitelist of IP addresses
-	ipWhitelist rateLimiting.Whitelist
+	ipWhitelist *rateLimiting.Whitelist
 	// Whitelist of IP addresses
-	userWhitelist rateLimiting.Whitelist
+	userWhitelist *rateLimiting.Whitelist
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
@@ -104,7 +104,8 @@ type Params struct {
 	FirstNode bool
 	LastNode  bool
 
-	rateLimiting.Params
+	IpBucket   rateLimiting.Params
+	UserBucket rateLimiting.Params
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -119,30 +120,24 @@ func NewGatewayInstance(params Params) *Instance {
 		Params:        params,
 		CmixGrp:       grp,
 
-		ipBuckets: rateLimiting.CreateBucketMap(
-			params.IpCapacity, params.IpLeakRate,
-			params.CleanPeriod, params.MaxDuration,
-		),
-
-		userBuckets: rateLimiting.CreateBucketMap(
-			params.UserCapacity, params.UserLeakRate,
-			params.CleanPeriod, params.MaxDuration,
-		),
+		ipBuckets:   rateLimiting.CreateBucketMapFromParams(params.IpBucket),
+		userBuckets: rateLimiting.CreateBucketMapFromParams(params.UserBucket),
 	}
 
-	err := rateLimiting.CreateWhitelistFile(params.IpWhitelistFile,
+	err := rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
 		IPWhiteListArr)
 
 	if err != nil {
 		jww.WARN.Printf("Could not load whitelist: %s", err)
 	}
 
-	whitelistTemp, err := rateLimiting.InitWhitelist(params.IpWhitelistFile, nil)
+	whitelistTemp, err := rateLimiting.InitWhitelist(params.IpBucket.WhitelistFile,
+		nil)
 	if err != nil {
 		jww.ERROR.Printf("Could not load initiate whitelist: %s", err)
 	}
 
-	i.ipWhitelist = *whitelistTemp
+	i.ipWhitelist = whitelistTemp
 
 	return i
 }

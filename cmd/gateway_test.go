@@ -103,15 +103,20 @@ func TestMain(m *testing.M) {
 
 	rlPref := "../rateLimiting/whitelists/"
 
-	params.Params = rateLimiting.Params{
-		IpLeakRate:        0.0000012,
-		UserLeakRate:      0.0000012,
-		IpCapacity:        1240,
-		UserCapacity:      500,
-		CleanPeriod:       cleanPeriodDur,
-		MaxDuration:       maxDurationDur,
-		IpWhitelistFile:   rlPref + "ip_whitelist2.txt",
-		UserWhitelistFile: rlPref + "user_whitelist.txt",
+	params.IpBucket = rateLimiting.Params{
+		LeakRate:      0.0000012,
+		Capacity:      1240,
+		CleanPeriod:   cleanPeriodDur,
+		MaxDuration:   maxDurationDur,
+		WhitelistFile: rlPref + "ip_whitelist2.txt",
+	}
+
+	params.UserBucket = rateLimiting.Params{
+		LeakRate:      0.0000012,
+		Capacity:      500,
+		CleanPeriod:   cleanPeriodDur,
+		MaxDuration:   maxDurationDur,
+		WhitelistFile: rlPref + "user_whitelist.txt",
 	}
 
 	gatewayInstance = NewGatewayInstance(params)
@@ -119,7 +124,7 @@ func TestMain(m *testing.M) {
 	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS,
 		nodeCert, true, false)
 
-	//build a single mock message
+	// build a single mock message
 	msg := format.NewMessage()
 
 	payloadA := make([]byte, format.PayloadLen)
@@ -228,15 +233,20 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	maxDurationDur := 10 * time.Second
 
 	rlPref := "../rateLimiting/whitelists/"
-	params.Params = rateLimiting.Params{
-		IpLeakRate:        0.0000012,
-		UserLeakRate:      0.0000012,
-		IpCapacity:        1240,
-		UserCapacity:      500,
-		CleanPeriod:       cleanPeriodDur,
-		MaxDuration:       maxDurationDur,
-		IpWhitelistFile:   rlPref + "ip_whitelist2.txt",
-		UserWhitelistFile: rlPref + "user_whitelist.txt",
+	params.IpBucket = rateLimiting.Params{
+		LeakRate:      0.0000012,
+		Capacity:      1240,
+		CleanPeriod:   cleanPeriodDur,
+		MaxDuration:   maxDurationDur,
+		WhitelistFile: rlPref + "ip_whitelist2.txt",
+	}
+
+	params.UserBucket = rateLimiting.Params{
+		LeakRate:      0.0000012,
+		Capacity:      500,
+		CleanPeriod:   cleanPeriodDur,
+		MaxDuration:   maxDurationDur,
+		WhitelistFile: rlPref + "user_whitelist.txt",
 	}
 
 	gw := NewGatewayInstance(params)
