@@ -86,6 +86,32 @@ func InitParams(vip *viper.Viper) Params {
 	firstNode := vip.GetBool("firstNode")
 	lastNode := vip.GetBool("lastNode")
 
+	cleanPeriodDur, err := time.ParseDuration(vip.GetString("Clean_Period"))
+	if err != nil {
+		jww.ERROR.Printf("Value for cleanPeriod incorrect %v: %v", cleanPeriod, err)
+	}
+
+	maxDurationDur, err := time.ParseDuration(vip.GetString("Max_Duration"))
+	if err != nil {
+		jww.ERROR.Printf("Value for IP address MaxDuration incorrect %v: %v", maxDuration, err)
+	}
+
+	ipBucketParams := rateLimiting.Params{
+		Capacity:      vip.GetUint("IP_LeakyBucket_Capacity"),
+		LeakRate:      vip.GetFloat64("IP_LeakyBucket_Rate"),
+		CleanPeriod:   cleanPeriodDur,
+		MaxDuration:   maxDurationDur,
+		WhitelistFile: vip.GetString("IP_Whitelist_File"),
+	}
+
+	userBucketParams := rateLimiting.Params{
+		Capacity:      vip.GetUint("User_LeakyBucket_Capacity"),
+		LeakRate:      vip.GetFloat64("User_LeakyBucket_Rate"),
+		CleanPeriod:   cleanPeriodDur,
+		MaxDuration:   maxDurationDur,
+		WhitelistFile: vip.GetString("User_Whitelist_File"),
+	}
+
 	p := Params{
 		Port:           gwPort,
 		Address:        gwListenIP,
@@ -97,27 +123,8 @@ func InitParams(vip *viper.Viper) Params {
 		CmixGrp:        cMixParams,
 		FirstNode:      firstNode,
 		LastNode:       lastNode,
-	}
-
-	cleanPeriodDur, err := time.ParseDuration(vip.GetString("Clean_Period"))
-	if err != nil {
-		jww.ERROR.Printf("Value for cleanPeriod incorrect %v: %v", cleanPeriod, err)
-	}
-
-	maxDurationDur, err := time.ParseDuration(vip.GetString("Max_Duration"))
-	if err != nil {
-		jww.ERROR.Printf("Value for IP address MaxDuration incorrect %v: %v", maxDuration, err)
-	}
-
-	p.Params = rateLimiting.Params{
-		IpLeakRate:        vip.GetFloat64("IP_LeakyBucket_Rate"),
-		UserLeakRate:      vip.GetFloat64("User_LeakyBucket_Rate"),
-		IpCapacity:        vip.GetUint("IP_LeakyBucket_Capacity"),
-		UserCapacity:      vip.GetUint("User_LeakyBucket_Capacity"),
-		CleanPeriod:       cleanPeriodDur,
-		MaxDuration:       maxDurationDur,
-		IpWhitelistFile:   vip.GetString("IP_Whitelist_File"),
-		UserWhitelistFile: vip.GetString("User_Whitelist_File"),
+		IpBucket:       ipBucketParams,
+		UserBucket:     userBucketParams,
 	}
 
 	return p
