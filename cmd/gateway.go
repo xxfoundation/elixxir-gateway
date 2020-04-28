@@ -9,6 +9,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"github.com/pkg/errors"
@@ -505,7 +506,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 }
 
 // GenJunkMsg generates a junk message using the gateway's client key
-func GenJunkMsg(grp *cyclic.Group, numNodes int) *pb.Slot {
+func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 
 	baseKey := grp.NewIntFromBytes((*dummyUser)[:])
 
@@ -520,7 +521,14 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int) *pb.Slot {
 
 	msg := format.NewMessage()
 	payloadBytes := make([]byte, format.PayloadLen)
-	payloadBytes[0] = 0x01
+	bs := make([]byte, 4)
+	// Note: Cannot be 0, must be inside group
+	// So we add 1, and start at offset in payload
+	// to avoid both conditions
+	binary.LittleEndian.PutUint32(bs, msgNum+1)
+	for i := 0; i < len(bs); i++ {
+		payloadBytes[i+1] = bs[i]
+	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
 	msg.SetRecipient(dummyUser)
@@ -587,7 +595,8 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
-		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
+		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes),
+			uint32(i))
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
