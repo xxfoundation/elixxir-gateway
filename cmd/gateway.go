@@ -9,6 +9,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"github.com/pkg/errors"
@@ -25,11 +26,11 @@ import (
 	"gitlab.com/elixxir/crypto/registration"
 	"gitlab.com/elixxir/crypto/signature/rsa"
 	"gitlab.com/elixxir/gateway/notifications"
-	"gitlab.com/elixxir/gateway/rateLimiting"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/id"
 	"gitlab.com/elixxir/primitives/ndf"
+	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"strings"
 	"time"
@@ -64,17 +65,17 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
-	//Group that cmix operates within
+	// Group that cmix operates within
 	CmixGrp *cyclic.Group
 
 	// Map of leaky buckets for IP addresses
-	ipBuckets rateLimiting.BucketMap
+	ipBuckets *rateLimiting.BucketMap
 	// Map of leaky buckets for user IDs
-	userBuckets rateLimiting.BucketMap
+	userBuckets *rateLimiting.BucketMap
 	// Whitelist of IP addresses
-	ipWhitelist rateLimiting.Whitelist
+	ipWhitelist *rateLimiting.Whitelist
 	// Whitelist of IP addresses
-	userWhitelist rateLimiting.Whitelist
+	userWhitelist *rateLimiting.Whitelist
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
@@ -104,7 +105,8 @@ type Params struct {
 	FirstNode bool
 	LastNode  bool
 
-	rateLimiting.Params
+	IpBucket   rateLimiting.Params
+	UserBucket rateLimiting.Params
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -119,25 +121,24 @@ func NewGatewayInstance(params Params) *Instance {
 		Params:        params,
 		CmixGrp:       grp,
 
-		ipBuckets: rateLimiting.CreateBucketMap(
-			params.IpCapacity, params.IpLeakRate,
-			params.CleanPeriod, params.MaxDuration,
-		),
-
-		userBuckets: rateLimiting.CreateBucketMap(
-			params.UserCapacity, params.UserLeakRate,
-			params.CleanPeriod, params.MaxDuration,
-		),
+		ipBuckets:   rateLimiting.CreateBucketMapFromParams(params.IpBucket),
+		userBuckets: rateLimiting.CreateBucketMapFromParams(params.UserBucket),
 	}
 
-	err := rateLimiting.CreateWhitelistFile(params.IpWhitelistFile,
+	err := rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
 		IPWhiteListArr)
 
 	if err != nil {
 		jww.WARN.Printf("Could not load whitelist: %s", err)
 	}
 
-	i.ipWhitelist = *rateLimiting.InitWhitelist(params.IpWhitelistFile, nil)
+	whitelistTemp, err := rateLimiting.InitWhitelist(params.IpBucket.WhitelistFile,
+		nil)
+	if err != nil {
+		jww.ERROR.Printf("Could not load initiate whitelist: %s", err)
+	}
+
+	i.ipWhitelist = whitelistTemp
 
 	return i
 }
@@ -500,7 +501,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 }
 
 // GenJunkMsg generates a junk message using the gateway's client key
-func GenJunkMsg(grp *cyclic.Group, numNodes int) *pb.Slot {
+func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 
 	baseKey := grp.NewIntFromBytes((*dummyUser)[:])
 
@@ -515,7 +516,14 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int) *pb.Slot {
 
 	msg := format.NewMessage()
 	payloadBytes := make([]byte, format.PayloadLen)
-	payloadBytes[0] = 0x01
+	bs := make([]byte, 4)
+	// Note: Cannot be 0, must be inside group
+	// So we add 1, and start at offset in payload
+	// to avoid both conditions
+	binary.LittleEndian.PutUint32(bs, msgNum+1)
+	for i := 0; i < len(bs); i++ {
+		payloadBytes[i+1] = bs[i]
+	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
 	msg.SetRecipient(dummyUser)
@@ -582,7 +590,8 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
-		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes))
+		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes),
+			uint32(i))
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
 			PayloadA: junkMsg.PayloadA,
