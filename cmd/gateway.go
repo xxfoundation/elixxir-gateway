@@ -362,9 +362,10 @@ func (gw *Instance) InitNetwork() error {
 		// a couple minutes (depending on operating system), but
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
-		serverID, err := id.Unmarshal(nodeId)
-		if err != nil {
-			jww.ERROR.Printf("Unmarshalling serverID failed during network init!")
+		serverID, err2 := id.Unmarshal(nodeId)
+		if err2 != nil {
+			jww.ERROR.Printf("Unmarshalling serverID failed during network "+
+				"init: %+v", err2)
 		}
 
 		gatewayId := serverID
@@ -398,9 +399,10 @@ func (gw *Instance) installNdf(networkDef,
 		if bytes.Compare(node.ID, nodeId) == 0 {
 
 			// Create the updated server host
-			serverID, err := id.Unmarshal(node.ID)
-			if err != nil {
-				jww.ERROR.Printf("Unmarshalling serverID failed while installing NDF!")
+			serverID, err2 := id.Unmarshal(node.ID)
+			if err2 != nil {
+				jww.ERROR.Printf("Unmarshalling serverID failed while "+
+					"installing the NDF: %+v", err2)
 			}
 			gw.ServerHost, err = connect.NewHost(serverID, gw.Params.NodeAddress, []byte(node.TlsCertificate),
 				true, true)
@@ -641,7 +643,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 		userId, err := serialmsg.GetRecipient()
 
 		if err != nil {
-			jww.ERROR.Printf("Creating userId from serialmsg failed in ProcessCompletedBatch")
+			jww.ERROR.Printf("Creating userId from serialmsg failed in "+
+				"ProcessCompletedBatch: %+v", err)
 		}
 
 		if !userId.Cmp(&dummyUser) {
