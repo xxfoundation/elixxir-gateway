@@ -99,8 +99,9 @@ type Params struct {
 	CertPath    string
 	KeyPath     string
 
-	ServerCertPath string
-	CmixGrp        map[string]string
+	ServerCertPath        string
+	PermissioningCertPath string
+	CmixGrp               map[string]string
 
 	FirstNode bool
 	LastNode  bool
@@ -217,21 +218,27 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 
 // UpdateInstance reads a ServerPollResponse object and updates the instance
 // state accordingly.
-func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) {
+func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	// Update the NDFs, and update the round info, which is currently
 	// recorded but not used for anything. (maybe we should print state
 	// of each round?)
 	if newInfo.FullNDF != nil {
-		gw.NetInf.UpdateFullNdf(newInfo.FullNDF)
+		err := gw.NetInf.UpdateFullNdf(newInfo.FullNDF)
+		if err != nil {
+			return err
+		}
 	}
 	if newInfo.PartialNDF != nil {
-		gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
+		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
+		if err != nil {
+			return err
+		}
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
 			err := gw.NetInf.RoundUpdate(update)
 			if err != nil {
-				jww.ERROR.Printf("RoundUpdate Error: %v", err)
+				return err
 			}
 		}
 	}
@@ -244,6 +251,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) {
 	if newInfo.Slots != nil {
 		gw.ProcessCompletedBatch(newInfo.Slots)
 	}
+	return nil
 }
 
 // InitNetwork initializes the network on this gateway instance
@@ -254,7 +262,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) {
 func (gw *Instance) InitNetwork() error {
 	address := fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
 	var err error
-	var gwCert, gwKey /*, nodeCert*/ []byte
+	var gwCert, gwKey, nodeCert, permissioningCert []byte
 
 	// TLS-enabled pathway
 	if !noTLS {
@@ -268,11 +276,17 @@ func (gw *Instance) InitNetwork() error {
 			return errors.New(fmt.Sprintf("Failed to read gwKey at %s: %+v",
 				gw.Params.KeyPath, err))
 		}
-		/*nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
+		nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
 		if err != nil {
 			return errors.New(fmt.Sprintf(
 				"Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err))
-		}*/
+		}
+		permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
+		if err != nil {
+			return errors.WithMessagef(err,
+				"Failed to read permissioning cert at %v",
+				gw.Params.PermissioningCertPath)
+		}
 	}
 
 	// Set up temporary gateway listener
@@ -287,12 +301,14 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary server host
 	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
-	//gw.ServerHost, err = connect.NewHost("node", gw.Params.NodeAddress,
-	//	nodeCert, true, true)
-	//if err != nil {
-	//	return errors.Errorf("Unable to create tmp server host: %+v",
-	//		err)
-	//}
+	dummyServerID := id.DummyUser.DeepCopy()
+	dummyServerID.SetType(id.Node)
+	gw.ServerHost, err = connect.NewHost(dummyServerID, gw.Params.NodeAddress,
+		nodeCert, true, true)
+	if err != nil {
+		return errors.Errorf("Unable to create tmp server host: %+v",
+			err)
+	}
 
 	// Permissioning-enabled pathway
 	if !disablePermissioning {
@@ -339,7 +355,16 @@ func (gw *Instance) InitNetwork() error {
 					" instance: %v", err)
 				continue
 			}
-			gw.UpdateInstance(msg)
+			_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
+			if err != nil {
+				jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
+				continue
+			}
+			err = gw.UpdateInstance(msg)
+			if err != nil {
+				jww.ERROR.Printf("Update instance error: %v", err)
+				continue
+			}
 
 			// Install the NDF once we get it
 			if msg.FullNDF != nil && msg.Id != nil {
@@ -373,6 +398,12 @@ func (gw *Instance) InitNetwork() error {
 		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler, gatewayCert, gwKey)
 
 		// Initialize hosts for reverse-authentication
+		// This may be necessary to verify the NDF if it gets updated while
+		// the network is up
+		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
+		if err != nil {
+			return errors.Errorf("Couldn't add permissioning host: %v", err)
+		}
 		_, err = gw.Comms.AddHost(&id.NotificationBot, gw.Ndf.Notification.Address,
 			[]byte(gw.Ndf.Notification.TlsCertificate), false, true)
 		if err != nil {
@@ -564,6 +595,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 // if there are at least minRoundCnt rounds ready, and sends whenever there
 // are minMsgCnt messages available in the message queue
 func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
+	jww.CRITICAL.Printf("SendBatchWhenReady called")
 
 	batchSize := uint64(roundInfo.BatchSize)
 	if batchSize == 0 {
@@ -673,7 +705,7 @@ func (gw *Instance) Start() {
 	// polls for updates
 	go func() {
 		lastUpdate := uint64(time.Now().Unix())
-		ticker := time.NewTicker(5 * time.Millisecond)
+		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,

@@ -81,6 +81,8 @@ func InitParams(vip *viper.Viper) Params {
 
 	serverCertPath := vip.GetString("ServerCertPath")
 
+	permissioningCertPath := vip.GetString("PermissioningCertPath")
+
 	cMixParams := vip.GetStringMapString("groups.cmix")
 
 	firstNode := vip.GetBool("firstNode")
@@ -113,18 +115,19 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	p := Params{
-		Port:           gwPort,
-		Address:        gwListenIP,
-		CMixNodes:      cMixNodes,
-		NodeAddress:    gatewayNode,
-		CertPath:       certPath,
-		KeyPath:        keyPath,
-		ServerCertPath: serverCertPath,
-		CmixGrp:        cMixParams,
-		FirstNode:      firstNode,
-		LastNode:       lastNode,
-		IpBucket:       ipBucketParams,
-		UserBucket:     userBucketParams,
+		Port:                  gwPort,
+		Address:               gwListenIP,
+		CMixNodes:             cMixNodes,
+		NodeAddress:           gatewayNode,
+		CertPath:              certPath,
+		KeyPath:               keyPath,
+		ServerCertPath:        serverCertPath,
+		PermissioningCertPath: permissioningCertPath,
+		CmixGrp:               cMixParams,
+		FirstNode:             firstNode,
+		LastNode:              lastNode,
+		IpBucket:              ipBucketParams,
+		UserBucket:            userBucketParams,
 	}
 
 	return p
