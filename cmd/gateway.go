@@ -281,11 +281,13 @@ func (gw *Instance) InitNetwork() error {
 			return errors.New(fmt.Sprintf(
 				"Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err))
 		}
-		permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
-		if err != nil {
-			return errors.WithMessagef(err,
-				"Failed to read permissioning cert at %v",
-				gw.Params.PermissioningCertPath)
+		if !disablePermissioning {
+			permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
+			if err != nil {
+				return errors.WithMessagef(err,
+					"Failed to read permissioning cert at %v",
+					gw.Params.PermissioningCertPath)
+			}
 		}
 	}
 
