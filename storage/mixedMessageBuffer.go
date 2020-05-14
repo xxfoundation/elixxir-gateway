@@ -18,15 +18,15 @@ type MixedMessageBuffer interface {
 	StartMessageCleanup(msgTimeout int)
 
 	// GetMixedMessage returns a given message for a message ID.
-	GetMixedMessage(userId *id.User, msgId string) (*pb.Slot, error)
+	GetMixedMessage(userId *id.ID, msgId string) (*pb.Slot, error)
 
 	// GetMixedMessageIDs returns the message IDs received after the given
 	// message ID in the globals for the user.
-	GetMixedMessageIDs(userId *id.User, messageID string) ([]string, error)
+	GetMixedMessageIDs(userId *id.ID, messageID string) ([]string, error)
 
 	// DeleteMixedMessage deletes a specific message from the buffer.
-	DeleteMixedMessage(userId *id.User, msgId string)
+	DeleteMixedMessage(userId *id.ID, msgId string)
 
 	// AddMixedMessage adds a message to the buffer for a specific user.
-	AddMixedMessage(userId *id.User, msgId string, msg *pb.Slot)
+	AddMixedMessage(userId *id.ID, msgId string, msg *pb.Slot)
 }

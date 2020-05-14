@@ -17,7 +17,7 @@ func TestUnmixedMapBuffer_AddUnmixedMessage(t *testing.T) {
 	unmixedMessageBuf := &UnmixedMapBuffer{}
 	numOutgoingMsgs := len(unmixedMessageBuf.outgoingMessages.Slots)
 
-	unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{SenderID: id.ZeroID.Bytes()})
+	unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{SenderID: id.ZeroUser.Marshal()})
 
 	if len(unmixedMessageBuf.outgoingMessages.Slots) != numOutgoingMsgs+1 {
 		t.Errorf("AddUnMixedMessage: Message was not added to outgoing" +
@@ -40,7 +40,7 @@ func TestUnmixedMapBuffer_PopUnmixedMessages(t *testing.T) {
 	}
 
 	unmixedMessageBuf.outgoingMessages.Slots = append(unmixedMessageBuf.outgoingMessages.Slots,
-		&pb.Slot{SenderID: id.ZeroID.Bytes()})
+		&pb.Slot{SenderID: id.ZeroUser.Marshal()})
 
 	// First confirm there is a message present
 	if unmixedMessageBuf.LenUnmixed() != 1 {
@@ -56,7 +56,7 @@ func TestUnmixedMapBuffer_PopUnmixedMessages(t *testing.T) {
 	// Test that if minCount is greater than the amount of messages, then the
 	// batch that is returned is nil
 	unmixedMessageBuf.outgoingMessages.Slots = append(unmixedMessageBuf.outgoingMessages.Slots,
-		&pb.Slot{SenderID: id.ZeroID.Bytes()})
+		&pb.Slot{SenderID: id.ZeroUser.Marshal()})
 
 	batch := unmixedMessageBuf.PopUnmixedMessages(4, 1)
 
@@ -68,7 +68,7 @@ func TestUnmixedMapBuffer_PopUnmixedMessages(t *testing.T) {
 	// Test when the outgoing message is overfull
 	unmixedMessageBuf.outgoingMessages.Slots = append(
 		unmixedMessageBuf.outgoingMessages.Slots,
-		&pb.Slot{SenderID: id.ZeroID.Bytes()},
+		&pb.Slot{SenderID: id.ZeroUser.Marshal()},
 	)
 
 	unmixedMessageBuf.PopUnmixedMessages(1, 1)
