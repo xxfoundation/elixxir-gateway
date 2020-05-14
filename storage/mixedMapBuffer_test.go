@@ -15,12 +15,12 @@ import (
 )
 
 func TestMixedMapBuffer_StartMessageCleanup(t *testing.T) {
-	userId := id.NewUserFromUint(520, t)
+	userId := id.NewIdFromUInt(528, id.User, t)
 
 	// Use a separate buffer as to not interfere with other tests
 	cleanupBuf := &MixedMapBuffer{
-		messageCollection: make(map[id.User]map[string]*pb.Slot),
-		messageIDs:        make(map[id.User][]string),
+		messageCollection: make(map[id.ID]map[string]*pb.Slot),
+		messageIDs:        make(map[id.ID][]string),
 	}
 
 	// Add a few messages to the buffer
@@ -49,14 +49,14 @@ func TestMixedMapBuffer_StartMessageCleanup(t *testing.T) {
 
 func TestMapBuffer_GetMessage(t *testing.T) {
 	mixedMessageBuf := initMixedMapBuffer()
-	userId := id.ZeroID
+	userId := id.ZeroUser
 	msgId := "msg1"
-	mixedMessageBuf.messageCollection[*userId] = make(map[string]*pb.Slot)
-	mixedMessageBuf.messageCollection[*userId][msgId] = &pb.Slot{
+	mixedMessageBuf.messageCollection[userId] = make(map[string]*pb.Slot)
+	mixedMessageBuf.messageCollection[userId][msgId] = &pb.Slot{
 		SenderID: userId.Bytes(),
 	}
 
-	_, err := mixedMessageBuf.GetMixedMessage(userId, msgId)
+	_, err := mixedMessageBuf.GetMixedMessage(&userId, msgId)
 	if err != nil {
 		t.Errorf("GetMixedMessage: Unable to find message!")
 	}
@@ -64,7 +64,7 @@ func TestMapBuffer_GetMessage(t *testing.T) {
 
 func TestMapBuffer_GetMessageIDs(t *testing.T) {
 	mixedMessageBuf := initMixedMapBuffer()
-	userId := id.NewUserFromUint(5, t)
+	userId := id.NewIdFromUInt(5, id.User, t)
 	msgId := "msg1"
 	mixedMessageBuf.messageCollection[*userId] = make(map[string]*pb.Slot)
 	mixedMessageBuf.messageCollection[*userId][msgId] = &pb.Slot{
@@ -98,7 +98,7 @@ func TestMapBuffer_GetMessageIDs(t *testing.T) {
 
 func TestMapBuffer_DeleteMessage(t *testing.T) {
 	mixedMessageBuf := initMixedMapBuffer()
-	userId := id.NewUserFromUint(555, t)
+	userId := id.NewIdFromUInt(555, id.User, t)
 	msgId := "msg1"
 	mixedMessageBuf.messageCollection[*userId] = make(map[string]*pb.Slot)
 	mixedMessageBuf.messageIDs[*userId] = make([]string, 0)
@@ -117,7 +117,7 @@ func TestMapBuffer_DeleteMessage(t *testing.T) {
 
 func TestMapBuffer_AddMessage(t *testing.T) {
 	mixedMessageBuf := initMixedMapBuffer()
-	userId := id.NewUserFromUint(10, t)
+	userId := id.NewIdFromUInt(10, id.User, t)
 	msgId := "msg1"
 
 	mixedMessageBuf.AddMixedMessage(userId, msgId, &pb.Slot{SenderID: userId.Bytes()})
@@ -131,7 +131,7 @@ func TestMapBuffer_AddMessage(t *testing.T) {
 
 func TestMapBuffer_ExceedUserMsgsLimit(t *testing.T) {
 	mixedMessageBuf := initMixedMapBuffer()
-	userId := id.NewUserFromUint(10, t)
+	userId := id.NewIdFromUInt(10, id.User, t)
 	msgIDFmt := "msg1"
 
 	deleteMe := mixedMessageBuf.messageIDs[*userId]
@@ -168,7 +168,7 @@ func TestMapBuffer_ExceedUserMsgsLimit(t *testing.T) {
 
 func initMixedMapBuffer() *MixedMapBuffer {
 	return &MixedMapBuffer{
-		messageCollection: make(map[id.User]map[string]*pb.Slot),
-		messageIDs:        make(map[id.User][]string),
+		messageCollection: make(map[id.ID]map[string]*pb.Slot),
+		messageIDs:        make(map[id.ID][]string),
 	}
 }

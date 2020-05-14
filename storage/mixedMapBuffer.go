@@ -22,8 +22,8 @@ const MaxUserMessagesLimit = 1000
 
 // MixedMapBuffer struct with map backend.
 type MixedMapBuffer struct {
-	messageCollection map[id.User]map[string]*pb.Slot // Received messages
-	messageIDs        map[id.User][]string
+	messageCollection map[id.ID]map[string]*pb.Slot // Received messages
+	messageIDs        map[id.ID][]string
 	messagesToDelete  []*MessageKey
 	mux               sync.Mutex
 }
@@ -31,7 +31,7 @@ type MixedMapBuffer struct {
 // MessageKey stores the user ID and message ID key pairs in the message
 // deletion queue.
 type MessageKey struct {
-	userID *id.User
+	userID *id.ID
 	msgID  string
 }
 
@@ -39,8 +39,8 @@ type MessageKey struct {
 func NewMixedMessageBuffer() MixedMessageBuffer {
 	// Build the MixedMapBuffer
 	buffer := &MixedMapBuffer{
-		messageCollection: make(map[id.User]map[string]*pb.Slot),
-		messageIDs:        make(map[id.User][]string),
+		messageCollection: make(map[id.ID]map[string]*pb.Slot),
+		messageIDs:        make(map[id.ID][]string),
 		messagesToDelete:  make([]*MessageKey, 0),
 	}
 
@@ -87,7 +87,7 @@ func (mmb *MixedMapBuffer) StartMessageCleanup(msgTimeout int) {
 // GetMixedMessage returns message contents for the message ID or a null/
 // randomized message if that ID does not exist of the same size as a regular
 // message.
-func (mmb *MixedMapBuffer) GetMixedMessage(userID *id.User, msgID string) (*pb.Slot, error) {
+func (mmb *MixedMapBuffer) GetMixedMessage(userID *id.ID, msgID string) (*pb.Slot, error) {
 	mmb.mux.Lock()
 
 	msg, ok := mmb.messageCollection[*userID][msgID]
@@ -102,7 +102,7 @@ func (mmb *MixedMapBuffer) GetMixedMessage(userID *id.User, msgID string) (*pb.S
 }
 
 // GetMixedMessageIDs return a list of message IDs in the globals for this user.
-func (mmb *MixedMapBuffer) GetMixedMessageIDs(userID *id.User, messageID string) ([]string, error) {
+func (mmb *MixedMapBuffer) GetMixedMessageIDs(userID *id.ID, messageID string) ([]string, error) {
 	mmb.mux.Lock()
 
 	// msgIDs is a view into the same memory that mmb.messageIDs has, so we must
@@ -138,7 +138,7 @@ func (mmb *MixedMapBuffer) GetMixedMessageIDs(userID *id.User, messageID string)
 }
 
 // DeleteMixedMessage deletes a given message from the message buffer.
-func (mmb *MixedMapBuffer) DeleteMixedMessage(userID *id.User, msgID string) {
+func (mmb *MixedMapBuffer) DeleteMixedMessage(userID *id.ID, msgID string) {
 	mmb.mux.Lock()
 	defer mmb.mux.Unlock()
 	mmb.deleteMessage(userID, msgID)
@@ -146,7 +146,7 @@ func (mmb *MixedMapBuffer) DeleteMixedMessage(userID *id.User, msgID string) {
 
 // deleteMessage deletes a message without locking. Only call this from a method
 // that is already locked using the mutex.
-func (mmb *MixedMapBuffer) deleteMessage(userID *id.User, msgID string) {
+func (mmb *MixedMapBuffer) deleteMessage(userID *id.ID, msgID string) {
 	delete(mmb.messageCollection[*userID], msgID)
 
 	// Delete this ID from the messageIDs slice
@@ -165,7 +165,7 @@ func (mmb *MixedMapBuffer) deleteMessage(userID *id.User, msgID string) {
 }
 
 // AddMixedMessage adds a message to the buffer for a specific user.
-func (mmb *MixedMapBuffer) AddMixedMessage(userID *id.User, msgID string, msg *pb.Slot) {
+func (mmb *MixedMapBuffer) AddMixedMessage(userID *id.ID, msgID string, msg *pb.Slot) {
 	jww.DEBUG.Printf("Adding mixed message %v for user %v to buffer.", msgID, userID)
 
 	mmb.mux.Lock()
@@ -189,7 +189,7 @@ func (mmb *MixedMapBuffer) AddMixedMessage(userID *id.User, msgID string, msg *p
 		jww.DEBUG.Printf("%v message limit exceeded, deleting %d messages: %v",
 			userID, deleteCount, msgIDsToDelete)
 
-		defer func(m *MixedMapBuffer, userID *id.User, msgIDs []string) {
+		defer func(m *MixedMapBuffer, userID *id.ID, msgIDs []string) {
 			for i := range msgIDs {
 				m.DeleteMixedMessage(userID, msgIDs[i])
 			}
