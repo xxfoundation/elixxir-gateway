@@ -597,7 +597,6 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 // if there are at least minRoundCnt rounds ready, and sends whenever there
 // are minMsgCnt messages available in the message queue
 func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
-	jww.CRITICAL.Printf("SendBatchWhenReady called")
 
 	batchSize := uint64(roundInfo.BatchSize)
 	if batchSize == 0 {
