@@ -57,8 +57,10 @@ MessageTimeout: 60
 keyPath: "gateway.cmix.rip.key"
 # Path to the gateway certificate file
 certPath: "gateway.cmix.rip.crt"
-# Path to the gateway certificate file
+# Path to the node certificate file
 serverCertPath: "cmix.rip.crt"
+# Path to the permissioning certificate file: required to validate signed NDF
+permissioningCertPath: "permissioning.cmix.rip.crt"
 
 # Specifies if this is the first node
 firstNode: false
