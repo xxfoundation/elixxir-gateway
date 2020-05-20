@@ -69,7 +69,7 @@ func InitParams(vip *viper.Viper) Params {
 	gwListenIP := vip.GetString("Address")
 	jww.INFO.Printf("Gateway Listen IP Address: %s", gwListenIP)
 
-	gatewayNode := vip.GetString("GatewayNode")
+	gatewayNode := vip.GetString("Node")
 	jww.INFO.Printf("Gateway node: %s", gatewayNode)
 
 	certPath := vip.GetString("CertPath")
