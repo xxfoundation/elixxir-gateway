@@ -188,10 +188,12 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 		partialNdfHash = &pb.NDFHash{Hash: partialNdf.GetHash()}
 	}
 	pollMsg := &pb.ServerPoll{
-		Full:       ndfHash,
-		Partial:    partialNdfHash,
-		LastUpdate: lastUpdate,
-		Error:      "",
+		Full:           ndfHash,
+		Partial:        partialNdfHash,
+		LastUpdate:     lastUpdate,
+		Error:          "",
+		GatewayPort:    uint32(gwPort),
+		GatewayVersion: currentVersion,
 	}
 
 	resp, err := conn.SendPoll(pollee, pollMsg)
