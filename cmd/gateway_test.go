@@ -176,7 +176,7 @@ func buildTestNodeImpl() *node.Implementation {
 	}
 
 	nodeHandler.Functions.Poll = func(p *pb.ServerPoll,
-		auth *connect.Auth) (*pb.ServerPollResponse,
+		auth *connect.Auth, gatewayAddress string) (*pb.ServerPollResponse,
 		error) {
 		netDef := pb.ServerPollResponse{}
 		return &netDef, nil
