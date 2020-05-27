@@ -20,6 +20,7 @@ import (
 )
 
 var cfgFile string
+var idfPath string
 var logLevel uint // 0 = info, 1 = debug, >1 = trace
 var gatewayNodeIdx int
 var gwPort int
@@ -78,6 +79,8 @@ func InitParams(vip *viper.Viper) Params {
 
 	serverCertPath := vip.GetString("ServerCertPath")
 
+	idfPath = vip.GetString("idfPath")
+
 	permissioningCertPath := vip.GetString("PermissioningCertPath")
 
 	cMixParams := vip.GetStringMapString("groups.cmix")
@@ -115,6 +118,7 @@ func InitParams(vip *viper.Viper) Params {
 		CertPath:              certPath,
 		KeyPath:               keyPath,
 		ServerCertPath:        serverCertPath,
+		IDFPath:               idfPath,
 		PermissioningCertPath: permissioningCertPath,
 		CmixGrp:               cMixParams,
 		IpBucket:              ipBucketParams,
@@ -146,8 +150,12 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
+	home, _ := homedir.Dir()
 	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
 		"config file (default is $HOME/.elixxir/gateway.yaml)")
+	rootCmd.Flags().StringVarP(&idfPath, "idf", "",
+		(home + "/.elixxir/idf.json"),
+		"ID file (default is $HOME/.elixxir/idf.json)")
 	rootCmd.Flags().UintVarP(&logLevel, "logLevel", "l", 0,
 		"Level of debugging to display. 0 = info, 1 = debug, >1 = trace")
 	rootCmd.Flags().IntVarP(&gatewayNodeIdx, "index", "i", -1,
@@ -163,7 +171,9 @@ func init() {
 	err := viper.BindPFlag("index", rootCmd.Flags().Lookup("index"))
 	handleBindingError(err, "index")
 	err = viper.BindPFlag("port", rootCmd.Flags().Lookup("port"))
-	handleBindingError(err, "index")
+	handleBindingError(err, "port")
+	err = viper.BindPFlag("idfPath", rootCmd.Flags().Lookup("idf"))
+	handleBindingError(err, "idfPath")
 
 	// flags for leaky bucket
 	rootCmd.Flags().Float64Var(&ipBucketLeakRate,
