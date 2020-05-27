@@ -23,8 +23,8 @@ import (
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/crypto/large"
-	"gitlab.com/elixxir/crypto/registration"
 	"gitlab.com/elixxir/crypto/signature/rsa"
+	"gitlab.com/elixxir/crypto/xx"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
@@ -36,7 +36,7 @@ import (
 	"time"
 )
 
-var dummyUser = id.MakeDummyUserID()
+var dummyUser = id.DummyUser
 
 var rateLimitErr = errors.New("Client has exceeded communications rate limit")
 
@@ -99,8 +99,9 @@ type Params struct {
 	CertPath    string
 	KeyPath     string
 
-	ServerCertPath string
-	CmixGrp        map[string]string
+	ServerCertPath        string
+	PermissioningCertPath string
+	CmixGrp               map[string]string
 
 	FirstNode bool
 	LastNode  bool
@@ -145,13 +146,13 @@ func NewGatewayInstance(params Params) *Instance {
 
 func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl := gateway.NewImplementation()
-	impl.Functions.CheckMessages = func(userID *id.User, messageID, ipaddress string) (i []string, b error) {
+	impl.Functions.CheckMessages = func(userID *id.ID, messageID, ipaddress string) (i []string, b error) {
 		return instance.CheckMessages(userID, messageID, ipaddress)
 	}
 	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation, ipaddress string) (confirmation *pb.RegistrationConfirmation, e error) {
 		return instance.ConfirmNonce(message, ipaddress)
 	}
-	impl.Functions.GetMessage = func(userID *id.User, msgID, ipaddress string) (slot *pb.Slot, b error) {
+	impl.Functions.GetMessage = func(userID *id.ID, msgID, ipaddress string) (slot *pb.Slot, b error) {
 		return instance.GetMessage(userID, msgID, ipaddress)
 	}
 	impl.Functions.PutMessage = func(message *pb.Slot, ipaddress string) error {
@@ -160,7 +161,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest, ipaddress string) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message, ipaddress)
 	}
-	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []string, e error) {
+	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
 	}
 	return impl
@@ -187,10 +188,12 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 		partialNdfHash = &pb.NDFHash{Hash: partialNdf.GetHash()}
 	}
 	pollMsg := &pb.ServerPoll{
-		Full:       ndfHash,
-		Partial:    partialNdfHash,
-		LastUpdate: lastUpdate,
-		Error:      "",
+		Full:           ndfHash,
+		Partial:        partialNdfHash,
+		LastUpdate:     lastUpdate,
+		Error:          "",
+		GatewayPort:    uint32(gwPort),
+		GatewayVersion: currentVersion,
 	}
 
 	resp, err := conn.SendPoll(pollee, pollMsg)
@@ -217,21 +220,27 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 
 // UpdateInstance reads a ServerPollResponse object and updates the instance
 // state accordingly.
-func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) {
+func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	// Update the NDFs, and update the round info, which is currently
 	// recorded but not used for anything. (maybe we should print state
 	// of each round?)
 	if newInfo.FullNDF != nil {
-		gw.NetInf.UpdateFullNdf(newInfo.FullNDF)
+		err := gw.NetInf.UpdateFullNdf(newInfo.FullNDF)
+		if err != nil {
+			return err
+		}
 	}
 	if newInfo.PartialNDF != nil {
-		gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
+		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
+		if err != nil {
+			return err
+		}
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
 			err := gw.NetInf.RoundUpdate(update)
 			if err != nil {
-				jww.ERROR.Printf("RoundUpdate Error: %v", err)
+				return err
 			}
 		}
 	}
@@ -244,6 +253,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) {
 	if newInfo.Slots != nil {
 		gw.ProcessCompletedBatch(newInfo.Slots)
 	}
+	return nil
 }
 
 // InitNetwork initializes the network on this gateway instance
@@ -254,7 +264,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) {
 func (gw *Instance) InitNetwork() error {
 	address := fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
 	var err error
-	var gwCert, gwKey, nodeCert []byte
+	var gwCert, gwKey, nodeCert, permissioningCert []byte
 
 	// TLS-enabled pathway
 	if !noTLS {
@@ -273,11 +283,19 @@ func (gw *Instance) InitNetwork() error {
 			return errors.New(fmt.Sprintf(
 				"Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err))
 		}
+		if !disablePermissioning {
+			permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
+			if err != nil {
+				return errors.WithMessagef(err,
+					"Failed to read permissioning cert at %v",
+					gw.Params.PermissioningCertPath)
+			}
+		}
 	}
 
 	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
-	gw.Comms = gateway.StartGateway(id.NewTmpGateway().String(), address, gatewayHandler, gwCert, gwKey)
+	gw.Comms = gateway.StartGateway(&id.TempGateway, address, gatewayHandler, gwCert, gwKey)
 
 	// If we are in the TLS-disabled pathway, we inherently want to disable
 	// authentication
@@ -287,7 +305,9 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary server host
 	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
-	gw.ServerHost, err = connect.NewHost("node", gw.Params.NodeAddress,
+	dummyServerID := id.DummyUser.DeepCopy()
+	dummyServerID.SetType(id.Node)
+	gw.ServerHost, err = connect.NewHost(dummyServerID, gw.Params.NodeAddress,
 		nodeCert, true, true)
 	if err != nil {
 		return errors.Errorf("Unable to create tmp server host: %+v",
@@ -339,7 +359,16 @@ func (gw *Instance) InitNetwork() error {
 					" instance: %v", err)
 				continue
 			}
-			gw.UpdateInstance(msg)
+			_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
+			if err != nil {
+				jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
+				continue
+			}
+			err = gw.UpdateInstance(msg)
+			if err != nil {
+				jww.ERROR.Printf("Update instance error: %v", err)
+				continue
+			}
 
 			// Install the NDF once we get it
 			if msg.FullNDF != nil && msg.Id != nil {
@@ -362,12 +391,24 @@ func (gw *Instance) InitNetwork() error {
 		// a couple minutes (depending on operating system), but
 		// in practice 10 seconds works
 		time.Sleep(10 * time.Second)
-		gw.Comms = gateway.StartGateway(
-			id.NewNodeFromBytes(nodeId).NewGateway().String(),
-			address, gatewayHandler, gatewayCert, gwKey)
+		serverID, err2 := id.Unmarshal(nodeId)
+		if err2 != nil {
+			jww.ERROR.Printf("Unmarshalling serverID failed during network "+
+				"init: %+v", err2)
+		}
+
+		gatewayId := serverID
+		gatewayId.SetType(id.Gateway)
+		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler, gatewayCert, gwKey)
 
 		// Initialize hosts for reverse-authentication
-		_, err = gw.Comms.AddHost(id.NOTIFICATION_BOT, gw.Ndf.Notification.Address,
+		// This may be necessary to verify the NDF if it gets updated while
+		// the network is up
+		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
+		if err != nil {
+			return errors.Errorf("Couldn't add permissioning host: %v", err)
+		}
+		_, err = gw.Comms.AddHost(&id.NotificationBot, gw.Ndf.Notification.Address,
 			[]byte(gw.Ndf.Notification.TlsCertificate), false, true)
 		if err != nil {
 			return errors.Errorf("Unable to add notifications host: %+v", err)
@@ -393,8 +434,13 @@ func (gw *Instance) installNdf(networkDef,
 		if bytes.Compare(node.ID, nodeId) == 0 {
 
 			// Create the updated server host
-			gw.ServerHost, err = connect.NewHost(id.NewNodeFromBytes(node.ID).String(),
-				gw.Params.NodeAddress, []byte(node.TlsCertificate), true, true)
+			serverID, err2 := id.Unmarshal(node.ID)
+			if err2 != nil {
+				jww.ERROR.Printf("Unmarshalling serverID failed while "+
+					"installing the NDF: %+v", err2)
+			}
+			gw.ServerHost, err = connect.NewHost(serverID, gw.Params.NodeAddress, []byte(node.TlsCertificate),
+				true, true)
 			if err != nil {
 				return nil, errors.Errorf(
 					"Unable to create updated server host: %+v", err)
@@ -412,7 +458,7 @@ func (gw *Instance) installNdf(networkDef,
 
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
-func (gw *Instance) GetMessage(userID *id.User, msgID string, ipAddress string) (*pb.Slot, error) {
+func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
 	// disabled from rate limiting for now
 	/*uIDStr := hex.EncodeToString(userID.Bytes())
 	err := gw.FilterMessage(uIDStr, ipAddress, TokensGetMessage)
@@ -427,7 +473,7 @@ func (gw *Instance) GetMessage(userID *id.User, msgID string, ipAddress string) 
 }
 
 // Return any MessageIDs in the globals for this User
-func (gw *Instance) CheckMessages(userID *id.User, msgID string, ipAddress string) ([]string, error) {
+func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string) ([]string, error) {
 	//disabled from rate limiting for now
 	/*uIDStr := hex.EncodeToString(userID.Bytes())
 	err := gw.FilterMessage(uIDStr, ipAddress, TokensCheckMessages)
@@ -472,7 +518,11 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.No
 		return nil, errors.New(fmt.Sprintf("Unable to decode client RSA Pub Key: %+v", err))
 	}
 
-	senderID := registration.GenUserID(userPublicKey, msg.Salt)
+	senderID, err := xx.NewID(userPublicKey, msg.Salt, id.User)
+
+	if err != nil {
+		return nil, err
+	}
 
 	//check rate limit
 	err = gw.FilterMessage(hex.EncodeToString(senderID.Bytes()), ipAddress, TokensRequestNonce)
@@ -503,7 +553,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 // GenJunkMsg generates a junk message using the gateway's client key
 func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 
-	baseKey := grp.NewIntFromBytes((*dummyUser)[:])
+	baseKey := grp.NewIntFromBytes((dummyUser)[:])
 
 	var baseKeys []*cyclic.Int
 
@@ -526,7 +576,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
-	msg.SetRecipient(dummyUser)
+	msg.SetRecipient(&dummyUser)
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
@@ -540,7 +590,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
 		Salt:     salt,
-		SenderID: (*dummyUser)[:],
+		SenderID: (dummyUser)[:],
 		KMACs:    KMACs,
 	}
 }
@@ -625,9 +675,14 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 	for _, msg := range msgs {
 		serialmsg := format.NewMessage()
 		serialmsg.SetPayloadB(msg.PayloadB)
-		userId := serialmsg.GetRecipient()
+		userId, err := serialmsg.GetRecipient()
 
-		if !userId.Cmp(dummyUser) {
+		if err != nil {
+			jww.ERROR.Printf("Creating userId from serialmsg failed in "+
+				"ProcessCompletedBatch: %+v", err)
+		}
+
+		if !userId.Cmp(&dummyUser) {
 			jww.DEBUG.Printf("Message Recieved for: %v",
 				userId.Bytes())
 			gw.un.Notify(userId)
@@ -653,7 +708,7 @@ func (gw *Instance) Start() {
 	// polls for updates
 	go func() {
 		lastUpdate := uint64(time.Now().Unix())
-		ticker := time.NewTicker(50 * time.Millisecond)
+		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,
@@ -705,11 +760,11 @@ func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
 }
 
 // Notification Server polls Gateway for mobile notifications at this endpoint
-func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []string, e error) {
+func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e error) {
 	// Check that authentication is good and the sender is our gateway, otherwise error
-	if !auth.IsAuthenticated || auth.Sender.GetId() != id.NOTIFICATION_BOT || auth.Sender.IsDynamicHost() {
+	if !auth.IsAuthenticated || auth.Sender.GetId() != &id.NotificationBot || auth.Sender.IsDynamicHost() {
 		jww.WARN.Printf("PollForNotifications failed auth (sender ID: %s, auth: %v, expected: %s)",
-			auth.Sender.GetId(), auth.IsAuthenticated, id.NOTIFICATION_BOT)
+			auth.Sender.GetId(), auth.IsAuthenticated, id.NotificationBot)
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 	return gw.un.Notified(), nil

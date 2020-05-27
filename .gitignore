@@ -29,3 +29,4 @@ localdev_*
 *.jar
 # Ignore genered version file
 cmd/version_vars.go
+rateLimiting/

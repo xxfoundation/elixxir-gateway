@@ -74,7 +74,7 @@ func TestMain(m *testing.M) {
 	gatewayCert, _ = utils.ReadFile(testkeys.GetGatewayCertPath())
 	gatewayKey, _ = utils.ReadFile(testkeys.GetGatewayKeyPath())
 
-	gComm = gateway.StartGateway(id.NewTmpGateway().String(), GW_ADDRESS,
+	gComm = gateway.StartGateway(&id.TempGateway, GW_ADDRESS,
 		gatewayInstance, gatewayCert, gatewayKey)
 
 	//Start mock node
@@ -82,7 +82,7 @@ func TestMain(m *testing.M) {
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
-	n = node.StartNode("node", NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
+	n = node.StartNode(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
 
 	grp = make(map[string]string)
 	grp["prime"] = prime
@@ -121,7 +121,7 @@ func TestMain(m *testing.M) {
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
-	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS,
+	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS,
 		nodeCert, true, false)
 
 	// build a single mock message
@@ -131,9 +131,8 @@ func TestMain(m *testing.M) {
 	payloadA[0] = 1
 	msg.SetPayloadA(payloadA)
 
-	UserIDBytes := make([]byte, id.UserLen)
-	UserIDBytes[0] = 1
-	msg.AssociatedData.SetRecipientID(UserIDBytes)
+	recipientID := id.NewIdFromUInt(1, id.User, m).Marshal()
+	msg.AssociatedData.SetRecipientID(recipientID[:len(recipientID)-1])
 
 	mockMessage = &pb.Slot{
 		Index:    42,
@@ -177,7 +176,7 @@ func buildTestNodeImpl() *node.Implementation {
 	}
 
 	nodeHandler.Functions.Poll = func(p *pb.ServerPoll,
-		auth *connect.Auth) (*pb.ServerPollResponse,
+		auth *connect.Auth, gatewayAddress string) (*pb.ServerPollResponse,
 		error) {
 		netDef := pb.ServerPollResponse{}
 		return &netDef, nil
@@ -187,7 +186,7 @@ func buildTestNodeImpl() *node.Implementation {
 
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewUserFromUint(666, t).Bytes()}
+	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Marshal()}
 	err := gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!")
@@ -211,7 +210,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 }
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewUserFromUint(666, t).Bytes()}
+	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Bytes()}
 	err := gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!")
@@ -252,7 +251,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw := NewGatewayInstance(params)
 
 	gw.Comms = gComm
-	gw.ServerHost, err = connect.NewHost("test", NODE_ADDRESS,
+	gw.ServerHost, err = connect.NewHost(id.NewIdFromString("test", id.Node, t), NODE_ADDRESS,
 		nodeCert, true, false)
 	if err != nil {
 		t.Errorf(err.Error())
@@ -276,7 +275,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	}
 
 	ctx, cancel := connect.MessagingContext()
-	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS,
+	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, t), NODE_ADDRESS,
 		nodeCert, true, false)
 
 	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(
@@ -338,7 +337,7 @@ func disconnectServers() {
 func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
-	msg := pb.Slot{SenderID: id.NewUserFromUint(255, t).Bytes()}
+	msg := pb.Slot{SenderID: id.NewIdFromUInt(255, id.User, t).Marshal()}
 	err := gatewayInstance.PutMessage(&msg, "0")
 	errMsg := ("PutMessage: Could not put any messages when IP address " +
 		"should not be blocked")
@@ -346,31 +345,31 @@ func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(67, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(67, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(34, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(34, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "1")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err == nil {
 		t.Errorf(errMsg)
@@ -378,7 +377,7 @@ func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(34, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(34, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -386,37 +385,37 @@ func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "1")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err == nil {
 		t.Errorf(errMsg)
@@ -476,7 +475,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(128, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	errMsg := ("PutMessage: Could not put any messages when IP " +
 		"address should not be blocked")
@@ -484,19 +483,19 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(129, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(129, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(130, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(130, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(131, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(131, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -504,7 +503,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(132, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(132, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
@@ -517,21 +516,21 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "aa")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
 			"IP address should not be blocked")
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "bb")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
 			"IP address should not be blocked")
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "cc")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when user " +
@@ -546,7 +545,7 @@ func TestPollServer(t *testing.T) {
 	//        a type and not the interface (so we can't do a unit test)
 }
 
-func buildMockNdf(nodeId *id.Node, nodeAddress, gwAddress string, cert,
+func buildMockNdf(nodeId *id.ID, nodeAddress, gwAddress string, cert,
 	key []byte) *ndf.NetworkDefinition {
 	node := ndf.Node{
 		ID:             nodeId.Bytes(),
@@ -580,14 +579,14 @@ func buildMockNdf(nodeId *id.Node, nodeAddress, gwAddress string, cert,
 // build a netinf object in the instance object
 func TestCreateNetworkInstance(t *testing.T) {
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
-	_, err := gatewayInstance.Comms.AddHost(id.PERMISSIONING,
+	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, false, true)
 	if err != nil {
 		t.Errorf("Failed to add permissioning host: %+v", err)
 	}
 
 	nodeB := []byte{'n', 'o', 'd', 'e'}
-	nodeId := id.NewNodeFromBytes(nodeB)
+	nodeId := id.NewIdFromBytes(nodeB, t)
 	ndf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
 
 	ndfBytes, err := ndf.Marshal()
@@ -624,8 +623,7 @@ func TestCreateNetworkInstance(t *testing.T) {
 //        signable ndf function that would enforce correctness, so not useful
 //        at the moment.
 func TestUpdateInstance(t *testing.T) {
-	nodeB := []byte{'n', 'o', 'd', 'e'}
-	nodeId := id.NewNodeFromBytes(nodeB)
+	nodeId := id.NewIdFromString("node", id.Node, t)
 	ndf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
 
 	ndfBytes, err := ndf.Marshal()
@@ -674,12 +672,9 @@ func TestUpdateInstance(t *testing.T) {
 	}
 
 	// Check that mockMessage made it
-	mockmsgId := "sHge1HVeKNiroYklqduPLYcy0TaSl3FVm/97P7ZhoLE="
-	UserIDBytes := make([]byte, id.UserLen)
-	UserIDBytes[0] = 1
-	mockMsgUserId := id.NewUserFromBytes(UserIDBytes)
-	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId,
-		mockmsgId)
+	mockmsgId := "xL+3JSRKJZPEu01Uv8Nh6dtRa+tjqkruwbsZmVuP218="
+	mockMsgUserId := id.NewIdFromUInt(1, id.User, t)
+	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId, mockmsgId)
 	if err != nil {
 		t.Errorf("%v", err)
 	}

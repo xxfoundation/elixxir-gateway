@@ -69,11 +69,8 @@ func InitParams(vip *viper.Viper) Params {
 	gwListenIP := vip.GetString("Address")
 	jww.INFO.Printf("Gateway Listen IP Address: %s", gwListenIP)
 
-	cMixNodes := vip.GetStringSlice("CMixNodes")
-
-	gatewayNodeIdx = viper.GetInt("Index")
-	gatewayNode := cMixNodes[gatewayNodeIdx]
-	jww.INFO.Printf("Gateway node %d: %s", gatewayNodeIdx, gatewayNode)
+	gatewayNode := vip.GetString("Node")
+	jww.INFO.Printf("Gateway node: %s", gatewayNode)
 
 	certPath := vip.GetString("CertPath")
 
@@ -81,10 +78,9 @@ func InitParams(vip *viper.Viper) Params {
 
 	serverCertPath := vip.GetString("ServerCertPath")
 
-	cMixParams := vip.GetStringMapString("groups.cmix")
+	permissioningCertPath := vip.GetString("PermissioningCertPath")
 
-	firstNode := vip.GetBool("firstNode")
-	lastNode := vip.GetBool("lastNode")
+	cMixParams := vip.GetStringMapString("groups.cmix")
 
 	cleanPeriodDur, err := time.ParseDuration(vip.GetString("Clean_Period"))
 	if err != nil {
@@ -113,18 +109,16 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	p := Params{
-		Port:           gwPort,
-		Address:        gwListenIP,
-		CMixNodes:      cMixNodes,
-		NodeAddress:    gatewayNode,
-		CertPath:       certPath,
-		KeyPath:        keyPath,
-		ServerCertPath: serverCertPath,
-		CmixGrp:        cMixParams,
-		FirstNode:      firstNode,
-		LastNode:       lastNode,
-		IpBucket:       ipBucketParams,
-		UserBucket:     userBucketParams,
+		Port:                  gwPort,
+		Address:               gwListenIP,
+		NodeAddress:           gatewayNode,
+		CertPath:              certPath,
+		KeyPath:               keyPath,
+		ServerCertPath:        serverCertPath,
+		PermissioningCertPath: permissioningCertPath,
+		CmixGrp:               cMixParams,
+		IpBucket:              ipBucketParams,
+		UserBucket:            userBucketParams,
 	}
 
 	return p
