@@ -100,6 +100,7 @@ type Params struct {
 	KeyPath     string
 
 	ServerCertPath        string
+	IDFPath               string
 	PermissioningCertPath string
 	CmixGrp               map[string]string
 
@@ -444,6 +445,13 @@ func (gw *Instance) installNdf(networkDef,
 			if err != nil {
 				return nil, errors.Errorf(
 					"Unable to create updated server host: %+v", err)
+			}
+
+			// Save the IDF to the idfPath
+			err := writeIDF(gw.Ndf, i, idfPath)
+			if err != nil {
+				jww.WARN.Printf("Could not write ID File: %s",
+					idfPath)
 			}
 
 			// Configure gateway according to its node's index
