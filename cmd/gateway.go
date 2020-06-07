@@ -22,7 +22,6 @@ import (
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
-	"gitlab.com/elixxir/crypto/large"
 	"gitlab.com/elixxir/crypto/signature/rsa"
 	"gitlab.com/elixxir/crypto/xx"
 	"gitlab.com/elixxir/gateway/notifications"
@@ -37,6 +36,9 @@ import (
 )
 
 var dummyUser = id.DummyUser
+
+// TODO: remove this. It is currently only here to make tests work
+var disablePermissioning = false
 
 var rateLimitErr = errors.New("Client has exceeded communications rate limit")
 
@@ -64,9 +66,6 @@ type Instance struct {
 
 	// Gateway object created at start
 	Comms *gateway.Comms
-
-	// Group that cmix operates within
-	CmixGrp *cyclic.Group
 
 	// Map of leaky buckets for IP addresses
 	ipBuckets *rateLimiting.BucketMap
@@ -102,7 +101,6 @@ type Params struct {
 	ServerCertPath        string
 	IDFPath               string
 	PermissioningCertPath string
-	CmixGrp               map[string]string
 
 	FirstNode bool
 	LastNode  bool
@@ -113,15 +111,11 @@ type Params struct {
 
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
-	p := large.NewIntFromString(params.CmixGrp["prime"], 16)
-	g := large.NewIntFromString(params.CmixGrp["generator"], 16)
-	grp := cyclic.NewGroup(p, g)
 
 	i := &Instance{
 		MixedBuffer:   storage.NewMixedMessageBuffer(),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
-		CmixGrp:       grp,
 
 		ipBuckets:   rateLimiting.CreateBucketMapFromParams(params.IpBucket),
 		userBuckets: rateLimiting.CreateBucketMapFromParams(params.UserBucket),
@@ -268,29 +262,27 @@ func (gw *Instance) InitNetwork() error {
 	var gwCert, gwKey, nodeCert, permissioningCert []byte
 
 	// TLS-enabled pathway
-	if !noTLS {
-		gwCert, err = utils.ReadFile(gw.Params.CertPath)
+	gwCert, err = utils.ReadFile(gw.Params.CertPath)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to read certificate at %s: %+v",
+			gw.Params.CertPath, err))
+	}
+	gwKey, err = utils.ReadFile(gw.Params.KeyPath)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to read gwKey at %s: %+v",
+			gw.Params.KeyPath, err))
+	}
+	nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
+	if err != nil {
+		return errors.New(fmt.Sprintf(
+			"Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err))
+	}
+	if !disablePermissioning {
+		permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
 		if err != nil {
-			return errors.New(fmt.Sprintf("Failed to read certificate at %s: %+v",
-				gw.Params.CertPath, err))
-		}
-		gwKey, err = utils.ReadFile(gw.Params.KeyPath)
-		if err != nil {
-			return errors.New(fmt.Sprintf("Failed to read gwKey at %s: %+v",
-				gw.Params.KeyPath, err))
-		}
-		nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
-		if err != nil {
-			return errors.New(fmt.Sprintf(
-				"Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err))
-		}
-		if !disablePermissioning {
-			permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
-			if err != nil {
-				return errors.WithMessagef(err,
-					"Failed to read permissioning cert at %v",
-					gw.Params.PermissioningCertPath)
-			}
+			return errors.WithMessagef(err,
+				"Failed to read permissioning cert at %v",
+				gw.Params.PermissioningCertPath)
 		}
 	}
 
@@ -298,14 +290,8 @@ func (gw *Instance) InitNetwork() error {
 	gatewayHandler := NewImplementation(gw)
 	gw.Comms = gateway.StartGateway(&id.TempGateway, address, gatewayHandler, gwCert, gwKey)
 
-	// If we are in the TLS-disabled pathway, we inherently want to disable
-	// authentication
-	if noTLS {
-		gw.Comms.DisableAuth()
-	}
-
 	// Set up temporary server host
-	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
+	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
 	dummyServerID := id.DummyUser.DeepCopy()
 	dummyServerID.SetType(id.Node)
 	gw.ServerHost, err = connect.NewHost(dummyServerID, gw.Params.NodeAddress,
@@ -317,9 +303,6 @@ func (gw *Instance) InitNetwork() error {
 
 	// Permissioning-enabled pathway
 	if !disablePermissioning {
-		if noTLS {
-			return errors.Errorf("Cannot have permissioning on and TLS disabled")
-		}
 
 		// Begin polling server for NDF
 		jww.INFO.Printf("Beginning polling NDF...")
@@ -648,7 +631,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
-		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes),
+		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), len(gw.Params.CMixNodes),
 			uint32(i))
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,
