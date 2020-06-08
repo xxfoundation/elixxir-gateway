@@ -48,10 +48,10 @@ port: 8443
 localAddress: "0.0.0.0"
 
 # The public IP address of the Node associated with this Gateway.
-nodeAddress: "255.255.255.255"
+nodeAddress: "0.0.0.128"
 
 # Period in which the message cleanup function executes. Recommended period is on the order of a minute.
-messageTimeout: 60
+messageTimeout: "60s"
 
 # Path to where the IDF is saved. This is used by the wrapper management script.
 idfPath: "gatewayIDF.json"
@@ -78,10 +78,10 @@ permissioningCertPath: "permissioning.cmix.rip.crt"
 |--help|-h|help for gateway|
 |--idfPath string| |Path to where the IDF is saved. This is used by the wrapper management script. (default "C:\\Users\\Jono/.xxnetwork/idf.json")|
 |--keyPath string| |The path to the private key associated with the self-signed TLS certificate. Required field.|
-|--localAddress string| |The local IP address of the Gateway used for internal listening. (default "0.0.0.0")|
+|--listeningAddress string| |The local IP address of the Gateway used for internal listening. (default "0.0.0.0")|
 |--log string| |Path where logs will be printed. (default "C:\\Users\\Jono/.xxnetwork/cmix-gateway.log")|
 |--logLevel uint|-l|Level of debugging to print. 0 = info, 1 = debug, >1 = trace|
-|--messageTimeout int| |Period in which the message cleanup function executes. Recommended period is on the order of a minute. (default 60)|
+|--messageTimeout duration| |Period in which the message cleanup function executes. Recommended period is on the order of a minute. (default 60)|
 |--nodeAddress string| |The public IP address of the Node associated with this Gateway. Required field.|
 |--permissioningCertPath string| |The path to the self-signed TLS certificate for the Permissioning server. Expects PEM format. Required field.|
 |--port int|-p|Port for the Gateway to listen on. Gateway must be the only listener on this port. Required field. (default -1)|

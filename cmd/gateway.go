@@ -107,13 +107,15 @@ type Params struct {
 
 	IpBucket   rateLimiting.Params
 	UserBucket rateLimiting.Params
+
+	MessageTimeout time.Duration
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
 
 	i := &Instance{
-		MixedBuffer:   storage.NewMixedMessageBuffer(),
+		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
 

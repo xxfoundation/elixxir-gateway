@@ -25,8 +25,8 @@ var idfPath string
 var logLevel uint // 0 = info, 1 = debug, >1 = trace
 var gwPort int
 var logPath string
-var messageTimeout int
-var localAddress, nodeAddress, certPath, keyPath, serverCertPath, permissioningCertPath string
+var messageTimeout time.Duration
+var listeningAddress, nodeAddress, certPath, keyPath, serverCertPath, permissioningCertPath string
 
 // For whitelist
 var ipBucketCapacity, userBucketCapacity uint
@@ -87,7 +87,7 @@ func InitParams(vip *viper.Viper) Params {
 	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
 
 	jww.INFO.Printf("Gateway port: %d", gwPort)
-	jww.INFO.Printf("Gateway listen IP address: %s", localAddress)
+	jww.INFO.Printf("Gateway listen IP address: %s", listeningAddress)
 	jww.INFO.Printf("Gateway node: %s", nodeAddress)
 
 	idfPath = vip.GetString("idfPath")
@@ -120,7 +120,7 @@ func InitParams(vip *viper.Viper) Params {
 
 	p := Params{
 		Port:                  gwPort,
-		Address:               localAddress,
+		Address:               listeningAddress,
 		NodeAddress:           nodeAddress,
 		CertPath:              certPath,
 		KeyPath:               keyPath,
@@ -129,6 +129,7 @@ func InitParams(vip *viper.Viper) Params {
 		PermissioningCertPath: permissioningCertPath,
 		IpBucket:              ipBucketParams,
 		UserBucket:            userBucketParams,
+		MessageTimeout:        messageTimeout,
 	}
 
 	return p
@@ -186,16 +187,18 @@ func init() {
 	err = viper.BindPFlag("log", rootCmd.Flags().Lookup("log"))
 	handleBindingError(err, "log")
 
-	rootCmd.Flags().IntVar(&messageTimeout, "messageTimeout", 60,
+	rootCmd.Flags().DurationVar(&messageTimeout, "messageTimeout", 60*time.Second,
 		"Period in which the message cleanup function executes. Recommended "+
 			"period is on the order of a minute.")
 	err = viper.BindPFlag("messageTimeout", rootCmd.Flags().Lookup("messageTimeout"))
 	handleBindingError(err, "messageTimeout")
 
-	rootCmd.Flags().StringVar(&localAddress, "localAddress", "0.0.0.0",
+	rootCmd.Flags().StringVar(&listeningAddress, "listeningAddress", "0.0.0.0",
 		"The local IP address of the Gateway used for internal listening.")
-	err = viper.BindPFlag("localAddress", rootCmd.Flags().Lookup("localAddress"))
-	handleBindingError(err, "localAddress")
+	err = viper.BindPFlag("listeningAddress", rootCmd.Flags().Lookup("listeningAddress"))
+	handleBindingError(err, "listeningAddress")
+	err = rootCmd.Flags().MarkHidden("listeningAddress")
+	handleBindingError(err, "listeningAddress")
 
 	rootCmd.Flags().StringVar(&nodeAddress, "nodeAddress", "",
 		"The public IP address of the Node associated with this Gateway. "+
