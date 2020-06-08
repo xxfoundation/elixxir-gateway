@@ -7,7 +7,6 @@
 package cmd
 
 import (
-	"github.com/golang/protobuf/ptypes/any"
 	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -20,7 +19,6 @@ import (
 	"gitlab.com/elixxir/primitives/ndf"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
-	"google.golang.org/grpc"
 	"os"
 	"reflect"
 	"testing"
@@ -260,76 +258,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
 	gw.SendBatchWhenReady(si)
 
-}
-
-// Calling InitNetwork after starting a node should cause
-// gateway to connect to the node
-func TestInitNetwork_ConnectsToNode(t *testing.T) {
-	defer disconnectServers()
-
-	disablePermissioning = true
-
-	err := gatewayInstance.InitNetwork()
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-
-	ctx, cancel := connect.MessagingContext()
-	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, t), NODE_ADDRESS,
-		nodeCert, true, false)
-
-	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(
-		conn *grpc.ClientConn) (*any.
-		Any, error) {
-		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
-
-		// Make sure there are no errors with sending the message
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-
-	disconnectServers()
-	cancel()
-
-}
-
-// Calling initNetwork with permissioning enabled should get signed certs
-func TestInitNetwork_GetSignedCert(t *testing.T) {
-	defer disconnectServers()
-
-	disablePermissioning = false
-	noTLS = false
-
-	ctx, cancel := connect.MessagingContext()
-
-	_, err := gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(
-		conn *grpc.ClientConn) (*any.
-		Any, error) {
-		_, err := pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
-
-		// Make sure there are no errors with sending the message
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-
-	cancel()
-
-}
-
-func disconnectServers() {
-	gatewayInstance.Comms.DisconnectAll()
-	n.Manager.DisconnectAll()
-	n.DisconnectAll()
 }
 
 // Tests that messages can get through when its IP address bucket is not full
