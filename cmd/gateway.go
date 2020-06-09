@@ -357,6 +357,7 @@ func (gw *Instance) InitNetwork() error {
 		}
 
 		// Update the network instance
+		jww.DEBUG.Printf("Updating instance")
 		err = gw.UpdateInstance(serverResponse)
 		if err != nil {
 			jww.ERROR.Printf("Update instance error: %v", err)
