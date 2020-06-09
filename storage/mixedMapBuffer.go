@@ -9,7 +9,6 @@ package storage
 import (
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"github.com/spf13/viper"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/primitives/id"
 	"sync"
@@ -36,7 +35,7 @@ type MessageKey struct {
 }
 
 // NewMixedMessageBuffer initialize a MixedMessageBuffer interface.
-func NewMixedMessageBuffer() MixedMessageBuffer {
+func NewMixedMessageBuffer(messageTimeout time.Duration) MixedMessageBuffer {
 	// Build the MixedMapBuffer
 	buffer := &MixedMapBuffer{
 		messageCollection: make(map[id.ID]map[string]*pb.Slot),
@@ -45,14 +44,14 @@ func NewMixedMessageBuffer() MixedMessageBuffer {
 	}
 
 	// Start the message cleanup loop with configured message timeout
-	go buffer.StartMessageCleanup(viper.GetInt("MessageTimeout"))
+	go buffer.StartMessageCleanup(messageTimeout)
 
 	return buffer
 }
 
 // StartMessageCleanup clears all messages from the internal MessageBuffer
 // after the given message timeout. Intended to be ran in a separate thread.
-func (mmb *MixedMapBuffer) StartMessageCleanup(msgTimeout int) {
+func (mmb *MixedMapBuffer) StartMessageCleanup(msgTimeout time.Duration) {
 	for {
 		mmb.mux.Lock()
 
@@ -80,7 +79,7 @@ func (mmb *MixedMapBuffer) StartMessageCleanup(msgTimeout int) {
 		mmb.mux.Unlock()
 
 		// Sleep for the given message timeout
-		time.Sleep(time.Duration(msgTimeout) * time.Second)
+		time.Sleep(msgTimeout)
 	}
 }
 
