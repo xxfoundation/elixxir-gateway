@@ -42,6 +42,8 @@ var rootCmd = &cobra.Command{
 	Long:  `The cMix gateways coordinate communications between servers and clients`,
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		initConfig()
+		initLog()
 		params := InitParams(viper.GetViper())
 
 		// Build gateway implementation object
@@ -141,7 +143,6 @@ func init() {
 	// There is one init in each sub command. Do not put variable declarations
 	// here, and ensure all the Flags are of the *P variety, unless there's a
 	// very good reason not to have them as local Params to sub command."
-	cobra.OnInitialize(initConfig, initLog)
 
 	// Generate the directory for default file paths
 	defaultDir, err := utils.ExpandPath("~/.xxnetwork/")
@@ -341,11 +342,6 @@ func initLog() {
 	}
 
 	logPath = viper.GetString("log")
-
-	if !rootCmd.Flags().Lookup("log").Changed {
-		fmt.Printf("Invalid or missing log path, default path %s used.\n",
-			logPath)
-	}
 
 	logFile, err := os.OpenFile(logPath,
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND,

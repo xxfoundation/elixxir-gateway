@@ -98,6 +98,7 @@ func TestMain(m *testing.M) {
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 		KeyPath:        testkeys.GetGatewayKeyPath(),
+		MessageTimeout: 10 * time.Minute,
 	}
 
 	cleanPeriodDur := 3 * time.Second
@@ -241,6 +242,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		CMixNodes:      cmixNodes,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
 	}
 
 	cleanPeriodDur := 3 * time.Second
@@ -706,6 +708,11 @@ func TestUpdateInstance(t *testing.T) {
 	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId, mockmsgId)
 	if err != nil {
 		t.Errorf("%+v", err)
+		msgIDs, _ := gatewayInstance.MixedBuffer.GetMixedMessageIDs(
+			mockMsgUserId, "")
+		for i := 0; i < len(msgIDs); i++ {
+			print("%s", msgIDs[i])
+		}
 	}
 	if msgTst == nil {
 		t.Errorf("Did not return mock message!")
