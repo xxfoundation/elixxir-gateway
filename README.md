@@ -33,8 +33,6 @@ To run tests: ` $ go test ./...`
 Note: YAML prohibits the use of tabs because whitespace has meaning.
 
 ```yaml
-# All paths should point to a file in the $HOME/.xxnetwork/ directory.
-
 # Level of debugging to print. 0 = info, 1 = debug, >1 = trace
 logLevel: 1
 
@@ -71,21 +69,23 @@ permissioningCertPath: "permissioning.cmix.rip.crt"
 
 ## Command line flags
 
+Note that the `--config` flag, if left blank, will by default look for
+`gateway.yaml` in the user's home directory first and secon din `/etc/`.
+
 | Long flag | Short flag | Effect |
 |---|---|---|
-|--certPath string| |The path to the self-signed TLS certificate for Gateway. Expects PEM format. Required field.|
-|--config string|-c|The location of the Gateway configuration file. (default "C:\\Users\\Jono/.xxnetwork/gateway.yaml")|
+|--certPath string| |Path to the self-signed TLS certificate for Gateway. Expects PEM format. Required field.|
+|--config string|-c|Path to load the Gateway configuration file from.|
 |--help|-h|help for gateway|
-|--idfPath string| |Path to where the IDF is saved. This is used by the wrapper management script. (default "C:\\Users\\Jono/.xxnetwork/idf.json")|
-|--keyPath string| |The path to the private key associated with the self-signed TLS certificate. Required field.|
-|--listeningAddress string| |The local IP address of the Gateway used for internal listening. (default "0.0.0.0")|
-|--log string| |Path where logs will be printed. (default "C:\\Users\\Jono/.xxnetwork/cmix-gateway.log")|
-|--logLevel uint|-l|Level of debugging to print. 0 = info, 1 = debug, >1 = trace|
-|--messageTimeout duration| |Period in which the message cleanup function executes. Recommended period is on the order of a minute. (default 60)|
-|--nodeAddress string| |The public IP address of the Node associated with this Gateway. Required field.|
-|--permissioningCertPath string| |The path to the self-signed TLS certificate for the Permissioning server. Expects PEM format. Required field.|
-|--port int|-p|Port for the Gateway to listen on. Gateway must be the only listener on this port. Required field. (default -1)|
-|--serverCertPath string| |The path to the self-signed TLS certificate for Server. Expects PEM format. Required field.|
+|--idfPath string| |Path to where the IDF is saved. This is used by the wrapper management script. (default "/home/User/.xxnetwork/idf.json")|
+|--keyPath string| |Path to the private key associated with the self-signed TLS certificate. Required field.|
+|--log string| |Path where log file will be saved. (default "/home/User/.xxnetwork/cmix-gateway.log")|
+|--logLevel uint|-l|Level of debugging to print (0 = info, 1 = debug, >1 = trace).|
+|--messageTimeout duration| |Period in which the message cleanup function executes. Recommended period is on the order of a minute. (default 1m0s)|
+|--nodeAddress string| |Public IP address of the Node associated with this Gateway. Required field.|
+|--permissioningCertPath string| |Path to the self-signed TLS certificate for the Permissioning server. Expects PEM format. Required field.|
+|--port int|-p|Port for Gateway to listen on. Gateway must be the only listener on this port. Required field. (default -1)|
+|--serverCertPath string| |Path to the self-signed TLS certificate for Server. Expects PEM format. Required field.|
 
 ### Generate version information
 

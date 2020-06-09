@@ -612,9 +612,9 @@ func TestCreateNetworkInstance(t *testing.T) {
 
 	nodeB := []byte{'n', 'o', 'd', 'e'}
 	nodeId := id.NewIdFromBytes(nodeB, t)
-	ndf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
+	testNdf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
 
-	ndfBytes, err := ndf.Marshal()
+	ndfBytes, err := testNdf.Marshal()
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -649,9 +649,9 @@ func TestCreateNetworkInstance(t *testing.T) {
 //        at the moment.
 func TestUpdateInstance(t *testing.T) {
 	nodeId := id.NewIdFromString("node", id.Node, t)
-	ndf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
+	testNdf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
 
-	ndfBytes, err := ndf.Marshal()
+	ndfBytes, err := testNdf.Marshal()
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -688,7 +688,11 @@ func TestUpdateInstance(t *testing.T) {
 		Slots:        slots,
 	}
 
-	gatewayInstance.UpdateInstance(update)
+	// gatewayInstance.UpdateInstance(update)
+	err = gatewayInstance.UpdateInstance(update)
+	if err != nil {
+		t.Errorf("UpdateInstance() produced an error: %+v", err)
+	}
 
 	// Check that updates made it
 	r, err := gatewayInstance.NetInf.GetRoundUpdate(1)
@@ -701,7 +705,7 @@ func TestUpdateInstance(t *testing.T) {
 	mockMsgUserId := id.NewIdFromUInt(1, id.User, t)
 	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId, mockmsgId)
 	if err != nil {
-		t.Errorf("%v", err)
+		t.Errorf("%+v", err)
 	}
 	if msgTst == nil {
 		t.Errorf("Did not return mock message!")
