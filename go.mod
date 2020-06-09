@@ -14,11 +14,11 @@ require (
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/jwalterweatherman v1.1.0
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.3
 	gitlab.com/elixxir/comms v0.0.0-20200606003810-73f559eeb3bc
 	gitlab.com/elixxir/crypto v0.0.0-20200605212708-94b815c48c34
-	gitlab.com/elixxir/primitives v0.0.0-20200605200100-cc0169bdd7e3
+	gitlab.com/elixxir/primitives v0.0.0-20200608222556-604c99d97e02
 	google.golang.org/grpc v1.29.1
 	gopkg.in/ini.v1 v1.55.0 // indirect
 )

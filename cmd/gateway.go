@@ -22,7 +22,6 @@ import (
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
-	"gitlab.com/elixxir/crypto/large"
 	"gitlab.com/elixxir/crypto/signature/rsa"
 	"gitlab.com/elixxir/crypto/xx"
 	"gitlab.com/elixxir/gateway/notifications"
@@ -37,6 +36,9 @@ import (
 )
 
 var dummyUser = id.DummyUser
+
+// TODO: remove this. It is currently only here to make tests work
+var disablePermissioning = false
 
 var rateLimitErr = errors.New("Client has exceeded communications rate limit")
 
@@ -61,9 +63,6 @@ type Instance struct {
 
 	// Gateway object created at start
 	Comms *gateway.Comms
-
-	// Group that cmix operates within
-	CmixGrp *cyclic.Group
 
 	// Map of leaky buckets for IP addresses
 	ipBuckets *rateLimiting.BucketMap
@@ -99,26 +98,20 @@ type Params struct {
 	ServerCertPath        string
 	IDFPath               string
 	PermissioningCertPath string
-	CmixGrp               map[string]string
-
-	FirstNode bool
-	LastNode  bool
 
 	IpBucket   rateLimiting.Params
 	UserBucket rateLimiting.Params
+
+	MessageTimeout time.Duration
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
-	p := large.NewIntFromString(params.CmixGrp["prime"], 16)
-	g := large.NewIntFromString(params.CmixGrp["generator"], 16)
-	grp := cyclic.NewGroup(p, g)
 
 	i := &Instance{
-		MixedBuffer:   storage.NewMixedMessageBuffer(),
+		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
-		CmixGrp:       grp,
 
 		ipBuckets:   rateLimiting.CreateBucketMapFromParams(params.IpBucket),
 		userBuckets: rateLimiting.CreateBucketMapFromParams(params.UserBucket),
@@ -286,11 +279,13 @@ func (gw *Instance) InitNetwork() error {
 	}
 
 	// Read the permissioning server's cert from
-	permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
-	if err != nil {
-		return errors.WithMessagef(err,
-			"Failed to read permissioning cert at %v",
-			gw.Params.PermissioningCertPath)
+	if !disablePermissioning {
+		permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
+		if err != nil {
+			return errors.WithMessagef(err,
+				"Failed to read permissioning cert at %v",
+				gw.Params.PermissioningCertPath)
+		}
 	}
 
 	// Set up temporary gateway listener
@@ -298,7 +293,7 @@ func (gw *Instance) InitNetwork() error {
 	gw.Comms = gateway.StartGateway(&id.TempGateway, address, gatewayHandler, gwCert, gwKey)
 
 	// Set up temporary server host
-	//(id, address string, cert []byte, disableTimeout, enableAuth bool)
+	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
 	dummyServerID := id.DummyUser.DeepCopy()
 	dummyServerID.SetType(id.Node)
 	gw.ServerHost, err = connect.NewHost(dummyServerID, gw.Params.NodeAddress,
@@ -308,112 +303,116 @@ func (gw *Instance) InitNetwork() error {
 			err)
 	}
 
-	// Begin polling server for NDF
-	jww.INFO.Printf("Beginning polling NDF...")
-	var nodeId []byte
-	var serverResponse *pb.ServerPollResponse
+	// Permissioning-enabled pathway
+	if !disablePermissioning {
 
-	// fixme: determine if this a proper conditional for when server is not ready
-	for serverResponse == nil {
-		// TODO: Probably not great to always sleep immediately
-		time.Sleep(3 * time.Second)
+		// Begin polling server for NDF
+		jww.INFO.Printf("Beginning polling NDF...")
+		var nodeId []byte
+		var serverResponse *pb.ServerPollResponse
 
-		// Poll Server for the NDFs, then use it to create the
-		// network instance and begin polling for server updates
-		serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
-		if err != nil {
-			// Catch recoverable error
-			if strings.Contains(err.Error(),
-				"Invalid host ID:") {
-				jww.WARN.Printf(
-					"Server not yet "+
-						"ready...: %s",
-					err)
+		// fixme: determine if this a proper conditional for when server is not ready
+		for serverResponse == nil {
+			// TODO: Probably not great to always sleep immediately
+			time.Sleep(3 * time.Second)
+
+			// Poll Server for the NDFs, then use it to create the
+			// network instance and begin polling for server updates
+			serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
+			if err != nil {
+				// Catch recoverable error
+				if strings.Contains(err.Error(),
+					"Invalid host ID:") {
+					jww.WARN.Printf(
+						"Server not yet "+
+							"ready...: %s",
+						err)
+					continue
+				} else if strings.Contains(err.Error(),
+					ndf.NO_NDF) {
+					continue
+				} else {
+					return errors.Errorf(
+						"Error polling NDF: %+v", err)
+				}
+			}
+
+			jww.DEBUG.Printf("Creating instance!")
+			gw.NetInf, err = CreateNetworkInstance(gw.Comms,
+				serverResponse.FullNDF,
+				serverResponse.PartialNDF)
+			if err != nil {
+				jww.ERROR.Printf("Unable to create network"+
+					" instance: %v", err)
 				continue
-			} else if strings.Contains(err.Error(),
-				ndf.NO_NDF) {
+			}
+
+			// Add permissioning as a host
+			_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
+			if err != nil {
+				jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
 				continue
-			} else {
-				return errors.Errorf(
-					"Error polling NDF: %+v", err)
+			}
+
+			// Update the network instance
+			jww.DEBUG.Printf("Updating instance")
+			err = gw.UpdateInstance(serverResponse)
+			if err != nil {
+				jww.ERROR.Printf("Update instance error: %v", err)
+				continue
+			}
+
+			// Install the NDF once we get it
+			if serverResponse.FullNDF != nil && serverResponse.Id != nil {
+				err = gw.setupIDF(serverResponse.Id)
+				nodeId = serverResponse.Id
+				if err != nil {
+					jww.WARN.Printf("failed to update node information: %+v", err)
+					return err
+				}
 			}
 		}
 
-		jww.DEBUG.Printf("Creating instance!")
-		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
-			serverResponse.FullNDF,
-			serverResponse.PartialNDF)
-		if err != nil {
-			jww.ERROR.Printf("Unable to create network"+
-				" instance: %v", err)
-			continue
+		jww.INFO.Printf("Successfully obtained NDF!")
+
+		// Replace the comms server with the newly-signed certificate
+		// fixme: determine if we need to restart gw for restart with new id
+		gw.Comms.Shutdown()
+
+		serverID, err2 := id.Unmarshal(nodeId)
+		if err2 != nil {
+			jww.ERROR.Printf("Unmarshalling serverID failed during network "+
+				"init: %+v", err2)
 		}
 
-		// Add permissioning as a host
+		// Update the host information with the new server ID
+		gw.ServerHost, err = connect.NewHost(serverID, gw.Params.NodeAddress, nodeCert,
+			true, true)
+		if err != nil {
+			return errors.Errorf(
+				"Unable to create updated server host: %+v", err)
+		}
+
+		gatewayId := serverID
+		gatewayId.SetType(id.Gateway)
+		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler, gwCert, gwKey)
+
+		// Initialize hosts for reverse-authentication
+		// This may be necessary to verify the NDF if it gets updated while
+		// the network is up
 		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
 		if err != nil {
-			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
-			continue
+			return errors.Errorf("Couldn't add permissioning host: %v", err)
 		}
 
-		// Update the network instance
-		jww.DEBUG.Printf("Updating instance")
-		err = gw.UpdateInstance(serverResponse)
+		newNdf := gw.NetInf.GetPartialNdf().Get()
+
+		// Add notification bot as a host
+		_, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
+			[]byte(newNdf.Notification.TlsCertificate), false, true)
 		if err != nil {
-			jww.ERROR.Printf("Update instance error: %v", err)
-			continue
+			return errors.Errorf("Unable to add notifications host: %+v", err)
 		}
-
-		// Install the NDF once we get it
-		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			err = gw.setupIDF(serverResponse.Id)
-			nodeId = serverResponse.Id
-			if err != nil {
-				jww.WARN.Printf("failed to update node information: %+v", err)
-				return err
-			}
-		}
-	}
-
-	jww.INFO.Printf("Successfully obtained NDF!")
-
-	// Replace the comms server with the newly-signed certificate
-	// fixme: determine if we need to restart gw for restart with new id
-	gw.Comms.Shutdown()
-
-	serverID, err2 := id.Unmarshal(nodeId)
-	if err2 != nil {
-		jww.ERROR.Printf("Unmarshalling serverID failed during network "+
-			"init: %+v", err2)
-	}
-
-	// Update the host information with the new server ID
-	gw.ServerHost, err = connect.NewHost(serverID, gw.Params.NodeAddress, nodeCert,
-		true, true)
-	if err != nil {
-		return errors.Errorf(
-			"Unable to create updated server host: %+v", err)
-	}
-
-	gatewayId := serverID
-	gatewayId.SetType(id.Gateway)
-	gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler, gwCert, gwKey)
-
-	// Initialize hosts for reverse-authentication
-	// This may be necessary to verify the NDF if it gets updated while
-	// the network is up
-	_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
-	if err != nil {
-		return errors.Errorf("Couldn't add permissioning host: %v", err)
-	}
-
-	newNdf := gw.NetInf.GetPartialNdf().Get()
-
-	// Add notification bot as a host
-	_, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
-		[]byte(newNdf.Notification.TlsCertificate), false, true)
-	if err != nil {
-		return errors.Errorf("Unable to add notifications host: %+v", err)
 	}
 
 	return nil
@@ -628,7 +627,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
-		junkMsg := GenJunkMsg(gw.CmixGrp, len(gw.Params.CMixNodes),
+		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), len(gw.Params.CMixNodes),
 			uint32(i))
 		newJunkMsg := &pb.Slot{
 			PayloadB: junkMsg.PayloadB,

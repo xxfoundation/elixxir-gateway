@@ -9,13 +9,14 @@ package storage
 import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/primitives/id"
+	"time"
 )
 
 // Interface for interacting with the MixedMessageBuffer.
 type MixedMessageBuffer interface {
 	// StartMessageCleanup auto-removes old messages in the buffer and is
 	// intended to be ran in a separate thread.
-	StartMessageCleanup(msgTimeout int)
+	StartMessageCleanup(msgTimeout time.Duration)
 
 	// GetMixedMessage returns a given message for a message ID.
 	GetMixedMessage(userId *id.ID, msgId string) (*pb.Slot, error)
