@@ -22,17 +22,15 @@ import (
 // Flags to import from command line or config file
 var (
 	cfgFile, idfPath, logPath                                string
-	listeningAddress, nodeAddress                            string
 	certPath, keyPath, serverCertPath, permissioningCertPath string
 	logLevel                                                 uint // 0 = info, 1 = debug, >1 = trace
-	gwPort                                                   int
 	messageTimeout                                           time.Duration
+	gwPort                                                   int
 
 	// For whitelist
 	ipBucketCapacity, userBucketCapacity uint
 	ipBucketLeakRate, userBucketLeakRate float64
 	cleanPeriod, maxDuration             string
-	ipWhitelistFile, userWhitelistFile   string
 )
 
 // RootCmd represents the base command when called without any sub-commands
@@ -70,9 +68,9 @@ func InitParams(vip *viper.Viper) Params {
 
 	idfPath = viper.GetString("idfPath")
 	keyPath = viper.GetString("keyPath")
-	listeningAddress = viper.GetString("listeningAddress")
+	listeningAddress := viper.GetString("listeningAddress")
 	messageTimeout = viper.GetDuration("messageTimeout")
-	nodeAddress = viper.GetString("nodeAddress")
+	nodeAddress := viper.GetString("nodeAddress")
 	permissioningCertPath = viper.GetString("permissioningCertPath")
 	gwPort = viper.GetInt("port")
 	serverCertPath = viper.GetString("serverCertPath")
@@ -92,6 +90,9 @@ func InitParams(vip *viper.Viper) Params {
 	if err != nil {
 		jww.ERROR.Printf("Value for IP address MaxDuration incorrect %v: %v", maxDuration, err)
 	}
+
+	ipWhitelistFile := viper.GetString("IP_Whitelist_File")
+	userWhitelistFile := viper.GetString("User_Whitelist_File")
 
 	ipBucketParams := rateLimiting.Params{
 		Capacity:      ipBucketCapacity,
@@ -157,7 +158,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
 		"Path to load the Gateway configuration file from.")
 
-	rootCmd.Flags().IntVarP(&gwPort, "port", "p", -1,
+	rootCmd.Flags().IntP("port", "p", -1,
 		"Port for Gateway to listen on. Gateway must be the only listener "+
 			"on this port. Required field.")
 	err = viper.BindPFlag("port", rootCmd.Flags().Lookup("port"))
@@ -184,12 +185,12 @@ func init() {
 	err = viper.BindPFlag("messageTimeout", rootCmd.Flags().Lookup("messageTimeout"))
 	handleBindingError(err, "messageTimeout")
 
-	rootCmd.Flags().StringVar(&listeningAddress, "listeningAddress", "0.0.0.0",
+	rootCmd.Flags().String("listeningAddress", "0.0.0.0",
 		"Local IP address of the Gateway used for internal listening.")
 	err = viper.BindPFlag("listeningAddress", rootCmd.Flags().Lookup("listeningAddress"))
 	handleBindingError(err, "listeningAddress")
 
-	rootCmd.Flags().StringVar(&nodeAddress, "nodeAddress", "",
+	rootCmd.Flags().String("nodeAddress", "",
 		"Public IP address of the Node associated with this Gateway. Required field.")
 	err = viper.BindPFlag("nodeAddress", rootCmd.Flags().Lookup("nodeAddress"))
 	handleBindingError(err, "nodeAddress")
@@ -267,16 +268,14 @@ func init() {
 	err = rootCmd.Flags().MarkHidden("Max_Duration")
 	handleBindingError(err, "Max_Duration")
 
-	rootCmd.Flags().StringVarP(&ipWhitelistFile,
-		"IP_Whitelist_File", "", "",
+	rootCmd.Flags().String("IP_Whitelist_File", "",
 		"List of whitelisted IP addresses.")
 	err = viper.BindPFlag("IP_Whitelist_File", rootCmd.Flags().Lookup("IP_Whitelist_File"))
 	handleBindingError(err, "IP_Whitelist_File")
 	err = rootCmd.Flags().MarkHidden("IP_Whitelist_File")
 	handleBindingError(err, "IP_Whitelist_File")
 
-	rootCmd.Flags().StringVarP(&userWhitelistFile,
-		"User_Whitelist_File", "", "",
+	rootCmd.Flags().String("User_Whitelist_File", "",
 		"List of whitelisted user IDs.")
 	err = viper.BindPFlag("User_Whitelist_File", rootCmd.Flags().Lookup("User_Whitelist_File"))
 	handleBindingError(err, "User_Whitelist_File")

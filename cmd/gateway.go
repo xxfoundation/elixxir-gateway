@@ -184,6 +184,7 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 	if partialNdf != nil {
 		partialNdfHash = &pb.NDFHash{Hash: partialNdf.GetHash()}
 	}
+
 	pollMsg := &pb.ServerPoll{
 		Full:           ndfHash,
 		Partial:        partialNdfHash,

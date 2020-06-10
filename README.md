@@ -45,8 +45,8 @@ port: 8443
 # The local IP address of the Gateway used for internal listening.
 localAddress: "0.0.0.0"
 
-# The public IP address of the Node associated with this Gateway.
-nodeAddress: "0.0.0.128"
+# The public IP address and port of the Node associated with this Gateway.
+nodeAddress: "0.0.0.128:11420"
 
 # Period in which the message cleanup function executes. Recommended period is on the order of a minute.
 messageTimeout: "60s"
