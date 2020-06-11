@@ -180,8 +180,8 @@ func init() {
 	handleBindingError(err, "log")
 
 	rootCmd.Flags().DurationVar(&messageTimeout, "messageTimeout", 60*time.Second,
-		"Period in which the message cleanup function executes. Recommended "+
-			"period is on the order of a minute.")
+		"Period in which the message cleanup function executes. All users who message buffer have exceeded the " +
+		"maximum size will get their messages deleted. Recommended period is on the order of a minute to an hour.")
 	err = viper.BindPFlag("messageTimeout", rootCmd.Flags().Lookup("messageTimeout"))
 	handleBindingError(err, "messageTimeout")
 
