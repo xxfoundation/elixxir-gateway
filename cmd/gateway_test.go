@@ -326,33 +326,6 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 }
 
-// Calling initNetwork with permissioning enabled should get signed certs
-func TestInitNetwork_GetSignedCert(t *testing.T) {
-	defer disconnectServers()
-
-	disablePermissioning = false
-
-	ctx, cancel := connect.MessagingContext()
-
-	_, err := gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(
-		conn *grpc.ClientConn) (*any.
-		Any, error) {
-		_, err := pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
-
-		// Make sure there are no errors with sending the message
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-
-	cancel()
-
-}
-
 func disconnectServers() {
 	gatewayInstance.Comms.DisconnectAll()
 	n.Manager.DisconnectAll()
