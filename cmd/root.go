@@ -65,33 +65,15 @@ func InitParams(vip *viper.Viper) Params {
 	var err error
 
 	certPath = viper.GetString("certPath")
-	if certPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml certPath is required, path provided is empty. (%s)", certPath)
-	}
 
 	idfPath = viper.GetString("idfPath")
 	keyPath = viper.GetString("keyPath")
-	if certPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml keyPath is required, path provided is empty.")
-	}
 	listeningAddress := viper.GetString("listeningAddress")
 	messageTimeout = viper.GetDuration("messageTimeout")
 	nodeAddress := viper.GetString("nodeAddress")
-	if certPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
-	}
 	permissioningCertPath = viper.GetString("permissioningCertPath")
-	if certPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml permissioningCertPath is required, path provided is empty.")
-	}
 	gwPort = viper.GetInt("port")
-	if gwPort == 0 {
-		jww.FATAL.Panicf("Gateway.yaml port is required, provided port is empty/not set.")
-	}
 	serverCertPath = viper.GetString("serverCertPath")
-	if certPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
-	}
 
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
@@ -167,7 +149,9 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
-		"Path to load the Gateway configuration file from. If not set, this file must be named gateway.yaml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.")
+		"Path to load the Gateway configuration file from. If not set, this "+
+			"file must be named gateway.yaml and must be located in ~/.xxnetwork/, "+
+			"/opt/xxnetwork, or /etc/xxnetwork.")
 
 	rootCmd.Flags().IntP("port", "p", -1,
 		"Port for Gateway to listen on. Gateway must be the only listener "+
@@ -191,8 +175,9 @@ func init() {
 	handleBindingError(err, "log")
 
 	rootCmd.Flags().DurationVar(&messageTimeout, "messageTimeout", 60*time.Second,
-		"Period in which the message cleanup function executes. All users who message buffer have exceeded the "+
-			"maximum size will get their messages deleted. Recommended period is on the order of a minute to an hour.")
+		"Period in which the message cleanup function executes. All users"+
+			" who message buffer have exceeded the maximum size will get their"+
+			" messages deleted. Recommended period is on the order of a minute to an hour.")
 	err = viper.BindPFlag("messageTimeout", rootCmd.Flags().Lookup("messageTimeout"))
 	handleBindingError(err, "messageTimeout")
 
