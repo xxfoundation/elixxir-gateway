@@ -42,20 +42,24 @@ nodeAddress: "0.0.0.128:11420"
 # maximum size will get their messages deleted. Recommended period is on the order of a minute to an hour.
 messageTimeout: "60s"
 
-# Path to where the IDF is saved. This is used by the wrapper management script.
-idfPath: "gatewayIDF.json"
-
-# The path to the private key associated with the self-signed TLS certificate.
-keyPath: "gateway.cmix.rip.key"
-
-# The path to the self-signed TLS certificate for Gateway. Expects PEM format.
-certPath: "gateway.cmix.rip.crt"
-
-# The path to the self-signed TLS certificate for Server. Expects PEM format.
-serverCertPath: "cmix.rip.crt"
-
-# The path to the self-signed TLS certificate for the Permissioning server. Expects PEM format.
-permissioningCertPath: "permissioning.cmix.rip.crt"
+# (default "./gateway-logs/gatewayIDF.json")
+idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
+​
+# Path to the private key associated with the self-signed TLS certificate.
+# Required field.
+keyPath: "/opt/xxnetwork/creds/gateway_key.key"
+​
+# Path to the self-signed TLS certificate for Gateway. Expects PEM format.
+# Required field.
+certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
+​
+# Path to the self-signed TLS certificate for Server. Expects PEM format.
+# Required field.
+serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
+​
+# Path to the self-signed TLS certificate for the Permissioning server. Expects
+# PEM format. Required field.
+permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 ```
 
 ## Command line flags
