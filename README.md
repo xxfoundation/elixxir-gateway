@@ -35,13 +35,11 @@ log: "gateway.log"
 # Port for the Gateway to listen on. Gateway must be the only listener on this port.
 port: 8443
 
-# The local IP address of the Gateway used for internal listening.
-localAddress: "0.0.0.0"
-
 # The public IP address and port of the Node associated with this Gateway.
 nodeAddress: "0.0.0.128:11420"
 
-# Period in which the message cleanup function executes. Recommended period is on the order of a minute.
+# Period in which the message cleanup function executes. All users who message buffer have exceeded the 
+# maximum size will get their messages deleted. Recommended period is on the order of a minute to an hour.
 messageTimeout: "60s"
 
 # Path to where the IDF is saved. This is used by the wrapper management script.
