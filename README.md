@@ -23,39 +23,55 @@ go run main.go --config [configuration-file]
 
 ## Example configuration file
 
+The Gateway configuration file must be named `gateway.yaml` and be located in
+one of the following directories:
+1. `$HOME/.xxnetwork/`
+2. `/opt/xxnetwork/`
+3. `/etc/xxnetwork/`
+
+Gateway searches for the YAML file in that order and uses the first occurance
+found.
+
 Note: YAML prohibits the use of tabs because whitespace has meaning.
 
 ```yaml
-# Level of debugging to print. 0 = info, 1 = debug, >1 = trace
+# Level of debugging to print (0 = info, 1 = debug, >1 = trace). (default 0)
 logLevel: 1
-
-#Path where logs will be printed.
-log: "gateway.log"
-
-# Port for the Gateway to listen on. Gateway must be the only listener on this port.
-port: 8443
-
-# The public IP address and port of the Node associated with this Gateway.
+​
+# Path where log file will be saved. (default "./gateway-logs/gateway.log")
+log: "/opt/xxnetwork/gateway-logs/gateway.log"
+​
+# Port for Gateway to listen on. Gateway must be the only listener on this port.
+# Required field.
+port: 22840
+​
+# Public IP address of the Node associated with this Gateway. Required field.
 nodeAddress: "0.0.0.128:11420"
-
-# Period in which the message cleanup function executes. All users who message buffer have exceeded the 
-# maximum size will get their messages deleted. Recommended period is on the order of a minute to an hour.
-messageTimeout: "60s"
-
+​
+# Period in which the message cleanup function executes. All users who message
+# buffer have exceeded the maximum size will get their messages deleted.
+# Recommended period is on the order of a minute to an hour. (default 1m0s)
+messageTimeout: "1m0s"
+​
 # Path to where the IDF is saved. This is used by the wrapper management script.
-idfPath: "gatewayIDF.json"
-
-# The path to the private key associated with the self-signed TLS certificate.
-keyPath: "gateway.cmix.rip.key"
-
-# The path to the self-signed TLS certificate for Gateway. Expects PEM format.
-certPath: "gateway.cmix.rip.crt"
-
-# The path to the self-signed TLS certificate for Server. Expects PEM format.
-serverCertPath: "cmix.rip.crt"
-
-# The path to the self-signed TLS certificate for the Permissioning server. Expects PEM format.
-permissioningCertPath: "permissioning.cmix.rip.crt"
+# (default "./gateway-logs/gatewayIDF.json")
+idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
+​
+# Path to the private key associated with the self-signed TLS certificate.
+# Required field.
+keyPath: "/opt/xxnetwork/certs/gateway_key.key"
+​
+# Path to the self-signed TLS certificate for Gateway. Expects PEM format.
+# Required field.
+certPath: "/opt/xxnetwork/certs/gateway_cert.crt"
+​
+# Path to the self-signed TLS certificate for Server. Expects PEM format.
+Required field.
+serverCertPath: "/opt/xxnetwork/certs/node_cert.crt"
+​
+# Path to the self-signed TLS certificate for the Permissioning server. Expects
+# PEM format. Required field.
+permissioningCertPath: "/opt/xxnetwork/certs/permissioning_cert.crt"
 ```
 
 ## Command line flags
@@ -78,14 +94,14 @@ Available Commands:
 
 Flags:
       --certPath string                Path to the self-signed TLS certificate for Gateway. Expects PEM format. Required field.
-  -c, --config string                  Path to load the Gateway configuration file from.
+  -c, --config string                  Path to load the Gateway configuration file from. If not set, this file must be named gateway.yml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.
   -h, --help                           help for gateway
-      --idfPath string                 Path to where the IDF is saved. This is used by the wrapper management script. (default "/home/carback1/.xxnetwork/idf.json")
+      --idfPath string                 Path to where the IDF is saved. This is used by the wrapper management script. (default "./gateway-logs/gatewayIDF.json")
       --keyPath string                 Path to the private key associated with the self-signed TLS certificate. Required field.
       --listeningAddress string        Local IP address of the Gateway used for internal listening. (default "0.0.0.0")
-      --log string                     Path where log file will be saved. (default "/home/carback1/.xxnetwork/cmix-gateway.log")
+      --log string                     Path where log file will be saved. (default "./gateway-logs/gateway.log")
   -l, --logLevel uint                  Level of debugging to print (0 = info, 1 = debug, >1 = trace).
-      --messageTimeout duration        Period in which the message cleanup function executes. Recommended period is on the order of a minute. (default 1m0s)
+      --messageTimeout duration        Period in which the message cleanup function executes. All users who message buffer have exceeded the maximum size will get their messages deleted. Recommended period is on the order of a minute to an hour. (default 1m0s)
       --nodeAddress string             Public IP address of the Node associated with this Gateway. Required field.
       --permissioningCertPath string   Path to the self-signed TLS certificate for the Permissioning server. Expects PEM format. Required field.
   -p, --port int                       Port for Gateway to listen on. Gateway must be the only listener on this port. Required field. (default -1)

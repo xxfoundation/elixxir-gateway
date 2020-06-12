@@ -17,7 +17,7 @@ require (
 	github.com/spf13/viper v1.6.3
 	gitlab.com/elixxir/comms v0.0.0-20200612184319-baccb0892edb
 	gitlab.com/elixxir/crypto v0.0.0-20200612160324-a76e4451ae25
-	gitlab.com/elixxir/primitives v0.0.0-20200608222556-1d2c04e59346
+	gitlab.com/elixxir/primitives v0.0.0-20200612195410-43b4fabcbe9a
 	google.golang.org/grpc v1.29.1
 	gopkg.in/ini.v1 v1.55.0 // indirect
 )
