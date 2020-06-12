@@ -59,19 +59,19 @@ idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
 ​
 # Path to the private key associated with the self-signed TLS certificate.
 # Required field.
-keyPath: "/opt/xxnetwork/certs/gateway_key.key"
+keyPath: "/opt/xxnetwork/creds/gateway_key.key"
 ​
 # Path to the self-signed TLS certificate for Gateway. Expects PEM format.
 # Required field.
-certPath: "/opt/xxnetwork/certs/gateway_cert.crt"
+certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
 ​
 # Path to the self-signed TLS certificate for Server. Expects PEM format.
-Required field.
-serverCertPath: "/opt/xxnetwork/certs/node_cert.crt"
+# Required field.
+serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 ​
 # Path to the self-signed TLS certificate for the Permissioning server. Expects
 # PEM format. Required field.
-permissioningCertPath: "/opt/xxnetwork/certs/permissioning_cert.crt"
+permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 ```
 
 ## Command line flags

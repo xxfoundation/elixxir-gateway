@@ -150,8 +150,8 @@ func init() {
 	// will be global for your application.
 	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
 		"Path to load the Gateway configuration file from. If not set, this "+
-			"file must be named gateway.yaml and must be located in ~/.xxnetwork/, "+
-			"/opt/xxnetwork, or /etc/xxnetwork.")
+			"file must be named gateway.yaml and must be located in "+
+			"~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.")
 
 	rootCmd.Flags().IntP("port", "p", -1,
 		"Port for Gateway to listen on. Gateway must be the only listener "+
