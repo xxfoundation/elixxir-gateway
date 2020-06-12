@@ -66,14 +66,11 @@ func InitParams(vip *viper.Viper) Params {
 
 	certPath = viper.GetString("certPath")
 	if certPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml certPath is required, path provided is empty. (%s)", certPath)
+		jww.FATAL.Panicf("Gateway.yaml certPath is required, path provided is empty.")
 	}
 
 	idfPath = viper.GetString("idfPath")
 	keyPath = viper.GetString("keyPath")
-	if certPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml keyPath is required, path provided is empty.")
-	}
 	listeningAddress := viper.GetString("listeningAddress")
 	messageTimeout = viper.GetDuration("messageTimeout")
 	nodeAddress := viper.GetString("nodeAddress")
