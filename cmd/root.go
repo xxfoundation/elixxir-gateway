@@ -164,7 +164,9 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
-		"Path to load the Gateway configuration file from. If not set, this file must be named gateway.yaml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.")
+		"Path to load the Gateway configuration file from. If not set, this "+
+			"file must be named gateway.yaml and must be located in "+
+			"~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.")
 
 	rootCmd.Flags().IntP("port", "p", -1,
 		"Port for Gateway to listen on. Gateway must be the only listener "+
@@ -188,8 +190,9 @@ func init() {
 	handleBindingError(err, "log")
 
 	rootCmd.Flags().DurationVar(&messageTimeout, "messageTimeout", 60*time.Second,
-		"Period in which the message cleanup function executes. All users who message buffer have exceeded the "+
-			"maximum size will get their messages deleted. Recommended period is on the order of a minute to an hour.")
+		"Period in which the message cleanup function executes. All users"+
+			" who message buffer have exceeded the maximum size will get their"+
+			" messages deleted. Recommended period is on the order of a minute to an hour.")
 	err = viper.BindPFlag("messageTimeout", rootCmd.Flags().Lookup("messageTimeout"))
 	handleBindingError(err, "messageTimeout")
 
