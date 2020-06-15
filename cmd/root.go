@@ -74,11 +74,11 @@ func InitParams(vip *viper.Viper) Params {
 	listeningAddress := viper.GetString("listeningAddress")
 	messageTimeout = viper.GetDuration("messageTimeout")
 	nodeAddress := viper.GetString("nodeAddress")
-	if certPath == "" {
+	if nodeAddress == "" {
 		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
 	}
 	permissioningCertPath = viper.GetString("permissioningCertPath")
-	if certPath == "" {
+	if permissioningCertPath == "" {
 		jww.FATAL.Panicf("Gateway.yaml permissioningCertPath is required, path provided is empty.")
 	}
 	gwPort = viper.GetInt("port")
@@ -86,7 +86,7 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml port is required, provided port is empty/not set.")
 	}
 	serverCertPath = viper.GetString("serverCertPath")
-	if certPath == "" {
+	if serverCertPath == "" {
 		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
 	}
 
