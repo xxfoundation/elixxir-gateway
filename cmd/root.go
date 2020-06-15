@@ -31,6 +31,7 @@ var (
 	ipBucketCapacity, userBucketCapacity uint
 	ipBucketLeakRate, userBucketLeakRate float64
 	cleanPeriod, maxDuration             string
+	validConfig bool
 )
 
 // RootCmd represents the base command when called without any sub-commands
@@ -63,6 +64,13 @@ var rootCmd = &cobra.Command{
 
 func InitParams(vip *viper.Viper) Params {
 	var err error
+
+	if !validConfig{
+		jww.FATAL.Panicf("Invalid Config File: %s", cfgFile)
+	}
+
+	//print all config options
+	jww.INFO.Printf("All config params: %+v", vip.AllKeys())
 
 	certPath = viper.GetString("certPath")
 
@@ -288,10 +296,12 @@ func handleBindingError(err error, flag string) {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	validConfig= true
 	if cfgFile == "" {
 		var err error
 		cfgFile, err = utils.SearchDefaultLocations("gateway.yaml", "xxnetwork")
 		if err != nil {
+			validConfig= false
 			jww.FATAL.Panicf("Failed to find config file: %+v", err)
 		}
 	}
@@ -301,6 +311,7 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
 		fmt.Printf("Unable to read config file (%s): %+v", cfgFile, err.Error())
+		validConfig = false
 	}
 
 }
