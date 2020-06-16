@@ -94,7 +94,6 @@ func TestMain(m *testing.M) {
 	//Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
-		CMixNodes:      cmixNodes,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 		KeyPath:        testkeys.GetGatewayKeyPath(),
@@ -239,7 +238,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	//Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
-		CMixNodes:      cmixNodes,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 		MessageTimeout: 10 * time.Minute,
