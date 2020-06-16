@@ -74,15 +74,30 @@ func InitParams(vip *viper.Viper) Params {
 	jww.INFO.Printf("All config params: %+v", vip.AllKeys())
 
 	certPath = viper.GetString("certPath")
+	if certPath == "" {
+		jww.FATAL.Panicf("Gateway.yaml certPath is required, path provided is empty.")
+	}
 
 	idfPath = viper.GetString("idfPath")
 	keyPath = viper.GetString("keyPath")
 	listeningAddress := viper.GetString("listeningAddress")
 	messageTimeout = viper.GetDuration("messageTimeout")
 	nodeAddress := viper.GetString("nodeAddress")
+	if nodeAddress == "" {
+		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
+	}
 	permissioningCertPath = viper.GetString("permissioningCertPath")
+	if permissioningCertPath == "" {
+		jww.FATAL.Panicf("Gateway.yaml permissioningCertPath is required, path provided is empty.")
+	}
 	gwPort = viper.GetInt("port")
+	if gwPort == 0 {
+		jww.FATAL.Panicf("Gateway.yaml port is required, provided port is empty/not set.")
+	}
 	serverCertPath = viper.GetString("serverCertPath")
+	if serverCertPath == "" {
+		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
+	}
 
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
