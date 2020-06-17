@@ -1,8 +1,9 @@
-////////////////////////////////////////////////////////////////////////////////
-// Copyright © 2018 Privategrity Corporation                                   /
-//                                                                             /
-// All rights reserved.                                                        /
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// Copyright © 2020 xx network SEZC                                          //
+//                                                                           //
+// Use of this source code is governed by a license that can be found in the //
+// LICENSE file                                                              //
+///////////////////////////////////////////////////////////////////////////////
 
 package cmd
 
@@ -11,8 +12,11 @@ import (
 	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/comms/node"
 	"gitlab.com/elixxir/comms/testkeys"
+	"gitlab.com/elixxir/crypto/cyclic"
+	"gitlab.com/elixxir/crypto/large"
 	"gitlab.com/elixxir/crypto/signature"
 	"gitlab.com/elixxir/crypto/signature/rsa"
 	"gitlab.com/elixxir/primitives/format"
@@ -74,7 +78,7 @@ func TestMain(m *testing.M) {
 	gatewayCert, _ = utils.ReadFile(testkeys.GetGatewayCertPath())
 	gatewayKey, _ = utils.ReadFile(testkeys.GetGatewayKeyPath())
 
-	gComm = gateway.StartGateway(id.NewTmpGateway().String(), GW_ADDRESS,
+	gComm = gateway.StartGateway(&id.TempGateway, GW_ADDRESS,
 		gatewayInstance, gatewayCert, gatewayKey)
 
 	//Start mock node
@@ -82,7 +86,7 @@ func TestMain(m *testing.M) {
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
-	n = node.StartNode("node", NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
+	n = node.StartNode(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
 
 	grp = make(map[string]string)
 	grp["prime"] = prime
@@ -91,11 +95,10 @@ func TestMain(m *testing.M) {
 	//Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
-		CMixNodes:      cmixNodes,
-		CmixGrp:        grp,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 		KeyPath:        testkeys.GetGatewayKeyPath(),
+		MessageTimeout: 10 * time.Minute,
 	}
 
 	cleanPeriodDur := 3 * time.Second
@@ -121,8 +124,22 @@ func TestMain(m *testing.M) {
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
-	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS,
+	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS,
 		nodeCert, true, false)
+
+	p := large.NewIntFromString(prime, 16)
+	g := large.NewIntFromString(generator, 16)
+	grp2 := cyclic.NewGroup(p, g)
+
+	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+
+	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
+	t := testing.T{}
+	var err error
+	gatewayInstance.NetInf, err = network.NewInstanceTesting(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, &t)
+	if err != nil {
+		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
+	}
 
 	// build a single mock message
 	msg := format.NewMessage()
@@ -131,9 +148,8 @@ func TestMain(m *testing.M) {
 	payloadA[0] = 1
 	msg.SetPayloadA(payloadA)
 
-	UserIDBytes := make([]byte, id.UserLen)
-	UserIDBytes[0] = 1
-	msg.AssociatedData.SetRecipientID(UserIDBytes)
+	recipientID := id.NewIdFromUInt(1, id.User, m).Marshal()
+	msg.AssociatedData.SetRecipientID(recipientID[:len(recipientID)-1])
 
 	mockMessage = &pb.Slot{
 		Index:    42,
@@ -177,7 +193,7 @@ func buildTestNodeImpl() *node.Implementation {
 	}
 
 	nodeHandler.Functions.Poll = func(p *pb.ServerPoll,
-		auth *connect.Auth) (*pb.ServerPollResponse,
+		auth *connect.Auth, gatewayAddress string) (*pb.ServerPollResponse,
 		error) {
 		netDef := pb.ServerPollResponse{}
 		return &netDef, nil
@@ -187,7 +203,7 @@ func buildTestNodeImpl() *node.Implementation {
 
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewUserFromUint(666, t).Bytes()}
+	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Marshal()}
 	err := gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!")
@@ -211,7 +227,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 }
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewUserFromUint(666, t).Bytes()}
+	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Bytes()}
 	err := gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!")
@@ -223,10 +239,9 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	//Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
-		CMixNodes:      cmixNodes,
-		CmixGrp:        grp,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
 	}
 
 	cleanPeriodDur := 3 * time.Second
@@ -251,8 +266,19 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 
 	gw := NewGatewayInstance(params)
 
+	p := large.NewIntFromString(prime, 16)
+	g := large.NewIntFromString(generator, 16)
+	grp2 := cyclic.NewGroup(p, g)
+
+	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+
+	gw.NetInf, err = network.NewInstanceTesting(nil, testNDF, testNDF, grp2, grp2, t)
+	if err != nil {
+		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
+	}
+
 	gw.Comms = gComm
-	gw.ServerHost, err = connect.NewHost("test", NODE_ADDRESS,
+	gw.ServerHost, err = connect.NewHost(id.NewIdFromString("test", id.Node, t), NODE_ADDRESS,
 		nodeCert, true, false)
 	if err != nil {
 		t.Errorf(err.Error())
@@ -276,7 +302,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	}
 
 	ctx, cancel := connect.MessagingContext()
-	gatewayInstance.ServerHost, _ = connect.NewHost("node", NODE_ADDRESS,
+	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, t), NODE_ADDRESS,
 		nodeCert, true, false)
 
 	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(
@@ -299,34 +325,6 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 
 }
 
-// Calling initNetwork with permissioning enabled should get signed certs
-func TestInitNetwork_GetSignedCert(t *testing.T) {
-	defer disconnectServers()
-
-	disablePermissioning = false
-	noTLS = false
-
-	ctx, cancel := connect.MessagingContext()
-
-	_, err := gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(
-		conn *grpc.ClientConn) (*any.
-		Any, error) {
-		_, err := pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
-
-		// Make sure there are no errors with sending the message
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-
-	cancel()
-
-}
-
 func disconnectServers() {
 	gatewayInstance.Comms.DisconnectAll()
 	n.Manager.DisconnectAll()
@@ -338,7 +336,7 @@ func disconnectServers() {
 func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
-	msg := pb.Slot{SenderID: id.NewUserFromUint(255, t).Bytes()}
+	msg := pb.Slot{SenderID: id.NewIdFromUInt(255, id.User, t).Marshal()}
 	err := gatewayInstance.PutMessage(&msg, "0")
 	errMsg := ("PutMessage: Could not put any messages when IP address " +
 		"should not be blocked")
@@ -346,31 +344,31 @@ func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(67, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(67, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(34, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(34, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "1")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err == nil {
 		t.Errorf(errMsg)
@@ -378,7 +376,7 @@ func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(34, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(34, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -386,37 +384,37 @@ func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "1")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(0, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "0")
 	if err == nil {
 		t.Errorf(errMsg)
@@ -476,7 +474,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(128, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	errMsg := ("PutMessage: Could not put any messages when IP " +
 		"address should not be blocked")
@@ -484,19 +482,19 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(129, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(129, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(130, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(130, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(131, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(131, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -504,7 +502,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(132, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(132, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "158.85.140.178")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
@@ -517,21 +515,21 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "aa")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
 			"IP address should not be blocked")
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "bb")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
 			"IP address should not be blocked")
 	}
 
-	msg = pb.Slot{SenderID: id.NewUserFromUint(174, t).Bytes()}
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	err = gatewayInstance.PutMessage(&msg, "cc")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when user " +
@@ -546,7 +544,7 @@ func TestPollServer(t *testing.T) {
 	//        a type and not the interface (so we can't do a unit test)
 }
 
-func buildMockNdf(nodeId *id.Node, nodeAddress, gwAddress string, cert,
+func buildMockNdf(nodeId *id.ID, nodeAddress, gwAddress string, cert,
 	key []byte) *ndf.NetworkDefinition {
 	node := ndf.Node{
 		ID:             nodeId.Bytes(),
@@ -580,17 +578,17 @@ func buildMockNdf(nodeId *id.Node, nodeAddress, gwAddress string, cert,
 // build a netinf object in the instance object
 func TestCreateNetworkInstance(t *testing.T) {
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
-	_, err := gatewayInstance.Comms.AddHost(id.PERMISSIONING,
+	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, false, true)
 	if err != nil {
 		t.Errorf("Failed to add permissioning host: %+v", err)
 	}
 
 	nodeB := []byte{'n', 'o', 'd', 'e'}
-	nodeId := id.NewNodeFromBytes(nodeB)
-	ndf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
+	nodeId := id.NewIdFromBytes(nodeB, t)
+	testNdf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
 
-	ndfBytes, err := ndf.Marshal()
+	ndfBytes, err := testNdf.Marshal()
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -624,11 +622,10 @@ func TestCreateNetworkInstance(t *testing.T) {
 //        signable ndf function that would enforce correctness, so not useful
 //        at the moment.
 func TestUpdateInstance(t *testing.T) {
-	nodeB := []byte{'n', 'o', 'd', 'e'}
-	nodeId := id.NewNodeFromBytes(nodeB)
-	ndf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
+	nodeId := id.NewIdFromString("node", id.Node, t)
+	testNdf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
 
-	ndfBytes, err := ndf.Marshal()
+	ndfBytes, err := testNdf.Marshal()
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -665,7 +662,11 @@ func TestUpdateInstance(t *testing.T) {
 		Slots:        slots,
 	}
 
-	gatewayInstance.UpdateInstance(update)
+	// gatewayInstance.UpdateInstance(update)
+	err = gatewayInstance.UpdateInstance(update)
+	if err != nil {
+		t.Errorf("UpdateInstance() produced an error: %+v", err)
+	}
 
 	// Check that updates made it
 	r, err := gatewayInstance.NetInf.GetRoundUpdate(1)
@@ -674,14 +675,16 @@ func TestUpdateInstance(t *testing.T) {
 	}
 
 	// Check that mockMessage made it
-	mockmsgId := "sHge1HVeKNiroYklqduPLYcy0TaSl3FVm/97P7ZhoLE="
-	UserIDBytes := make([]byte, id.UserLen)
-	UserIDBytes[0] = 1
-	mockMsgUserId := id.NewUserFromBytes(UserIDBytes)
-	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId,
-		mockmsgId)
+	mockmsgId := "xL+3JSRKJZPEu01Uv8Nh6dtRa+tjqkruwbsZmVuP218="
+	mockMsgUserId := id.NewIdFromUInt(1, id.User, t)
+	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId, mockmsgId)
 	if err != nil {
-		t.Errorf("%v", err)
+		t.Errorf("%+v", err)
+		msgIDs, _ := gatewayInstance.MixedBuffer.GetMixedMessageIDs(
+			mockMsgUserId, "")
+		for i := 0; i < len(msgIDs); i++ {
+			print("%s", msgIDs[i])
+		}
 	}
 	if msgTst == nil {
 		t.Errorf("Did not return mock message!")
@@ -693,3 +696,65 @@ func TestUpdateInstance(t *testing.T) {
 	}
 
 }
+
+var (
+	ExampleJSON = `{
+	"Timestamp": "2019-06-04T20:48:48-07:00",
+	"gateways": [
+		{
+			"Id": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+			"Address": "2.5.3.122",
+			"Tls_certificate": "-----BEGIN CERTIFICATE-----\nMIIDgTCCAmmgAwIBAgIJAKLdZ8UigIAeMA0GCSqGSIb3DQEBBQUAMG8xCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQx\nGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjEaMBgGA1UEAwwRZ2F0ZXdheSou\nY21peC5yaXAwHhcNMTkwMzA1MTgzNTU0WhcNMjkwMzAyMTgzNTU0WjBvMQswCQYD\nVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTESMBAGA1UEBwwJQ2xhcmVtb250\nMRswGQYDVQQKDBJQcml2YXRlZ3JpdHkgQ29ycC4xGjAYBgNVBAMMEWdhdGV3YXkq\nLmNtaXgucmlwMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9+AaxwDP\nxHbhLmn4HoZu0oUM48Qufc6T5XEZTrpMrqJAouXk+61Jc0EFH96/sbj7VyvnXPRo\ngIENbk2Y84BkB9SkRMIXya/gh9dOEDSgnvj/yg24l3bdKFqBMKiFg00PYB30fU+A\nbe3OI/le0I+v++RwH2AV0BMq+T6PcAGjCC1Q1ZB0wP9/VqNMWq5lbK9wD46IQiSi\n+SgIQeE7HoiAZXrGO0Y7l9P3+VRoXjRQbqfn3ETNL9ZvQuarwAYC9Ix5MxUrS5ag\nOmfjc8bfkpYDFAXRXmdKNISJmtCebX2kDrpP8Bdasx7Fzsx59cEUHCl2aJOWXc7R\n5m3juOVL1HUxjQIDAQABoyAwHjAcBgNVHREEFTATghFnYXRld2F5Ki5jbWl4LnJp\ncDANBgkqhkiG9w0BAQUFAAOCAQEAMu3xoc2LW2UExAAIYYWEETggLNrlGonxteSu\njuJjOR+ik5SVLn0lEu22+z+FCA7gSk9FkWu+v9qnfOfm2Am+WKYWv3dJ5RypW/hD\nNXkOYxVJNYFxeShnHohNqq4eDKpdqSxEcuErFXJdLbZP1uNs4WIOKnThgzhkpuy7\ntZRosvOF1X5uL1frVJzHN5jASEDAa7hJNmQ24kh+ds/Ge39fGD8pK31CWhnIXeDo\nvKD7wivi/gSOBtcRWWLvU8SizZkS3hgTw0lSOf5geuzvasCEYlqrKFssj6cTzbCB\nxy3ra3WazRTNTW4TmkHlCUC9I3oWTTxw5iQxF/I2kQQnwR7L3w==\n-----END CERTIFICATE-----"
+		},
+		{
+			"Id": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+			"Address": "2.2.58.38",
+			"Tls_certificate": "-----BEGIN CERTIFICATE-----\nMIIDgTCCAmmgAwIBAgIJAKLdZ8UigIAeMA0GCSqGSIb3DQEBBQUAMG8xCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQx\nGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjEaMBgGA1UEAwwRZ2F0ZXdheSou\nY21peC5yaXAwHhcNMTkwMzA1MTgzNTU0WhcNMjkwMzAyMTgzNTU0WjBvMQswCQYD\nVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTESMBAGA1UEBwwJQ2xhcmVtb250\nMRswGQYDVQQKDBJQcml2YXRlZ3JpdHkgQ29ycC4xGjAYBgNVBAMMEWdhdGV3YXkq\nLmNtaXgucmlwMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9+AaxwDP\nxHbhLmn4HoZu0oUM48Qufc6T5XEZTrpMrqJAouXk+61Jc0EFH96/sbj7VyvnXPRo\ngIENbk2Y84BkB9SkRMIXya/gh9dOEDSgnvj/yg24l3bdKFqBMKiFg00PYB30fU+A\nbe3OI/le0I+v++RwH2AV0BMq+T6PcAGjCC1Q1ZB0wP9/VqNMWq5lbK9wD46IQiSi\n+SgIQeE7HoiAZXrGO0Y7l9P3+VRoXjRQbqfn3ETNL9ZvQuarwAYC9Ix5MxUrS5ag\nOmfjc8bfkpYDFAXRXmdKNISJmtCebX2kDrpP8Bdasx7Fzsx59cEUHCl2aJOWXc7R\n5m3juOVL1HUxjQIDAQABoyAwHjAcBgNVHREEFTATghFnYXRld2F5Ki5jbWl4LnJp\ncDANBgkqhkiG9w0BAQUFAAOCAQEAMu3xoc2LW2UExAAIYYWEETggLNrlGonxteSu\njuJjOR+ik5SVLn0lEu22+z+FCA7gSk9FkWu+v9qnfOfm2Am+WKYWv3dJ5RypW/hD\nNXkOYxVJNYFxeShnHohNqq4eDKpdqSxEcuErFXJdLbZP1uNs4WIOKnThgzhkpuy7\ntZRosvOF1X5uL1frVJzHN5jASEDAa7hJNmQ24kh+ds/Ge39fGD8pK31CWhnIXeDo\nvKD7wivi/gSOBtcRWWLvU8SizZkS3hgTw0lSOf5geuzvasCEYlqrKFssj6cTzbCB\nxy3ra3WazRTNTW4TmkHlCUC9I3oWTTxw5iQxF/I2kQQnwR7L3w==\n-----END CERTIFICATE-----"
+		},
+		{
+			"Id": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+			"Address": "52.41.80.104",
+			"Tls_certificate": "-----BEGIN CERTIFICATE-----\nMIIDgTCCAmmgAwIBAgIJAKLdZ8UigIAeMA0GCSqGSIb3DQEBBQUAMG8xCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQx\nGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjEaMBgGA1UEAwwRZ2F0ZXdheSou\nY21peC5yaXAwHhcNMTkwMzA1MTgzNTU0WhcNMjkwMzAyMTgzNTU0WjBvMQswCQYD\nVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTESMBAGA1UEBwwJQ2xhcmVtb250\nMRswGQYDVQQKDBJQcml2YXRlZ3JpdHkgQ29ycC4xGjAYBgNVBAMMEWdhdGV3YXkq\nLmNtaXgucmlwMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9+AaxwDP\nxHbhLmn4HoZu0oUM48Qufc6T5XEZTrpMrqJAouXk+61Jc0EFH96/sbj7VyvnXPRo\ngIENbk2Y84BkB9SkRMIXya/gh9dOEDSgnvj/yg24l3bdKFqBMKiFg00PYB30fU+A\nbe3OI/le0I+v++RwH2AV0BMq+T6PcAGjCC1Q1ZB0wP9/VqNMWq5lbK9wD46IQiSi\n+SgIQeE7HoiAZXrGO0Y7l9P3+VRoXjRQbqfn3ETNL9ZvQuarwAYC9Ix5MxUrS5ag\nOmfjc8bfkpYDFAXRXmdKNISJmtCebX2kDrpP8Bdasx7Fzsx59cEUHCl2aJOWXc7R\n5m3juOVL1HUxjQIDAQABoyAwHjAcBgNVHREEFTATghFnYXRld2F5Ki5jbWl4LnJp\ncDANBgkqhkiG9w0BAQUFAAOCAQEAMu3xoc2LW2UExAAIYYWEETggLNrlGonxteSu\njuJjOR+ik5SVLn0lEu22+z+FCA7gSk9FkWu+v9qnfOfm2Am+WKYWv3dJ5RypW/hD\nNXkOYxVJNYFxeShnHohNqq4eDKpdqSxEcuErFXJdLbZP1uNs4WIOKnThgzhkpuy7\ntZRosvOF1X5uL1frVJzHN5jASEDAa7hJNmQ24kh+ds/Ge39fGD8pK31CWhnIXeDo\nvKD7wivi/gSOBtcRWWLvU8SizZkS3hgTw0lSOf5geuzvasCEYlqrKFssj6cTzbCB\nxy3ra3WazRTNTW4TmkHlCUC9I3oWTTxw5iQxF/I2kQQnwR7L3w==\n-----END CERTIFICATE-----"
+		}
+	],
+	"nodes": [
+		{
+			"Id": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+			"Address": "18.237.147.105",
+			"Tls_certificate": "-----BEGIN CERTIFICATE-----\nMIIDbDCCAlSgAwIBAgIJAOUNtZneIYECMA0GCSqGSIb3DQEBBQUAMGgxCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQx\nGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjETMBEGA1UEAwwKKi5jbWl4LnJp\ncDAeFw0xOTAzMDUxODM1NDNaFw0yOTAzMDIxODM1NDNaMGgxCzAJBgNVBAYTAlVT\nMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQxGzAZBgNV\nBAoMElByaXZhdGVncml0eSBDb3JwLjETMBEGA1UEAwwKKi5jbWl4LnJpcDCCASIw\nDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAPP0WyVkfZA/CEd2DgKpcudn0oDh\nDwsjmx8LBDWsUgQzyLrFiVigfUmUefknUH3dTJjmiJtGqLsayCnWdqWLHPJYvFfs\nWYW0IGF93UG/4N5UAWO4okC3CYgKSi4ekpfw2zgZq0gmbzTnXcHF9gfmQ7jJUKSE\ntJPSNzXq+PZeJTC9zJAb4Lj8QzH18rDM8DaL2y1ns0Y2Hu0edBFn/OqavBJKb/uA\nm3AEjqeOhC7EQUjVamWlTBPt40+B/6aFJX5BYm2JFkRsGBIyBVL46MvC02MgzTT9\nbJIJfwqmBaTruwemNgzGu7Jk03hqqS1TUEvSI6/x8bVoba3orcKkf9HsDjECAwEA\nAaMZMBcwFQYDVR0RBA4wDIIKKi5jbWl4LnJpcDANBgkqhkiG9w0BAQUFAAOCAQEA\nneUocN4AbcQAC1+b3To8u5UGdaGxhcGyZBlAoenRVdjXK3lTjsMdMWb4QctgNfIf\nU/zuUn2mxTmF/ekP0gCCgtleZr9+DYKU5hlXk8K10uKxGD6EvoiXZzlfeUuotgp2\nqvI3ysOm/hvCfyEkqhfHtbxjV7j7v7eQFPbvNaXbLa0yr4C4vMK/Z09Ui9JrZ/Z4\ncyIkxfC6/rOqAirSdIp09EGiw7GM8guHyggE4IiZrDslT8V3xIl985cbCxSxeW1R\ntgH4rdEXuVe9+31oJhmXOE9ux2jCop9tEJMgWg7HStrJ5plPbb+HmjoX3nBO04E5\n6m52PyzMNV+2N21IPppKwA==\n-----END CERTIFICATE-----"
+		},
+		{
+			"Id": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+			"Address": "52.11.136.238",
+			"Tls_certificate": "-----BEGIN CERTIFICATE-----\nMIIDbDCCAlSgAwIBAgIJAOUNtZneIYECMA0GCSqGSIb3DQEBBQUAMGgxCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQx\nGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjETMBEGA1UEAwwKKi5jbWl4LnJp\ncDAeFw0xOTAzMDUxODM1NDNaFw0yOTAzMDIxODM1NDNaMGgxCzAJBgNVBAYTAlVT\nMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQxGzAZBgNV\nBAoMElByaXZhdGVncml0eSBDb3JwLjETMBEGA1UEAwwKKi5jbWl4LnJpcDCCASIw\nDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAPP0WyVkfZA/CEd2DgKpcudn0oDh\nDwsjmx8LBDWsUgQzyLrFiVigfUmUefknUH3dTJjmiJtGqLsayCnWdqWLHPJYvFfs\nWYW0IGF93UG/4N5UAWO4okC3CYgKSi4ekpfw2zgZq0gmbzTnXcHF9gfmQ7jJUKSE\ntJPSNzXq+PZeJTC9zJAb4Lj8QzH18rDM8DaL2y1ns0Y2Hu0edBFn/OqavBJKb/uA\nm3AEjqeOhC7EQUjVamWlTBPt40+B/6aFJX5BYm2JFkRsGBIyBVL46MvC02MgzTT9\nbJIJfwqmBaTruwemNgzGu7Jk03hqqS1TUEvSI6/x8bVoba3orcKkf9HsDjECAwEA\nAaMZMBcwFQYDVR0RBA4wDIIKKi5jbWl4LnJpcDANBgkqhkiG9w0BAQUFAAOCAQEA\nneUocN4AbcQAC1+b3To8u5UGdaGxhcGyZBlAoenRVdjXK3lTjsMdMWb4QctgNfIf\nU/zuUn2mxTmF/ekP0gCCgtleZr9+DYKU5hlXk8K10uKxGD6EvoiXZzlfeUuotgp2\nqvI3ysOm/hvCfyEkqhfHtbxjV7j7v7eQFPbvNaXbLa0yr4C4vMK/Z09Ui9JrZ/Z4\ncyIkxfC6/rOqAirSdIp09EGiw7GM8guHyggE4IiZrDslT8V3xIl985cbCxSxeW1R\ntgH4rdEXuVe9+31oJhmXOE9ux2jCop9tEJMgWg7HStrJ5plPbb+HmjoX3nBO04E5\n6m52PyzMNV+2N21IPppKwA==\n-----END CERTIFICATE-----"
+		},
+		{
+			"Id": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+			"Address": "34.213.79.31",
+			"Tls_certificate": "-----BEGIN CERTIFICATE-----\nMIIDbDCCAlSgAwIBAgIJAOUNtZneIYECMA0GCSqGSIb3DQEBBQUAMGgxCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQx\nGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjETMBEGA1UEAwwKKi5jbWl4LnJp\ncDAeFw0xOTAzMDUxODM1NDNaFw0yOTAzMDIxODM1NDNaMGgxCzAJBgNVBAYTAlVT\nMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQxGzAZBgNV\nBAoMElByaXZhdGVncml0eSBDb3JwLjETMBEGA1UEAwwKKi5jbWl4LnJpcDCCASIw\nDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAPP0WyVkfZA/CEd2DgKpcudn0oDh\nDwsjmx8LBDWsUgQzyLrFiVigfUmUefknUH3dTJjmiJtGqLsayCnWdqWLHPJYvFfs\nWYW0IGF93UG/4N5UAWO4okC3CYgKSi4ekpfw2zgZq0gmbzTnXcHF9gfmQ7jJUKSE\ntJPSNzXq+PZeJTC9zJAb4Lj8QzH18rDM8DaL2y1ns0Y2Hu0edBFn/OqavBJKb/uA\nm3AEjqeOhC7EQUjVamWlTBPt40+B/6aFJX5BYm2JFkRsGBIyBVL46MvC02MgzTT9\nbJIJfwqmBaTruwemNgzGu7Jk03hqqS1TUEvSI6/x8bVoba3orcKkf9HsDjECAwEA\nAaMZMBcwFQYDVR0RBA4wDIIKKi5jbWl4LnJpcDANBgkqhkiG9w0BAQUFAAOCAQEA\nneUocN4AbcQAC1+b3To8u5UGdaGxhcGyZBlAoenRVdjXK3lTjsMdMWb4QctgNfIf\nU/zuUn2mxTmF/ekP0gCCgtleZr9+DYKU5hlXk8K10uKxGD6EvoiXZzlfeUuotgp2\nqvI3ysOm/hvCfyEkqhfHtbxjV7j7v7eQFPbvNaXbLa0yr4C4vMK/Z09Ui9JrZ/Z4\ncyIkxfC6/rOqAirSdIp09EGiw7GM8guHyggE4IiZrDslT8V3xIl985cbCxSxeW1R\ntgH4rdEXuVe9+31oJhmXOE9ux2jCop9tEJMgWg7HStrJ5plPbb+HmjoX3nBO04E5\n6m52PyzMNV+2N21IPppKwA==\n-----END CERTIFICATE-----"
+		}
+	],
+	"registration": {
+		"Address": "92.42.125.61",
+		"Tls_certificate": "-----BEGIN CERTIFICATE-----\nMIIDkDCCAnigAwIBAgIJAJnjosuSsP7gMA0GCSqGSIb3DQEBBQUAMHQxCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQx\nGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjEfMB0GA1UEAwwWcmVnaXN0cmF0\naW9uKi5jbWl4LnJpcDAeFw0xOTAzMDUyMTQ5NTZaFw0yOTAzMDIyMTQ5NTZaMHQx\nCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFy\nZW1vbnQxGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjEfMB0GA1UEAwwWcmVn\naXN0cmF0aW9uKi5jbWl4LnJpcDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC\nggEBAOQKvqjdh35o+MECBhCwopJzPlQNmq2iPbewRNtI02bUNK3kLQUbFlYdzNGZ\nS4GYXGc5O+jdi8Slx82r1kdjz5PPCNFBARIsOP/L8r3DGeW+yeJdgBZjm1s3ylka\nmt4Ajiq/bNjysS6L/WSOp+sVumDxtBEzO/UTU1O6QRnzUphLaiWENmErGvsH0CZV\nq38Ia58k/QjCAzpUcYi4j2l1fb07xqFcQD8H6SmUM297UyQosDrp8ukdIo31Koxr\n4XDnnNNsYStC26tzHMeKuJ2Wl+3YzsSyflfM2YEcKE31sqB9DS36UkJ8J84eLsHN\nImGg3WodFAviDB67+jXDbB30NkMCAwEAAaMlMCMwIQYDVR0RBBowGIIWcmVnaXN0\ncmF0aW9uKi5jbWl4LnJpcDANBgkqhkiG9w0BAQUFAAOCAQEAF9mNzk+g+o626Rll\nt3f3/1qIyYQrYJ0BjSWCKYEFMCgZ4JibAJjAvIajhVYERtltffM+YKcdE2kTpdzJ\n0YJuUnRfuv6sVnXlVVugUUnd4IOigmjbCdM32k170CYMm0aiwGxl4FrNa8ei7AIa\nx/s1n+sqWq3HeW5LXjnoVb+s3HeCWIuLfcgrurfye8FnNhy14HFzxVYYefIKm0XL\n+DPlcGGGm/PPYt3u4a2+rP3xaihc65dTa0u5tf/XPXtPxTDPFj2JeQDFxo7QRREb\nPD89CtYnwuP937CrkvCKrL0GkW1FViXKqZY9F5uhxrvLIpzhbNrs/EbtweY35XGL\nDCCMkg==\n-----END CERTIFICATE-----"
+	},
+	"notification": {
+		"Address": "notification.default.cmix.rip",
+		"Tls_certificate": "-----BEGIN CERTIFICATE-----\nMIIDkDCCAnigAwIBAgIJAJnjosuSsP7gMA0GCSqGSIb3DQEBBQUAMHQxCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFyZW1vbnQx\nGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjEfMB0GA1UEAwwWcmVnaXN0cmF0\naW9uKi5jbWl4LnJpcDAeFw0xOTAzMDUyMTQ5NTZaFw0yOTAzMDIyMTQ5NTZaMHQx\nCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlDbGFy\nZW1vbnQxGzAZBgNVBAoMElByaXZhdGVncml0eSBDb3JwLjEfMB0GA1UEAwwWcmVn\naXN0cmF0aW9uKi5jbWl4LnJpcDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC\nggEBAOQKvqjdh35o+MECBhCwopJzPlQNmq2iPbewRNtI02bUNK3kLQUbFlYdzNGZ\nS4GYXGc5O+jdi8Slx82r1kdjz5PPCNFBARIsOP/L8r3DGeW+yeJdgBZjm1s3ylka\nmt4Ajiq/bNjysS6L/WSOp+sVumDxtBEzO/UTU1O6QRnzUphLaiWENmErGvsH0CZV\nq38Ia58k/QjCAzpUcYi4j2l1fb07xqFcQD8H6SmUM297UyQosDrp8ukdIo31Koxr\n4XDnnNNsYStC26tzHMeKuJ2Wl+3YzsSyflfM2YEcKE31sqB9DS36UkJ8J84eLsHN\nImGg3WodFAviDB67+jXDbB30NkMCAwEAAaMlMCMwIQYDVR0RBBowGIIWcmVnaXN0\ncmF0aW9uKi5jbWl4LnJpcDANBgkqhkiG9w0BAQUFAAOCAQEAF9mNzk+g+o626Rll\nt3f3/1qIyYQrYJ0BjSWCKYEFMCgZ4JibAJjAvIajhVYERtltffM+YKcdE2kTpdzJ\n0YJuUnRfuv6sVnXlVVugUUnd4IOigmjbCdM32k170CYMm0aiwGxl4FrNa8ei7AIa\nx/s1n+sqWq3HeW5LXjnoVb+s3HeCWIuLfcgrurfye8FnNhy14HFzxVYYefIKm0XL\n+DPlcGGGm/PPYt3u4a2+rP3xaihc65dTa0u5tf/XPXtPxTDPFj2JeQDFxo7QRREb\nPD89CtYnwuP937CrkvCKrL0GkW1FViXKqZY9F5uhxrvLIpzhbNrs/EbtweY35XGL\nDCCMkg==\n-----END CERTIFICATE-----"
+	},
+	"udb": {
+		"Id": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3]
+	},
+	"E2e": {
+		"Prime": "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF",
+		"Small_prime": "7FFFFFFFFFFFFFFFE487ED5110B4611A62633145C06E0E68948127044533E63A0105DF531D89CD9128A5043CC71A026EF7CA8CD9E69D218D98158536F92F8A1BA7F09AB6B6A8E122F242DABB312F3F637A262174D31BF6B585FFAE5B7A035BF6F71C35FDAD44CFD2D74F9208BE258FF324943328F6722D9EE1003E5C50B1DF82CC6D241B0E2AE9CD348B1FD47E9267AFC1B2AE91EE51D6CB0E3179AB1042A95DCF6A9483B84B4B36B3861AA7255E4C0278BA3604650C10BE19482F23171B671DF1CF3B960C074301CD93C1D17603D147DAE2AEF837A62964EF15E5FB4AAC0B8C1CCAA4BE754AB5728AE9130C4C7D02880AB9472D455655347FFFFFFFFFFFFFFF",
+		"Generator": "02"
+	},
+	"Cmix": {
+		"Prime": "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF",
+		"Small_prime": "7FFFFFFFFFFFFFFFE487ED5110B4611A62633145C06E0E68948127044533E63A0105DF531D89CD9128A5043CC71A026EF7CA8CD9E69D218D98158536F92F8A1BA7F09AB6B6A8E122F242DABB312F3F637A262174D31BF6B585FFAE5B7A035BF6F71C35FDAD44CFD2D74F9208BE258FF324943328F6722D9EE1003E5C50B1DF82CC6D241B0E2AE9CD348B1FD47E9267AFC1B2AE91EE51D6CB0E3179AB1042A95DCF6A9483B84B4B36B3861AA7255E4C0278BA3604650C10BE19482F23171B671DF1CF3B960C074301CD93C1D17603D147DAE2AEF837A62964EF15E5FB4AAC0B8C1CCAA4BE754AB5728AE9130C4C7D02880AB9472D455655347FFFFFFFFFFFFFFF",
+		"Generator": "02"
+	}
+}`
+	ExampleSignature = `gkh98J10rQiuVsEXd6xe8IeCINplnD93CFpXZFNjT1CgNMxgsHumiC5HsctjnF0xTxDPq3hn3/J0s+eblSVyGMMszTIoWNINVSS1fkm0EGkKafC1vKTZMmc9ivsWL7oY`
+)

@@ -1,8 +1,9 @@
-////////////////////////////////////////////////////////////////////////////////
-// Copyright © 2020 Privategrity Corporation                                   /
-//                                                                             /
-// All rights reserved.                                                        /
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// Copyright © 2020 xx network SEZC                                          //
+//                                                                           //
+// Use of this source code is governed by a license that can be found in the //
+// LICENSE file                                                              //
+///////////////////////////////////////////////////////////////////////////////
 
 // notifications contains the structure and functions for tracking users who should be sent push notifications
 
@@ -12,14 +13,14 @@ import "gitlab.com/elixxir/primitives/id"
 
 // UserNotifications stores the list of user ids to be notified
 type UserNotifications struct {
-	ids []*id.User
+	ids []*id.ID
 }
 
 // Notify adds a user to the list of users to be notified
 // If the user is already in the list, a duplicate record is not added
-func (n *UserNotifications) Notify(uid *id.User) {
+func (n *UserNotifications) Notify(uid *id.ID) {
 	if n.ids == nil {
-		n.ids = make([]*id.User, 0)
+		n.ids = make([]*id.ID, 0)
 	}
 	_, found := find(n.ids, uid)
 	if found {
@@ -29,17 +30,17 @@ func (n *UserNotifications) Notify(uid *id.User) {
 }
 
 // Notified returns a list of string representations of user ids to be notified
-func (n *UserNotifications) Notified() []string {
-	var ret []string
+func (n *UserNotifications) Notified() []*id.ID {
+	var ret []*id.ID
 	for _, uid := range n.ids {
-		ret = append(ret, uid.String())
+		ret = append(ret, uid)
 	}
 	n.ids = nil
 	return ret
 }
 
 // find is a helper method for Notify, used to determine if a given user id is already in its list
-func find(slice []*id.User, val *id.User) (int, bool) {
+func find(slice []*id.ID, val *id.ID) (int, bool) {
 	for i, item := range slice {
 		if item.Cmp(val) {
 			return i, true
