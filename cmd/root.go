@@ -32,7 +32,7 @@ var (
 	ipBucketCapacity, userBucketCapacity uint
 	ipBucketLeakRate, userBucketLeakRate float64
 	cleanPeriod, maxDuration             string
-	validConfig bool
+	validConfig                          bool
 )
 
 // RootCmd represents the base command when called without any sub-commands
@@ -66,7 +66,7 @@ var rootCmd = &cobra.Command{
 func InitParams(vip *viper.Viper) Params {
 	var err error
 
-	if !validConfig{
+	if !validConfig {
 		jww.FATAL.Panicf("Invalid Config File: %s", cfgFile)
 	}
 
@@ -312,12 +312,12 @@ func handleBindingError(err error, flag string) {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	validConfig= true
+	validConfig = true
 	if cfgFile == "" {
 		var err error
 		cfgFile, err = utils.SearchDefaultLocations("gateway.yaml", "xxnetwork")
 		if err != nil {
-			validConfig= false
+			validConfig = false
 			jww.FATAL.Panicf("Failed to find config file: %+v", err)
 		}
 	}
