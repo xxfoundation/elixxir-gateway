@@ -89,7 +89,6 @@ func (gw *Instance) Poll(*pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
 }
 
 type Params struct {
-	CMixNodes   []string
 	NodeAddress string
 	Port        int
 	Address     string
@@ -627,19 +626,17 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	jww.INFO.Printf("Sending batch with %d messages...", len(batch.Slots))
 
+	numNodes := len(roundInfo.GetTopology())
+
+	if numNodes == 0 {
+		jww.ERROR.Println("Round topology empty, sending bad messages!")
+	}
+
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
-		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), len(gw.Params.CMixNodes),
+		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
 			uint32(i))
-		newJunkMsg := &pb.Slot{
-			PayloadB: junkMsg.PayloadB,
-			PayloadA: junkMsg.PayloadA,
-			Salt:     junkMsg.Salt,
-			SenderID: junkMsg.SenderID,
-			KMACs:    junkMsg.KMACs,
-		}
-
-		batch.Slots = append(batch.Slots, newJunkMsg)
+		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
 	err := gw.Comms.PostNewBatch(gw.ServerHost, batch)
