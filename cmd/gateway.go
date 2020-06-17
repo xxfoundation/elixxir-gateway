@@ -625,7 +625,11 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	jww.INFO.Printf("Sending batch with %d messages...", len(batch.Slots))
 
-	numNodes := len(gw.NetInf.GetFullNdf().Get().Nodes)
+	numNodes := len(roundInfo.GetTopology())
+
+	if numNodes == 0 {
+		jww.ERROR.Println("Round topology empty, sending bad messages!")
+	}
 
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
