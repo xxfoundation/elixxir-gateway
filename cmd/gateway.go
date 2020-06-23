@@ -329,6 +329,8 @@ func (gw *Instance) InitNetwork() error {
 							"ready...: %s",
 						err)
 					continue
+					// NO_NDF will be returned if the node has not retrieved
+					// and NDF from permissioning yet
 				} else if strings.Contains(err.Error(),
 					ndf.NO_NDF) {
 					continue

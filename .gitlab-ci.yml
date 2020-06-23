@@ -71,7 +71,7 @@ tag:
     script:
         - git remote add origin_tags git@gitlab.com:elixxir/gateway.git || true
         - git remote set-url origin_tags git@gitlab.com:elixxir/gateway.git || true
-        - git tag $(./release/gateway.linux64 version | grep "Elixxir Gateway v"| cut -d ' ' -f3) -f
+        - git tag $(./release/gateway.linux64 version | grep "xx network Gateway v"| cut -d ' ' -f3) -f
         - git push origin_tags -f --tags
 
 trigger_integration:
