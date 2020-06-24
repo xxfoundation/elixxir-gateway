@@ -48,6 +48,12 @@ const TokensPutMessage = uint(250)  // Sends a message, the networks does n * 5 
 const TokensRequestNonce = uint(30) // Requests a nonce from the node to verify the user, 3 exponentiations
 const TokensConfirmNonce = uint(10) // Requests a nonce from the node to verify the user, 1 exponentiation
 
+// Errors to suppress
+const (
+	ErrInvalidHost = "Invalid host ID:"
+	ErrAuth        = "Failed to authenticate id:"
+)
+
 var IPWhiteListArr = []string{"test"}
 
 type Instance struct {
@@ -321,16 +327,16 @@ func (gw *Instance) InitNetwork() error {
 			// network instance and begin polling for server updates
 			serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
 			if err != nil {
+				eMsg := err.Error()
 				// Catch recoverable error
-				if strings.Contains(err.Error(),
-					"Invalid host ID:") {
-					jww.WARN.Printf(
-						"Server not yet "+
-							"ready...: %s",
-						err)
+				if strings.Contains(eMsg, ErrInvalidHost) {
+					jww.WARN.Printf("Node not ready...: %s",
+						eMsg)
 					continue
-				} else if strings.Contains(err.Error(),
-					ndf.NO_NDF) {
+				} else if strings.Contains(eMsg, ndf.NO_NDF) {
+					continue
+				} else if strings.Contains(eMsg, ErrAuth) {
+					jww.WARN.Printf(eMsg)
 					continue
 				} else {
 					return errors.Errorf(
