@@ -333,6 +333,9 @@ func (gw *Instance) InitNetwork() error {
 					jww.WARN.Printf("Node not ready...: %s",
 						eMsg)
 					continue
+					// NO_NDF will be returned if the node
+					// has not retrieved an NDF from
+					// permissioning yet
 				} else if strings.Contains(eMsg, ndf.NO_NDF) {
 					continue
 				} else if strings.Contains(eMsg, ErrAuth) {
