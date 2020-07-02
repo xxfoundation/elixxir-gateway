@@ -17,6 +17,7 @@ import (
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -50,8 +51,20 @@ var rootCmd = &cobra.Command{
 		gateway := NewGatewayInstance(params)
 
 		// start gateway network interactions
-		err := gateway.InitNetwork()
-		if err != nil {
+		for {
+			err := gateway.InitNetwork()
+			if err == nil {
+				break
+			}
+			errMsg := err.Error()
+			tic := strings.Contains(errMsg, "transport is closing")
+			cde := strings.Contains(errMsg, "DeadlineExceeded")
+			if tic || cde {
+				jww.ERROR.Printf("Cannot connect to node, "+
+					"retrying in 10s: %+v", err)
+				time.Sleep(10 * time.Second)
+				continue
+			}
 			jww.FATAL.Panicf(err.Error())
 		}
 
