@@ -72,7 +72,7 @@ var rootCmd = &cobra.Command{
 			jww.FATAL.Panicf(err.Error())
 		}
 
-		jww.INFO.Printf("Starting xx network gateway %s", SEMVER)
+		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
 
 		// Begin gateway persistent components
 		gateway.Start()
