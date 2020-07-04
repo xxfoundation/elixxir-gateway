@@ -60,6 +60,10 @@ var rootCmd = &cobra.Command{
 			tic := strings.Contains(errMsg, "transport is closing")
 			cde := strings.Contains(errMsg, "DeadlineExceeded")
 			if tic || cde {
+				if gateway.Comms != nil {
+					gateway.Comms.Shutdown()
+				}
+
 				jww.ERROR.Printf("Cannot connect to node, "+
 					"retrying in 10s: %+v", err)
 				time.Sleep(10 * time.Second)
@@ -67,6 +71,8 @@ var rootCmd = &cobra.Command{
 			}
 			jww.FATAL.Panicf(err.Error())
 		}
+
+		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
 
 		// Begin gateway persistent components
 		gateway.Start()
