@@ -394,6 +394,7 @@ func (gw *Instance) InitNetwork() error {
 			jww.ERROR.Printf("Unmarshalling serverID failed during network "+
 				"init: %+v", err2)
 		}
+		gw.ServerHost.Disconnect()
 
 		// Update the host information with the new server ID
 		gw.ServerHost, err = connect.NewHost(serverID, gw.Params.NodeAddress, nodeCert,
