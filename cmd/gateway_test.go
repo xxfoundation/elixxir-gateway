@@ -9,7 +9,6 @@ package cmd
 
 import (
 	"github.com/golang/protobuf/ptypes/any"
-	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
@@ -24,6 +23,8 @@ import (
 	"gitlab.com/elixxir/primitives/ndf"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
+	"gitlab.com/xx_network/comms/connect"
+	xx_pb "gitlab.com/xx_network/comms/messages"
 	"google.golang.org/grpc"
 	"os"
 	"reflect"
@@ -308,7 +309,7 @@ func TestInitNetwork_ConnectsToNode(t *testing.T) {
 	_, err = gatewayInstance.Comms.Send(gatewayInstance.ServerHost, func(
 		conn *grpc.ClientConn) (*any.
 		Any, error) {
-		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &pb.Ping{})
+		_, err = pb.NewNodeClient(conn).AskOnline(ctx, &xx_pb.Ping{})
 
 		// Make sure there are no errors with sending the message
 		if err != nil {
