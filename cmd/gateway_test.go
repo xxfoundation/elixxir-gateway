@@ -215,12 +215,12 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	if nodeIncomingBatch == nil {
-		t.Errorf("Batch not recieved by node!")
+		t.Errorf("Batch not received by node!")
 	} else {
 		if !reflect.DeepEqual(nodeIncomingBatch.Slots[0].SenderID,
 			msg.SenderID) {
 			t.Errorf("Message in batch not the same as sent;"+
-				"\n  Expected: %+v \n  Recieved: %+v", msg,
+				"\n  Expected: %+v \n  Received: %+v", msg,
 				*nodeIncomingBatch.Slots[0])
 		}
 	}

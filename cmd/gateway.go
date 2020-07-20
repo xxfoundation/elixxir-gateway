@@ -679,7 +679,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 		}
 
 		if !userId.Cmp(&dummyUser) {
-			jww.DEBUG.Printf("Message Recieved for: %v",
+			jww.DEBUG.Printf("Message Received for: %v",
 				userId.Bytes())
 			gw.un.Notify(userId)
 			numReal++
