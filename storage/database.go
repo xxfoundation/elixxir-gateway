@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/jinzhu/gorm"
 	jww "github.com/spf13/jwalterweatherman"
+	"gitlab.com/elixxir/primitives/id"
 	"time"
 )
 
@@ -19,7 +20,25 @@ import (
 var GatewayDB Storage
 
 // Interface declaration for storage methods
-type Storage interface{}
+type Storage interface {
+	GetClient(id *id.ID) (*Client, error)
+	InsertClient(client *Client) error
+
+	GetRound(id *id.Round) (*Round, error)
+	InsertRound(round *Round) error
+
+	GetMixedMessages(recipientId *id.ID, roundId *id.Round) ([]*MixedMessage, error)
+	InsertMixedMessage(msg *MixedMessage) error
+	DeleteMixedMessage(id uint64) error
+
+	GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
+	InsertBloomFilter(filter *BloomFilter) error
+	DeleteMessage(id uint64) error
+
+	GetEphemeralBloomFilters(clientId *id.ID) ([]*EphemeralBloomFilter, error)
+	InsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
+	DeleteEphemeralBloomFilter(id uint64) error
+}
 
 // Struct implementing the Database Interface with an underlying DB
 type DatabaseImpl struct {
@@ -29,34 +48,46 @@ type DatabaseImpl struct {
 // Struct implementing the Database Interface with an underlying Map
 type MapImpl struct{}
 
-//
+// Represents a Client and its associated keys
 type Client struct {
 	Id  []byte `gorm:"primary_key"`
 	Key []byte `gorm:"NOT NULL"`
+
+	Filters []BloomFilter `gorm:"foreignkey:ClientId;association_foreignkey:Id"`
 }
 
-//
+// Represents a Round and its associated information
 type Round struct {
 	Id       uint64 `gorm:"primary_key;AUTO_INCREMENT:false"`
-	UpdateID uint64 `gorm:"UNIQUE"`
+	UpdateId uint64 `gorm:"UNIQUE"`
 	InfoBlob []byte
 
-	Messages []MixedMessage `gorm:"foreignkey:RoundID;association_foreignkey:Id"`
+	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
 }
 
-//
+// Represents a MixedMessage and its contents
 type MixedMessage struct {
-	RoundID         uint64 `gorm:"INDEX;primary_key;type:bigint REFERENCES rounds(Id)"`
-	RecipientID     []byte `gorm:"INDEX;NOT NULL"`
+	Id              uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
+	RoundId         uint64 `gorm:"INDEX;NOT NUL"`
+	RecipientId     []byte `gorm:"INDEX;NOT NUL"`
 	MessageContents []byte `gorm:"NOT NULL"`
 }
 
-//
+// Represents a Client's BloomFilter
 type BloomFilter struct {
-	Id       uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
-	ClientID []byte `gorm:"NOT NULL"`
-	Count    uint64 `gorm:"NOT NULL"`
-	Filter   []byte `gorm:"NOT NULL"`
+	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
+	ClientId    []byte    `gorm:"INDEX;type:bytea REFERENCES clients(Id)"`
+	Count       uint64    `gorm:"NOT NULL"`
+	Filter      []byte    `gorm:"NOT NULL"`
+	DateCreated time.Time `gorm:"NOT NULL"`
+}
+
+// Represents an ephemeral Client's temporary BloomFilter
+type EphemeralBloomFilter struct {
+	Id          uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
+	RecipientId []byte `gorm:"NOT NULL"`
+	Count       uint64 `gorm:"NOT NULL"`
+	Filter      []byte `gorm:"NOT NULL"`
 }
 
 // Initialize the Database interface with database backend
