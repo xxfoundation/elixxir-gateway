@@ -122,7 +122,7 @@ func NewDatabase(username, password, database, address,
 
 		defer jww.INFO.Println("Map backend initialized successfully!")
 
-		return Storage(MapImpl{}), func() error { return nil }, nil
+		return Storage(&MapImpl{}), func() error { return nil }, nil
 	}
 
 	// Initialize the database logger
@@ -138,11 +138,12 @@ func NewDatabase(username, password, database, address,
 
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
-	models := []interface{}{}
+	models := []interface{}{&Client{}, &Round{}, &MixedMessage{},
+		&BloomFilter{}, &EphemeralBloomFilter{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model).Error
 		if err != nil {
-			return Storage(DatabaseImpl{}), func() error { return nil }, err
+			return Storage(&DatabaseImpl{}), func() error { return nil }, err
 		}
 	}
 
