@@ -46,11 +46,11 @@ func (m *MapImpl) InsertBloomFilter(filter *BloomFilter) error {
 	panic("implement me")
 }
 
-func (m *MapImpl) DeleteMessage(id uint64) error {
+func (m *MapImpl) DeleteBloomFilter(id uint64) error {
 	panic("implement me")
 }
 
-func (m *MapImpl) GetEphemeralBloomFilters(clientId *id.ID) ([]*EphemeralBloomFilter, error) {
+func (m *MapImpl) GetEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error) {
 	panic("implement me")
 }
 

@@ -33,9 +33,9 @@ type Storage interface {
 
 	GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
 	InsertBloomFilter(filter *BloomFilter) error
-	DeleteMessage(id uint64) error
+	DeleteBloomFilter(id uint64) error
 
-	GetEphemeralBloomFilters(clientId *id.ID) ([]*EphemeralBloomFilter, error)
+	GetEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error)
 	InsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
 	DeleteEphemeralBloomFilter(id uint64) error
 }
