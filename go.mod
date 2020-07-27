@@ -5,7 +5,6 @@ go 1.13
 require (
 	github.com/golang/protobuf v1.4.2
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
-	github.com/jinzhu/gorm v1.9.15
 	github.com/mitchellh/mapstructure v1.3.0 // indirect
 	github.com/pelletier/go-toml v1.7.0 // indirect
 	github.com/pkg/errors v0.9.1
@@ -19,6 +18,7 @@ require (
 	gitlab.com/elixxir/comms v0.0.0-20200722183303-981df3922a0d
 	gitlab.com/elixxir/crypto v0.0.0-20200707005343-97f868cbd930
 	gitlab.com/elixxir/primitives v0.0.0-20200706165052-9fe7a4fb99a3
+	gitlab.com/xx_network/comms v0.0.0-20200721184230-3e4aa5dce2db
 	google.golang.org/grpc v1.30.0
 	gopkg.in/ini.v1 v1.55.0 // indirect
 )
