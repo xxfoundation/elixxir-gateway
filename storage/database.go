@@ -13,6 +13,7 @@ import (
 	"github.com/jinzhu/gorm"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/primitives/id"
+	"sync"
 	"time"
 )
 
@@ -46,7 +47,14 @@ type DatabaseImpl struct {
 }
 
 // Struct implementing the Database Interface with an underlying Map
-type MapImpl struct{}
+type MapImpl struct {
+	clients               map[id.ID]*Client
+	rounds                map[id.Round]*Round
+	mixedMessages         map[uint64]*MixedMessage
+	bloomFilters          map[uint64]*BloomFilter
+	ephemeralBloomFilters map[uint64]*EphemeralBloomFilter
+	sync.RWMutex
+}
 
 // Represents a Client and its associated keys
 type Client struct {
