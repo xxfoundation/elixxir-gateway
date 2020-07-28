@@ -68,8 +68,8 @@ type Round struct {
 // Represents a MixedMessage and its contents
 type MixedMessage struct {
 	Id              uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
-	RoundId         uint64 `gorm:"INDEX;NOT NUL"`
-	RecipientId     []byte `gorm:"INDEX;NOT NUL"`
+	RoundId         uint64 `gorm:"INDEX;NOT NULL"`
+	RecipientId     []byte `gorm:"INDEX;NOT NULL"`
 	MessageContents []byte `gorm:"NOT NULL"`
 }
 
