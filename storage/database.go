@@ -130,7 +130,15 @@ func NewDatabase(username, password, database, address,
 
 		defer jww.INFO.Println("Map backend initialized successfully!")
 
-		return Storage(&MapImpl{}), func() error { return nil }, nil
+		mapImpl := &MapImpl{
+			clients:               map[id.ID]*Client{},
+			rounds:                map[id.Round]*Round{},
+			mixedMessages:         map[uint64]*MixedMessage{},
+			bloomFilters:          map[uint64]*BloomFilter{},
+			ephemeralBloomFilters: map[uint64]*EphemeralBloomFilter{},
+		}
+
+		return Storage(mapImpl), func() error { return nil }, nil
 	}
 
 	// Initialize the database logger
