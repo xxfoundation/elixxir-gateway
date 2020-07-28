@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
+	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
@@ -83,6 +84,7 @@ type Instance struct {
 	// struct for tracking notifications
 	un notifications.UserNotifications
 
+	database storage.Storage
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
@@ -113,14 +115,20 @@ type Params struct {
 
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
-
+	/// fixme: placed as stub, overwrite with Jake's implementation when done
+	newDatabase, _, err := storage.NewDatabase(viper.GetString("dbUsername"),
+		viper.GetString("dbPassword"),
+		viper.GetString("dbName"),
+		viper.GetString("dbAddress"),
+		viper.GetString("dbPort"),
+	)
 	i := &Instance{
 		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
-
-		ipBuckets:   rateLimiting.CreateBucketMapFromParams(params.IpBucket),
-		userBuckets: rateLimiting.CreateBucketMapFromParams(params.UserBucket),
+		database:      newDatabase,
+		ipBuckets:     rateLimiting.CreateBucketMapFromParams(params.IpBucket),
+		userBuckets:   rateLimiting.CreateBucketMapFromParams(params.UserBucket),
 	}
 
 	err := rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
@@ -545,7 +553,20 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 	}
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
-	return gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
+
+	resp, err := gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
+	if err != nil {
+		return resp, err
+	}
+
+	// Insert client information to database
+	newClient := &storage.Client{
+		Id:  msg.UserID,
+		Key: resp.ClientGatewayKey,
+	}
+	gw.database.InsertClient(newClient)
+
+	return resp, err
 }
 
 // GenJunkMsg generates a junk message using the gateway's client key
