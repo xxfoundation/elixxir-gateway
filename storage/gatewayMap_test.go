@@ -13,6 +13,148 @@ import (
 	"testing"
 )
 
+// Hidden function for one-time unit testing database implementation
+//func TestDatabaseImpl(t *testing.T) {
+//
+//	jww.SetLogThreshold(jww.LevelTrace)
+//	jww.SetStdoutThreshold(jww.LevelTrace)
+//
+//	testBytes := []byte("test")
+//	testClientId := []byte("client")
+//	testRound := uint64(10)
+//
+//	testClient := id.NewIdFromBytes(testClientId, t)
+//	testRecip := id.NewIdFromBytes(testBytes, t)
+//	testRoundId := id.Round(testRound)
+//
+//	db, _, err := NewDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	err = db.InsertClient(&Client{
+//		Id:      testClient.Marshal(),
+//		Key:     testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertRound(&Round{
+//		Id:       testRound,
+//		UpdateId: 50,
+//		InfoBlob: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertBloomFilter(&BloomFilter{
+//		ClientId:    testClient.Marshal(),
+//		Count:       10,
+//		Filter:      testBytes,
+//		DateCreated: time.Now(),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertBloomFilter(&BloomFilter{
+//		ClientId:    testClient.Marshal(),
+//		Count:       20,
+//		Filter:      testBytes,
+//		DateCreated: time.Now(),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertEphemeralBloomFilter(&EphemeralBloomFilter{
+//		RecipientId: testRecip.Marshal(),
+//		Count:       20,
+//		Filter:      testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertEphemeralBloomFilter(&EphemeralBloomFilter{
+//		RecipientId: testRecip.Marshal(),
+//		Count:       40,
+//		Filter:      testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertMixedMessage(&MixedMessage{
+//		RoundId:         testRound,
+//		RecipientId:     testClient.Marshal(),
+//		MessageContents: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertMixedMessage(&MixedMessage{
+//		RoundId:         testRound,
+//		RecipientId:     testClient.Marshal(),
+//		MessageContents: []byte("Test24"),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	client, err := db.GetClient(testClient)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", client)
+//	round, err := db.GetRound(&testRoundId)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", round)
+//	messages, err := db.GetMixedMessages(testClient, &testRoundId)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", messages)
+//	filters, err := db.GetBloomFilters(testClient)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", filters)
+//	ephFilters, err := db.GetEphemeralBloomFilters(testRecip)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", ephFilters)
+//
+//	err = db.DeleteMixedMessage(messages[0].Id)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.DeleteBloomFilter(filters[0].Id)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.DeleteEphemeralBloomFilter(ephFilters[0].Id)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//}
+
 // Happy path
 func TestMapImpl_GetClient(t *testing.T) {
 	testKey := *id.NewIdFromString("testKey1", id.User, t)
