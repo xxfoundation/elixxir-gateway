@@ -416,14 +416,14 @@ func (gw *Instance) InitNetwork() error {
 			return errors.Errorf("Couldn't add permissioning host: %v", err)
 		}
 
-		newNdf := gw.NetInf.GetPartialNdf().Get()
+		// newNdf := gw.NetInf.GetPartialNdf().Get()
 
 		// Add notification bot as a host
-		_, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
-			[]byte(newNdf.Notification.TlsCertificate), false, true)
-		if err != nil {
-			return errors.Errorf("Unable to add notifications host: %+v", err)
-		}
+		// _, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
+		// 	[]byte(newNdf.Notification.TlsCertificate), false, true)
+		// if err != nil {
+		// 	return errors.Errorf("Unable to add notifications host: %+v", err)
+		// }
 	}
 
 	return nil
