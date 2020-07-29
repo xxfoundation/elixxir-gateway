@@ -42,7 +42,7 @@ build:
     # Test coverage
     - go-acc --covermode atomic --output testdata/coverage.out ./... -- -v
     # Exclude some specific packages and files
-    - grep -v cmd testdata/coverage.out > testdata/coverage-real.out
+    - grep -v cmd -e gatewayDb.go testdata/coverage.out > testdata/coverage-real.out
     - go tool cover -func=testdata/coverage-real.out
     - go tool cover -html=testdata/coverage-real.out -o testdata/coverage.html
 
