@@ -131,7 +131,7 @@ func NewGatewayInstance(params Params) *Instance {
 		userBuckets:   rateLimiting.CreateBucketMapFromParams(params.UserBucket),
 	}
 
-	err := rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
+	err = rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
 		IPWhiteListArr)
 
 	if err != nil {
@@ -160,7 +160,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.GetMessage = func(userID *id.ID, msgID, ipaddress string) (slot *pb.Slot, b error) {
 		return instance.GetMessage(userID, msgID, ipaddress)
 	}
-	impl.Functions.PutMessage = func(message *pb.Slot, ipaddress string) error {
+	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipaddress string) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message, ipaddress)
 	}
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest, ipaddress string) (nonce *pb.Nonce, e error) {
@@ -497,21 +497,21 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 
 // PutMessage adds a message to the outgoing queue and calls PostNewBatch when
 // it's size is the batch size
-func (gw *Instance) PutMessage(msg *pb.Slot, ipAddress string) error {
+func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
 
-	err := gw.FilterMessage(hex.EncodeToString(msg.SenderID), ipAddress,
+	err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
 		TokensPutMessage)
 
 	if err != nil {
 		jww.INFO.Printf("Rate limiting check failed on send message from "+
-			"%v", msg.GetSenderID())
-		return err
+			"%v", msg.Message.GetSenderID())
+		return nil, err
 	}
 
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
-		msg.GetSenderID())
-	gw.UnmixedBuffer.AddUnmixedMessage(msg)
-	return nil
+		msg.Message.GetSenderID())
+	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
+	return nil, nil
 }
 
 // Pass-through for Registration Nonce Communication
