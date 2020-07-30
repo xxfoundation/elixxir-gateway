@@ -8,6 +8,7 @@
 package storage
 
 import (
+	"bytes"
 	"gitlab.com/elixxir/primitives/id"
 	"math/rand"
 	"testing"
@@ -155,6 +156,51 @@ import (
 //		return
 //	}
 //}
+
+// Happy path
+func TestNewMixedMessage(t *testing.T) {
+	testBytes := []byte("test1234")
+	testBytes1 := []byte("test")
+	testBytes2 := []byte("1234")
+	testRound := uint64(10)
+	testRecip := id.NewIdFromBytes(testBytes, t)
+	testRoundId := id.Round(testRound)
+
+	mm := NewMixedMessage(&testRoundId, testRecip, testBytes1, testBytes2)
+
+	if mm.Id != 0 {
+		t.Errorf("Invalid Id: %d", mm.Id)
+	}
+	if mm.RoundId != testRound {
+		t.Errorf("Invalid Round Id: %d", mm.RoundId)
+	}
+	if bytes.Compare(mm.RecipientId, testRecip.Marshal()) != 0 {
+		t.Errorf("Invalid Recipient Id: %v", mm.RecipientId)
+	}
+	if bytes.Compare(mm.MessageContents, testBytes) != 0 {
+		t.Errorf("Invalid Message Contents: %v", mm.MessageContents)
+	}
+}
+
+// Happy path
+func TestMixedMessage_GetMessageContents(t *testing.T) {
+	testBytes := []byte("test1234")
+	testBytes1 := []byte("test")
+	testBytes2 := []byte("1234")
+	testRound := uint64(10)
+	testRecip := id.NewIdFromBytes(testBytes, t)
+	testRoundId := id.Round(testRound)
+
+	mm := NewMixedMessage(&testRoundId, testRecip, testBytes1, testBytes2)
+	messageContentsA, messageContentsB := mm.GetMessageContents()
+
+	if bytes.Compare(testBytes1, messageContentsA) != 0 {
+		t.Errorf("Invalid message contents A: %v", string(messageContentsA))
+	}
+	if bytes.Compare(testBytes2, messageContentsB) != 0 {
+		t.Errorf("Invalid message contents B: %v", string(messageContentsB))
+	}
+}
 
 // Happy path
 func TestMapImpl_GetClient(t *testing.T) {

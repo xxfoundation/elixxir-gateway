@@ -77,14 +77,6 @@ type Round struct {
 	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
 }
 
-// Represents a MixedMessage and its contents
-type MixedMessage struct {
-	Id              uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
-	RoundId         uint64 `gorm:"INDEX;NOT NULL"`
-	RecipientId     []byte `gorm:"INDEX;NOT NULL"`
-	MessageContents []byte `gorm:"NOT NULL"`
-}
-
 // Represents a Client's BloomFilter
 type BloomFilter struct {
 	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
@@ -100,6 +92,31 @@ type EphemeralBloomFilter struct {
 	RecipientId []byte `gorm:"NOT NULL"`
 	Count       uint64 `gorm:"NOT NULL"`
 	Filter      []byte `gorm:"NOT NULL"`
+}
+
+// Represents a MixedMessage and its contents
+type MixedMessage struct {
+	Id              uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
+	RoundId         uint64 `gorm:"INDEX;NOT NULL"`
+	RecipientId     []byte `gorm:"INDEX;NOT NULL"`
+	MessageContents []byte `gorm:"NOT NULL"`
+}
+
+// Creates a new MixedMessage object with the given attributes
+func NewMixedMessage(roundId *id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
+	return &MixedMessage{
+		RoundId:         uint64(*roundId),
+		RecipientId:     recipientId.Marshal(),
+		MessageContents: append(messageContentsA, messageContentsB...),
+	}
+}
+
+// Return the separated message contents of the MixedMessage
+func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB []byte) {
+	splitPosition := len(m.MessageContents) / 2
+	messageContentsA = m.MessageContents[:splitPosition]
+	messageContentsB = m.MessageContents[splitPosition:]
+	return
 }
 
 // Initialize the Database interface with database backend
