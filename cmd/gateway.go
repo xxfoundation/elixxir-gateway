@@ -567,7 +567,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 
 	err = gw.database.InsertClient(newClient)
 	if err != nil {
-		return resp, errors.Errorf("Issue with confirming nonce!m")
+		return resp, nil
 	}
 
 	return resp, nil
