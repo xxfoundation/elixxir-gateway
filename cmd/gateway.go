@@ -498,7 +498,6 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 // PutMessage adds a message to the outgoing queue and calls PostNewBatch when
 // it's size is the batch size
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
-
 	err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
 		TokensPutMessage)
 
@@ -507,11 +506,11 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 			"%v", msg.Message.GetSenderID())
 		return nil, err
 	}
-
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
 	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
-	return nil, nil
+
+	return &pb.GatewaySlotResponse{}, nil
 }
 
 // Pass-through for Registration Nonce Communication
@@ -555,6 +554,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 	jww.INFO.Print("Passing on registration nonce confirmation")
 
 	resp, err := gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
+
 	if err != nil {
 		return resp, err
 	}
@@ -564,9 +564,13 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 		Id:  msg.UserID,
 		Key: resp.ClientGatewayKey,
 	}
-	gw.database.InsertClient(newClient)
 
-	return resp, err
+	err = gw.database.InsertClient(newClient)
+	if err != nil {
+		return resp, errors.Errorf("Issue with confirming nonce!m")
+	}
+
+	return resp, nil
 }
 
 // GenJunkMsg generates a junk message using the gateway's client key
