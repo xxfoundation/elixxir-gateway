@@ -251,31 +251,41 @@ func TestMapImpl_GetRound_NoRoundError(t *testing.T) {
 }
 
 // Happy path.
-func TestMapImpl_InsertRound(t *testing.T) {
+func TestMapImpl_UpsertRound(t *testing.T) {
 	testKey := id.Round(rand.Uint64())
-	testRound := &Round{Id: uint64(testKey)}
+	testRounds := []*Round{
+		{Id: uint64(testKey), UpdateId: 0},
+		{Id: uint64(testKey), UpdateId: 1},
+	}
 	m := &MapImpl{
 		rounds: make(map[id.Round]*Round),
 	}
 
-	err := m.UpsertRound(testRound)
+	err := m.UpsertRound(testRounds[0])
+	if err != nil || m.rounds[testKey] == nil {
+		t.Errorf("Failed to insert round: %v", err)
+	}
+
+	err = m.UpsertRound(testRounds[1])
 	if err != nil || m.rounds[testKey] == nil {
 		t.Errorf("Failed to insert round: %v", err)
 	}
 }
 
-// Error Path: Round already exists in map.
-func TestMapImpl_InsertRound_RoundAlreadyExistsError(t *testing.T) {
+// Neutral path: round exists but update ID is smaller than the one in the map.
+func TestMapImpl_UpsertRound_RoundAlreadyExists(t *testing.T) {
 	testKey := id.Round(rand.Uint64())
-	testRound := &Round{Id: uint64(testKey)}
+	testRounds := []*Round{
+		{Id: uint64(testKey), UpdateId: 2},
+		{Id: uint64(testKey), UpdateId: 0},
+	}
 	m := &MapImpl{
-		rounds: map[id.Round]*Round{testKey: testRound},
+		rounds: map[id.Round]*Round{testKey: testRounds[0]},
 	}
 
-	err := m.UpsertRound(testRound)
-	if err == nil {
-		t.Errorf("Did not error when attempting to insert a round that " +
-			"already exists.")
+	err := m.UpsertRound(testRounds[1])
+	if err != nil || m.rounds[testKey].UpdateId != testRounds[0].UpdateId {
+		t.Errorf("Round updated in map even though update ID is greater.")
 	}
 }
 
