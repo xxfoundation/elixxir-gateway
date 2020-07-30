@@ -13,6 +13,149 @@ import (
 	"testing"
 )
 
+// Hidden function for one-time unit testing database implementation
+//func TestDatabaseImpl(t *testing.T) {
+//
+//	jww.SetLogThreshold(jww.LevelTrace)
+//	jww.SetStdoutThreshold(jww.LevelTrace)
+//
+//	db, _, err := NewDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	testBytes := []byte("test")
+//	testClientId := []byte("client")
+//	testRound := uint64(10)
+//
+//	testClient := id.NewIdFromBytes(testClientId, t)
+//	testRecip := id.NewIdFromBytes(testBytes, t)
+//	testRoundId := id.Round(testRound)
+//
+//
+//	err = db.InsertClient(&Client{
+//		Id:      testClient.Marshal(),
+//		Key:     testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertRound(&Round{
+//		Id:       testRound,
+//		UpdateId: 61,
+//		InfoBlob: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertBloomFilter(&BloomFilter{
+//		ClientId:    testClient.Marshal(),
+//		Count:       10,
+//		Filter:      testBytes,
+//		DateCreated: time.Now(),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertBloomFilter(&BloomFilter{
+//		ClientId:    testClient.Marshal(),
+//		Count:       20,
+//		Filter:      testBytes,
+//		DateCreated: time.Now(),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertEphemeralBloomFilter(&EphemeralBloomFilter{
+//		RecipientId: testRecip.Marshal(),
+//		Count:       20,
+//		Filter:      testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertEphemeralBloomFilter(&EphemeralBloomFilter{
+//		RecipientId: testRecip.Marshal(),
+//		Count:       40,
+//		Filter:      testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertMixedMessage(&MixedMessage{
+//		RoundId:         testRound,
+//		RecipientId:     testClient.Marshal(),
+//		MessageContents: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertMixedMessage(&MixedMessage{
+//		RoundId:         testRound,
+//		RecipientId:     testClient.Marshal(),
+//		MessageContents: []byte("Test24"),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	client, err := db.GetClient(testClient)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", client)
+//	round, err := db.GetRound(&testRoundId)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", round)
+//	messages, err := db.GetMixedMessages(testClient, &testRoundId)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", messages)
+//	filters, err := db.GetBloomFilters(testClient)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", filters)
+//	ephFilters, err := db.GetEphemeralBloomFilters(testRecip)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jww.INFO.Printf("%+v", ephFilters)
+//
+//	err = db.DeleteMixedMessage(messages[0].Id)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.DeleteBloomFilter(filters[0].Id)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.DeleteEphemeralBloomFilter(ephFilters[0].Id)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//}
+
 // Happy path
 func TestMapImpl_GetClient(t *testing.T) {
 	testKey := *id.NewIdFromString("testKey1", id.User, t)
@@ -115,7 +258,7 @@ func TestMapImpl_InsertRound(t *testing.T) {
 		rounds: make(map[id.Round]*Round),
 	}
 
-	err := m.InsertRound(testRound)
+	err := m.UpsertRound(testRound)
 	if err != nil || m.rounds[testKey] == nil {
 		t.Errorf("Failed to insert round: %v", err)
 	}
@@ -129,7 +272,7 @@ func TestMapImpl_InsertRound_RoundAlreadyExistsError(t *testing.T) {
 		rounds: map[id.Round]*Round{testKey: testRound},
 	}
 
-	err := m.InsertRound(testRound)
+	err := m.UpsertRound(testRound)
 	if err == nil {
 		t.Errorf("Did not error when attempting to insert a round that " +
 			"already exists.")
@@ -241,9 +384,8 @@ func TestMapImpl_GetMixedMessages_NoMessageError(t *testing.T) {
 
 // Happy path.
 func TestMapImpl_InsertMixedMessage(t *testing.T) {
-	testMsgID := rand.Uint64()
+	testMsgID := uint64(0)
 	testMixedMessage := &MixedMessage{
-		Id:          testMsgID,
 		RoundId:     rand.Uint64(),
 		RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
 	}
@@ -259,9 +401,8 @@ func TestMapImpl_InsertMixedMessage(t *testing.T) {
 
 // Error Path: MixedMessage already exists in map.
 func TestMapImpl_InsertMixedMessage_MessageAlreadyExistsError(t *testing.T) {
-	testMsgID := rand.Uint64()
+	testMsgID := uint64(0)
 	testMixedMessage := &MixedMessage{
-		Id:          testMsgID,
 		RoundId:     rand.Uint64(),
 		RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
 	}
@@ -358,7 +499,7 @@ func TestMapImpl_GetBloomFilters_NoFiltersError(t *testing.T) {
 
 // Happy path.
 func TestMapImpl_InsertBloomFilter(t *testing.T) {
-	testID := rand.Uint64()
+	testID := uint64(0)
 	testBloomFilter := &BloomFilter{Id: testID}
 	m := &MapImpl{
 		bloomFilters: make(map[uint64]*BloomFilter),
@@ -372,7 +513,7 @@ func TestMapImpl_InsertBloomFilter(t *testing.T) {
 
 // Error Path: Bloom filter already exists in map.
 func TestMapImpl_InsertBloomFilter_FilterAlreadyExistsError(t *testing.T) {
-	testID := rand.Uint64()
+	testID := uint64(0)
 	testBloomFilter := &BloomFilter{Id: testID}
 	m := &MapImpl{
 		bloomFilters: map[uint64]*BloomFilter{testID: testBloomFilter},
@@ -437,7 +578,7 @@ func TestMapImpl_GetEphemeralBloomFilters(t *testing.T) {
 	}
 }
 
-// Error Path: No matching ephemeral bloom filterss exist in the map.
+// Error Path: No matching ephemeral bloom filters exist in the map.
 func TestMapImpl_GetEphemeralBloomFilters_NoFiltersError(t *testing.T) {
 	testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
 	m := &MapImpl{
@@ -459,7 +600,7 @@ func TestMapImpl_GetEphemeralBloomFilters_NoFiltersError(t *testing.T) {
 
 // Happy path.
 func TestMapImpl_InsertEphemeralBloomFilter(t *testing.T) {
-	testID := rand.Uint64()
+	testID := uint64(0)
 	testEphemeralBloomFilter := &EphemeralBloomFilter{Id: testID}
 	m := &MapImpl{
 		ephemeralBloomFilters: make(map[uint64]*EphemeralBloomFilter),
@@ -473,7 +614,7 @@ func TestMapImpl_InsertEphemeralBloomFilter(t *testing.T) {
 
 // Error Path: Bloom filter already exists in map.
 func TestMapImpl_InsertEphemeralBloomFilter_FilterAlreadyExistsError(t *testing.T) {
-	testID := rand.Uint64()
+	testID := uint64(0)
 	testEphemeralBloomFilter := &EphemeralBloomFilter{Id: testID}
 	m := &MapImpl{
 		ephemeralBloomFilters: map[uint64]*EphemeralBloomFilter{testID: testEphemeralBloomFilter},
