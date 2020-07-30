@@ -19,6 +19,12 @@ import (
 //	jww.SetLogThreshold(jww.LevelTrace)
 //	jww.SetStdoutThreshold(jww.LevelTrace)
 //
+//	db, _, err := NewDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
 //	testBytes := []byte("test")
 //	testClientId := []byte("client")
 //	testRound := uint64(10)
@@ -27,11 +33,6 @@ import (
 //	testRecip := id.NewIdFromBytes(testBytes, t)
 //	testRoundId := id.Round(testRound)
 //
-//	db, _, err := NewDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
 //
 //	err = db.InsertClient(&Client{
 //		Id:      testClient.Marshal(),
@@ -41,9 +42,9 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertRound(&Round{
+//	err = db.UpsertRound(&Round{
 //		Id:       testRound,
-//		UpdateId: 50,
+//		UpdateId: 61,
 //		InfoBlob: testBytes,
 //	})
 //	if err != nil {
@@ -257,7 +258,7 @@ func TestMapImpl_InsertRound(t *testing.T) {
 		rounds: make(map[id.Round]*Round),
 	}
 
-	err := m.InsertRound(testRound)
+	err := m.UpsertRound(testRound)
 	if err != nil || m.rounds[testKey] == nil {
 		t.Errorf("Failed to insert round: %v", err)
 	}
@@ -271,7 +272,7 @@ func TestMapImpl_InsertRound_RoundAlreadyExistsError(t *testing.T) {
 		rounds: map[id.Round]*Round{testKey: testRound},
 	}
 
-	err := m.InsertRound(testRound)
+	err := m.UpsertRound(testRound)
 	if err == nil {
 		t.Errorf("Did not error when attempting to insert a round that " +
 			"already exists.")

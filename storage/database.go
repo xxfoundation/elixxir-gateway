@@ -27,7 +27,7 @@ type Storage interface {
 	InsertClient(client *Client) error
 
 	GetRound(id *id.Round) (*Round, error)
-	InsertRound(round *Round) error
+	UpsertRound(round *Round) error
 
 	GetMixedMessages(recipientId *id.ID, roundId *id.Round) ([]*MixedMessage, error)
 	InsertMixedMessage(msg *MixedMessage) error
