@@ -9,6 +9,7 @@
 package storage
 
 import (
+	"github.com/jinzhu/gorm"
 	"gitlab.com/elixxir/primitives/id"
 )
 
@@ -40,19 +41,25 @@ func (d *DatabaseImpl) UpsertRound(round *Round) error {
 	// Make a copy of the provided round
 	newRound := *round
 
-	// Attempt to insert the round into the database,
-	// or if it already exists, overwrite round with the database value
-	err := d.db.FirstOrCreate(round, &Round{Id: round.Id}).Error
-	if err != nil {
-		return err
-	}
+	// Build a transaction to prevent race conditions
+	return d.db.Transaction(func(tx *gorm.DB) error {
 
-	// If the provided round has a greater UpdateId than the database value,
-	// overwrite the database value with the provided round
-	if round.UpdateId < newRound.UpdateId {
-		err = d.db.Save(&newRound).Error
-	}
-	return err
+		// Attempt to insert the round into the database,
+		// or if it already exists, replace round with the database value
+		err := tx.FirstOrCreate(round, &Round{Id: round.Id}).Error
+		if err != nil {
+			return err
+		}
+
+		// If the provided round has a greater UpdateId than the database value,
+		// overwrite the database value with the provided round
+		if round.UpdateId < newRound.UpdateId {
+			return tx.Save(&newRound).Error
+		}
+
+		// Commit
+		return nil
+	})
 }
 
 // Returns a slice of MixedMessages from Storage

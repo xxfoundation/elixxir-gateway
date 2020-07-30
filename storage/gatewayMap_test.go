@@ -16,8 +16,8 @@ import (
 // Hidden function for one-time unit testing database implementation
 //func TestDatabaseImpl(t *testing.T) {
 //
-//	jww.SetLogThreshold(jww.LevelTrace)
-//	jww.SetStdoutThreshold(jww.LevelTrace)
+//	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
+//	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
 //
 //	db, _, err := NewDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
 //	if err != nil {
@@ -44,7 +44,7 @@ import (
 //	}
 //	err = db.UpsertRound(&Round{
 //		Id:       testRound,
-//		UpdateId: 61,
+//		UpdateId: 71,
 //		InfoBlob: testBytes,
 //	})
 //	if err != nil {
