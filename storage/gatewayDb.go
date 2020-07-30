@@ -41,7 +41,7 @@ func (d *DatabaseImpl) UpsertRound(round *Round) error {
 	newRound := *round
 
 	// Attempt to insert the round into the database,
-	// or if it already exists, overwrite round with the database value
+	// or if it already exists, replace round with the database value
 	err := d.db.FirstOrCreate(round, &Round{Id: round.Id}).Error
 	if err != nil {
 		return err
