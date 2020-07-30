@@ -11,8 +11,10 @@ package storage
 import (
 	"fmt"
 	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/primitives/id"
+	"sync"
 	"time"
 )
 
@@ -46,7 +48,17 @@ type DatabaseImpl struct {
 }
 
 // Struct implementing the Database Interface with an underlying Map
-type MapImpl struct{}
+type MapImpl struct {
+	clients                    map[id.ID]*Client
+	rounds                     map[id.Round]*Round
+	mixedMessages              map[uint64]*MixedMessage
+	bloomFilters               map[uint64]*BloomFilter
+	ephemeralBloomFilters      map[uint64]*EphemeralBloomFilter
+	mixedMessagesCount         uint64
+	bloomFiltersCount          uint64
+	ephemeralBloomFiltersCount uint64
+	sync.RWMutex
+}
 
 // Represents a Client and its associated keys
 type Client struct {
@@ -122,7 +134,18 @@ func NewDatabase(username, password, database, address,
 
 		defer jww.INFO.Println("Map backend initialized successfully!")
 
-		return Storage(&MapImpl{}), func() error { return nil }, nil
+		mapImpl := &MapImpl{
+			clients:                    map[id.ID]*Client{},
+			rounds:                     map[id.Round]*Round{},
+			mixedMessages:              map[uint64]*MixedMessage{},
+			bloomFilters:               map[uint64]*BloomFilter{},
+			ephemeralBloomFilters:      map[uint64]*EphemeralBloomFilter{},
+			mixedMessagesCount:         0,
+			bloomFiltersCount:          0,
+			ephemeralBloomFiltersCount: 0,
+		}
+
+		return Storage(mapImpl), func() error { return nil }, nil
 	}
 
 	// Initialize the database logger
