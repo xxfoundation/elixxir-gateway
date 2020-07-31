@@ -503,7 +503,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	if err != nil {
 		return &pb.GatewaySlotResponse{
 			Accepted: false,
-		}, errors.Errorf("Could not parse message: Unrecognized ID: %v", err)
+		}, errors.Errorf("Could not parse message: Unrecognized ID")
 	}
 
 	// Retrieve the client from the database
