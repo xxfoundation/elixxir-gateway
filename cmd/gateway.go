@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"gitlab.com/elixxir/comms/connect"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
@@ -32,6 +31,7 @@ import (
 	"gitlab.com/elixxir/primitives/ndf"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
+	"gitlab.com/xx_network/comms/connect"
 	"strings"
 	"time"
 )
@@ -213,7 +213,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get())
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), nil)
 }
 
 // UpdateInstance reads a ServerPollResponse object and updates the instance
@@ -416,14 +416,14 @@ func (gw *Instance) InitNetwork() error {
 			return errors.Errorf("Couldn't add permissioning host: %v", err)
 		}
 
-		newNdf := gw.NetInf.GetPartialNdf().Get()
+		// newNdf := gw.NetInf.GetPartialNdf().Get()
 
 		// Add notification bot as a host
-		_, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
-			[]byte(newNdf.Notification.TlsCertificate), false, true)
-		if err != nil {
-			return errors.Errorf("Unable to add notifications host: %+v", err)
-		}
+		// _, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
+		// 	[]byte(newNdf.Notification.TlsCertificate), false, true)
+		// if err != nil {
+		// 	return errors.Errorf("Unable to add notifications host: %+v", err)
+		// }
 	}
 
 	return nil
@@ -679,7 +679,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 		}
 
 		if !userId.Cmp(&dummyUser) {
-			jww.DEBUG.Printf("Message Recieved for: %v",
+			jww.DEBUG.Printf("Message Received for: %v",
 				userId.Bytes())
 			gw.un.Notify(userId)
 			numReal++

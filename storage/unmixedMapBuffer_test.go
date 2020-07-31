@@ -63,7 +63,7 @@ func TestUnmixedMapBuffer_PopUnmixedMessages(t *testing.T) {
 
 	if batch != nil {
 		t.Errorf("Error case of minCount being greater than the amount of"+
-			"messages, should recieved a nil batch but recieved: %v", batch)
+			"messages, should received a nil batch but received: %v", batch)
 	}
 
 	// Test when the outgoing message is overfull
