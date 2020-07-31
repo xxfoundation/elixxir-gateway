@@ -221,7 +221,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get())
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), nil)
 }
 
 // UpdateInstance reads a ServerPollResponse object and updates the instance
@@ -424,14 +424,14 @@ func (gw *Instance) InitNetwork() error {
 			return errors.Errorf("Couldn't add permissioning host: %v", err)
 		}
 
-		newNdf := gw.NetInf.GetPartialNdf().Get()
+		// newNdf := gw.NetInf.GetPartialNdf().Get()
 
 		// Add notification bot as a host
-		_, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
-			[]byte(newNdf.Notification.TlsCertificate), false, true)
-		if err != nil {
-			return errors.Errorf("Unable to add notifications host: %+v", err)
-		}
+		// _, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
+		// 	[]byte(newNdf.Notification.TlsCertificate), false, true)
+		// if err != nil {
+		// 	return errors.Errorf("Unable to add notifications host: %+v", err)
+		// }
 	}
 
 	return nil
@@ -498,19 +498,68 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 // PutMessage adds a message to the outgoing queue and calls PostNewBatch when
 // it's size is the batch size
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
-	err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
+	// Construct Client ID for database lookup
+	clientID, err := id.Unmarshal(msg.Message.Salt)
+	if err != nil {
+		return &pb.GatewaySlotResponse{
+			Accepted:false,
+		}, errors.Errorf("Could not parse message: Unrecognized ID: %v", err)
+	}
+
+	// Retrieve the client from the database
+	cl, err := gw.database.GetClient(clientID)
+	if err != nil {
+		return &pb.GatewaySlotResponse{
+			Accepted:false,
+		}, errors.New("Did not recognize ID. Have you registered successfully?")
+	}
+
+	// Generate the MAC and check against the message's MAC
+	clientMac := generateClientMac(cl, msg)
+	if !bytes.Equal(clientMac, msg.MAC) {
+		return &pb.GatewaySlotResponse{
+			Accepted:false,
+		}, errors.New("Could not authenticate client. Please try again later")
+	}
+
+	err = gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
 		TokensPutMessage)
 
 	if err != nil {
 		jww.INFO.Printf("Rate limiting check failed on send message from "+
 			"%v", msg.Message.GetSenderID())
-		return nil, err
+		return &pb.GatewaySlotResponse{
+			Accepted:false,
+		}, err
 	}
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
 	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
 
-	return &pb.GatewaySlotResponse{}, nil
+	return &pb.GatewaySlotResponse{
+		Accepted:true,
+	}, nil
+}
+
+// Helper function which generates the client MAC for checking the clients
+// authenticity
+func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte  {
+	// Digest the message for the MAC generation
+	gatewaySlotDigest := network.GenerateSlotDigest(msg)
+
+	// Hash the clientGatewayKey and the the slot's salt
+	h, _ := hash.NewCMixHash()
+	h.Write(cl.Key)
+	h.Write(msg.Message.Salt)
+	hashed := h.Sum(nil)
+
+	h.Reset()
+
+	// Hash the gatewaySlotDigest and the above hashed data
+	h.Write(hashed)
+	h.Write(gatewaySlotDigest)
+
+	return h.Sum(nil)
 }
 
 // Pass-through for Registration Nonce Communication

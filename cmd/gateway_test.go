@@ -210,7 +210,8 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 	_, err := gatewayInstance.PutMessage(slotMsg, "0")
 	if err != nil {
-		t.Errorf("PutMessage: Could not put any messages!")
+		t.Errorf("PutMessage: Could not put any messages!" +
+			"Error received: %v", err)
 	}
 
 	ri := &pb.RoundInfo{ID: 1, BatchSize: 4}
