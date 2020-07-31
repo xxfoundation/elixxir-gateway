@@ -8,7 +8,10 @@
 
 package storage
 
-import "gitlab.com/elixxir/primitives/id"
+import (
+	"github.com/jinzhu/gorm"
+	"gitlab.com/elixxir/primitives/id"
+)
 
 // Returns a Client from Storage with the given id
 // Or an error if a matching Client does not exist
@@ -32,10 +35,31 @@ func (d *DatabaseImpl) GetRound(id *id.Round) (*Round, error) {
 	return result, err
 }
 
-// Inserts the given Round into Storage
-// Returns an error if a Round with a matching Id already exists
-func (d *DatabaseImpl) InsertRound(round *Round) error {
-	return d.db.Create(round).Error
+// Inserts the given Round into Storage if it does not exist
+// Or updates the given Round if the provided Round UpdateId is greater
+func (d *DatabaseImpl) UpsertRound(round *Round) error {
+	// Make a copy of the provided round
+	newRound := *round
+
+	// Build a transaction to prevent race conditions
+	return d.db.Transaction(func(tx *gorm.DB) error {
+
+		// Attempt to insert the round into the database,
+		// or if it already exists, replace round with the database value
+		err := tx.FirstOrCreate(round, &Round{Id: round.Id}).Error
+		if err != nil {
+			return err
+		}
+
+		// If the provided round has a greater UpdateId than the database value,
+		// overwrite the database value with the provided round
+		if round.UpdateId < newRound.UpdateId {
+			return tx.Save(&newRound).Error
+		}
+
+		// Commit
+		return nil
+	})
 }
 
 // Returns a slice of MixedMessages from Storage

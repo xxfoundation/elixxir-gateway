@@ -8,6 +8,7 @@
 package storage
 
 import (
+	"bytes"
 	"gitlab.com/elixxir/primitives/id"
 	"math/rand"
 	"testing"
@@ -16,8 +17,14 @@ import (
 // Hidden function for one-time unit testing database implementation
 //func TestDatabaseImpl(t *testing.T) {
 //
-//	jww.SetLogThreshold(jww.LevelTrace)
-//	jww.SetStdoutThreshold(jww.LevelTrace)
+//	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
+//	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
+//
+//	db, _, err := NewDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
 //
 //	testBytes := []byte("test")
 //	testClientId := []byte("client")
@@ -27,11 +34,6 @@ import (
 //	testRecip := id.NewIdFromBytes(testBytes, t)
 //	testRoundId := id.Round(testRound)
 //
-//	db, _, err := NewDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
 //
 //	err = db.InsertClient(&Client{
 //		Id:      testClient.Marshal(),
@@ -41,9 +43,9 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertRound(&Round{
+//	err = db.UpsertRound(&Round{
 //		Id:       testRound,
-//		UpdateId: 50,
+//		UpdateId: 71,
 //		InfoBlob: testBytes,
 //	})
 //	if err != nil {
@@ -156,6 +158,51 @@ import (
 //}
 
 // Happy path
+func TestNewMixedMessage(t *testing.T) {
+	testBytes := []byte("test1234")
+	testBytes1 := []byte("test")
+	testBytes2 := []byte("1234")
+	testRound := uint64(10)
+	testRecip := id.NewIdFromBytes(testBytes, t)
+	testRoundId := id.Round(testRound)
+
+	mm := NewMixedMessage(&testRoundId, testRecip, testBytes1, testBytes2)
+
+	if mm.Id != 0 {
+		t.Errorf("Invalid Id: %d", mm.Id)
+	}
+	if mm.RoundId != testRound {
+		t.Errorf("Invalid Round Id: %d", mm.RoundId)
+	}
+	if bytes.Compare(mm.RecipientId, testRecip.Marshal()) != 0 {
+		t.Errorf("Invalid Recipient Id: %v", mm.RecipientId)
+	}
+	if bytes.Compare(mm.MessageContents, testBytes) != 0 {
+		t.Errorf("Invalid Message Contents: %v", mm.MessageContents)
+	}
+}
+
+// Happy path
+func TestMixedMessage_GetMessageContents(t *testing.T) {
+	testBytes := []byte("test1234")
+	testBytes1 := []byte("test")
+	testBytes2 := []byte("1234")
+	testRound := uint64(10)
+	testRecip := id.NewIdFromBytes(testBytes, t)
+	testRoundId := id.Round(testRound)
+
+	mm := NewMixedMessage(&testRoundId, testRecip, testBytes1, testBytes2)
+	messageContentsA, messageContentsB := mm.GetMessageContents()
+
+	if bytes.Compare(testBytes1, messageContentsA) != 0 {
+		t.Errorf("Invalid message contents A: %v", string(messageContentsA))
+	}
+	if bytes.Compare(testBytes2, messageContentsB) != 0 {
+		t.Errorf("Invalid message contents B: %v", string(messageContentsB))
+	}
+}
+
+// Happy path
 func TestMapImpl_GetClient(t *testing.T) {
 	testKey := *id.NewIdFromString("testKey1", id.User, t)
 	testClient := &Client{Id: testKey.Marshal()}
@@ -250,31 +297,41 @@ func TestMapImpl_GetRound_NoRoundError(t *testing.T) {
 }
 
 // Happy path.
-func TestMapImpl_InsertRound(t *testing.T) {
+func TestMapImpl_UpsertRound(t *testing.T) {
 	testKey := id.Round(rand.Uint64())
-	testRound := &Round{Id: uint64(testKey)}
+	testRounds := []*Round{
+		{Id: uint64(testKey), UpdateId: 0},
+		{Id: uint64(testKey), UpdateId: 1},
+	}
 	m := &MapImpl{
 		rounds: make(map[id.Round]*Round),
 	}
 
-	err := m.InsertRound(testRound)
+	err := m.UpsertRound(testRounds[0])
+	if err != nil || m.rounds[testKey] == nil {
+		t.Errorf("Failed to insert round: %v", err)
+	}
+
+	err = m.UpsertRound(testRounds[1])
 	if err != nil || m.rounds[testKey] == nil {
 		t.Errorf("Failed to insert round: %v", err)
 	}
 }
 
-// Error Path: Round already exists in map.
-func TestMapImpl_InsertRound_RoundAlreadyExistsError(t *testing.T) {
+// Neutral path: round exists but update ID is smaller than the one in the map.
+func TestMapImpl_UpsertRound_RoundAlreadyExists(t *testing.T) {
 	testKey := id.Round(rand.Uint64())
-	testRound := &Round{Id: uint64(testKey)}
+	testRounds := []*Round{
+		{Id: uint64(testKey), UpdateId: 2},
+		{Id: uint64(testKey), UpdateId: 0},
+	}
 	m := &MapImpl{
-		rounds: map[id.Round]*Round{testKey: testRound},
+		rounds: map[id.Round]*Round{testKey: testRounds[0]},
 	}
 
-	err := m.InsertRound(testRound)
-	if err == nil {
-		t.Errorf("Did not error when attempting to insert a round that " +
-			"already exists.")
+	err := m.UpsertRound(testRounds[1])
+	if err != nil || m.rounds[testKey].UpdateId != testRounds[0].UpdateId {
+		t.Errorf("Round updated in map even though update ID is greater.")
 	}
 }
 

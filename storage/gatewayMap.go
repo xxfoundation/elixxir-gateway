@@ -69,21 +69,19 @@ func (m *MapImpl) GetRound(id *id.Round) (*Round, error) {
 	return round, nil
 }
 
-// Inserts the given Round into Storage
-// Returns an error if a Round with a matching Id already exists
-func (m *MapImpl) InsertRound(round *Round) error {
+// Inserts the given Round into Storage if it does not exist
+// Or updates the given Round if the provided Round UpdateId is greater
+func (m *MapImpl) UpsertRound(round *Round) error {
 	roundID := id.Round(round.Id)
 
 	m.Lock()
 	defer m.Unlock()
 
-	// Return an error if a Round with the ID already exists in the map
-	if m.rounds[roundID] != nil {
-		return errors.Errorf("Could not insert Round. Round with ID %v "+
-			"already exists in map.", roundID)
+	// Insert the round if it does not exist or if it does exist, update it if
+	// the update ID provided is greater
+	if m.rounds[roundID] == nil || round.UpdateId > m.rounds[roundID].UpdateId {
+		m.rounds[roundID] = round
 	}
-
-	m.rounds[roundID] = round
 
 	return nil
 }
