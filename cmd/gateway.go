@@ -499,10 +499,10 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 // it's size is the batch size
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
 	// Construct Client ID for database lookup
-	clientID, err := id.Unmarshal(msg.Message.Salt)
+	clientID, err := id.Unmarshal(msg.Message.SenderID)
 	if err != nil {
 		return &pb.GatewaySlotResponse{
-			Accepted:false,
+			Accepted: false,
 		}, errors.Errorf("Could not parse message: Unrecognized ID: %v", err)
 	}
 
@@ -510,7 +510,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	cl, err := gw.database.GetClient(clientID)
 	if err != nil {
 		return &pb.GatewaySlotResponse{
-			Accepted:false,
+			Accepted: false,
 		}, errors.New("Did not recognize ID. Have you registered successfully?")
 	}
 
@@ -518,7 +518,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	clientMac := generateClientMac(cl, msg)
 	if !bytes.Equal(clientMac, msg.MAC) {
 		return &pb.GatewaySlotResponse{
-			Accepted:false,
+			Accepted: false,
 		}, errors.New("Could not authenticate client. Please try again later")
 	}
 
@@ -529,7 +529,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 		jww.INFO.Printf("Rate limiting check failed on send message from "+
 			"%v", msg.Message.GetSenderID())
 		return &pb.GatewaySlotResponse{
-			Accepted:false,
+			Accepted: false,
 		}, err
 	}
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
@@ -537,13 +537,13 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
 
 	return &pb.GatewaySlotResponse{
-		Accepted:true,
+		Accepted: true,
 	}, nil
 }
 
 // Helper function which generates the client MAC for checking the clients
 // authenticity
-func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte  {
+func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 	// Digest the message for the MAC generation
 	gatewaySlotDigest := network.GenerateSlotDigest(msg)
 
