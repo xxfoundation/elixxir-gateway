@@ -14,8 +14,10 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -43,9 +45,32 @@ var rootCmd = &cobra.Command{
 	Long:  `The cMix gateways coordinate communications between servers and clients`,
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		var err error
 		initConfig()
 		initLog()
 		params := InitParams(viper.GetViper())
+
+		// Obtain database connection info
+		rawAddr := viper.GetString("dbAddress")
+		var addr, port string
+		if rawAddr != "" {
+			addr, port, err = net.SplitHostPort(rawAddr)
+			if err != nil {
+				jww.FATAL.Panicf("Unable to get database port: %+v", err)
+			}
+		}
+
+		// Attempt to initialize the backend storage
+		storage.GatewayDB, _, err = storage.NewDatabase(
+			viper.GetString("dbUsername"),
+			viper.GetString("dbPassword"),
+			viper.GetString("dbName"),
+			addr,
+			port,
+		)
+		if err != nil {
+			jww.FATAL.Panicf("Unable to initialize storage: %+v", err)
+		}
 
 		// Build gateway implementation object
 		gateway := NewGatewayInstance(params)
