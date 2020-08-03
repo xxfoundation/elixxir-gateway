@@ -72,6 +72,12 @@ serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 # Path to the self-signed TLS certificate for the Permissioning server. Expects
 # PEM format. Required field.
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
+
+# Database connection information
+dbUsername: "cmix"
+dbPassword: ""
+dbName: "cmix_gateway"
+dbAddress: ""
 ```
 
 ## Command line flags
