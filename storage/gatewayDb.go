@@ -10,7 +10,7 @@ package storage
 
 import (
 	"github.com/jinzhu/gorm"
-	"gitlab.com/elixxir/primitives/id"
+	"gitlab.com/xx_network/primitives/id"
 )
 
 // Returns a Client from Storage with the given id
