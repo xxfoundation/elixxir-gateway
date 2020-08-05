@@ -16,15 +16,13 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.6.3
-	gitlab.com/elixxir/comms v0.0.0-20200803175228-7400078a390a
-	gitlab.com/elixxir/crypto v0.0.0-20200721213839-b026955c55c0
-	gitlab.com/elixxir/primitives v0.0.0-20200731184040-494269b53b4d
-	gitlab.com/xx_network/comms v0.0.0-20200803203304-a7a1c5e4239d
+	gitlab.com/elixxir/comms v0.0.0-20200804225939-84dbe3cccc62
+	gitlab.com/elixxir/crypto v0.0.0-20200804231945-1354885c51cd
+	gitlab.com/elixxir/primitives v0.0.0-20200804231232-ad79a9e8f113
+	gitlab.com/xx_network/comms v0.0.0-20200804225654-09a9af23d699
+	gitlab.com/xx_network/primitives v0.0.0-20200804183002-f99f7a7284da
 	google.golang.org/grpc v1.30.0
 	gopkg.in/ini.v1 v1.55.0 // indirect
 )
 
-replace (
-	gitlab.com/xx_network/collections/ring => gitlab.com/xx_network/collections/ring.git v0.0.1
-	google.golang.org/grpc => github.com/grpc/grpc-go v1.27.1
-)
+replace google.golang.org/grpc => github.com/grpc/grpc-go v1.27.1

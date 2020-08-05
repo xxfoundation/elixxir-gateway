@@ -9,7 +9,7 @@ package storage
 
 import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/primitives/id"
+	"gitlab.com/xx_network/primitives/id"
 	"strings"
 	"testing"
 	"time"

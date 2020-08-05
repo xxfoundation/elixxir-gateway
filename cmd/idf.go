@@ -9,9 +9,9 @@ package cmd
 
 import (
 	"github.com/pkg/errors"
-	"gitlab.com/elixxir/primitives/id"
-	"gitlab.com/elixxir/primitives/id/idf"
-	"gitlab.com/elixxir/primitives/ndf"
+	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/idf"
+	"gitlab.com/xx_network/primitives/ndf"
 )
 
 // writeIDF writes the identity file for the gateway into the given location
