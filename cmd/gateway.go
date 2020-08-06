@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
+	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
@@ -27,11 +28,11 @@ import (
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/elixxir/primitives/id"
-	"gitlab.com/elixxir/primitives/ndf"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
+	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/ndf"
 	"strings"
 	"time"
 )
@@ -83,6 +84,7 @@ type Instance struct {
 	// struct for tracking notifications
 	un notifications.UserNotifications
 
+	database storage.Storage
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
@@ -113,17 +115,23 @@ type Params struct {
 
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
-
+	/// fixme: placed as stub, overwrite with Jake's implementation when done
+	newDatabase, _, err := storage.NewDatabase(viper.GetString("dbUsername"),
+		viper.GetString("dbPassword"),
+		viper.GetString("dbName"),
+		viper.GetString("dbAddress"),
+		viper.GetString("dbPort"),
+	)
 	i := &Instance{
 		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
-
-		ipBuckets:   rateLimiting.CreateBucketMapFromParams(params.IpBucket),
-		userBuckets: rateLimiting.CreateBucketMapFromParams(params.UserBucket),
+		database:      newDatabase,
+		ipBuckets:     rateLimiting.CreateBucketMapFromParams(params.IpBucket),
+		userBuckets:   rateLimiting.CreateBucketMapFromParams(params.UserBucket),
 	}
 
-	err := rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
+	err = rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
 		IPWhiteListArr)
 
 	if err != nil {
@@ -152,7 +160,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.GetMessage = func(userID *id.ID, msgID, ipaddress string) (slot *pb.Slot, b error) {
 		return instance.GetMessage(userID, msgID, ipaddress)
 	}
-	impl.Functions.PutMessage = func(message *pb.Slot, ipaddress string) error {
+	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipaddress string) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message, ipaddress)
 	}
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest, ipaddress string) (nonce *pb.Nonce, e error) {
@@ -213,7 +221,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get())
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), nil)
 }
 
 // UpdateInstance reads a ServerPollResponse object and updates the instance
@@ -416,14 +424,14 @@ func (gw *Instance) InitNetwork() error {
 			return errors.Errorf("Couldn't add permissioning host: %v", err)
 		}
 
-		newNdf := gw.NetInf.GetPartialNdf().Get()
+		// newNdf := gw.NetInf.GetPartialNdf().Get()
 
 		// Add notification bot as a host
-		_, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
-			[]byte(newNdf.Notification.TlsCertificate), false, true)
-		if err != nil {
-			return errors.Errorf("Unable to add notifications host: %+v", err)
-		}
+		// _, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
+		// 	[]byte(newNdf.Notification.TlsCertificate), false, true)
+		// if err != nil {
+		// 	return errors.Errorf("Unable to add notifications host: %+v", err)
+		// }
 	}
 
 	return nil
@@ -489,21 +497,71 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 
 // PutMessage adds a message to the outgoing queue and calls PostNewBatch when
 // it's size is the batch size
-func (gw *Instance) PutMessage(msg *pb.Slot, ipAddress string) error {
+func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
+	// Fixme: work needs to be done to populate database with precanned values
+	//  so that precanned users aren't rejected when sending messages
+	// Construct Client ID for database lookup
+	//clientID, err := id.Unmarshal(msg.Message.SenderID)
+	//if err != nil {
+	//	return &pb.GatewaySlotResponse{
+	//		Accepted: false,
+	//	}, errors.Errorf("Could not parse message: Unrecognized ID")
+	//}
 
-	err := gw.FilterMessage(hex.EncodeToString(msg.SenderID), ipAddress,
+	// Retrieve the client from the database
+	//cl, err := gw.database.GetClient(clientID)
+	//if err != nil {
+	//	return &pb.GatewaySlotResponse{
+	//		Accepted: false,
+	//	}, errors.New("Did not recognize ID. Have you registered successfully?")
+	//}
+
+	// Generate the MAC and check against the message's MAC
+	//clientMac := generateClientMac(cl, msg)
+	//if !bytes.Equal(clientMac, msg.MAC) {
+	//	return &pb.GatewaySlotResponse{
+	//		Accepted: false,
+	//	}, errors.New("Could not authenticate client. Please try again later")
+	//}
+
+	err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
 		TokensPutMessage)
 
 	if err != nil {
 		jww.INFO.Printf("Rate limiting check failed on send message from "+
-			"%v", msg.GetSenderID())
-		return err
+			"%v", msg.Message.GetSenderID())
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, err
 	}
-
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
-		msg.GetSenderID())
-	gw.UnmixedBuffer.AddUnmixedMessage(msg)
-	return nil
+		msg.Message.GetSenderID())
+	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
+
+	return &pb.GatewaySlotResponse{
+		Accepted: true,
+	}, nil
+}
+
+// Helper function which generates the client MAC for checking the clients
+// authenticity
+func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
+	// Digest the message for the MAC generation
+	gatewaySlotDigest := network.GenerateSlotDigest(msg)
+
+	// Hash the clientGatewayKey and the the slot's salt
+	h, _ := hash.NewCMixHash()
+	h.Write(cl.Key)
+	h.Write(msg.Message.Salt)
+	hashed := h.Sum(nil)
+
+	h.Reset()
+
+	// Hash the gatewaySlotDigest and the above hashed data
+	h.Write(hashed)
+	h.Write(gatewaySlotDigest)
+
+	return h.Sum(nil)
 }
 
 // Pass-through for Registration Nonce Communication
@@ -545,7 +603,25 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 	}
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
-	return gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
+
+	resp, err := gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
+
+	if err != nil {
+		return resp, err
+	}
+
+	// Insert client information to database
+	newClient := &storage.Client{
+		Id:  msg.UserID,
+		Key: resp.ClientGatewayKey,
+	}
+
+	err = gw.database.InsertClient(newClient)
+	if err != nil {
+		return resp, nil
+	}
+
+	return resp, nil
 }
 
 // GenJunkMsg generates a junk message using the gateway's client key

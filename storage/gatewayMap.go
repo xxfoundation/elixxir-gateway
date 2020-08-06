@@ -12,7 +12,7 @@ package storage
 import (
 	"bytes"
 	"github.com/pkg/errors"
-	"gitlab.com/elixxir/primitives/id"
+	"gitlab.com/xx_network/primitives/id"
 )
 
 // Returns a Client from Storage with the given id

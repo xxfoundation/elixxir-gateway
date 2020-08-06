@@ -9,7 +9,7 @@ package notifications
 
 import (
 	"bytes"
-	"gitlab.com/elixxir/primitives/id"
+	"gitlab.com/xx_network/primitives/id"
 	"testing"
 )
 
