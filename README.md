@@ -78,6 +78,19 @@ dbUsername: "cmix"
 dbPassword: ""
 dbName: "cmix_gateway"
 dbAddress: ""
+
+#todo: populate with more accurate examples and explanatory prose
+# Flags for our gossip protocol
+
+# How long a message record should last in the buffer
+BufferExpirationTime: "1m0s"
+
+# Frequency with which to check the buffer.
+# Should be long, since the thread takes a lock each time it checks the buffer
+MonitorThreadFrequency: "3m0s" 
+
+# How long a message record should last in the buffer
+
 ```
 
 ## Command line flags

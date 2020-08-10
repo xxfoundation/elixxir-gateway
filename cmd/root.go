@@ -17,6 +17,7 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
+	"gitlab.com/xx_network/comms/gossip"
 	"net"
 	"os"
 	"strings"
@@ -36,6 +37,9 @@ var (
 	ipBucketLeakRate, userBucketLeakRate float64
 	cleanPeriod, maxDuration             string
 	validConfig                          bool
+
+	// For gossip protocol
+	bufferExpiration, monitorThreadFrequency time.Duration
 )
 
 // RootCmd represents the base command when called without any sub-commands
@@ -143,6 +147,22 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
 	}
 
+	// fixme: provide option for default options or specifications
+	bufferExpiration = viper.GetDuration("BufferExpirationTime")
+	monitorThreadFrequency = viper.GetDuration("MonitorThreadFrequency")
+
+	managerFlags := gossip.DefaultManagerFlags()
+	//var managerFlags gossip.ManagerFlags
+	//// Check if unpopulated (//fixme what's the default value for time.Duration?
+	//if bufferExpiration == default || monitorThreadFrequency == default {
+	//	managerFlags = gossip.DefaultManagerFlags()
+	//} else {
+	//	managerFlags = gossip.ManagerFlags {
+	//		BufferExpirationTime:   bufferExpiration,
+	//		MonitorThreadFrequency: monitorThreadFrequency,
+	//	}
+	//}
+
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
 	jww.INFO.Printf("Gateway port: %d", gwPort)
@@ -190,6 +210,7 @@ func InitParams(vip *viper.Viper) Params {
 		IpBucket:              ipBucketParams,
 		UserBucket:            userBucketParams,
 		MessageTimeout:        messageTimeout,
+		gossiperFlags:         managerFlags,
 	}
 
 	return p
@@ -307,6 +328,14 @@ func init() {
 	handleBindingError(err, "IP_LeakyBucket_Capacity")
 	err = rootCmd.Flags().MarkHidden("IP_LeakyBucket_Capacity")
 	handleBindingError(err, "IP_LeakyBucket_Capacity")
+
+	rootCmd.Flags().UintVar(&userBucketCapacity,
+		"User_LeakyBucket_Capacity", 4000,
+		"The max capacity for the user ID bucket.")
+	err = viper.BindPFlag("User_LeakyBucket_Capacity", rootCmd.Flags().Lookup("User_LeakyBucket_Capacity"))
+	handleBindingError(err, "User_LeakyBucket_Capacity")
+	err = rootCmd.Flags().MarkHidden("User_LeakyBucket_Capacity")
+	handleBindingError(err, "User_LeakyBucket_Capacity")
 
 	rootCmd.Flags().UintVar(&userBucketCapacity,
 		"User_LeakyBucket_Capacity", 4000,

@@ -9,9 +9,11 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -31,6 +33,7 @@ import (
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
+	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"strings"
@@ -72,6 +75,9 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
+	// Gateway gossip manager
+	gossiper *gossip.Manager
+
 	// Map of leaky buckets for IP addresses
 	ipBuckets *rateLimiting.BucketMap
 	// Map of leaky buckets for user IDs
@@ -111,6 +117,9 @@ type Params struct {
 	UserBucket rateLimiting.Params
 
 	MessageTimeout time.Duration
+
+	// Gossip protocol flags
+	gossiperFlags gossip.ManagerFlags
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -434,7 +443,49 @@ func (gw *Instance) InitNetwork() error {
 		// }
 	}
 
+	gw.setupGossiper()
+
 	return nil
+}
+
+// Helper function whit
+func (gw *Instance) setupGossiper() {
+	gw.gossiper = gossip.NewManager(gw.Comms.ProtoComms, gw.Params.gossiperFlags)
+	receiver := func(msg *gossip.GossipMsg) error {
+		// When received, a leaky bucket will be looked up for those senders
+		// and if it is present, it will be add to them.
+		// if not, a leaky bucket will be created.
+		return nil
+	}
+
+	sigVerify := func(msg *gossip.GossipMsg, receivedSignature []byte) error {
+		if msg == nil {
+			return errors.New("Nil message sent")
+		}
+
+		senderId, err := id.Unmarshal(msg.Origin)
+		if err != nil {
+			return errors.Errorf("Failed to parse sender's id: %v", err)
+		}
+
+		sender, ok := gw.Comms.GetHost(senderId)
+		if !ok {
+			return errors.Errorf("Failed to parse sender's id: %v", err)
+
+		}
+
+		options := rsa.NewDefaultOptions()
+		h := options.Hash.New()
+		h.Reset()
+		h.Write(msg.Payload)
+
+		return rsa.Verify(sender.GetPubKey(), options.Hash, h.Sum(nil), msg.Signature, nil)
+	}
+
+	peers := []*id.ID{gw.ServerHost.GetId()}
+
+	// todo: consider hardcoding tags globally or in a library
+	gw.gossiper.NewGossip("batch", gossip.DefaultProtocolFlags(), receiver, sigVerify, peers)
 }
 
 // Helper that updates parses the NDF in order to create our IDF
@@ -718,6 +769,52 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		jww.ERROR.Println("Round topology empty, sending bad messages!")
 	}
 
+	// todo: functionalize the gossip logic below, possibly in a gofunc
+
+	gossipProtocol, ok := gw.gossiper.Get("batch")
+	if !ok {
+		jww.WARN.Printf("Unable to get gossip protocol. Sending batch without gossiping...")
+	}
+
+	var senderIds []*id.ID
+
+	for i, slot := range batch.Slots {
+		sender, err := id.Unmarshal(slot.SenderID)
+		if err != nil {
+			jww.WARN.Printf("Could not gossip for slot %d in round %d: Unreadable sender ID: %v",
+				i, roundInfo.ID, slot.SenderID)
+		}
+
+		senderIds = append(senderIds, sender)
+	}
+
+	// Marshal the list of senders into a json
+	payloadData, err := json.Marshal(senderIds)
+	if err != nil {
+		jww.WARN.Printf("Could not form gossip payload!")
+	}
+
+	privKey := gw.Comms.ProtoComms.GetPrivateKey()
+	options := rsa.NewDefaultOptions()
+	h := options.Hash.New()
+	h.Reset()
+	h.Write(payloadData)
+
+	sig, err := rsa.Sign(rand.Reader, privKey, options.Hash, h.Sum(nil), nil)
+	if err != nil {
+		jww.WARN.Printf("Failed to sign gossip message: %v", err)
+	}
+
+	gossipMsg := &gossip.GossipMsg{
+		Tag:       "batch",
+		Origin:    gw.Comms.Id.Bytes(),
+		Payload:   payloadData,
+		Signature: sig,
+	}
+	// todo: functionalize the gossip logic above, possibly in a gofunc
+
+	gossipProtocol.Gossip(gossipMsg)
+
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
 		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
@@ -725,7 +822,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
-	err := gw.Comms.PostNewBatch(gw.ServerHost, batch)
+	err = gw.Comms.PostNewBatch(gw.ServerHost, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error while sending batch %v", err)
