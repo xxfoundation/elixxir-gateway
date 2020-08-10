@@ -12,7 +12,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
@@ -26,11 +25,9 @@ import (
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/crypto/signature/rsa"
-	"gitlab.com/elixxir/crypto/xx"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
@@ -78,15 +75,6 @@ type Instance struct {
 	// Gateway gossip manager
 	gossiper *gossip.Manager
 
-	// Map of leaky buckets for IP addresses
-	ipBuckets *rateLimiting.BucketMap
-	// Map of leaky buckets for user IDs
-	userBuckets *rateLimiting.BucketMap
-	// Whitelist of IP addresses
-	ipWhitelist *rateLimiting.Whitelist
-	// Whitelist of IP addresses
-	userWhitelist *rateLimiting.Whitelist
-
 	// struct for tracking notifications
 	un notifications.UserNotifications
 
@@ -113,9 +101,6 @@ type Params struct {
 	IDFPath               string
 	PermissioningCertPath string
 
-	IpBucket   rateLimiting.Params
-	UserBucket rateLimiting.Params
-
 	MessageTimeout time.Duration
 
 	// Gossip protocol flags
@@ -131,29 +116,18 @@ func NewGatewayInstance(params Params) *Instance {
 		viper.GetString("dbAddress"),
 		viper.GetString("dbPort"),
 	)
+
+	if err != nil {
+		jww.WARN.Printf("Could not start database: %s", err)
+		// fixme: panic here?
+	}
+
 	i := &Instance{
 		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
 		database:      newDatabase,
-		ipBuckets:     rateLimiting.CreateBucketMapFromParams(params.IpBucket),
-		userBuckets:   rateLimiting.CreateBucketMapFromParams(params.UserBucket),
 	}
-
-	err = rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
-		IPWhiteListArr)
-
-	if err != nil {
-		jww.WARN.Printf("Could not load whitelist: %s", err)
-	}
-
-	whitelistTemp, err := rateLimiting.InitWhitelist(params.IpBucket.WhitelistFile,
-		nil)
-	if err != nil {
-		jww.ERROR.Printf("Could not load initiate whitelist: %s", err)
-	}
-
-	i.ipWhitelist = whitelistTemp
 
 	return i
 }
@@ -575,16 +549,8 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	//	}, errors.New("Could not authenticate client. Please try again later")
 	//}
 
-	err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
-		TokensPutMessage)
+	// todo: add new rate limiting check
 
-	if err != nil {
-		jww.INFO.Printf("Rate limiting check failed on send message from "+
-			"%v", msg.Message.GetSenderID())
-		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, err
-	}
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
 	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
@@ -618,25 +584,8 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 // Pass-through for Registration Nonce Communication
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.Nonce, error) {
 	jww.INFO.Print("Checking rate limiting check on Nonce Request")
-	userPublicKey, err := rsa.LoadPublicKeyFromPem([]byte(msg.ClientRSAPubKey))
 
-	if err != nil {
-		jww.ERROR.Printf("Unable to decode client RSA Pub Key: %+v", err)
-		return nil, errors.New(fmt.Sprintf("Unable to decode client RSA Pub Key: %+v", err))
-	}
-
-	senderID, err := xx.NewID(userPublicKey, msg.Salt, id.User)
-
-	if err != nil {
-		return nil, err
-	}
-
-	//check rate limit
-	err = gw.FilterMessage(hex.EncodeToString(senderID.Bytes()), ipAddress, TokensRequestNonce)
-
-	if err != nil {
-		return nil, err
-	}
+	// todo: add new rate limiting check
 
 	jww.INFO.Print("Passing on registration nonce request")
 	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
@@ -646,13 +595,7 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.No
 // Pass-through for Registration Nonce Confirmation
 func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 	ipAddress string) (*pb.RegistrationConfirmation, error) {
-
-	err := gw.FilterMessage(hex.EncodeToString(msg.UserID), ipAddress, TokensConfirmNonce)
-
-	if err != nil {
-		return nil, err
-	}
-
+	// todo: add new rate limiting check
 	jww.INFO.Print("Passing on registration nonce confirmation")
 
 	resp, err := gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
@@ -894,38 +837,6 @@ func (gw *Instance) Start() {
 			gw.UpdateInstance(msg)
 		}
 	}()
-}
-
-// FilterMessage determines if the message should be kept or discarded based on
-// the capacity of its related buckets. The message is kept if one or more of
-// these three conditions is met:
-//  1. Both its IP address bucket and user ID bucket have room.
-//  2. Its IP address is on the whitelist and the user bucket has room/user ID
-//     is on the whitelist.
-//  2. If only the user ID is on the whitelist.
-// TODO: re-enable user ID rate limiting after issues are fixed elsewhere
-func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
-	// If the IP address bucket is full AND the message's IP address is not on
-	// the whitelist, then reject the message (unless user ID is on the
-	// whitelist)
-	if !gw.ipBuckets.LookupBucket(ipAddress).Add(token) && !gw.ipWhitelist.Exists(ipAddress) {
-		// Checks if the user ID exists in the whitelists
-		/*if gw.userWhitelist.Exists(userId) {
-			return nil
-		}*/
-
-		return rateLimitErr
-	}
-
-	// If the user ID bucket is full AND the message's user ID is not on the
-	// whitelist, then reject the message
-	/*if !gw.userBuckets.LookupBucket(userId).Add(1) && !gw.userWhitelist.Exists(userId) {
-		return errors.New("Rate limit exceeded. Try again later.")
-	}*/
-
-	// Otherwise, if the user ID bucket has room OR the user ID is on the
-	// whitelist, then let the message through
-	return nil
 }
 
 // Notification Server polls Gateway for mobile notifications at this endpoint

@@ -20,7 +20,6 @@ import (
 	"gitlab.com/elixxir/crypto/signature/rsa"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	xx_pb "gitlab.com/xx_network/comms/messages"
@@ -101,27 +100,6 @@ func TestMain(m *testing.M) {
 		CertPath:       testkeys.GetGatewayCertPath(),
 		KeyPath:        testkeys.GetGatewayKeyPath(),
 		MessageTimeout: 10 * time.Minute,
-	}
-
-	cleanPeriodDur := 3 * time.Second
-	maxDurationDur := 10 * time.Second
-
-	rlPref := "../rateLimiting/whitelists/"
-
-	params.IpBucket = rateLimiting.Params{
-		LeakRate:      0.0000012,
-		Capacity:      1240,
-		CleanPeriod:   cleanPeriodDur,
-		MaxDuration:   maxDurationDur,
-		WhitelistFile: rlPref + "ip_whitelist2.txt",
-	}
-
-	params.UserBucket = rateLimiting.Params{
-		LeakRate:      0.0000012,
-		Capacity:      500,
-		CleanPeriod:   cleanPeriodDur,
-		MaxDuration:   maxDurationDur,
-		WhitelistFile: rlPref + "user_whitelist.txt",
 	}
 
 	gatewayInstance = NewGatewayInstance(params)
@@ -272,26 +250,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 		MessageTimeout: 10 * time.Minute,
-	}
-
-	cleanPeriodDur := 3 * time.Second
-	maxDurationDur := 10 * time.Second
-
-	rlPref := "../rateLimiting/whitelists/"
-	params.IpBucket = rateLimiting.Params{
-		LeakRate:      0.0000012,
-		Capacity:      1240,
-		CleanPeriod:   cleanPeriodDur,
-		MaxDuration:   maxDurationDur,
-		WhitelistFile: rlPref + "ip_whitelist2.txt",
-	}
-
-	params.UserBucket = rateLimiting.Params{
-		LeakRate:      0.0000012,
-		Capacity:      500,
-		CleanPeriod:   cleanPeriodDur,
-		MaxDuration:   maxDurationDur,
-		WhitelistFile: rlPref + "user_whitelist.txt",
 	}
 
 	gw := NewGatewayInstance(params)
