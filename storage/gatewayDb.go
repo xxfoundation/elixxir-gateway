@@ -35,6 +35,22 @@ func (d *DatabaseImpl) GetRound(id *id.Round) (*Round, error) {
 	return result, err
 }
 
+// Returns multiple Rounds from Storage with the given ids
+// Or an error if no matching Rounds exist
+func (d *DatabaseImpl) GetRounds(ids []*id.Round) ([]*Round, error) {
+	// Convert IDs to plain numbers
+	plainIds := make([]uint64, len(ids))
+	for i, v := range ids {
+		plainIds[i] = uint64(*v)
+	}
+
+	// Execute the query
+	results := make([]*Round, 0)
+	err := d.db.Where("id IN (?)", plainIds).Find(&results).Error
+
+	return results, err
+}
+
 // Inserts the given Round into Storage if it does not exist
 // Or updates the given Round if the provided Round UpdateId is greater
 func (d *DatabaseImpl) UpsertRound(round *Round) error {

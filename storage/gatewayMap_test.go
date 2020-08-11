@@ -29,10 +29,13 @@ import (
 //	testBytes := []byte("test")
 //	testClientId := []byte("client")
 //	testRound := uint64(10)
+//	testRound2 := uint64(11)
+//	testRound3 := uint64(12)
 //
 //	testClient := id.NewIdFromBytes(testClientId, t)
 //	testRecip := id.NewIdFromBytes(testBytes, t)
 //	testRoundId := id.Round(testRound)
+//	testRoundId3 := id.Round(testRound3)
 //
 //
 //	err = db.InsertClient(&Client{
@@ -45,7 +48,25 @@ import (
 //	}
 //	err = db.UpsertRound(&Round{
 //		Id:       testRound,
-//		UpdateId: 71,
+//		UpdateId: 50,
+//		InfoBlob: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertRound(&Round{
+//		Id:       testRound2,
+//		UpdateId: 51,
+//		InfoBlob: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertRound(&Round{
+//		Id:       testRound3,
+//		UpdateId: 52,
 //		InfoBlob: testBytes,
 //	})
 //	if err != nil {
@@ -114,13 +135,19 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	jww.INFO.Printf("%+v", client)
+//	jwalterweatherman.INFO.Printf("%+v", client)
 //	round, err := db.GetRound(&testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	jww.INFO.Printf("%+v", round)
+//	jwalterweatherman.INFO.Printf("%+v", round)
+//	rounds, err := db.GetRounds([]*id.Round{&testRoundId, &testRoundId3})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%+v", rounds[1])
 //	messages, err := db.GetMixedMessages(testClient, &testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
