@@ -56,9 +56,9 @@ func (m *MapImpl) InsertClient(client *Client) error {
 
 // Returns a Round from Storage with the given id
 // Or an error if a matching Round does not exist
-func (m *MapImpl) GetRound(id *id.Round) (*Round, error) {
+func (m *MapImpl) GetRound(id id.Round) (*Round, error) {
 	m.RLock()
-	round := m.rounds[*id]
+	round := m.rounds[id]
 	m.RUnlock()
 
 	// Return an error if the Round was not found in the map
@@ -71,13 +71,13 @@ func (m *MapImpl) GetRound(id *id.Round) (*Round, error) {
 
 // Returns multiple Rounds from Storage with the given ids
 // Or an error if no matching Rounds exist
-func (m *MapImpl) GetRounds(ids []*id.Round) ([]*Round, error) {
+func (m *MapImpl) GetRounds(ids []id.Round) ([]*Round, error) {
 	m.RLock()
 	defer m.RUnlock()
 
 	results := make([]*Round, 0)
 	for _, roundId := range ids {
-		if round := m.rounds[*roundId]; round != nil {
+		if round := m.rounds[roundId]; round != nil {
 			results = append(results, round)
 		}
 	}
@@ -108,8 +108,8 @@ func (m *MapImpl) UpsertRound(round *Round) error {
 // Returns a slice of MixedMessages from Storage
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (m *MapImpl) GetMixedMessages(recipientId *id.ID, roundId *id.Round) ([]*MixedMessage, error) {
-	roundID := uint64(*roundId)
+func (m *MapImpl) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error) {
+	roundID := uint64(roundId)
 	var mixedMessages []*MixedMessage
 
 	m.RLock()

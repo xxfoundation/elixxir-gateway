@@ -304,7 +304,7 @@ func TestMapImpl_GetRound(t *testing.T) {
 		rounds: map[id.Round]*Round{testKey: testRound},
 	}
 
-	round, err := m.GetRound(&testKey)
+	round, err := m.GetRound(testKey)
 	if err != nil || round != testRound {
 		t.Errorf("Failed to get round: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestMapImpl_GetRound_NoRoundError(t *testing.T) {
 		rounds: make(map[id.Round]*Round),
 	}
 
-	round, err := m.GetRound(&testKey)
+	round, err := m.GetRound(testKey)
 	if err == nil || round != nil {
 		t.Errorf("No error returned when round does not exist.")
 	}
@@ -333,7 +333,7 @@ func TestMapImpl_GetRounds(t *testing.T) {
 		rounds: map[id.Round]*Round{testKey: testRound, testKey2: testRound2},
 	}
 
-	rounds, err := m.GetRounds([]*id.Round{&testKey, &testKey2})
+	rounds, err := m.GetRounds([]id.Round{testKey, testKey2})
 	if err != nil || len(rounds) != 2 {
 		t.Errorf("Failed to get rounds: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestMapImpl_GetRounds_NoRoundError(t *testing.T) {
 		rounds: map[id.Round]*Round{testKey: testRound, testKey2: testRound2},
 	}
 
-	rounds, err := m.GetRounds([]*id.Round{&invalidKey, &invalidKey2})
+	rounds, err := m.GetRounds([]id.Round{invalidKey, invalidKey2})
 	if err == nil || rounds != nil {
 		t.Errorf("No error returned when rounds do not exist.")
 	}
@@ -413,7 +413,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	}
 
 	// Get list of 1 item
-	mixedMsgs, err := m.GetMixedMessages(testRecipientID, &testRoundID)
+	mixedMsgs, err := m.GetMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -438,7 +438,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	m.mixedMessages[testMsgID] = testMixedMessage
 
 	// Get list of 3 items
-	mixedMsgs, err = m.GetMixedMessages(testRecipientID, &testRoundID)
+	mixedMsgs, err = m.GetMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -463,7 +463,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	m.mixedMessages[testMsgID] = testMixedMessage
 
 	// Get list of 3 items
-	mixedMsgs, err = m.GetMixedMessages(testRecipientID, &testRoundID)
+	mixedMsgs, err = m.GetMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -490,7 +490,7 @@ func TestMapImpl_GetMixedMessages_NoMessageError(t *testing.T) {
 	}
 
 	// Attempt to get message that is not in map
-	mixedMsgs, err := m.GetMixedMessages(testRecipientID, &testRoundID)
+	mixedMsgs, err := m.GetMixedMessages(testRecipientID, testRoundID)
 	if err == nil {
 		t.Errorf("Expected an error when mixedMessage is not found in map.")
 	}
