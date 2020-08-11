@@ -439,16 +439,7 @@ func (gw *Instance) InitNetwork() error {
 func (gw *Instance) setupGossiper() {
 	gw.gossiper = gossip.NewManager(gw.Comms.ProtoComms, gw.Params.gossiperFlags)
 	receiver := func(msg *gossip.GossipMsg) error {
-		// When received, a leaky bucket will be looked up for those senders
-		// and if it is present, it will be add to them.
-		// if not, a leaky bucket will be created.
-		senderId, err := id.Unmarshal(msg.Origin)
-		if err != nil {
-			return errors.Errorf("Failed to parse sender's id: %v", err)
-		}
 
-		senderBucket := gw.rateLimiter.LookupBucket(senderId.String())
-		senderBucket.Add(1) // fixme: Hardcoded, or base it on something like the length of the message?
 		return nil
 	}
 
@@ -570,6 +561,14 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	//}
 
 	// todo: add new rate limiting check
+	// Check if sender has exceeded the rate limit
+	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	// fixme: Hardcoded, or base it on something like the length of the message
+	success := senderBucket.Add(1)
+	if !success {
+		return &pb.GatewaySlotResponse{}, errors.New("Receiving messages at a high rate. Please " +
+			"wait before sending more messages")
+	}
 
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
@@ -605,8 +604,14 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.Nonce, error) {
 	jww.INFO.Print("Checking rate limiting check on Nonce Request")
 
-	// todo: add new rate limiting check
-
+	// Check if sender has exceeded the rate limit
+	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	// fixme: Hardcoded, or base it on something like the length of the message
+	success := senderBucket.Add(1)
+	if !success {
+		return &pb.Nonce{}, errors.New("Receiving messages at a high rate. Please " +
+			"wait before sending more messages")
+	}
 	jww.INFO.Print("Passing on registration nonce request")
 	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
 
@@ -615,7 +620,16 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.No
 // Pass-through for Registration Nonce Confirmation
 func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 	ipAddress string) (*pb.RegistrationConfirmation, error) {
-	// todo: add new rate limiting check
+
+	// Check if sender has exceeded the rate limit
+	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	// fixme: Hardcoded, or base it on something like the length of the message
+	success := senderBucket.Add(1)
+	if !success {
+		return &pb.RegistrationConfirmation{}, errors.New("Receiving messages at a high rate. Please " +
+			"wait before sending more messages")
+	}
+
 	jww.INFO.Print("Passing on registration nonce confirmation")
 
 	resp, err := gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
@@ -874,4 +888,17 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 func (gw *Instance) KillRateLimiter() {
 	gw.rateLimitQuit <- struct{}{}
 
+}
+
+func (gw *Instance) rateLimitCheck(senderID *id.ID) {
+	// When received, a leaky bucket will be looked up for those senders
+	// and if it is present, it will be add to them.
+	// if not, a leaky bucket will be created.
+
+	senderBucket := gw.rateLimiter.LookupBucket(senderId.String())
+	// fixme: Hardcoded, or base it on something like the length of the message
+	success := senderBucket.Add(1)
+	if !success {
+
+	}
 }
