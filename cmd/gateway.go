@@ -28,6 +28,7 @@ import (
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
+	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
@@ -75,6 +76,10 @@ type Instance struct {
 	// Gateway gossip manager
 	gossiper *gossip.Manager
 
+	// Gateway's rate limiter. Manages and
+	rateLimiter   *rateLimiting.BucketMap
+	rateLimitQuit chan struct{}
+
 	// struct for tracking notifications
 	un notifications.UserNotifications
 
@@ -105,11 +110,13 @@ type Params struct {
 
 	// Gossip protocol flags
 	gossiperFlags gossip.ManagerFlags
+
+	// Rate limiting parameters
+	bucketMapParams *rateLimiting.MapParams
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
-	/// fixme: placed as stub, overwrite with Jake's implementation when done
 	newDatabase, _, err := storage.NewDatabase(viper.GetString("dbUsername"),
 		viper.GetString("dbPassword"),
 		viper.GetString("dbName"),
@@ -118,15 +125,21 @@ func NewGatewayInstance(params Params) *Instance {
 	)
 
 	if err != nil {
-		jww.WARN.Printf("Could not start database: %s", err)
-		// fixme: panic here?
+		jww.DEBUG.Printf("Could not start database: %s", err)
 	}
+
+	rateLimitKill := make(chan struct{}, 1)
+
+	// Todo: populate with database and quit channel
+	gwBucketMap := rateLimiting.CreateBucketMapFromParams(params.bucketMapParams, nil, rateLimitKill)
 
 	i := &Instance{
 		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
 		database:      newDatabase,
+		rateLimiter:   gwBucketMap,
+		rateLimitQuit: rateLimitKill,
 	}
 
 	return i
@@ -429,6 +442,13 @@ func (gw *Instance) setupGossiper() {
 		// When received, a leaky bucket will be looked up for those senders
 		// and if it is present, it will be add to them.
 		// if not, a leaky bucket will be created.
+		senderId, err := id.Unmarshal(msg.Origin)
+		if err != nil {
+			return errors.Errorf("Failed to parse sender's id: %v", err)
+		}
+
+		senderBucket := gw.rateLimiter.LookupBucket(senderId.String())
+		senderBucket.Add(1) // fixme: Hardcoded, or base it on something like the length of the message?
 		return nil
 	}
 
@@ -848,4 +868,10 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 	return gw.un.Notified(), nil
+}
+
+// Notification Server polls Gateway for mobile notifications at this endpoint
+func (gw *Instance) KillRateLimiter() {
+	gw.rateLimitQuit <- struct{}{}
+
 }
