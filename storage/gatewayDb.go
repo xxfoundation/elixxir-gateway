@@ -29,10 +29,26 @@ func (d *DatabaseImpl) InsertClient(client *Client) error {
 
 // Returns a Round from Storage with the given id
 // Or an error if a matching Round does not exist
-func (d *DatabaseImpl) GetRound(id *id.Round) (*Round, error) {
+func (d *DatabaseImpl) GetRound(id id.Round) (*Round, error) {
 	result := &Round{}
-	err := d.db.First(&result, "id = ?", uint64(*id)).Error
+	err := d.db.First(&result, "id = ?", uint64(id)).Error
 	return result, err
+}
+
+// Returns multiple Rounds from Storage with the given ids
+// Or an error if no matching Rounds exist
+func (d *DatabaseImpl) GetRounds(ids []id.Round) ([]*Round, error) {
+	// Convert IDs to plain numbers
+	plainIds := make([]uint64, len(ids))
+	for i, v := range ids {
+		plainIds[i] = uint64(v)
+	}
+
+	// Execute the query
+	results := make([]*Round, 0)
+	err := d.db.Where("id IN (?)", plainIds).Find(&results).Error
+
+	return results, err
 }
 
 // Inserts the given Round into Storage if it does not exist
@@ -65,11 +81,11 @@ func (d *DatabaseImpl) UpsertRound(round *Round) error {
 // Returns a slice of MixedMessages from Storage
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (d *DatabaseImpl) GetMixedMessages(recipientId *id.ID, roundId *id.Round) ([]*MixedMessage, error) {
+func (d *DatabaseImpl) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error) {
 	results := make([]*MixedMessage, 0)
 	err := d.db.Find(&results,
 		&MixedMessage{RecipientId: recipientId.Marshal(),
-			RoundId: uint64(*roundId)}).Error
+			RoundId: uint64(roundId)}).Error
 	return results, err
 }
 
