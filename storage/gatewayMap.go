@@ -72,7 +72,20 @@ func (m *MapImpl) GetRound(id *id.Round) (*Round, error) {
 // Returns multiple Rounds from Storage with the given ids
 // Or an error if no matching Rounds exist
 func (m *MapImpl) GetRounds(ids []*id.Round) ([]*Round, error) {
-	return nil, nil
+	m.RLock()
+	defer m.RUnlock()
+
+	results := make([]*Round, 0)
+	for _, roundId := range ids {
+		if round := m.rounds[*roundId]; round != nil {
+			results = append(results, round)
+		}
+	}
+
+	if len(results) == 0 {
+		return nil, errors.Errorf("Could not find matching Rounds in map.")
+	}
+	return results, nil
 }
 
 // Inserts the given Round into Storage if it does not exist

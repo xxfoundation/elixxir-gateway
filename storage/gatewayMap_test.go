@@ -324,6 +324,40 @@ func TestMapImpl_GetRound_NoRoundError(t *testing.T) {
 }
 
 // Happy path.
+func TestMapImpl_GetRounds(t *testing.T) {
+	testKey := id.Round(40)
+	testRound := &Round{Id: uint64(testKey)}
+	testKey2 := id.Round(50)
+	testRound2 := &Round{Id: uint64(testKey2)}
+	m := &MapImpl{
+		rounds: map[id.Round]*Round{testKey: testRound, testKey2: testRound2},
+	}
+
+	rounds, err := m.GetRounds([]*id.Round{&testKey, &testKey2})
+	if err != nil || len(rounds) != 2 {
+		t.Errorf("Failed to get rounds: %v", err)
+	}
+}
+
+// Error Path: Rounds not in map.
+func TestMapImpl_GetRounds_NoRoundError(t *testing.T) {
+	testKey := id.Round(40)
+	testRound := &Round{Id: uint64(testKey)}
+	testKey2 := id.Round(50)
+	testRound2 := &Round{Id: uint64(testKey2)}
+	invalidKey := id.Round(30)
+	invalidKey2 := id.Round(20)
+	m := &MapImpl{
+		rounds: map[id.Round]*Round{testKey: testRound, testKey2: testRound2},
+	}
+
+	rounds, err := m.GetRounds([]*id.Round{&invalidKey, &invalidKey2})
+	if err == nil || rounds != nil {
+		t.Errorf("No error returned when rounds do not exist.")
+	}
+}
+
+// Happy path.
 func TestMapImpl_UpsertRound(t *testing.T) {
 	testKey := id.Round(rand.Uint64())
 	testRounds := []*Round{
