@@ -123,14 +123,13 @@ func NewGatewayInstance(params Params) *Instance {
 		viper.GetString("dbAddress"),
 		viper.GetString("dbPort"),
 	)
-
 	if err != nil {
 		jww.DEBUG.Printf("Could not start database: %s", err)
 	}
 
 	rateLimitKill := make(chan struct{}, 1)
 
-	// Todo: populate with database and quit channel
+	// Todo: populate with newDatabase once conforms to interface
 	gwBucketMap := rateLimiting.CreateBucketMapFromParams(params.bucketMapParams, nil, rateLimitKill)
 
 	i := &Instance{
@@ -435,14 +434,15 @@ func (gw *Instance) InitNetwork() error {
 	return nil
 }
 
-// Helper function whit
+// Helper function which sets up the gossip manager
 func (gw *Instance) setupGossiper() {
 	gw.gossiper = gossip.NewManager(gw.Comms.ProtoComms, gw.Params.gossiperFlags)
 	receiver := func(msg *gossip.GossipMsg) error {
-
+		// fixme: what to do with receiver?
 		return nil
 	}
 
+	// Build the signatue verify function
 	sigVerify := func(msg *gossip.GossipMsg, receivedSignature []byte) error {
 		if msg == nil {
 			return errors.New("Nil message sent")
@@ -560,7 +560,6 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	//	}, errors.New("Could not authenticate client. Please try again later")
 	//}
 
-	// todo: add new rate limiting check
 	// Check if sender has exceeded the rate limit
 	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
 	// fixme: Hardcoded, or base it on something like the length of the message
@@ -746,20 +745,41 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		jww.ERROR.Println("Round topology empty, sending bad messages!")
 	}
 
-	// todo: functionalize the gossip logic below, possibly in a gofunc
+	// fixme: put in a go func?
+	// Gossip the sender IDs in the batch to our peers
+	gw.gossipBatch(batch)
 
+	// Now fill with junk and send
+	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
+		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
+			uint32(i))
+		batch.Slots = append(batch.Slots, junkMsg)
+	}
+
+	err := gw.Comms.PostNewBatch(gw.ServerHost, batch)
+	if err != nil {
+		// TODO: handle failure sending batch
+		jww.WARN.Printf("Error while sending batch %v", err)
+
+	}
+
+}
+
+// gossipBatch builds a gossip message containing all of the sender ID's
+// within the batch and gossips it to all peers
+func (gw *Instance) gossipBatch(batch *pb.Batch) {
 	gossipProtocol, ok := gw.gossiper.Get("batch")
 	if !ok {
 		jww.WARN.Printf("Unable to get gossip protocol. Sending batch without gossiping...")
 	}
 
+	// Collect all of the sender IDs in the batch
 	var senderIds []*id.ID
-
 	for i, slot := range batch.Slots {
 		sender, err := id.Unmarshal(slot.SenderID)
 		if err != nil {
 			jww.WARN.Printf("Could not gossip for slot %d in round %d: Unreadable sender ID: %v",
-				i, roundInfo.ID, slot.SenderID)
+				i, batch.Round.ID, slot.SenderID)
 		}
 
 		senderIds = append(senderIds, sender)
@@ -771,40 +791,29 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Could not form gossip payload!")
 	}
 
+	// Hash the payload data for signing
 	privKey := gw.Comms.ProtoComms.GetPrivateKey()
 	options := rsa.NewDefaultOptions()
 	h := options.Hash.New()
 	h.Reset()
 	h.Write(payloadData)
 
+	// Construct the message's signature
 	sig, err := rsa.Sign(rand.Reader, privKey, options.Hash, h.Sum(nil), nil)
 	if err != nil {
 		jww.WARN.Printf("Failed to sign gossip message: %v", err)
 	}
 
+	// Build the message
 	gossipMsg := &gossip.GossipMsg{
 		Tag:       "batch",
 		Origin:    gw.Comms.Id.Bytes(),
 		Payload:   payloadData,
 		Signature: sig,
 	}
-	// todo: functionalize the gossip logic above, possibly in a gofunc
 
+	// Gossip the message
 	gossipProtocol.Gossip(gossipMsg)
-
-	// Now fill with junk and send
-	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
-		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
-			uint32(i))
-		batch.Slots = append(batch.Slots, junkMsg)
-	}
-
-	err = gw.Comms.PostNewBatch(gw.ServerHost, batch)
-	if err != nil {
-		// TODO: handle failure sending batch
-		jww.WARN.Printf("Error while sending batch %v", err)
-
-	}
 
 }
 

@@ -150,20 +150,17 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	// fixme: provide option for default options or specifications
-	bufferExpiration = viper.GetDuration("BufferExpirationTime")
-	monitorThreadFrequency = viper.GetDuration("MonitorThreadFrequency")
-
 	managerFlags := gossip.DefaultManagerFlags()
-	//var managerFlags gossip.ManagerFlags
-	//// Check if unpopulated (//fixme what's the default value for time.Duration?
-	//if bufferExpiration == default || monitorThreadFrequency == default {
-	//	managerFlags = gossip.DefaultManagerFlags()
-	//} else {
-	//	managerFlags = gossip.ManagerFlags {
-	//		BufferExpirationTime:   bufferExpiration,
-	//		MonitorThreadFrequency: monitorThreadFrequency,
-	//	}
-	//}
+	// If the values aren't default, repopulate flag values with customized values
+	// Otherwise use the default values
+	if managerFlags.BufferExpirationTime != bufferExpiration ||
+		managerFlags.MonitorThreadFrequency != monitorThreadFrequency {
+
+		managerFlags = gossip.ManagerFlags{
+			BufferExpirationTime:   bufferExpiration,
+			MonitorThreadFrequency: monitorThreadFrequency,
+		}
+	}
 
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
@@ -171,6 +168,7 @@ func InitParams(vip *viper.Viper) Params {
 	jww.INFO.Printf("Gateway listen IP address: %s", listeningAddress)
 	jww.INFO.Printf("Gateway node: %s", nodeAddress)
 
+	// Construct the rate limiting params
 	bucketMapParams := &rateLimiting.MapParams{
 		Capacity:     capacity,
 		LeakedTokens: leakedTokens,
@@ -284,7 +282,7 @@ func init() {
 	err = viper.BindPFlag("permissioningCertPath", rootCmd.Flags().Lookup("permissioningCertPath"))
 	handleBindingError(err, "permissioningCertPath")
 
-	// Bucket Params parsing
+	// RATE LIMITING FLAGS
 	rootCmd.Flags().Uint32Var(&capacity, "capacity", 20,
 		"Amount of buckets to keep track of for rate limiting communications")
 	err = viper.BindPFlag("capacity", rootCmd.Flags().Lookup("capacity"))
@@ -300,7 +298,6 @@ func init() {
 	err = viper.BindPFlag("leakDuration", rootCmd.Flags().Lookup("leakDuration"))
 	handleBindingError(err, "Rate_Limiting_LeakDuration")
 
-	//pollDuration, bucketMaxAge
 	rootCmd.Flags().DurationVar(&pollDuration, "pollDuration", 10*time.Second,
 		"Duration between polls for stale buckets")
 	err = viper.BindPFlag("pollDuration", rootCmd.Flags().Lookup("pollDuration"))
@@ -310,6 +307,17 @@ func init() {
 		"Max time of inactivity before removal")
 	err = viper.BindPFlag("bucketMaxAge", rootCmd.Flags().Lookup("bucketMaxAge"))
 	handleBindingError(err, "Rate_Limiting_BucketMaxAge")
+
+	// GOSSIP MANAGER FLAGS
+	rootCmd.Flags().DurationVar(&bufferExpiration, "bufferExpiration", 300*time.Second,
+		"How long a message record should last in the buffer")
+	err = viper.BindPFlag("bufferExpiration", rootCmd.Flags().Lookup("bufferExpiration"))
+	handleBindingError(err, "Rate_Limiting_BufferExpiration")
+
+	rootCmd.Flags().DurationVar(&monitorThreadFrequency, "monitorThreadFrequency", 150*time.Second,
+		"Frequency with which to check the gossip's buffer.")
+	err = viper.BindPFlag("monitorThreadFrequency", rootCmd.Flags().Lookup("monitorThreadFrequency"))
+	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
 
 	// DEPRECIATED - Flags for leaky bucket
 	rootCmd.Flags().Float64Var(&ipBucketLeakRate,
