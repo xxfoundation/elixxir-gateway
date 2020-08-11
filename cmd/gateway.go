@@ -893,21 +893,9 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 	return gw.un.Notified(), nil
 }
 
-// Notification Server polls Gateway for mobile notifications at this endpoint
+// KillRateLimiter is a helper function which sends the kill
+// signal to the gateway's rate limiter
 func (gw *Instance) KillRateLimiter() {
 	gw.rateLimitQuit <- struct{}{}
 
-}
-
-func (gw *Instance) rateLimitCheck(senderID *id.ID) {
-	// When received, a leaky bucket will be looked up for those senders
-	// and if it is present, it will be add to them.
-	// if not, a leaky bucket will be created.
-
-	senderBucket := gw.rateLimiter.LookupBucket(senderId.String())
-	// fixme: Hardcoded, or base it on something like the length of the message
-	success := senderBucket.Add(1)
-	if !success {
-
-	}
 }

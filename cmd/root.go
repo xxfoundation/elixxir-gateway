@@ -352,14 +352,6 @@ func init() {
 	err = rootCmd.Flags().MarkHidden("User_LeakyBucket_Capacity")
 	handleBindingError(err, "User_LeakyBucket_Capacity")
 
-	rootCmd.Flags().UintVar(&userBucketCapacity,
-		"User_LeakyBucket_Capacity", 4000,
-		"DEPRECIATED")
-	err = viper.BindPFlag("User_LeakyBucket_Capacity", rootCmd.Flags().Lookup("User_LeakyBucket_Capacity"))
-	handleBindingError(err, "User_LeakyBucket_Capacity")
-	err = rootCmd.Flags().MarkHidden("User_LeakyBucket_Capacity")
-	handleBindingError(err, "User_LeakyBucket_Capacity")
-
 	rootCmd.Flags().StringVarP(&cleanPeriod,
 		"Clean_Period", "", "30m",
 		"DEPRECIATED")
