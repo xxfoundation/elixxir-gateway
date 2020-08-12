@@ -149,14 +149,13 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
 	}
 
-	// fixme: provide option for default options or specifications
-	managerFlags := gossip.DefaultManagerFlags()
 	// If the values aren't default, repopulate flag values with customized values
 	// Otherwise use the default values
-	if managerFlags.BufferExpirationTime != bufferExpiration ||
-		managerFlags.MonitorThreadFrequency != monitorThreadFrequency {
+	gossipFlags := gossip.DefaultManagerFlags()
+	if gossipFlags.BufferExpirationTime != bufferExpiration ||
+		gossipFlags.MonitorThreadFrequency != monitorThreadFrequency {
 
-		managerFlags = gossip.ManagerFlags{
+		gossipFlags = gossip.ManagerFlags{
 			BufferExpirationTime:   bufferExpiration,
 			MonitorThreadFrequency: monitorThreadFrequency,
 		}
@@ -187,8 +186,8 @@ func InitParams(vip *viper.Viper) Params {
 		IDFPath:               idfPath,
 		PermissioningCertPath: permissioningCertPath,
 		MessageTimeout:        messageTimeout,
-		gossiperFlags:         managerFlags,
-		bucketMapParams:       bucketMapParams,
+		gossiperFlags:         gossipFlags,
+		rateLimiterParams:     bucketMapParams,
 	}
 
 	return p
@@ -318,70 +317,6 @@ func init() {
 		"Frequency with which to check the gossip's buffer.")
 	err = viper.BindPFlag("monitorThreadFrequency", rootCmd.Flags().Lookup("monitorThreadFrequency"))
 	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
-
-	// DEPRECIATED - Flags for leaky bucket
-	rootCmd.Flags().Float64Var(&ipBucketLeakRate,
-		"IP_LeakyBucket_Rate", 0.000005,
-		"DEPRECIATED")
-	err = viper.BindPFlag("IP_LeakyBucket_Rate", rootCmd.Flags().Lookup("IP_LeakyBucket_Rate"))
-	handleBindingError(err, "IP_LeakyBucket_Rate")
-	err = rootCmd.Flags().MarkHidden("IP_LeakyBucket_Rate")
-	handleBindingError(err, "IP_LeakyBucket_Rate")
-
-	rootCmd.Flags().Float64Var(&userBucketLeakRate,
-		"User_LeakyBucket_Rate", 0.000005,
-		"DEPRECIATED")
-	err = viper.BindPFlag("User_LeakyBucket_Rate", rootCmd.Flags().Lookup("User_LeakyBucket_Rate"))
-	handleBindingError(err, "User_LeakyBucket_Rate")
-	err = rootCmd.Flags().MarkHidden("User_LeakyBucket_Rate")
-	handleBindingError(err, "User_LeakyBucket_Rate")
-
-	rootCmd.Flags().UintVar(&ipBucketCapacity,
-		"IP_LeakyBucket_Capacity", 4000,
-		"DEPRECIATED")
-	err = viper.BindPFlag("IP_LeakyBucket_Capacity", rootCmd.Flags().Lookup("IP_LeakyBucket_Capacity"))
-	handleBindingError(err, "IP_LeakyBucket_Capacity")
-	err = rootCmd.Flags().MarkHidden("IP_LeakyBucket_Capacity")
-	handleBindingError(err, "IP_LeakyBucket_Capacity")
-
-	rootCmd.Flags().UintVar(&userBucketCapacity,
-		"User_LeakyBucket_Capacity", 4000,
-		"DEPRECIATED")
-	err = viper.BindPFlag("User_LeakyBucket_Capacity", rootCmd.Flags().Lookup("User_LeakyBucket_Capacity"))
-	handleBindingError(err, "User_LeakyBucket_Capacity")
-	err = rootCmd.Flags().MarkHidden("User_LeakyBucket_Capacity")
-	handleBindingError(err, "User_LeakyBucket_Capacity")
-
-	rootCmd.Flags().StringVarP(&cleanPeriod,
-		"Clean_Period", "", "30m",
-		"DEPRECIATED")
-	err = viper.BindPFlag("Clean_Period", rootCmd.Flags().Lookup("Clean_Period"))
-	handleBindingError(err, "Clean_Period")
-	err = rootCmd.Flags().MarkHidden("Clean_Period")
-	handleBindingError(err, "Clean_Period")
-
-	rootCmd.Flags().StringVarP(&maxDuration,
-		"Max_Duration", "", "15m",
-		"DEPRECIATED. The max duration a bucket can persist before being removed.")
-	err = viper.BindPFlag("Max_Duration", rootCmd.Flags().Lookup("Max_Duration"))
-	handleBindingError(err, "Max_Duration")
-	err = rootCmd.Flags().MarkHidden("Max_Duration")
-	handleBindingError(err, "Max_Duration")
-
-	rootCmd.Flags().String("IP_Whitelist_File", "",
-		"DEPRECIATED.")
-	err = viper.BindPFlag("IP_Whitelist_File", rootCmd.Flags().Lookup("IP_Whitelist_File"))
-	handleBindingError(err, "IP_Whitelist_File")
-	err = rootCmd.Flags().MarkHidden("IP_Whitelist_File")
-	handleBindingError(err, "IP_Whitelist_File")
-
-	rootCmd.Flags().String("User_Whitelist_File", "",
-		"DEPRECIATED")
-	err = viper.BindPFlag("User_Whitelist_File", rootCmd.Flags().Lookup("User_Whitelist_File"))
-	handleBindingError(err, "User_Whitelist_File")
-	err = rootCmd.Flags().MarkHidden("User_Whitelist_File")
-	handleBindingError(err, "User_Whitelist_File")
-
 }
 
 // Handle flag binding errors

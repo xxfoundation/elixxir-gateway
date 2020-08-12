@@ -56,8 +56,6 @@ const (
 	ErrAuth        = "Failed to authenticate id:"
 )
 
-var IPWhiteListArr = []string{"test"}
-
 type Instance struct {
 	// Storage buffer for messages after being processed by the network
 	MixedBuffer storage.MixedMessageBuffer
@@ -112,7 +110,7 @@ type Params struct {
 	gossiperFlags gossip.ManagerFlags
 
 	// Rate limiting parameters
-	bucketMapParams *rateLimiting.MapParams
+	rateLimiterParams *rateLimiting.MapParams
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -124,13 +122,13 @@ func NewGatewayInstance(params Params) *Instance {
 		viper.GetString("dbPort"),
 	)
 	if err != nil {
-		jww.DEBUG.Printf("Could not start database: %s", err)
+		jww.FATAL.Panicf("Unable to initialize storage: %+v", err)
 	}
 
 	rateLimitKill := make(chan struct{}, 1)
 
 	// Todo: populate with newDatabase once conforms to interface
-	gwBucketMap := rateLimiting.CreateBucketMapFromParams(params.bucketMapParams, nil, rateLimitKill)
+	gwBucketMap := rateLimiting.CreateBucketMapFromParams(params.rateLimiterParams, nil, rateLimitKill)
 
 	i := &Instance{
 		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
@@ -434,7 +432,7 @@ func (gw *Instance) InitNetwork() error {
 	return nil
 }
 
-// Helper function which sets up the gossip manager
+// Helper function which initializes the gossip manager
 func (gw *Instance) setupGossiper() {
 	gw.gossiper = gossip.NewManager(gw.Comms.ProtoComms, gw.Params.gossiperFlags)
 	receiver := func(msg *gossip.GossipMsg) error {
@@ -442,7 +440,7 @@ func (gw *Instance) setupGossiper() {
 		return nil
 	}
 
-	// Build the signatue verify function
+	// Build the signature verify function
 	sigVerify := func(msg *gossip.GossipMsg, receivedSignature []byte) error {
 		if msg == nil {
 			return errors.New("Nil message sent")
@@ -469,7 +467,7 @@ func (gw *Instance) setupGossiper() {
 
 	peers := []*id.ID{gw.ServerHost.GetId()}
 
-	// todo: consider hardcoding tags globally or in a library
+	// todo: consider hard-coding tags globally or in a library?
 	gw.gossiper.NewGossip("batch", gossip.DefaultProtocolFlags(), receiver, sigVerify, peers)
 }
 
@@ -501,30 +499,28 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
 func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
-	// disabled from rate limiting for now
-	/*uIDStr := hex.EncodeToString(userID.Bytes())
-	err := gw.FilterMessage(uIDStr, ipAddress, TokensGetMessage)
-
-	if err != nil {
-		jww.INFO.Printf("Rate limiting check failed on get message from %s", uIDStr)
-		return nil, err
-	}*/
-
+	// Check if sender has exceeded the rate limit
+	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	// fixme: Hardcoded, or base it on something like the length of the message?
+	success := senderBucket.Add(1)
+	if !success {
+		return &pb.Slot{}, errors.New("Receiving messages at a high rate. Please " +
+			"wait before sending more messages")
+	}
 	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
 	return gw.MixedBuffer.GetMixedMessage(userID, msgID)
 }
 
 // Return any MessageIDs in the globals for this User
 func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string) ([]string, error) {
-	//disabled from rate limiting for now
-	/*uIDStr := hex.EncodeToString(userID.Bytes())
-	err := gw.FilterMessage(uIDStr, ipAddress, TokensCheckMessages)
-
-	if err != nil {
-		jww.INFO.Printf("Rate limiting check failed on check messages "+
-			"from %s", uIDStr)
-		return nil, err
-	}*/
+	// Check if sender has exceeded the rate limit
+	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	// fixme: Hardcoded, or base it on something like the length of the message?
+	success := senderBucket.Add(1)
+	if !success {
+		return []string{}, errors.New("Receiving messages at a high rate. Please " +
+			"wait before sending more messages")
+	}
 
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
@@ -562,7 +558,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 
 	// Check if sender has exceeded the rate limit
 	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
-	// fixme: Hardcoded, or base it on something like the length of the message
+	// fixme: Hardcoded, or base it on something like the length of the message?
 	success := senderBucket.Add(1)
 	if !success {
 		return &pb.GatewaySlotResponse{}, errors.New("Receiving messages at a high rate. Please " +
@@ -747,8 +743,11 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	// fixme: put in a go func?
 	// Gossip the sender IDs in the batch to our peers
-	gw.gossipBatch(batch)
-
+	_, errs := gw.gossipBatch(batch)
+	if len(errs) != 0 {
+		jww.WARN.Printf("bad error: %v", errs)
+		jww.WARN.Printf("Could not gossip batch to peers")
+	}
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
 		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
@@ -767,7 +766,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 // gossipBatch builds a gossip message containing all of the sender ID's
 // within the batch and gossips it to all peers
-func (gw *Instance) gossipBatch(batch *pb.Batch) {
+func (gw *Instance) gossipBatch(batch *pb.Batch) (int, []error) {
 	gossipProtocol, ok := gw.gossiper.Get("batch")
 	if !ok {
 		jww.WARN.Printf("Unable to get gossip protocol. Sending batch without gossiping...")
@@ -813,7 +812,7 @@ func (gw *Instance) gossipBatch(batch *pb.Batch) {
 	}
 
 	// Gossip the message
-	gossipProtocol.Gossip(gossipMsg)
+	return gossipProtocol.Gossip(gossipMsg)
 
 }
 
