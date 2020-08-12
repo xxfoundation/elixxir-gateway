@@ -29,10 +29,13 @@ import (
 //	testBytes := []byte("test")
 //	testClientId := []byte("client")
 //	testRound := uint64(10)
+//	testRound2 := uint64(11)
+//	testRound3 := uint64(12)
 //
 //	testClient := id.NewIdFromBytes(testClientId, t)
 //	testRecip := id.NewIdFromBytes(testBytes, t)
 //	testRoundId := id.Round(testRound)
+//	testRoundId3 := id.Round(testRound3)
 //
 //
 //	err = db.InsertClient(&Client{
@@ -45,7 +48,25 @@ import (
 //	}
 //	err = db.UpsertRound(&Round{
 //		Id:       testRound,
-//		UpdateId: 71,
+//		UpdateId: 50,
+//		InfoBlob: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertRound(&Round{
+//		Id:       testRound2,
+//		UpdateId: 51,
+//		InfoBlob: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertRound(&Round{
+//		Id:       testRound3,
+//		UpdateId: 52,
 //		InfoBlob: testBytes,
 //	})
 //	if err != nil {
@@ -114,13 +135,19 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	jww.INFO.Printf("%+v", client)
+//	jwalterweatherman.INFO.Printf("%+v", client)
 //	round, err := db.GetRound(&testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	jww.INFO.Printf("%+v", round)
+//	jwalterweatherman.INFO.Printf("%+v", round)
+//	rounds, err := db.GetRounds([]*id.Round{&testRoundId, &testRoundId3})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%+v", rounds[1])
 //	messages, err := db.GetMixedMessages(testClient, &testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
@@ -277,7 +304,7 @@ func TestMapImpl_GetRound(t *testing.T) {
 		rounds: map[id.Round]*Round{testKey: testRound},
 	}
 
-	round, err := m.GetRound(&testKey)
+	round, err := m.GetRound(testKey)
 	if err != nil || round != testRound {
 		t.Errorf("Failed to get round: %v", err)
 	}
@@ -290,9 +317,43 @@ func TestMapImpl_GetRound_NoRoundError(t *testing.T) {
 		rounds: make(map[id.Round]*Round),
 	}
 
-	round, err := m.GetRound(&testKey)
+	round, err := m.GetRound(testKey)
 	if err == nil || round != nil {
 		t.Errorf("No error returned when round does not exist.")
+	}
+}
+
+// Happy path.
+func TestMapImpl_GetRounds(t *testing.T) {
+	testKey := id.Round(40)
+	testRound := &Round{Id: uint64(testKey)}
+	testKey2 := id.Round(50)
+	testRound2 := &Round{Id: uint64(testKey2)}
+	m := &MapImpl{
+		rounds: map[id.Round]*Round{testKey: testRound, testKey2: testRound2},
+	}
+
+	rounds, err := m.GetRounds([]id.Round{testKey, testKey2})
+	if err != nil || len(rounds) != 2 {
+		t.Errorf("Failed to get rounds: %v", err)
+	}
+}
+
+// Error Path: Rounds not in map.
+func TestMapImpl_GetRounds_NoRoundError(t *testing.T) {
+	testKey := id.Round(40)
+	testRound := &Round{Id: uint64(testKey)}
+	testKey2 := id.Round(50)
+	testRound2 := &Round{Id: uint64(testKey2)}
+	invalidKey := id.Round(30)
+	invalidKey2 := id.Round(20)
+	m := &MapImpl{
+		rounds: map[id.Round]*Round{testKey: testRound, testKey2: testRound2},
+	}
+
+	rounds, err := m.GetRounds([]id.Round{invalidKey, invalidKey2})
+	if err == nil || rounds != nil {
+		t.Errorf("No error returned when rounds do not exist.")
 	}
 }
 
@@ -352,7 +413,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	}
 
 	// Get list of 1 item
-	mixedMsgs, err := m.GetMixedMessages(testRecipientID, &testRoundID)
+	mixedMsgs, err := m.GetMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -377,7 +438,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	m.mixedMessages[testMsgID] = testMixedMessage
 
 	// Get list of 3 items
-	mixedMsgs, err = m.GetMixedMessages(testRecipientID, &testRoundID)
+	mixedMsgs, err = m.GetMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -402,7 +463,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	m.mixedMessages[testMsgID] = testMixedMessage
 
 	// Get list of 3 items
-	mixedMsgs, err = m.GetMixedMessages(testRecipientID, &testRoundID)
+	mixedMsgs, err = m.GetMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -429,7 +490,7 @@ func TestMapImpl_GetMixedMessages_NoMessageError(t *testing.T) {
 	}
 
 	// Attempt to get message that is not in map
-	mixedMsgs, err := m.GetMixedMessages(testRecipientID, &testRoundID)
+	mixedMsgs, err := m.GetMixedMessages(testRecipientID, testRoundID)
 	if err == nil {
 		t.Errorf("Expected an error when mixedMessage is not found in map.")
 	}

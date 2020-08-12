@@ -26,10 +26,11 @@ type Storage interface {
 	GetClient(id *id.ID) (*Client, error)
 	InsertClient(client *Client) error
 
-	GetRound(id *id.Round) (*Round, error)
+	GetRound(id id.Round) (*Round, error)
+	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
 
-	GetMixedMessages(recipientId *id.ID, roundId *id.Round) ([]*MixedMessage, error)
+	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessage(msg *MixedMessage) error
 	DeleteMixedMessage(id uint64) error
 
