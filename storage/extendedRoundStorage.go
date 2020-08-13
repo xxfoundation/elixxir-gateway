@@ -8,8 +8,6 @@ import (
 
 type ERS struct{}
 
-// var ers ds.ExternalRoundStorage = storage.ERS{}
-
 // Store a new round info object into the map
 func (ers ERS) Store(ri *pb.RoundInfo) error {
 	// Marshal the data so it can be stored
@@ -56,6 +54,7 @@ func (ers ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 func (ers ERS) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
 	var r []*pb.RoundInfo
 
+	// Iterate over all rounds provided and put them in the round array
 	for _, round := range rounds {
 		ri, err := ers.Retrieve(round)
 		if err != nil {
@@ -75,7 +74,8 @@ func (ers ERS) RetrieveRange(first, last id.Round) ([]*pb.RoundInfo, error) {
 
 	var r []*pb.RoundInfo
 
-	// for some reason <= doesn't work?
+	// Iterate over all IDs in the range, retrieving them and putting them in the
+	// round array
 	for i < idrange+1 {
 		ri, err := ers.Retrieve(id.Round(uint64(first) + i))
 		if err != nil {
