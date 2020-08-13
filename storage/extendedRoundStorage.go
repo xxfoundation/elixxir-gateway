@@ -36,6 +36,8 @@ func (ers ERS) Store(ri *pb.RoundInfo) error {
 func (ers ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 	// Retrieve round from the database
 	dbr, err := GatewayDB.GetRound(&id)
+	// Detect if we have an error, if it is because the round couldn't be found
+	// we suppress it. Otherwise, bring it up the path.
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "Could not find Round with ID ") {
 			return nil, nil
@@ -47,8 +49,6 @@ func (ers ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 	// Convert it to a pb.RoundInfo object
 	u := &pb.RoundInfo{}
 	err = proto.Unmarshal(dbr.InfoBlob, u)
-	// Detect if we have an error, if it is because the round couldn't be found
-	// we suppress it. Otherwise, bring it up the path.
 	if err != nil {
 		return nil, err
 	}
