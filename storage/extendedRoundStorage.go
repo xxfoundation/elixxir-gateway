@@ -21,7 +21,7 @@ import (
 type ERS struct{}
 
 // Store a new round info object into the map
-func (ers ERS) Store(ri *pb.RoundInfo) error {
+func (ers *ERS) Store(ri *pb.RoundInfo) error {
 	// Marshal the data so it can be stored
 	m, err := proto.Marshal(ri)
 	if err != nil {
@@ -44,7 +44,7 @@ func (ers ERS) Store(ri *pb.RoundInfo) error {
 }
 
 // Get a round info object from the memory map database
-func (ers ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
+func (ers *ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 	// Retrieve round from the database
 	dbr, err := GatewayDB.GetRound(&id)
 	// Detect if we have an error, if it is because the round couldn't be found
@@ -69,7 +69,7 @@ func (ers ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 }
 
 // Get multiple specific round info objects from the memory map database
-func (ers ERS) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
+func (ers *ERS) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
 	var r []*pb.RoundInfo
 
 	// Iterate over all rounds provided and put them in the round array
@@ -86,7 +86,7 @@ func (ers ERS) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
 }
 
 // Retrieve a concurrent range of round info objects from the memory map database
-func (ers ERS) RetrieveRange(first, last id.Round) ([]*pb.RoundInfo, error) {
+func (ers *ERS) RetrieveRange(first, last id.Round) ([]*pb.RoundInfo, error) {
 	idrange := uint64(last - first)
 	i := uint64(0)
 

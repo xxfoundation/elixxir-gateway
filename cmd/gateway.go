@@ -223,7 +223,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 	pc := conn.ProtoComms
 	var ers ds.ExternalRoundStorage = nil
 	if storage.GatewayDB != nil {
-		ers = storage.ERS{}
+		ers = &storage.ERS{}
 	}
 	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers)
 }
