@@ -46,7 +46,7 @@ func (ers *ERS) Store(ri *pb.RoundInfo) error {
 // Get a round info object from the memory map database
 func (ers *ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 	// Retrieve round from the database
-	dbr, err := GatewayDB.GetRound(&id)
+	dbr, err := GatewayDB.GetRound(id)
 	// Detect if we have an error, if it is because the round couldn't be found
 	// we suppress it. Otherwise, bring it up the path.
 	if err != nil {
@@ -73,13 +73,15 @@ func (ers *ERS) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
 	var r []*pb.RoundInfo
 
 	// Iterate over all rounds provided and put them in the round array
-	for _, round := range rounds {
-		ri, err := ers.Retrieve(round)
+	retrounds, err := GatewayDB.GetRounds(rounds)
+	for _, round := range retrounds {
+		// Convert it to a pb.RoundInfo object
+		u := &pb.RoundInfo{}
+		err = proto.Unmarshal(round.InfoBlob, u)
 		if err != nil {
 			return nil, err
 		}
-
-		r = append(r, ri)
+		r = append(r, u)
 	}
 
 	return r, nil
@@ -100,7 +102,9 @@ func (ers *ERS) RetrieveRange(first, last id.Round) ([]*pb.RoundInfo, error) {
 			return nil, err
 		}
 
-		r = append(r, ri)
+		if ri != nil {
+			r = append(r, ri)
+		}
 		i++
 	}
 
