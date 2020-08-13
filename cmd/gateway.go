@@ -214,7 +214,11 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), nil)
+	var ers ds.ExternalRoundStorage = nil
+	if storage.GatewayDB != nil {
+		ers = &storage.ERS{}
+	}
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers)
 }
 
 // UpdateInstance reads a ServerPollResponse object and updates the instance
