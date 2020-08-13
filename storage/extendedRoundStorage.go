@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"github.com/golang/protobuf/proto"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/xx_network/primitives/id"
 )
@@ -11,11 +12,21 @@ type ERS struct{}
 
 // Store a new round info object into the map
 func (ers ERS) Store(ri *pb.RoundInfo) error {
+	// Marshal the data so it can be stored
+	m, err := proto.Marshal(ri)
+	if err != nil {
+		return err
+	}
+
+	// Create our DB Round object to store
 	dbr := Round{
 		Id:       ri.ID,
 		UpdateId: ri.UpdateID,
+		InfoBlob: m,
 	}
-	err := GatewayDB.UpsertRound(&dbr)
+
+	// Store it
+	err = GatewayDB.UpsertRound(&dbr)
 	if err != nil {
 		return err
 	}
@@ -24,12 +35,21 @@ func (ers ERS) Store(ri *pb.RoundInfo) error {
 
 // Get a round info object from the memory map database
 func (ers ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
+	// Retrieve round from the database
 	dbr, err := GatewayDB.GetRound(&id)
 	if err != nil {
 		return nil, err
 	}
-	r := pb.RoundInfo{ID: dbr.Id, UpdateID: dbr.UpdateId}
-	return &r, nil
+
+	// Convert it to a pb.RoundInfo object
+	u := &pb.RoundInfo{}
+	err = proto.Unmarshal(dbr.InfoBlob, u)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return it
+	return u, nil
 }
 
 // Get multiple specific round info objects from the memory map database
