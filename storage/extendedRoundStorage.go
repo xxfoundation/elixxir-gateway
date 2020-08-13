@@ -4,6 +4,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/xx_network/primitives/id"
+	"strings"
 )
 
 type ERS struct{}
@@ -36,12 +37,18 @@ func (ers ERS) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 	// Retrieve round from the database
 	dbr, err := GatewayDB.GetRound(&id)
 	if err != nil {
-		return nil, err
+		if strings.HasPrefix(err.Error(), "Could not find Round with ID ") {
+			return nil, nil
+		} else {
+			return nil, err
+		}
 	}
 
 	// Convert it to a pb.RoundInfo object
 	u := &pb.RoundInfo{}
 	err = proto.Unmarshal(dbr.InfoBlob, u)
+	// Detect if we have an error, if it is because the round couldn't be found
+	// we suppress it. Otherwise, bring it up the path.
 	if err != nil {
 		return nil, err
 	}
