@@ -195,7 +195,12 @@ func buildTestNodeImpl() *node.Implementation {
 
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Marshal()}
+	data := format.NewMessage()
+	msg := pb.Slot{
+		SenderID: id.NewIdFromUInt(666, id.User, t).Marshal(),
+		PayloadA: data.GetPayloadA(),
+		PayloadB: data.GetPayloadB(),
+	}
 	slotMsg := &pb.GatewaySlot{
 		Message: &msg,
 	}
@@ -233,7 +238,12 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 }
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Bytes()}
+	data := format.NewMessage()
+	msg := pb.Slot{
+		SenderID: id.NewIdFromUInt(666, id.User, t).Marshal(),
+		PayloadA: data.GetPayloadA(),
+		PayloadB: data.GetPayloadB(),
+	}
 	slotMsg := &pb.GatewaySlot{
 		Message: &msg,
 	}
@@ -348,7 +358,12 @@ func disconnectServers() {
 func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
-	msg := pb.Slot{SenderID: id.NewIdFromUInt(255, id.User, t).Marshal()}
+	data := format.NewMessage()
+	msg := pb.Slot{
+		SenderID: id.NewIdFromUInt(666, id.User, t).Marshal(),
+		PayloadA: data.GetPayloadA(),
+		PayloadB: data.GetPayloadB(),
+	}
 	slotMsg := &pb.GatewaySlot{
 		Message: &msg,
 	}
@@ -915,8 +930,18 @@ func TestUpdateInstance(t *testing.T) {
 	}
 	err = signature.Sign(ri, pKey)
 	roundUpdates := []*pb.RoundInfo{ri}
+	data := format.NewMessage()
+	msg := &pb.Slot{
+		SenderID: id.NewIdFromUInt(666, id.User, t).Marshal(),
+		PayloadA: data.GetPayloadA(),
+		PayloadB: data.GetPayloadB(),
+	}
 
-	slots := []*pb.Slot{mockMessage}
+	serialmsg := format.NewMessage()
+	serialmsg.SetPayloadB(msg.PayloadB)
+	userId, err := serialmsg.GetRecipient()
+
+	slots := []*pb.Slot{msg}
 
 	update := &pb.ServerPollResponse{
 		FullNDF:      ndfMsg,
@@ -926,7 +951,6 @@ func TestUpdateInstance(t *testing.T) {
 		Slots:        slots,
 	}
 
-	// gatewayInstance.UpdateInstance(update)
 	err = gatewayInstance.UpdateInstance(update)
 	if err != nil {
 		t.Errorf("UpdateInstance() produced an error: %+v", err)
@@ -939,13 +963,12 @@ func TestUpdateInstance(t *testing.T) {
 	}
 
 	// Check that mockMessage made it
-	mockmsgId := "xL+3JSRKJZPEu01Uv8Nh6dtRa+tjqkruwbsZmVuP218="
 	mockMsgUserId := id.NewIdFromUInt(1, id.User, t)
-	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId, mockmsgId)
+	msgTst, err := gatewayInstance.database.GetMixedMessages(userId, id.Round(1))
 	if err != nil {
 		t.Errorf("%+v", err)
-		msgIDs, _ := gatewayInstance.MixedBuffer.GetMixedMessageIDs(
-			mockMsgUserId, "")
+		msgIDs, _ := gatewayInstance.database.GetMixedMessages(
+			mockMsgUserId, id.Round(1))
 		for i := 0; i < len(msgIDs); i++ {
 			print("%s", msgIDs[i])
 		}

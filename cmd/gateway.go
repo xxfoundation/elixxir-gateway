@@ -10,15 +10,14 @@ package cmd
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/gateway"
+	"gitlab.com/elixxir/comms/mixmessages"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
@@ -27,7 +26,6 @@ import (
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/gateway/vendor/gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
@@ -87,6 +85,14 @@ type Instance struct {
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
 	NetInf *network.Instance
+}
+
+func (gw *Instance) RequestHistoricalRounds(msg *mixmessages.HistoricalRounds) (*mixmessages.HistoricalRoundsResponse, error) {
+	panic("implement me")
+}
+
+func (gw *Instance) RequestBloom(msg *mixmessages.GetBloom) (*mixmessages.GetBloomResponse, error) {
+	panic("implement me")
 }
 
 func (gw *Instance) Poll(*pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
@@ -506,18 +512,20 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
 func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
-	// Check if sender has exceeded the rate limit
-	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
-	// fixme: Hardcoded, or base it on something like the length of the message?
-	success := senderBucket.Add(1)
-	if !success {
-		return &pb.Slot{}, errors.New("Receiving messages at a high rate. Please " +
-			"wait before sending more messages")
-	}
-
-	gw.NetInf.GetLastRoundID()
-	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
-	return gw.MixedBuffer.GetMixedMessage(userID, msgID)
+	//// Check if sender has exceeded the rate limit
+	//senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	//// fixme: Hardcoded, or base it on something like the length of the message?
+	//success := senderBucket.Add(1)
+	//if !success {
+	//	return &pb.Slot{}, errors.New("Receiving messages at a high rate. Please " +
+	//		"wait before sending more messages")
+	//}
+	//
+	//gw.NetInf.GetLastRoundID()
+	//jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
+	//return gw.MixedBuffer.GetMixedMessage(userID, msgID)
+	// Fixme: populate function with requestMessage logic when comms is ready to be refactored
+	return &pb.Slot{}, nil
 }
 
 // TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
@@ -643,29 +651,12 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
 
-	// Get the recipient id
-	serialmsg := format.NewMessage()
-	serialmsg.SetPayloadB(msg.Message.PayloadB)
-	userId, err := serialmsg.GetRecipient()
-	if err != nil {
-		return &pb.GatewaySlotResponse{}, errors.New("Could not parse message's " +
-			"intended recipient.")
-	}
-
-	// Craft the database message type for storage
+	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
 	roundID := id.Round(msg.GetRoundID())
-	newMsg := storage.NewMixedMessage(&roundID, userId, msg.Message.PayloadA, msg.Message.PayloadB)
-
-	// Insert new message into the database
-	err = gw.database.InsertMixedMessage(newMsg)
-	if err != nil {
-		return &pb.GatewaySlotResponse{}, errors.Errorf("Could not store message for " +
-			"round %v with ID . Please try sending the message again")
-	}
 
 	return &pb.GatewaySlotResponse{
 		Accepted: true,
-		RoundID:  uint64(gw.NetInf.GetLastRoundID()),
+		RoundID:  uint64(roundID),
 	}, nil
 }
 
