@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
@@ -26,6 +27,7 @@ import (
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
+	"gitlab.com/elixxir/gateway/vendor/gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
@@ -34,6 +36,7 @@ import (
 	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -57,8 +60,6 @@ const (
 )
 
 type Instance struct {
-	// Storage buffer for messages after being processed by the network
-	MixedBuffer storage.MixedMessageBuffer
 	// Storage buffer for messages to be submitted to the network
 	UnmixedBuffer storage.UnmixedMessageBuffer
 
@@ -131,7 +132,6 @@ func NewGatewayInstance(params Params) *Instance {
 	gwBucketMap := rateLimiting.CreateBucketMapFromParams(params.rateLimiterParams, nil, rateLimitKill)
 
 	i := &Instance{
-		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
 		database:      newDatabase,
@@ -161,6 +161,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
+	}
+	impl.Functions.RequestMessages = func(msg *mixmessages.GetMessages) (*mixmessages.GetMessagesResponse, error) {
+		return instance.RequestMessages(msg)
 	}
 	return impl
 }
@@ -511,8 +514,63 @@ func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*
 		return &pb.Slot{}, errors.New("Receiving messages at a high rate. Please " +
 			"wait before sending more messages")
 	}
+
+	gw.NetInf.GetLastRoundID()
 	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
 	return gw.MixedBuffer.GetMixedMessage(userID, msgID)
+}
+
+// TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
+// Client -> Gateway handler. Looks up messages based on a userID and a roundID
+func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages) (*mixmessages.GetMessagesResponse, error) {
+	//senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	//// fixme: Hardcoded, or base it on something like the length of the message?
+	//success := senderBucket.Add(1)
+	//if !success {
+	//	return &pb.GetMessagesResponse{}, errors.New("Receiving messages at a high rate. Please " +
+	//		"wait before sending more messages")
+	//}
+
+	// Error check for a invalidly crafted message
+	if msg == nil || msg.ClientID == nil || msg.RoundID == nil {
+		return &mixmessages.GetMessagesResponse{}, errors.New("Could not parse message! " +
+			"Please try again with a properly crafted message!")
+	}
+
+	// Parse the requested clientID within the message for the database request
+	userId, err := id.Unmarshal(msg.ClientID)
+	if err != nil {
+		return &mixmessages.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
+	}
+
+	// Parse the roundID within the message
+	// Fixme: double check that it is in fact bigEndian
+	roundID := id.Round(binary.BigEndian.Uint64(msg.RoundID))
+
+	// Search the database for the requested messages
+	msgs, err := gw.database.GetMixedMessages(userId, roundID)
+	if err != nil {
+		return &mixmessages.GetMessagesResponse{}, errors.Errorf("Could not find any MixedMessages with the "+
+			"recipient ID %v and the round ID %v.", userId, roundID)
+	}
+
+	var slots []*pb.Slot
+	// Parse the database response to construct individual slots
+	for _, msg := range msgs {
+		// Get the message contents
+		payloadA, payloadB := msg.GetMessageContents()
+		// Construct the slot and place in the list
+		data := &pb.Slot{
+			PayloadA: payloadA,
+			PayloadB: payloadB,
+		}
+		slots = append(slots, data)
+	}
+
+	return &mixmessages.GetMessagesResponse{
+		Messages: slots,
+	}, nil
+
 }
 
 // Return any MessageIDs in the globals for this User
@@ -528,11 +586,24 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
-	return gw.MixedBuffer.GetMixedMessageIDs(userID, msgID)
+
+	msgs, err := gw.database.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
+	if err != nil {
+		return nil, errors.Errorf("Could not look up message ids")
+	}
+
+	// Parse the message ids returned and send back to sender
+	var msgIds []string
+	for _, msg := range msgs {
+		data := strconv.FormatUint(msg.Id, 10)
+		msgIds = append(msgIds, data)
+	}
+	return msgIds, nil
 }
 
 // PutMessage adds a message to the outgoing queue and calls PostNewBatch when
 // it's size is the batch size
+// TODO: refactor to match new Betanet client interface
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
 	// Fixme: work needs to be done to populate database with precanned values
 	//  so that precanned users aren't rejected when sending messages
@@ -571,10 +642,30 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
-	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
+
+	// Get the recipient id
+	serialmsg := format.NewMessage()
+	serialmsg.SetPayloadB(msg.Message.PayloadB)
+	userId, err := serialmsg.GetRecipient()
+	if err != nil {
+		return &pb.GatewaySlotResponse{}, errors.New("Could not parse message's " +
+			"intended recipient.")
+	}
+
+	// Craft the database message type for storage
+	roundID := id.Round(msg.GetRoundID())
+	newMsg := storage.NewMixedMessage(&roundID, userId, msg.Message.PayloadA, msg.Message.PayloadB)
+
+	// Insert new message into the database
+	err = gw.database.InsertMixedMessage(newMsg)
+	if err != nil {
+		return &pb.GatewaySlotResponse{}, errors.Errorf("Could not store message for " +
+			"round %v with ID . Please try sending the message again")
+	}
 
 	return &pb.GatewaySlotResponse{
 		Accepted: true,
+		RoundID:  uint64(gw.NetInf.GetLastRoundID()),
 	}, nil
 }
 
@@ -847,8 +938,18 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 			numReal++
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
-			msgId := base64.StdEncoding.EncodeToString(h.Sum(nil))
-			gw.MixedBuffer.AddMixedMessage(userId, msgId, msg)
+			msgID := binary.BigEndian.Uint64(h.Sum(nil))
+			roundID := gw.NetInf.GetLastRoundID()
+
+			// Create new message and insert into database
+			newMsg := storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
+			newMsg.Id = msgID
+			err = gw.database.InsertMixedMessage(newMsg)
+			if err != nil {
+				jww.ERROR.Printf("Inserting a new mixed message failed in "+
+					"ProcessCompletedBatch: %+v", err)
+
+			}
 		}
 
 		h.Reset()
