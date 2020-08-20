@@ -111,6 +111,7 @@ func TestMain(m *testing.M) {
 		KeyPath:           testkeys.GetGatewayKeyPath(),
 		MessageTimeout:    10 * time.Minute,
 		rateLimiterParams: bucketMapParams,
+		knownRounds:5,
 	}
 
 	gatewayInstance = NewGatewayInstance(params)
@@ -273,6 +274,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		CertPath:          testkeys.GetGatewayCertPath(),
 		MessageTimeout:    10 * time.Minute,
 		rateLimiterParams: bucketMapParams,
+		knownRounds:5,
 	}
 
 	gw := NewGatewayInstance(params)
