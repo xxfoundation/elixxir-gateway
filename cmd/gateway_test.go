@@ -991,7 +991,7 @@ func TestInstance_GetHistoricalRounds(t *testing.T) {
 		Rounds: rounds,
 	}
 
-	resp, err := gatewayInstance.GetHistoricalRounds(roundRequest)
+	resp, err := gatewayInstance.GetHistoricalRounds(roundRequest, "0.0.0.0")
 	if err != nil {
 		t.Errorf("Received error in GetHistoricalRounds happy path: %v", err)
 	}
