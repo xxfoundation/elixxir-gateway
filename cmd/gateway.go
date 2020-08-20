@@ -27,6 +27,7 @@ import (
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
+	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
@@ -81,11 +82,26 @@ type Instance struct {
 	// struct for tracking notifications
 	un notifications.UserNotifications
 
+	// Tracker of the gateway's known rounds
+	knownRound *knownRounds.KnownRounds
+
 	database storage.Storage
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
 	NetInf *network.Instance
+}
+
+func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+	panic("implement me")
+}
+
+func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+	panic("implement me")
+}
+
+func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
+	panic("implement me")
 }
 
 func (gw *Instance) Poll(*pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
@@ -111,6 +127,8 @@ type Params struct {
 
 	// Rate limiting parameters
 	rateLimiterParams *rateLimiting.MapParams
+
+	knownRounds int
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -137,6 +155,7 @@ func NewGatewayInstance(params Params) *Instance {
 		database:      newDatabase,
 		rateLimiter:   gwBucketMap,
 		rateLimitQuit: rateLimitKill,
+		knownRound:    knownRounds.NewKnownRound(params.knownRounds),
 	}
 
 	return i
@@ -241,6 +260,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
+			// Update the network instance
 			err := gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				return err
@@ -765,6 +785,10 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch %v", err)
 
 	}
+
+	// Update the known round buffer
+	gw.knownRound.Check(id.Round(roundInfo.ID))
+	data, _ := gw.knownRound.Marshal()
 
 }
 
