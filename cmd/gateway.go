@@ -14,10 +14,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/gateway"
+	"gitlab.com/elixxir/comms/mixmessages"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
@@ -86,6 +88,18 @@ type Instance struct {
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
 	NetInf *network.Instance
+}
+
+func (gw *Instance) RequestHistoricalRounds(msg *mixmessages.HistoricalRounds) (*mixmessages.HistoricalRoundsResponse, error) {
+	panic("implement me")
+}
+
+func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages) (*mixmessages.GetMessagesResponse, error) {
+	panic("implement me")
+}
+
+func (gw *Instance) RequestBloom(msg *mixmessages.GetBloom) (*mixmessages.GetBloomResponse, error) {
+	panic("implement me")
 }
 
 func (gw *Instance) Poll(*pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
@@ -161,6 +175,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
+	}
+	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
+		return instance.GetHistoricalRounds(msg)
 	}
 	return impl
 }
@@ -529,6 +546,51 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
 	return gw.MixedBuffer.GetMixedMessageIDs(userID, msgID)
+}
+
+// GetHistoricalRounds retrieves all rounds requested within the HistoricalRounds
+// message from the gateway's database. A list of round info messages are returned
+// to the sender
+func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+	// Nil check external messages to avoid potential crashes
+	if msg == nil || msg.Rounds == nil {
+		return &pb.HistoricalRoundsResponse{}, errors.New("Invalid historical" +
+			" round request, could not look up rounds. Please send a valid message.")
+	}
+
+	// Parse the message for all requested rounds
+	var roundIds []id.Round
+	for _, rnd := range msg.Rounds {
+		roundIds = append(roundIds, id.Round(rnd))
+	}
+	// Look up requested rounds in the database
+	retrievedRounds, err := gw.database.GetRounds(roundIds)
+	if err != nil {
+		return &pb.HistoricalRoundsResponse{}, errors.New("Could not look up rounds requested.")
+	}
+
+	// Parse the retrieved rounds into the roundInfo message type
+	var rounds []*pb.RoundInfo
+	for _, rnd := range retrievedRounds {
+		ri := &pb.RoundInfo{}
+		err = proto.Unmarshal(rnd.InfoBlob, ri)
+		if err != nil {
+			// If trouble unmarshalling, move to next round
+			// Note this should never happen with
+			// rounds placed by us in our own database
+			jww.WARN.Printf("Could not unmarshal round %d in our database. "+
+				"Could the database be corrupted?", rnd.Id)
+			continue
+		}
+
+		rounds = append(rounds, ri)
+	}
+
+	// Return the retrievedRounds
+	return &pb.HistoricalRoundsResponse{
+		Rounds: rounds,
+	}, nil
+
 }
 
 // PutMessage adds a message to the outgoing queue and calls PostNewBatch when

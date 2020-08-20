@@ -8,6 +8,7 @@
 package cmd
 
 import (
+	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -959,6 +960,56 @@ func TestUpdateInstance(t *testing.T) {
 		t.Errorf("Did not send batch: %d", len(nodeIncomingBatch.Slots))
 	}
 
+}
+
+// Smoke test for historicalRounds
+func TestInstance_GetHistoricalRounds(t *testing.T) {
+	var rounds []uint64
+	numTestRounds := 5
+
+	var expectedRoundInfo []*pb.RoundInfo
+	for i := 0; i < numTestRounds; i++ {
+		ri := &pb.RoundInfo{
+			ID: uint64(i + 1), // Done so the zeroth round info doesn't collapse to nil
+		}
+		expectedRoundInfo = append(expectedRoundInfo, ri)
+
+		infoBlob, err := proto.Marshal(ri)
+		if err != nil {
+			t.Errorf("Could not marshal round info: %v", err)
+		}
+		rnd := &storage.Round{
+			Id:       ri.ID,
+			InfoBlob: infoBlob,
+		}
+
+		gatewayInstance.database.UpsertRound(rnd)
+		rounds = append(rounds, ri.ID)
+	}
+
+	roundRequest := &pb.HistoricalRounds{
+		Rounds: rounds,
+	}
+
+	resp, err := gatewayInstance.GetHistoricalRounds(roundRequest)
+	if err != nil {
+		t.Errorf("Received error in GetHistoricalRounds happy path: %v", err)
+	}
+
+	if len(resp.Rounds) != numTestRounds {
+		t.Errorf("Number of rounds received back does not match requested amount!"+
+			"\n\tReceived: %v"+
+			"\n\tExpected: %v", len(resp.Rounds), numTestRounds)
+	}
+
+	for i, rnd := range resp.Rounds {
+		if expectedRoundInfo[i].ID != rnd.ID {
+			t.Errorf("Received unexpected round info for round %d!"+
+				"\n\tExpected: [%+v]"+
+				"\n\tReceived: [%+v]", i, expectedRoundInfo[i], rnd)
+		}
+
+	}
 }
 
 // Smoke test for gossiper
