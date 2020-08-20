@@ -19,7 +19,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/gateway"
-	"gitlab.com/elixxir/comms/mixmessages"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
@@ -90,15 +89,15 @@ type Instance struct {
 	NetInf *network.Instance
 }
 
-func (gw *Instance) RequestHistoricalRounds(msg *mixmessages.HistoricalRounds) (*mixmessages.HistoricalRoundsResponse, error) {
+func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
 	panic("implement me")
 }
 
-func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages) (*mixmessages.GetMessagesResponse, error) {
+func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 	panic("implement me")
 }
 
-func (gw *Instance) RequestBloom(msg *mixmessages.GetBloom) (*mixmessages.GetBloomResponse, error) {
+func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
 	panic("implement me")
 }
 
