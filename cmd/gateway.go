@@ -788,7 +788,6 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 
 	// Update the known round buffer
 	gw.knownRound.Check(id.Round(roundInfo.ID))
-	data, _ := gw.knownRound.Marshal()
 
 }
 

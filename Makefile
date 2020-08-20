@@ -19,7 +19,7 @@ build:
 	go mod tidy
 
 update_release:
-	GOFLAGS="" go get -u gitlab.com/elixxir/primitives@release
+	GOFLAGS="" go get -u gitlab.com/elixxir/primitives@XX-2505/knownRounds
 	GOFLAGS="" go get -u gitlab.com/xx_network/primitives@release
 	GOFLAGS="" go get -u gitlab.com/elixxir/crypto@release
 	GOFLAGS="" go get -u gitlab.com/xx_network/crypto@release
