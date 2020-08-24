@@ -8,6 +8,8 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/binary"
 	"github.com/golang/protobuf/ptypes/any"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
