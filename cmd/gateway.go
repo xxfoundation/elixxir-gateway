@@ -531,7 +531,7 @@ func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*
 // TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
-// we return these message(s) to the requester
+// we return these message(s) to the requester.
 func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress string) (*mixmessages.GetMessagesResponse, error) {
 	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
 	// fixme: Hardcoded, or base it on something like the length of the message?
@@ -574,8 +574,8 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress stri
 				"recipient ID %v and round ID %v.", userId, roundID)
 	}
 
-	var slots []*pb.Slot
 	// Parse the database response to construct individual slots
+	var slots []*pb.Slot
 	for _, msg := range msgs {
 		// Get the message contents
 		payloadA, payloadB := msg.GetMessageContents()
@@ -587,6 +587,7 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress stri
 		slots = append(slots, data)
 	}
 
+	// Return all messages to the requester
 	return &mixmessages.GetMessagesResponse{
 		HasRound: true,
 		Messages: slots,
