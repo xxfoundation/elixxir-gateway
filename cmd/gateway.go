@@ -538,14 +538,6 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress stri
 	// Fixme: double check that it is in fact bigEndian
 	roundID := id.Round(binary.BigEndian.Uint64(msg.RoundID))
 
-	//fixme: uncomment when known rounds is merged in
-	//hasRound := gw.knownRounds.Checked(roundID)
-	//if !hasRound {
-	//	return &mixmessages.GetMessagesResponse{
-	//		HasRound:false,
-	//	}, nil
-	//}
-
 	// Search the database for the requested messages
 	msgs, err := gw.database.GetMixedMessages(userId, roundID)
 	if err != nil {
@@ -555,8 +547,8 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress stri
 				"recipient ID %v and round ID %v.", userId, roundID)
 	}
 
-	var slots []*pb.Slot
 	// Parse the database response to construct individual slots
+	var slots []*pb.Slot
 	for _, msg := range msgs {
 		// Get the message contents
 		payloadA, payloadB := msg.GetMessageContents()
@@ -568,6 +560,7 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress stri
 		slots = append(slots, data)
 	}
 
+	// Return all messages to the requester
 	return &mixmessages.GetMessagesResponse{
 		HasRound: true,
 		Messages: slots,
