@@ -509,29 +509,10 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 	return errors.Errorf("Unable to locate ID %v in NDF!", nodeId)
 }
 
-// Returns message contents for MessageID, or a null/randomized message
-// if that ID does not exist of the same size as a regular message
-func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
-	//// Check if sender has exceeded the rate limit
-	//senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
-	//// fixme: Hardcoded, or base it on something like the length of the message?
-	//success := senderBucket.Add(1)
-	//if !success {
-	//	return &pb.Slot{}, errors.New("Receiving messages at a high rate. Please " +
-	//		"wait before sending more messages")
-	//}
-	//
-	//gw.NetInf.GetLastRoundID()
-	//jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
-	//return gw.MixedBuffer.GetMixedMessage(userID, msgID)
-	// Fixme: populate function with requestMessage logic when comms is ready to be refactored
-	return &pb.Slot{}, nil
-}
-
 // TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
-// we return these message(s) to the requester.
+// we return these message(s) to the requester
 func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress string) (*mixmessages.GetMessagesResponse, error) {
 	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
 	// fixme: Hardcoded, or base it on something like the length of the message?
@@ -574,8 +555,8 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress stri
 				"recipient ID %v and round ID %v.", userId, roundID)
 	}
 
-	// Parse the database response to construct individual slots
 	var slots []*pb.Slot
+	// Parse the database response to construct individual slots
 	for _, msg := range msgs {
 		// Get the message contents
 		payloadA, payloadB := msg.GetMessageContents()
@@ -587,12 +568,30 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress stri
 		slots = append(slots, data)
 	}
 
-	// Return all messages to the requester
 	return &mixmessages.GetMessagesResponse{
 		HasRound: true,
 		Messages: slots,
 	}, nil
 
+}
+
+// Returns message contents for MessageID, or a null/randomized message
+// if that ID does not exist of the same size as a regular message
+func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
+	//// Check if sender has exceeded the rate limit
+	//senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	//// fixme: Hardcoded, or base it on something like the length of the message?
+	//success := senderBucket.Add(1)
+	//if !success {
+	//	return &pb.Slot{}, errors.New("Receiving messages at a high rate. Please " +
+	//		"wait before sending more messages")
+	//}
+	//
+	//gw.NetInf.GetLastRoundID()
+	//jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
+	//return gw.MixedBuffer.GetMixedMessage(userID, msgID)
+	// Fixme: populate function with requestMessage logic when comms is ready to be refactored
+	return &pb.Slot{}, nil
 }
 
 // Return any MessageIDs in the globals for this User
