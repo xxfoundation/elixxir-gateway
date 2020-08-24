@@ -87,6 +87,18 @@ type Instance struct {
 	NetInf *network.Instance
 }
 
+func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress string) (*pb.HistoricalRoundsResponse, error) {
+	panic("implement me")
+}
+
+func (gw *Instance) RequestMessages(msg *pb.GetMessages, ipAddress string) (*pb.GetMessagesResponse, error) {
+	panic("implement me")
+}
+
+func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
+	panic("implement me")
+}
+
 func (gw *Instance) RequestHistoricalRounds(msg *mixmessages.HistoricalRounds) (*mixmessages.HistoricalRoundsResponse, error) {
 	panic("implement me")
 }
@@ -168,9 +180,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
 	}
-	impl.Functions.RequestMessages = func(msg *mixmessages.GetMessages) (*mixmessages.GetMessagesResponse, error) {
-		return instance.RequestMessages(msg)
-	}
+
 	return impl
 }
 
@@ -526,59 +536,6 @@ func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*
 	//return gw.MixedBuffer.GetMixedMessage(userID, msgID)
 	// Fixme: populate function with requestMessage logic when comms is ready to be refactored
 	return &pb.Slot{}, nil
-}
-
-// TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
-// Client -> Gateway handler. Looks up messages based on a userID and a roundID
-func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages) (*mixmessages.GetMessagesResponse, error) {
-	//senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
-	//// fixme: Hardcoded, or base it on something like the length of the message?
-	//success := senderBucket.Add(1)
-	//if !success {
-	//	return &pb.GetMessagesResponse{}, errors.New("Receiving messages at a high rate. Please " +
-	//		"wait before sending more messages")
-	//}
-
-	// Error check for a invalidly crafted message
-	if msg == nil || msg.ClientID == nil || msg.RoundID == nil {
-		return &mixmessages.GetMessagesResponse{}, errors.New("Could not parse message! " +
-			"Please try again with a properly crafted message!")
-	}
-
-	// Parse the requested clientID within the message for the database request
-	userId, err := id.Unmarshal(msg.ClientID)
-	if err != nil {
-		return &mixmessages.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
-	}
-
-	// Parse the roundID within the message
-	// Fixme: double check that it is in fact bigEndian
-	roundID := id.Round(binary.BigEndian.Uint64(msg.RoundID))
-
-	// Search the database for the requested messages
-	msgs, err := gw.database.GetMixedMessages(userId, roundID)
-	if err != nil {
-		return &mixmessages.GetMessagesResponse{}, errors.Errorf("Could not find any MixedMessages with the "+
-			"recipient ID %v and the round ID %v.", userId, roundID)
-	}
-
-	var slots []*pb.Slot
-	// Parse the database response to construct individual slots
-	for _, msg := range msgs {
-		// Get the message contents
-		payloadA, payloadB := msg.GetMessageContents()
-		// Construct the slot and place in the list
-		data := &pb.Slot{
-			PayloadA: payloadA,
-			PayloadB: payloadB,
-		}
-		slots = append(slots, data)
-	}
-
-	return &mixmessages.GetMessagesResponse{
-		Messages: slots,
-	}, nil
-
 }
 
 // Return any MessageIDs in the globals for this User
