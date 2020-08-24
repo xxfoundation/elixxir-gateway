@@ -8,6 +8,8 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/binary"
 	"github.com/golang/protobuf/ptypes/any"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -995,6 +997,176 @@ func TestGossip(t *testing.T) {
 	_, ok := gatewayInstance.gossiper.Get("batch")
 	if !ok {
 		t.Errorf("Could not retrieve default gossip protocol")
+	}
+
+}
+
+func TestInstance_RequestMessages(t *testing.T) {
+	// Create a message and insert them into a database
+	numMessages := 5
+	expectedRound := id.Round(0)
+	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	payload := "test"
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		gatewayInstance.database.InsertMixedMessage(dbMsg)
+
+	}
+
+	// Craft the request message and send
+	roundBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(roundBytes, uint64(expectedRound))
+	requestMessage := &pb.GetMessages{
+		ClientID: recipientID.Bytes(),
+		RoundID:  roundBytes,
+	}
+
+	receivedMsg, err := gatewayInstance.RequestMessages(requestMessage, "0.0.0")
+	if err != nil {
+		t.Errorf("Unexpected in happy path: %v", err)
+	}
+
+	// Check that the amount of messages returned is expected
+	if len(receivedMsg.Messages) != numMessages {
+		t.Errorf("Messages returned is not expected."+
+			"\n\tReceived: %d"+
+			"\n\tExpected: %d", len(receivedMsg.Messages), numMessages)
+	}
+
+	// Check that the data within the messages is of expected value
+	for i, msg := range receivedMsg.Messages {
+		expectedMsg := []byte(payload)
+
+		if !bytes.Contains(msg.PayloadA, expectedMsg) {
+			t.Errorf("Received message %d did not contain expected PayloadA!"+
+				"\n\tReceived: %v"+
+				"\n\tExpected: %v", i, msg.PayloadA, expectedMsg)
+		}
+
+		if !bytes.Contains(msg.PayloadB, expectedMsg) {
+			t.Errorf("Received message %d did not contain expected PayloadB!"+
+				"\n\tReceived: %v"+
+				"\n\tExpected: %v", i, msg.PayloadB, expectedMsg)
+		}
+	}
+}
+
+// Error path: Request a round that exists in the database but the requested user
+//  is not within this round
+func TestInstance_RequestMessages_NoUser(t *testing.T) {
+	// Create a message and insert them into a database
+	numMessages := 5
+	expectedRound := id.Round(0)
+	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	payload := "test"
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		gatewayInstance.database.InsertMixedMessage(dbMsg)
+
+	}
+
+	// Craft the request message with an unrecognized userID
+	roundBytes := make([]byte, 8)
+	badClientId := id.NewIdFromBytes([]byte("badClientId"), t)
+	binary.BigEndian.PutUint64(roundBytes, uint64(expectedRound))
+	badRequest := &pb.GetMessages{
+		ClientID: badClientId.Bytes(),
+		RoundID:  roundBytes,
+	}
+
+	receivedMsg, err := gatewayInstance.RequestMessages(badRequest, "0.0.0")
+	if err == nil {
+		t.Errorf("Error path should not have a nil error. " +
+			"Asking for a user ID not within the round should return an error")
+	}
+
+	if len(receivedMsg.Messages) != 0 {
+		t.Errorf("Received messages should be zero!")
+	}
+
+}
+
+// Error path: Request a round that doesn't exist in the database
+func TestInstance_RequestMessages_NoRound(t *testing.T) {
+	// Create a message and insert them into a database
+	numMessages := 5
+	expectedRound := id.Round(0)
+	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	payload := "test"
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		gatewayInstance.database.InsertMixedMessage(dbMsg)
+
+	}
+
+	// Craft the request message with an unknown round
+	roundBytes := make([]byte, 8)
+	badRoundId := id.Round(42)
+	binary.BigEndian.PutUint64(roundBytes, uint64(badRoundId))
+	badRequest := &pb.GetMessages{
+		ClientID: recipientID.Bytes(),
+		RoundID:  roundBytes,
+	}
+
+	receivedMsg, err := gatewayInstance.RequestMessages(badRequest, "0.0.0")
+	if err == nil {
+		t.Errorf("Error path should not have a nil error. " +
+			"Asking for an unknown round should return an error")
+	}
+
+	if len(receivedMsg.Messages) != 0 {
+		t.Errorf("Received messages should be zero!")
+	}
+
+}
+
+// Error path: Craft a nil message which should not be accepted
+func TestInstance_RequestMessages_NilCheck(t *testing.T) {
+	// Create a message and insert them into a database
+	numMessages := 5
+	expectedRound := id.Round(0)
+	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	payload := "test"
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		gatewayInstance.database.InsertMixedMessage(dbMsg)
+
+	}
+
+	// Craft the request message with a nil ClientID
+	badRequest := &pb.GetMessages{
+		ClientID: recipientID.Bytes(),
+		RoundID:  nil,
+	}
+
+	receivedMsg, err := gatewayInstance.RequestMessages(badRequest, "0.0.0")
+	if err == nil {
+		t.Errorf("Error path should not have a nil error. " +
+			"Asking for a nil clientID should return an error")
+	}
+
+	if len(receivedMsg.Messages) != 0 {
+		t.Errorf("Received messages should be zero!")
+	}
+
+	// Craft the request message with a nil RoundID
+	badRequest = &pb.GetMessages{
+		ClientID: recipientID.Bytes(),
+		RoundID:  nil,
+	}
+
+	receivedMsg, err = gatewayInstance.RequestMessages(badRequest, "0.0.0")
+	if err == nil {
+		t.Errorf("Error path should not have a nil error. " +
+			"Asking for a nil clientID should return an error")
+	}
+
+	if len(receivedMsg.Messages) != 0 {
+		t.Errorf("Received messages should be zero!")
 	}
 
 }

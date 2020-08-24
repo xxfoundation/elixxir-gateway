@@ -87,11 +87,11 @@ type Instance struct {
 	NetInf *network.Instance
 }
 
-func (gw *Instance) RequestHistoricalRounds(msg *mixmessages.HistoricalRounds) (*mixmessages.HistoricalRoundsResponse, error) {
+func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress string) (*pb.HistoricalRoundsResponse, error) {
 	panic("implement me")
 }
 
-func (gw *Instance) RequestBloom(msg *mixmessages.GetBloom) (*mixmessages.GetBloomResponse, error) {
+func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
 	panic("implement me")
 }
 
@@ -168,8 +168,8 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
 	}
-	impl.Functions.RequestMessages = func(msg *mixmessages.GetMessages) (*mixmessages.GetMessagesResponse, error) {
-		return instance.RequestMessages(msg)
+	impl.Functions.RequestMessages = func(msg *mixmessages.GetMessages, ipaddress string) (*mixmessages.GetMessagesResponse, error) {
+		return instance.RequestMessages(msg, ipaddress)
 	}
 	return impl
 }
@@ -529,15 +529,17 @@ func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*
 }
 
 // TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
-// Client -> Gateway handler. Looks up messages based on a userID and a roundID
-func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages) (*mixmessages.GetMessagesResponse, error) {
-	//senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
-	//// fixme: Hardcoded, or base it on something like the length of the message?
-	//success := senderBucket.Add(1)
-	//if !success {
-	//	return &pb.GetMessagesResponse{}, errors.New("Receiving messages at a high rate. Please " +
-	//		"wait before sending more messages")
-	//}
+// Client -> Gateway handler. Looks up messages based on a userID and a roundID.
+// If the gateway participated in this round, and the requested client had messages in that round,
+// we return these message(s) to the requester
+func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages, ipAddress string) (*mixmessages.GetMessagesResponse, error) {
+	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	// fixme: Hardcoded, or base it on something like the length of the message?
+	success := senderBucket.Add(1)
+	if !success {
+		return &pb.GetMessagesResponse{}, errors.New("Receiving messages at a high rate. Please " +
+			"wait before sending more messages")
+	}
 
 	// Error check for a invalidly crafted message
 	if msg == nil || msg.ClientID == nil || msg.RoundID == nil {
@@ -555,11 +557,21 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages) (*mixmessages.
 	// Fixme: double check that it is in fact bigEndian
 	roundID := id.Round(binary.BigEndian.Uint64(msg.RoundID))
 
+	//fixme: uncomment when known rounds is merged in
+	//hasRound := gw.knownRounds.Checked(roundID)
+	//if !hasRound {
+	//	return &mixmessages.GetMessagesResponse{
+	//		HasRound:false,
+	//	}, nil
+	//}
+
 	// Search the database for the requested messages
 	msgs, err := gw.database.GetMixedMessages(userId, roundID)
 	if err != nil {
-		return &mixmessages.GetMessagesResponse{}, errors.Errorf("Could not find any MixedMessages with the "+
-			"recipient ID %v and the round ID %v.", userId, roundID)
+		return &mixmessages.GetMessagesResponse{
+				HasRound: true,
+			}, errors.Errorf("Could not find any MixedMessages with "+
+				"recipient ID %v and round ID %v.", userId, roundID)
 	}
 
 	var slots []*pb.Slot
@@ -576,6 +588,7 @@ func (gw *Instance) RequestMessages(msg *mixmessages.GetMessages) (*mixmessages.
 	}
 
 	return &mixmessages.GetMessagesResponse{
+		HasRound: true,
 		Messages: slots,
 	}, nil
 
