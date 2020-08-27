@@ -72,9 +72,6 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
-	// Gateway gossip manager
-	gossiper *gossip.Manager
-
 	// Gateway's rate limiter. Manages and
 	rateLimiter   *rateLimiting.BucketMap
 	rateLimitQuit chan struct{}
@@ -443,48 +440,7 @@ func (gw *Instance) InitNetwork() error {
 		// }
 	}
 
-	gw.setupGossiper()
-
 	return nil
-}
-
-// Helper function which initializes the gossip manager
-func (gw *Instance) setupGossiper() {
-	gw.gossiper = gossip.NewManager(gw.Comms.ProtoComms, gw.Params.gossiperFlags)
-	receiver := func(msg *gossip.GossipMsg) error {
-		// fixme: what to do with receiver?
-		return nil
-	}
-
-	// Build the signature verify function
-	sigVerify := func(msg *gossip.GossipMsg, receivedSignature []byte) error {
-		if msg == nil {
-			return errors.New("Nil message sent")
-		}
-
-		senderId, err := id.Unmarshal(msg.Origin)
-		if err != nil {
-			return errors.Errorf("Failed to parse sender's id: %v", err)
-		}
-
-		sender, ok := gw.Comms.GetHost(senderId)
-		if !ok {
-			return errors.Errorf("Failed to parse sender's id: %v", err)
-
-		}
-
-		options := rsa.NewDefaultOptions()
-		h := options.Hash.New()
-		h.Reset()
-		h.Write(msg.Payload)
-
-		return rsa.Verify(sender.GetPubKey(), options.Hash, h.Sum(nil), msg.Signature, nil)
-	}
-
-	peers := []*id.ID{gw.ServerHost.GetId()}
-
-	// todo: consider hard-coding tags globally or in a library?
-	gw.gossiper.NewGossip("batch", gossip.DefaultProtocolFlags(), receiver, sigVerify, peers)
 }
 
 // Helper that updates parses the NDF in order to create our IDF
@@ -806,13 +762,6 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		jww.ERROR.Println("Round topology empty, sending bad messages!")
 	}
 
-	// fixme: put in a go func?
-	// Gossip the sender IDs in the batch to our peers
-	_, errs := gw.gossipBatch(batch)
-	if len(errs) != 0 {
-		jww.WARN.Printf("bad error: %v", errs)
-		jww.WARN.Printf("Could not gossip batch to peers")
-	}
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
 		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
@@ -826,58 +775,6 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch %v", err)
 
 	}
-
-}
-
-// gossipBatch builds a gossip message containing all of the sender ID's
-// within the batch and gossips it to all peers
-func (gw *Instance) gossipBatch(batch *pb.Batch) (int, []error) {
-	gossipProtocol, ok := gw.gossiper.Get("batch")
-	if !ok {
-		jww.WARN.Printf("Unable to get gossip protocol. Sending batch without gossiping...")
-	}
-
-	// Collect all of the sender IDs in the batch
-	var senderIds []*id.ID
-	for i, slot := range batch.Slots {
-		sender, err := id.Unmarshal(slot.SenderID)
-		if err != nil {
-			jww.WARN.Printf("Could not gossip for slot %d in round %d: Unreadable sender ID: %v",
-				i, batch.Round.ID, slot.SenderID)
-		}
-
-		senderIds = append(senderIds, sender)
-	}
-
-	// Marshal the list of senders into a json
-	payloadData, err := json.Marshal(senderIds)
-	if err != nil {
-		jww.WARN.Printf("Could not form gossip payload!")
-	}
-
-	// Hash the payload data for signing
-	privKey := gw.Comms.ProtoComms.GetPrivateKey()
-	options := rsa.NewDefaultOptions()
-	h := options.Hash.New()
-	h.Reset()
-	h.Write(payloadData)
-
-	// Construct the message's signature
-	sig, err := rsa.Sign(rand.Reader, privKey, options.Hash, h.Sum(nil), nil)
-	if err != nil {
-		jww.WARN.Printf("Failed to sign gossip message: %v", err)
-	}
-
-	// Build the message
-	gossipMsg := &gossip.GossipMsg{
-		Tag:       "batch",
-		Origin:    gw.Comms.Id.Bytes(),
-		Payload:   payloadData,
-		Signature: sig,
-	}
-
-	// Gossip the message
-	return gossipProtocol.Gossip(gossipMsg)
 
 }
 

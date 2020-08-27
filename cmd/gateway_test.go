@@ -118,7 +118,6 @@ func TestMain(m *testing.M) {
 	gatewayInstance.Comms = gComm
 	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS,
 		nodeCert, true, false)
-	gatewayInstance.setupGossiper()
 
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
@@ -294,8 +293,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-
-	gw.setupGossiper()
 
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
 	gw.SendBatchWhenReady(si)
@@ -1010,21 +1007,6 @@ func TestInstance_GetHistoricalRounds(t *testing.T) {
 		}
 
 	}
-}
-
-// Smoke test for gossiper
-func TestGossip(t *testing.T) {
-	gatewayInstance.setupGossiper()
-	// Ensure that gossiper is set up
-	if gatewayInstance.gossiper == nil {
-		t.Errorf("Gossiper not initialized!")
-	}
-
-	_, ok := gatewayInstance.gossiper.Get("batch")
-	if !ok {
-		t.Errorf("Could not retrieve default gossip protocol")
-	}
-
 }
 
 var (
