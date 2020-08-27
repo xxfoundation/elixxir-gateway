@@ -130,42 +130,48 @@ import (
 //		return
 //	}
 //
+//	err = db.DeleteMixedMessageByRound(testRoundId)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
 //	client, err := db.GetClient(testClient)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", client)
-//	round, err := db.GetRound(&testRoundId)
+//	round, err := db.GetRound(testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", round)
-//	rounds, err := db.GetRounds([]*id.Round{&testRoundId, &testRoundId3})
+//	rounds, err := db.GetRounds([]id.Round{testRoundId, testRoundId3})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", rounds[1])
-//	messages, err := db.GetMixedMessages(testClient, &testRoundId)
+//	messages, err := db.GetMixedMessages(testClient, testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	jww.INFO.Printf("%+v", messages)
+//	jwalterweatherman.INFO.Printf("%+v", messages)
 //	filters, err := db.GetBloomFilters(testClient)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	jww.INFO.Printf("%+v", filters)
+//	jwalterweatherman.INFO.Printf("%+v", filters)
 //	ephFilters, err := db.GetEphemeralBloomFilters(testRecip)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	jww.INFO.Printf("%+v", ephFilters)
+//	jwalterweatherman.INFO.Printf("%+v", ephFilters)
 //
 //	err = db.DeleteMixedMessage(messages[0].Id)
 //	if err != nil {
@@ -569,6 +575,52 @@ func TestMapImpl_DeleteMixedMessage_NoMessageError(t *testing.T) {
 	if err == nil {
 		t.Errorf("No error received when attemting to delete message that " +
 			"does not exist in map.")
+	}
+}
+
+// Happy path
+func TestMapImpl_DeleteMixedMessageByRound(t *testing.T) {
+	testMsgId1 := uint64(1000)
+	testMsgId2 := uint64(2000)
+	testMsgId3 := uint64(3000)
+	testRoundId := uint64(100)
+	m := &MapImpl{
+		mixedMessages: make(map[uint64]*MixedMessage),
+	}
+
+	// Insert message not to be deleted
+	m.mixedMessages[testMsgId3] = &MixedMessage{
+		Id:      testMsgId3,
+		RoundId: uint64(2),
+	}
+
+	// Insert two messages to be deleted
+	m.mixedMessages[testMsgId1] = &MixedMessage{
+		Id:      testMsgId1,
+		RoundId: testRoundId,
+	}
+	m.mixedMessages[testMsgId2] = &MixedMessage{
+		Id:      testMsgId2,
+		RoundId: testRoundId,
+	}
+
+	// Delete the two messages
+	err := m.DeleteMixedMessageByRound(id.Round(testRoundId))
+	if err != nil {
+		t.Errorf("Unable to delete mixed messages by round: %+v", err)
+	}
+
+	// Ensure both messages were deleted
+	if _, exists := m.mixedMessages[testMsgId1]; exists {
+		t.Errorf("Expected to delete message with id %d", testMsgId1)
+	}
+	if _, exists := m.mixedMessages[testMsgId2]; exists {
+		t.Errorf("Expected to delete message with id %d", testMsgId2)
+	}
+
+	// Ensure other message remains
+	if _, exists := m.mixedMessages[testMsgId3]; !exists {
+		t.Errorf("Incorrectly deleted message with id %d", testMsgId3)
 	}
 }
 
