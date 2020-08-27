@@ -33,6 +33,7 @@ type Storage interface {
 	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessage(msg *MixedMessage) error
 	DeleteMixedMessage(id uint64) error
+	DeleteMixedMessageByRound(roundId id.Round) error
 
 	GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
 	InsertBloomFilter(filter *BloomFilter) error
