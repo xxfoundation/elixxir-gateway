@@ -9,68 +9,95 @@ package storage
 
 import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/xx_network/primitives/id"
+	id "gitlab.com/xx_network/primitives/id"
 	"testing"
 )
 
 // tests that unmixed messages are properly added to the unmixed buffer
 func TestUnmixedMapBuffer_AddUnmixedMessage(t *testing.T) {
-	unmixedMessageBuf := &UnmixedMapBuffer{}
-	numOutgoingMsgs := len(unmixedMessageBuf.outgoingMessages.Slots)
+	testMap := make(map[id.Round]*SendRound)
+	unmixedMessageBuf := &UnmixedMessagesMap{
+		messages: testMap,
+	}
 
-	unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{SenderID: id.ZeroUser.Marshal()})
+	numOutgoingMsgs := len(unmixedMessageBuf.messages)
 
-	if len(unmixedMessageBuf.outgoingMessages.Slots) != numOutgoingMsgs+1 {
+	unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{SenderID: id.ZeroUser.Marshal()}, id.Round(0))
+
+	if len(unmixedMessageBuf.messages) != numOutgoingMsgs+1 {
 		t.Errorf("AddUnMixedMessage: Message was not added to outgoing" +
 			" message buffer properly!")
 	}
 }
 
 // tests that removing messages from unmixed buffer works correctly
-func TestUnmixedMapBuffer_PopUnmixedMessages(t *testing.T) {
-	unmixedMessageBuf := &UnmixedMapBuffer{}
-	unmixedMessageBuf.outgoingMessages.Slots = make([]*pb.Slot, 0)
+func TestUnmixedMapBuffer_GetUnmixedMessages(t *testing.T) {
+	unmixedMessageBuf := NewUnmixedMessagesMap()
 
-	if unmixedMessageBuf.LenUnmixed() != 0 {
-		t.Errorf("PopUnmixedMessages: Queue should be empty! Has %d messages!",
-			unmixedMessageBuf.LenUnmixed())
+	if unmixedMessageBuf.LenUnmixed(id.Round(0)) != 0 {
+		t.Errorf("GetRoundMessages: Queue should be empty! Has %d messages!",
+			unmixedMessageBuf.LenUnmixed(id.Round(0)))
 	}
 
-	if len(unmixedMessageBuf.PopUnmixedMessages(1, 1).Slots) != 0 {
-		t.Errorf("PopUnmixedMessages: Should have returned empty batch")
+	if unmixedMessageBuf.GetRoundMessages(1, 0) != nil {
+		t.Errorf("GetRoundMessages: Should have returned empty batch")
 	}
+	testSlot := &pb.Slot{SenderID: id.ZeroUser.Marshal()}
 
-	unmixedMessageBuf.outgoingMessages.Slots = append(unmixedMessageBuf.outgoingMessages.Slots,
-		&pb.Slot{SenderID: id.ZeroUser.Marshal()})
+	unmixedMessageBuf.AddUnmixedMessage(testSlot, id.Round(0))
 
 	// First confirm there is a message present
-	if unmixedMessageBuf.LenUnmixed() != 1 {
-		t.Errorf("PopUnmixedMessages: Queue should have 1 message!")
+	if unmixedMessageBuf.LenUnmixed(0) != 1 {
+		t.Errorf("GetRoundMessages: Queue should have 1 message!")
 	}
 
-	unmixedMessageBuf.PopUnmixedMessages(1, 1)
-
-	if len(unmixedMessageBuf.outgoingMessages.Slots) > 0 {
-		t.Errorf("PopUnmixedMessages: Batch was not popped correctly!")
-	}
+	unmixedMessageBuf.GetRoundMessages(1, 0)
 
 	// Test that if minCount is greater than the amount of messages, then the
 	// batch that is returned is nil
-	unmixedMessageBuf.outgoingMessages.Slots = append(unmixedMessageBuf.outgoingMessages.Slots,
-		&pb.Slot{SenderID: id.ZeroUser.Marshal()})
+	unmixedMessageBuf.AddUnmixedMessage(testSlot, id.Round(0))
 
-	batch := unmixedMessageBuf.PopUnmixedMessages(4, 1)
+	batch := unmixedMessageBuf.GetRoundMessages(4, 0)
 
 	if batch != nil {
 		t.Errorf("Error case of minCount being greater than the amount of"+
 			"messages, should received a nil batch but received: %v", batch)
 	}
 
-	// Test when the outgoing message is overfull
-	unmixedMessageBuf.outgoingMessages.Slots = append(
-		unmixedMessageBuf.outgoingMessages.Slots,
-		&pb.Slot{SenderID: id.ZeroUser.Marshal()},
-	)
+}
 
-	unmixedMessageBuf.PopUnmixedMessages(1, 1)
+// Happy path
+func TestUnmixedMessagesMap_IsRoundFull(t *testing.T) {
+	unmixedMessageBuf := NewUnmixedMessagesMap()
+	rndId := id.Round(4)
+	batchSize := 3
+	unmixedMessageBuf.SetAsRoundLeader(rndId, uint32(batchSize))
+
+	for i := 0; i < batchSize; i++ {
+		unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{}, rndId)
+	}
+
+	if !unmixedMessageBuf.IsRoundFull(rndId) {
+		t.Errorf("Message buffer for round %d should be full."+
+			"\n\tExpected messages: %d"+
+			"\n\tReceived messaged: %d", rndId, batchSize, unmixedMessageBuf.LenUnmixed(rndId))
+	}
+}
+
+// Unit test
+func TestUnmixedMessagesMap_IsRoundLeader(t *testing.T) {
+	unmixedMessageBuf := NewUnmixedMessagesMap()
+	rndId := id.Round(4)
+	batchSize := 3
+
+	if unmixedMessageBuf.IsRoundLeader(rndId) {
+		t.Errorf("Marked as a round leader incorrectly. Should only return true" +
+			"after a call to SetAsRoundLeader")
+	}
+
+	unmixedMessageBuf.SetAsRoundLeader(rndId, uint32(batchSize))
+	if !unmixedMessageBuf.IsRoundLeader(rndId) {
+		t.Errorf("Should be marked as a round leader for round %d", rndId)
+	}
+
 }
