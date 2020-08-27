@@ -44,6 +44,8 @@ func TestUnmixedMapBuffer_GetUnmixedMessages(t *testing.T) {
 	}
 	testSlot := &pb.Slot{SenderID: id.ZeroUser.Marshal()}
 
+	unmixedMessageBuf.SetAsRoundLeader(id.Round(0), 4)
+
 	unmixedMessageBuf.AddUnmixedMessage(testSlot, id.Round(0))
 
 	// First confirm there is a message present

@@ -448,7 +448,6 @@ func (gw *Instance) InitNetwork() error {
 	return nil
 }
 
-
 // Helper that updates parses the NDF in order to create our IDF
 func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 
