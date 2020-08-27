@@ -553,15 +553,6 @@ func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress stri
 			" round request, could not look up rounds. Please send a valid message.")
 	}
 
-	// Check if sender has exceeded the rate limit
-	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
-	// fixme: Hardcoded, or base it on something like the length of the message?
-	success := senderBucket.Add(1)
-	if !success {
-		return &pb.HistoricalRoundsResponse{}, errors.New("Receiving messages at a high rate. Please " +
-			"wait before sending more messages")
-	}
-
 	// Parse the message for all requested rounds
 	var roundIds []id.Round
 	for _, rnd := range msg.Rounds {
