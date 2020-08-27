@@ -170,6 +170,18 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
 	}
+	// Client -> Gateway historical round request
+	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+		return instance.RequestHistoricalRounds(msg)
+	}
+	// Client -> Gateway message request
+	impl.Functions.RequestMessages = func(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+		return instance.RequestMessages(msg)
+	}
+	// Client -> Gateway bloom request
+	impl.Functions.RequestBloom = func(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
+		return instance.RequestBloom(msg)
+	}
 	return impl
 }
 
@@ -848,4 +860,19 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 	return gw.un.Notified(), nil
+}
+
+// Client -> Gateway historical round request
+func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+	return nil, nil
+}
+
+// Client -> Gateway message request
+func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+	return nil, nil
+}
+
+// Client -> Gateway bloom request
+func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
+	return nil, nil
 }
