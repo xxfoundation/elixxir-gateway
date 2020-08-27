@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"net"
 	"os"
@@ -108,8 +107,6 @@ var rootCmd = &cobra.Command{
 }
 
 func InitParams(vip *viper.Viper) Params {
-	var err error
-
 	if !validConfig {
 		jww.FATAL.Panicf("Invalid Config File: %s", cfgFile)
 	}
@@ -149,34 +146,35 @@ func InitParams(vip *viper.Viper) Params {
 	jww.INFO.Printf("Gateway listen IP address: %s", listeningAddress)
 	jww.INFO.Printf("Gateway node: %s", nodeAddress)
 
-	cleanPeriodDur, err := time.ParseDuration(cleanPeriod)
-	if err != nil {
-		jww.ERROR.Printf("Value for cleanPeriod incorrect %v: %v", cleanPeriod, err)
-	}
+	// TODO: reenable when rate limiting is ready
+	//cleanPeriodDur, err := time.ParseDuration(cleanPeriod)
+	//if err != nil {
+	//	jww.ERROR.Printf("Value for cleanPeriod incorrect %v: %v", cleanPeriod, err)
+	//}
+	//
+	//maxDurationDur, err := time.ParseDuration(maxDuration)
+	//if err != nil {
+	//	jww.ERROR.Printf("Value for IP address MaxDuration incorrect %v: %v", maxDuration, err)
+	//}
+	//
+	//ipWhitelistFile := viper.GetString("IP_Whitelist_File")
+	//userWhitelistFile := viper.GetString("User_Whitelist_File")
 
-	maxDurationDur, err := time.ParseDuration(maxDuration)
-	if err != nil {
-		jww.ERROR.Printf("Value for IP address MaxDuration incorrect %v: %v", maxDuration, err)
-	}
-
-	ipWhitelistFile := viper.GetString("IP_Whitelist_File")
-	userWhitelistFile := viper.GetString("User_Whitelist_File")
-
-	ipBucketParams := rateLimiting.Params{
-		Capacity:      ipBucketCapacity,
-		LeakRate:      ipBucketLeakRate,
-		CleanPeriod:   cleanPeriodDur,
-		MaxDuration:   maxDurationDur,
-		WhitelistFile: ipWhitelistFile,
-	}
-
-	userBucketParams := rateLimiting.Params{
-		Capacity:      userBucketCapacity,
-		LeakRate:      userBucketLeakRate,
-		CleanPeriod:   cleanPeriodDur,
-		MaxDuration:   maxDurationDur,
-		WhitelistFile: userWhitelistFile,
-	}
+	//ipBucketParams := rateLimiting.Params{
+	//	Capacity:      ipBucketCapacity,
+	//	LeakRate:      ipBucketLeakRate,
+	//	CleanPeriod:   cleanPeriodDur,
+	//	MaxDuration:   maxDurationDur,
+	//	WhitelistFile: ipWhitelistFile,
+	//}
+	//
+	//userBucketParams := rateLimiting.Params{
+	//	Capacity:      userBucketCapacity,
+	//	LeakRate:      userBucketLeakRate,
+	//	CleanPeriod:   cleanPeriodDur,
+	//	MaxDuration:   maxDurationDur,
+	//	WhitelistFile: userWhitelistFile,
+	//}
 
 	p := Params{
 		Port:                  gwPort,
@@ -187,9 +185,9 @@ func InitParams(vip *viper.Viper) Params {
 		ServerCertPath:        serverCertPath,
 		IDFPath:               idfPath,
 		PermissioningCertPath: permissioningCertPath,
-		IpBucket:              ipBucketParams,
-		UserBucket:            userBucketParams,
-		MessageTimeout:        messageTimeout,
+		//IpBucket:              ipBucketParams,
+		//UserBucket:            userBucketParams,
+		MessageTimeout: messageTimeout,
 	}
 
 	return p
