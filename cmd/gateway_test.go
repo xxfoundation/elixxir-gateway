@@ -111,14 +111,13 @@ func TestMain(m *testing.M) {
 		KeyPath:           testkeys.GetGatewayKeyPath(),
 		MessageTimeout:    10 * time.Minute,
 		rateLimiterParams: bucketMapParams,
-		knownRounds:5,
+		knownRounds:       5,
 	}
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
 	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS,
 		nodeCert, true, false)
-	gatewayInstance.setupGossiper()
 
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
@@ -274,7 +273,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		CertPath:          testkeys.GetGatewayCertPath(),
 		MessageTimeout:    10 * time.Minute,
 		rateLimiterParams: bucketMapParams,
-		knownRounds:5,
+		knownRounds:       5,
 	}
 
 	gw := NewGatewayInstance(params)
@@ -295,8 +294,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-
-	gw.setupGossiper()
 
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
 	gw.SendBatchWhenReady(si)
@@ -365,8 +362,6 @@ func TestGatewayImpl_KnownRound(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-
-	gw.setupGossiper()
 
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
 	gw.SendBatchWhenReady(si)
@@ -1032,21 +1027,6 @@ func TestUpdateInstance(t *testing.T) {
 	// Check that batchRequest was sent
 	if len(nodeIncomingBatch.Slots) != 8 {
 		t.Errorf("Did not send batch: %d", len(nodeIncomingBatch.Slots))
-	}
-
-}
-
-// Smoke test for gossiper
-func TestGossip(t *testing.T) {
-	gatewayInstance.setupGossiper()
-	// Ensure that gossiper is set up
-	if gatewayInstance.gossiper == nil {
-		t.Errorf("Gossiper not initialized!")
-	}
-
-	_, ok := gatewayInstance.gossiper.Get("batch")
-	if !ok {
-		t.Errorf("Could not retrieve default gossip protocol")
 	}
 
 }
