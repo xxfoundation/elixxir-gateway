@@ -9,10 +9,8 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
@@ -32,7 +30,6 @@ import (
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
-	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"strings"
