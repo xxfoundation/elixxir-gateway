@@ -25,6 +25,7 @@ import (
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
+	"gitlab.com/elixxir/gateway/vendor/gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
@@ -81,6 +82,10 @@ type Instance struct {
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
 	NetInf *network.Instance
+}
+
+func (gw *Instance) RequestBloom(msg *mixmessages.GetBloom) (*mixmessages.GetBloomResponse, error) {
+	panic("implement me")
 }
 
 func (gw *Instance) RequestMessages(msg *pb.GetMessages, ipAddress string) (*pb.GetMessagesResponse, error) {
@@ -166,7 +171,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.PollForNotifications(auth)
 	}
 	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
-		return instance.GetHistoricalRounds(msg)
+		return instance.RequestHistoricalRounds(msg)
 	}
 	return impl
 }
@@ -496,10 +501,10 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 	return gw.MixedBuffer.GetMixedMessageIDs(userID, msgID)
 }
 
-// GetHistoricalRounds retrieves all rounds requested within the HistoricalRounds
+// RequestHistoricalRounds retrieves all rounds requested within the HistoricalRounds
 // message from the gateway's database. A list of round info messages are returned
 // to the sender
-func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
 	// Nil check external messages to avoid potential crashes
 	if msg == nil || msg.Rounds == nil {
 		return &pb.HistoricalRoundsResponse{}, errors.New("Invalid historical" +
