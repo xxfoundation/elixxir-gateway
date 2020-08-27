@@ -85,7 +85,7 @@ func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress stri
 	panic("implement me")
 }
 
-func (gw *Instance) RequestMessages(msg *pb.GetMessages, ipAddress string) (*pb.GetMessagesResponse, error) {
+func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 	panic("implement me")
 }
 
