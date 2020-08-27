@@ -20,6 +20,7 @@ import (
 	"gitlab.com/elixxir/comms/mixmessages"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
+	"gitlab.com/elixxir/comms/network/dataStructures"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
@@ -91,7 +92,7 @@ func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress stri
 	panic("implement me")
 }
 
-func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+func (gw *Instance) RequestMessages(msg *pb.GetMessages, ipaddress string) (*pb.GetMessagesResponse, error) {
 	panic("implement me")
 }
 
@@ -150,7 +151,7 @@ func NewGatewayInstance(params Params) *Instance {
 	gwBucketMap := rateLimiting.CreateBucketMapFromParams(params.rateLimiterParams, nil, rateLimitKill)
 
 	i := &Instance{
-		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
+		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		database:      newDatabase,
 		rateLimiter:   gwBucketMap,
@@ -260,7 +261,19 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
-			err := gw.NetInf.RoundUpdate(update)
+			// Parse the id list into a parsable topology
+			idList, err := id.NewIDListFromBytes(update.Topology)
+			if err != nil {
+				return err
+			}
+
+			// Check if we are the round leader. If so, mark us as such
+			circuit := dataStructures.NewCircuit(idList)
+			if circuit.IsFirstNode(gw.ServerHost.GetId()) {
+				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
+			}
+
+			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				return err
 			}
@@ -595,6 +608,20 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	//		Accepted: false,
 	//	}, errors.New("Could not authenticate client. Please try again later")
 	//}
+	thisRound := id.Round(msg.RoundID)
+
+	// Check if we manage this round
+	if !gw.UnmixedBuffer.IsRoundLeader(thisRound) {
+		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("Could not find round. " +
+			"Please try a different gateway.")
+	}
+
+	if gw.UnmixedBuffer.IsRoundFull(thisRound) {
+		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("This round is full and " +
+			"will not accept any new messages. Please try a different round.")
+	}
+
+	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound)
 
 	// Check if sender has exceeded the rate limit
 	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
@@ -608,12 +635,9 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
 
-	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
-	roundID := id.Round(msg.GetRoundID())
-
 	return &pb.GatewaySlotResponse{
 		Accepted: true,
-		RoundID:  uint64(roundID),
+		RoundID:  msg.GetRoundID(),
 	}, nil
 }
 
@@ -762,16 +786,15 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 	// a different round or another mechanism becomes available.
 	minMsgCnt = 0
 
-	batch := gw.UnmixedBuffer.PopUnmixedMessages(minMsgCnt, batchSize)
+	batch := gw.UnmixedBuffer.GetRoundMessages(minMsgCnt, id.Round(roundInfo.ID))
 	for batch == nil {
 		jww.INFO.Printf(
 			"Server is ready, but only have %d messages to send, "+
 				"need %d! Waiting 1 seconds!",
-			gw.UnmixedBuffer.LenUnmixed(),
+			gw.UnmixedBuffer.LenUnmixed(id.Round(roundInfo.ID)),
 			minMsgCnt)
 		time.Sleep(1 * time.Second)
-		batch = gw.UnmixedBuffer.PopUnmixedMessages(minMsgCnt,
-			batchSize)
+		batch = gw.UnmixedBuffer.GetRoundMessages(minMsgCnt, id.Round(roundInfo.ID))
 	}
 
 	batch.Round = roundInfo
