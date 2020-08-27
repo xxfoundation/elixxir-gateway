@@ -36,29 +36,23 @@ func NewUnmixedMessagesMap() UnmixedMessageBuffer {
 }
 
 // AddUnmixedMessage adds a message to send to the cMix node.
-func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, rndId id.Round) {
+func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)  {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
-	retrievedBatch, ok := umb.messages[rndId]
-	// If the batch for this round is not already created
-	//  create the batch and return
-	if !ok {
-		newBatch := &pb.Batch{
-			Slots: []*pb.Slot{msg},
-		}
-		umb.messages[rndId].batch = newBatch
-		return
-	}
+
+	retrievedBatch := umb.messages[roundId]
 
 	// If the batch for this round was already created, add another message
 	retrievedBatch.batch.Slots = append(retrievedBatch.batch.Slots, msg)
+	return
 }
 
 // GetRoundMessages returns the batch associated with the roundID
-func (umb *UnmixedMessagesMap) GetRoundMessages(minMsgCnt uint64, rndId id.Round) *pb.Batch {
+func (umb *UnmixedMessagesMap) GetRoundMessages(minMsgCnt uint64, roundId id.Round) *pb.Batch {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
-	retrievedBatch, ok := umb.messages[rndId]
+
+	retrievedBatch, ok := umb.messages[roundId]
 	if !ok {
 		return nil
 	}
@@ -83,20 +77,20 @@ func (umb *UnmixedMessagesMap) LenUnmixed(rndId id.Round) int {
 	return len(b.batch.Slots)
 }
 
-func (umb *UnmixedMessagesMap) IsRoundFull(rndId id.Round) bool {
+func (umb *UnmixedMessagesMap) IsRoundFull(roundId id.Round) bool {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
-	slots := umb.messages[rndId].batch.GetSlots()
-	return len(slots) == int(umb.messages[rndId].maxElements)
+	slots := umb.messages[roundId].batch.GetSlots()
+	return len(slots) == int(umb.messages[roundId].maxElements)
 }
 
 // SetAsRoundLeader initializes a round as our responsibility ny initializing
 //  marking that round as non-nil within the internal map
-func (umb *UnmixedMessagesMap) SetAsRoundLeader(rndId id.Round, batchsize uint32) {
+func (umb *UnmixedMessagesMap) SetAsRoundLeader(roundId id.Round, batchsize uint32) {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
-	umb.messages[rndId] = &SendRound{
+	umb.messages[roundId] = &SendRound{
 		batch:       &pb.Batch{},
 		maxElements: batchsize,
 	}
@@ -104,9 +98,9 @@ func (umb *UnmixedMessagesMap) SetAsRoundLeader(rndId id.Round, batchsize uint32
 
 // IsRoundLeader returns true if object mapped to this round has
 // been previously set
-func (umb *UnmixedMessagesMap) IsRoundLeader(rndId id.Round) bool {
+func (umb *UnmixedMessagesMap) IsRoundLeader(roundId id.Round) bool {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
-	return umb.messages[rndId] != nil
+	return umb.messages[roundId] != nil
 }

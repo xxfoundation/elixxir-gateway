@@ -21,7 +21,7 @@ func TestUnmixedMapBuffer_AddUnmixedMessage(t *testing.T) {
 	}
 
 	numOutgoingMsgs := len(unmixedMessageBuf.messages)
-
+	unmixedMessageBuf.SetAsRoundLeader(id.Round(0), 5)
 	unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{SenderID: id.ZeroUser.Marshal()}, id.Round(0))
 
 	if len(unmixedMessageBuf.messages) != numOutgoingMsgs+1 {
