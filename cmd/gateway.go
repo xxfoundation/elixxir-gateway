@@ -20,7 +20,6 @@ import (
 	"gitlab.com/elixxir/comms/mixmessages"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/comms/network/dataStructures"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
@@ -261,19 +260,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
-			// Parse the id list into a parsable topology
-			idList, err := id.NewIDListFromBytes(update.Topology)
-			if err != nil {
-				return err
-			}
 
-			// Check if we are the round leader. If so, mark us as such
-			circuit := dataStructures.NewCircuit(idList)
-			if circuit.IsFirstNode(gw.ServerHost.GetId()) {
-				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
-			}
-
-			err = gw.NetInf.RoundUpdate(update)
+			err := gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				return err
 			}

@@ -36,7 +36,7 @@ func NewUnmixedMessagesMap() UnmixedMessageBuffer {
 }
 
 // AddUnmixedMessage adds a message to send to the cMix node.
-func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)  {
+func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round) {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
