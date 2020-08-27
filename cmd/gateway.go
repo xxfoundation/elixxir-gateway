@@ -165,8 +165,8 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
 	}
-	impl.Functions.GetHistoricalRounds = func(msg *pb.HistoricalRounds, ipaddress string) (response *pb.HistoricalRoundsResponse, err error) {
-		return instance.GetHistoricalRounds(msg, ipaddress)
+	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
+		return instance.GetHistoricalRounds(msg)
 	}
 	return impl
 }
@@ -499,7 +499,7 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 // GetHistoricalRounds retrieves all rounds requested within the HistoricalRounds
 // message from the gateway's database. A list of round info messages are returned
 // to the sender
-func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress string) (*pb.HistoricalRoundsResponse, error) {
+func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
 	// Nil check external messages to avoid potential crashes
 	if msg == nil || msg.Rounds == nil {
 		return &pb.HistoricalRoundsResponse{}, errors.New("Invalid historical" +
