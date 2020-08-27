@@ -565,6 +565,10 @@ func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress stri
 	}
 
 	// Parse the retrieved rounds into the roundInfo message type
+	// Fixme: there is a back and forth type casting going on between placing
+	//  data into the database per the spec laid out
+	//  and taking that data out and casting it back to the original format.
+	//  it's really dumb and shouldn't happen, it should be fixed.
 	var rounds []*pb.RoundInfo
 	for _, rnd := range retrievedRounds {
 		ri := &pb.RoundInfo{}
