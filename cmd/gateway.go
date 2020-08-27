@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -23,14 +22,11 @@ import (
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/crypto/hash"
-	"gitlab.com/elixxir/crypto/xx"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
-	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"strings"
@@ -42,7 +38,7 @@ var dummyUser = id.DummyUser
 // TODO: remove this. It is currently only here to make tests work
 var disablePermissioning = false
 
-var rateLimitErr = errors.New("Client has exceeded communications rate limit")
+//var rateLimitErr = errors.New("Client has exceeded communications rate limit")
 
 // Tokens required by clients for different messages
 const TokensPutMessage = uint(250)  // Sends a message, the networks does n * 5 exponentiations, n = 5, 25
@@ -72,14 +68,15 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
-	// Map of leaky buckets for IP addresses
-	ipBuckets *rateLimiting.BucketMap
-	// Map of leaky buckets for user IDs
-	userBuckets *rateLimiting.BucketMap
-	// Whitelist of IP addresses
-	ipWhitelist *rateLimiting.Whitelist
-	// Whitelist of IP addresses
-	userWhitelist *rateLimiting.Whitelist
+	// TODO: reenable when rate limiting is ready
+	//// Map of leaky buckets for IP addresses
+	//ipBuckets *rateLimiting.BucketMap
+	//// Map of leaky buckets for user IDs
+	//userBuckets *rateLimiting.BucketMap
+	//// Whitelist of IP addresses
+	//ipWhitelist *rateLimiting.Whitelist
+	//// Whitelist of IP addresses
+	//userWhitelist *rateLimiting.Whitelist
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
@@ -107,8 +104,9 @@ type Params struct {
 	IDFPath               string
 	PermissioningCertPath string
 
-	IpBucket   rateLimiting.Params
-	UserBucket rateLimiting.Params
+	// TODO: reenable when rate limiting is ready
+	//IpBucket   rateLimiting.Params
+	//UserBucket rateLimiting.Params
 
 	MessageTimeout time.Duration
 }
@@ -122,29 +120,32 @@ func NewGatewayInstance(params Params) *Instance {
 		viper.GetString("dbAddress"),
 		viper.GetString("dbPort"),
 	)
+	if err != nil {
+		jww.WARN.Printf("Could not initialize database")
+	}
 	i := &Instance{
 		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
 		database:      newDatabase,
-		ipBuckets:     rateLimiting.CreateBucketMapFromParams(params.IpBucket),
-		userBuckets:   rateLimiting.CreateBucketMapFromParams(params.UserBucket),
+		//ipBuckets:     rateLimiting.CreateBucketMapFromParams(params.IpBucket),
+		//userBuckets:   rateLimiting.CreateBucketMapFromParams(params.UserBucket),
 	}
 
-	err = rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
-		IPWhiteListArr)
-
-	if err != nil {
-		jww.WARN.Printf("Could not load whitelist: %s", err)
-	}
-
-	whitelistTemp, err := rateLimiting.InitWhitelist(params.IpBucket.WhitelistFile,
-		nil)
-	if err != nil {
-		jww.ERROR.Printf("Could not load initiate whitelist: %s", err)
-	}
-
-	i.ipWhitelist = whitelistTemp
+	//err = rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
+	//	IPWhiteListArr)
+	//
+	//if err != nil {
+	//	jww.WARN.Printf("Could not load whitelist: %s", err)
+	//}
+	//
+	//whitelistTemp, err := rateLimiting.InitWhitelist(params.IpBucket.WhitelistFile,
+	//	nil)
+	//if err != nil {
+	//	jww.ERROR.Printf("Could not load initiate whitelist: %s", err)
+	//}
+	//
+	//i.ipWhitelist = whitelistTemp
 
 	return i
 }
@@ -528,16 +529,17 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	//	}, errors.New("Could not authenticate client. Please try again later")
 	//}
 
-	err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
-		TokensPutMessage)
-
-	if err != nil {
-		jww.INFO.Printf("Rate limiting check failed on send message from "+
-			"%v", msg.Message.GetSenderID())
-		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, err
-	}
+	// TODO: reenable when rate limiting is ready
+	//err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
+	//	TokensPutMessage)
+	//
+	//if err != nil {
+	//	jww.INFO.Printf("Rate limiting check failed on send message from "+
+	//		"%v", msg.Message.GetSenderID())
+	//	return &pb.GatewaySlotResponse{
+	//		Accepted: false,
+	//	}, err
+	//}
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
 	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
@@ -571,25 +573,26 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 // Pass-through for Registration Nonce Communication
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.Nonce, error) {
 	jww.INFO.Print("Checking rate limiting check on Nonce Request")
-	userPublicKey, err := rsa.LoadPublicKeyFromPem([]byte(msg.ClientRSAPubKey))
-
-	if err != nil {
-		jww.ERROR.Printf("Unable to decode client RSA Pub Key: %+v", err)
-		return nil, errors.New(fmt.Sprintf("Unable to decode client RSA Pub Key: %+v", err))
-	}
-
-	senderID, err := xx.NewID(userPublicKey, msg.Salt, id.User)
-
-	if err != nil {
-		return nil, err
-	}
-
-	//check rate limit
-	err = gw.FilterMessage(hex.EncodeToString(senderID.Bytes()), ipAddress, TokensRequestNonce)
-
-	if err != nil {
-		return nil, err
-	}
+	// TODO: reenable when rate limiting is ready
+	//userPublicKey, err := rsa.LoadPublicKeyFromPem([]byte(msg.ClientRSAPubKey))
+	//
+	//if err != nil {
+	//	jww.ERROR.Printf("Unable to decode client RSA Pub Key: %+v", err)
+	//	return nil, errors.New(fmt.Sprintf("Unable to decode client RSA Pub Key: %+v", err))
+	//}
+	//
+	//senderID, err := xx.NewID(userPublicKey, msg.Salt, id.User)
+	//
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	////check rate limit
+	//err = gw.FilterMessage(hex.EncodeToString(senderID.Bytes()), ipAddress, TokensRequestNonce)
+	//
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	jww.INFO.Print("Passing on registration nonce request")
 	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
@@ -600,11 +603,12 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.No
 func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 	ipAddress string) (*pb.RegistrationConfirmation, error) {
 
-	err := gw.FilterMessage(hex.EncodeToString(msg.UserID), ipAddress, TokensConfirmNonce)
-
-	if err != nil {
-		return nil, err
-	}
+	// TODO: reenable when rate limiting is ready
+	//err := gw.FilterMessage(hex.EncodeToString(msg.UserID), ipAddress, TokensConfirmNonce)
+	//
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
 
@@ -811,29 +815,29 @@ func (gw *Instance) Start() {
 //     is on the whitelist.
 //  2. If only the user ID is on the whitelist.
 // TODO: re-enable user ID rate limiting after issues are fixed elsewhere
-func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
-	// If the IP address bucket is full AND the message's IP address is not on
-	// the whitelist, then reject the message (unless user ID is on the
-	// whitelist)
-	if !gw.ipBuckets.LookupBucket(ipAddress).Add(token) && !gw.ipWhitelist.Exists(ipAddress) {
-		// Checks if the user ID exists in the whitelists
-		/*if gw.userWhitelist.Exists(userId) {
-			return nil
-		}*/
-
-		return rateLimitErr
-	}
-
-	// If the user ID bucket is full AND the message's user ID is not on the
-	// whitelist, then reject the message
-	/*if !gw.userBuckets.LookupBucket(userId).Add(1) && !gw.userWhitelist.Exists(userId) {
-		return errors.New("Rate limit exceeded. Try again later.")
-	}*/
-
-	// Otherwise, if the user ID bucket has room OR the user ID is on the
-	// whitelist, then let the message through
-	return nil
-}
+//func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
+//	// If the IP address bucket is full AND the message's IP address is not on
+//	// the whitelist, then reject the message (unless user ID is on the
+//	// whitelist)
+//	if !gw.ipBuckets.LookupBucket(ipAddress).Add(token) && !gw.ipWhitelist.Exists(ipAddress) {
+//		// Checks if the user ID exists in the whitelists
+//		/*if gw.userWhitelist.Exists(userId) {
+//			return nil
+//		}*/
+//
+//		return rateLimitErr
+//	}
+//
+//	// If the user ID bucket is full AND the message's user ID is not on the
+//	// whitelist, then reject the message
+//	/*if !gw.userBuckets.LookupBucket(userId).Add(1) && !gw.userWhitelist.Exists(userId) {
+//		return errors.New("Rate limit exceeded. Try again later.")
+//	}*/
+//
+//	// Otherwise, if the user ID bucket has room OR the user ID is on the
+//	// whitelist, then let the message through
+//	return nil
+//}
 
 // Notification Server polls Gateway for mobile notifications at this endpoint
 func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e error) {
