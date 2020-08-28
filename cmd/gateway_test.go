@@ -232,6 +232,10 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 }
 
+func TestInstance_Poll(t *testing.T) {
+
+}
+
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Bytes()}
 	slotMsg := &pb.GatewaySlot{

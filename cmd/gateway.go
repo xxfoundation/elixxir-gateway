@@ -24,6 +24,7 @@ import (
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
+	"gitlab.com/elixxir/gateway/vendor/gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
@@ -98,6 +99,7 @@ func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error)
 	panic("implement me")
 }
 
+// Handler for a client's poll to a gateway. Returns all the last updates and known rounds
 func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
 	// Nil check to check for valid clientRequest
 	if clientRequest == nil || clientRequest.ClientID == nil {
@@ -201,6 +203,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
+	}
+	impl.Functions.Poll = func(msg *mixmessages.GatewayPoll) (response *mixmessages.GatewayPollResponse, err error) {
+		return instance.Poll(msg)
 	}
 	return impl
 }
