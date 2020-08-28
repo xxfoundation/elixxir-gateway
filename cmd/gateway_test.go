@@ -232,8 +232,99 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 }
 
+// Happy path
 func TestInstance_Poll(t *testing.T) {
+	// Construct the rate limiting params
+	bucketMapParams := &rateLimiting.MapParams{
+		Capacity:     capacity,
+		LeakedTokens: leakedTokens,
+		LeakDuration: leakDuration,
+		PollDuration: pollDuration,
+		BucketMaxAge: bucketMaxAge,
+	}
 
+	//Build the gateway instance
+	params := Params{
+		NodeAddress:       NODE_ADDRESS,
+		ServerCertPath:    testkeys.GetNodeCertPath(),
+		CertPath:          testkeys.GetGatewayCertPath(),
+		MessageTimeout:    10 * time.Minute,
+		rateLimiterParams: bucketMapParams,
+		knownRounds:       5,
+	}
+
+	gw := NewGatewayInstance(params)
+	gw.InitNetwork()
+	clientId := id.NewIdFromBytes([]byte("test"), t)
+
+	clientReq := &pb.GatewayPoll{
+		Partial:    nil,
+		LastUpdate: 0,
+		ClientID:   clientId.Bytes(),
+	}
+
+	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+
+	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
+	var err error
+	ers := &storage.ERS{}
+	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
+
+	_, err = gw.Poll(clientReq)
+	if err != nil {
+		t.Errorf("Failed to poll: %v", err)
+	}
+
+}
+
+// Error path: Pass in invalid messages
+func TestInstance_Poll_NilCheck(t *testing.T) {
+	// Construct the rate limiting params
+	bucketMapParams := &rateLimiting.MapParams{
+		Capacity:     capacity,
+		LeakedTokens: leakedTokens,
+		LeakDuration: leakDuration,
+		PollDuration: pollDuration,
+		BucketMaxAge: bucketMaxAge,
+	}
+
+	//Build the gateway instance
+	params := Params{
+		NodeAddress:       NODE_ADDRESS,
+		ServerCertPath:    testkeys.GetNodeCertPath(),
+		CertPath:          testkeys.GetGatewayCertPath(),
+		MessageTimeout:    10 * time.Minute,
+		rateLimiterParams: bucketMapParams,
+		knownRounds:       5,
+	}
+
+	gw := NewGatewayInstance(params)
+	gw.InitNetwork()
+
+	// Pass in a nil client ID
+	clientReq := &pb.GatewayPoll{
+		Partial:    nil,
+		LastUpdate: 0,
+		ClientID:   nil,
+	}
+
+	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+
+	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
+	var err error
+	ers := &storage.ERS{}
+	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
+
+	_, err = gw.Poll(clientReq)
+	if err == nil {
+		t.Errorf("Expected error path. Should error when passing a nil clientID")
+	}
+
+	// Pass in a completely nil message
+	_, err = gw.Poll(nil)
+	if err == nil {
+		t.Errorf("Expected error path. Should error when passing a nil message")
+	}
 }
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {

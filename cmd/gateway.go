@@ -109,6 +109,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (*pb.GatewayPollResponse
 
 	lastKnownRound := gw.NetInf.GetLastRoundID()
 
+	// Get the range of updates from the network instance
 	updates, err := gw.NetInf.GetHistoricalRoundRange(id.Round(clientRequest.LastUpdate), lastKnownRound)
 	if err != nil {
 		jww.WARN.Printf("Could not retrieve updates for client [%v]'s request: %v", clientRequest.ClientID, err)
