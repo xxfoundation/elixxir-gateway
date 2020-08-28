@@ -254,8 +254,21 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
+			// Parse the topology into an id list
+			idList, err := id.NewIDListFromBytes(update.Topology)
+			if err != nil {
+				return err
+			}
 
-			err := gw.NetInf.RoundUpdate(update)
+			// Convert the ID list to a circuit
+			topology := ds.NewCircuit(idList)
+
+			// Chek if our node is the entry point fo the circuit
+			if topology.IsFirstNode(gw.ServerHost.GetId()) {
+				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
+			}
+
+			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				return err
 			}
