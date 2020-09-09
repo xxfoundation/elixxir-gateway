@@ -78,6 +78,7 @@ dbUsername: "cmix"
 dbPassword: ""
 dbName: "cmix_gateway"
 dbAddress: ""
+
 ```
 
 ## Command line flags
@@ -149,8 +150,6 @@ $ mv version_vars.go cmd
 `cmd` handles command line flags and all gateway logic.
 
 `notifications` handles notification logic use to push alerts to clients.
-
-`rateLimiting` handles rate limits from clients.
 
 `storage` contains the database and ram-based storage implementations.
 

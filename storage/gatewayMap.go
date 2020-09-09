@@ -135,7 +135,6 @@ func (m *MapImpl) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*Mix
 func (m *MapImpl) InsertMixedMessage(msg *MixedMessage) error {
 	m.Lock()
 	defer m.Unlock()
-
 	// Return an error if a MixedMessage with the ID already exists in the map
 	if m.mixedMessages[m.mixedMessagesCount] != nil {
 		return errors.Errorf("Could not insert MixedMessage. MixedMessage "+

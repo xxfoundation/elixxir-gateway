@@ -16,7 +16,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.6.3
-	gitlab.com/elixxir/comms v0.0.0-20200827170208-d1f872422b7e
+	gitlab.com/elixxir/comms v0.0.0-20200827193018-c0911a1a1ec0
 	gitlab.com/elixxir/crypto v0.0.0-20200811195343-de268a55c7c4
 	gitlab.com/elixxir/primitives v0.0.0-20200812191102-31c01f08b4dc
 	gitlab.com/xx_network/comms v0.0.0-20200825213037-f58fa7c0a641
