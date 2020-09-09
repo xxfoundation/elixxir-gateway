@@ -89,19 +89,7 @@ func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress stri
 	panic("implement me")
 }
 
-func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
-	panic("implement me")
-}
-
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
-	panic("implement me")
-}
-
-func (gw *Instance) RequestHistoricalRounds(msg *mixmessages.HistoricalRounds) (*mixmessages.HistoricalRoundsResponse, error) {
-	panic("implement me")
-}
-
-func (gw *Instance) RequestBloom(msg *mixmessages.GetBloom) (*mixmessages.GetBloomResponse, error) {
 	panic("implement me")
 }
 
@@ -927,4 +915,19 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 	return gw.un.Notified(), nil
+}
+
+// Client -> Gateway historical round request
+func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+	return nil, nil
+}
+
+// Client -> Gateway message request
+func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+	return nil, nil
+}
+
+// Client -> Gateway bloom request
+func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
+	return nil, nil
 }
