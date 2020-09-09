@@ -25,8 +25,10 @@ import (
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
+	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
+	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"strings"
@@ -35,23 +37,11 @@ import (
 
 var dummyUser = id.DummyUser
 
-// TODO: remove this. It is currently only here to make tests work
-var disablePermissioning = false
-
-//var rateLimitErr = errors.New("Client has exceeded communications rate limit")
-
-// Tokens required by clients for different messages
-const TokensPutMessage = uint(250)  // Sends a message, the networks does n * 5 exponentiations, n = 5, 25
-const TokensRequestNonce = uint(30) // Requests a nonce from the node to verify the user, 3 exponentiations
-const TokensConfirmNonce = uint(10) // Requests a nonce from the node to verify the user, 1 exponentiation
-
 // Errors to suppress
 const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
 )
-
-var IPWhiteListArr = []string{"test"}
 
 type Instance struct {
 	// Storage buffer for messages after being processed by the network
@@ -68,15 +58,9 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
-	// TODO: reenable when rate limiting is ready
-	//// Map of leaky buckets for IP addresses
-	//ipBuckets *rateLimiting.BucketMap
-	//// Map of leaky buckets for user IDs
-	//userBuckets *rateLimiting.BucketMap
-	//// Whitelist of IP addresses
-	//ipWhitelist *rateLimiting.Whitelist
-	//// Whitelist of IP addresses
-	//userWhitelist *rateLimiting.Whitelist
+	// Map of leaky buckets for user IDs
+	rateLimitQuit chan struct{}
+	rateLimit     *rateLimiting.BucketMap
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
@@ -85,7 +69,9 @@ type Instance struct {
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
-	NetInf *network.Instance
+	NetInf        *network.Instance
+	addGateway    chan network.NodeGateway
+	removeGateway chan *id.ID
 }
 
 func (gw *Instance) Poll(*pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
@@ -104,11 +90,9 @@ type Params struct {
 	IDFPath               string
 	PermissioningCertPath string
 
-	// TODO: reenable when rate limiting is ready
-	//IpBucket   rateLimiting.Params
-	//UserBucket rateLimiting.Params
-
-	MessageTimeout time.Duration
+	rateLimitParams *rateLimiting.MapParams
+	gossipFlags     gossip.ManagerFlags
+	MessageTimeout  time.Duration
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -123,29 +107,15 @@ func NewGatewayInstance(params Params) *Instance {
 	if err != nil {
 		jww.WARN.Printf("Could not initialize database")
 	}
+	rateLimitQuit := make(chan struct{}, 1)
 	i := &Instance{
 		MixedBuffer:   storage.NewMixedMessageBuffer(params.MessageTimeout),
 		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
 		Params:        params,
 		database:      newDatabase,
-		//ipBuckets:     rateLimiting.CreateBucketMapFromParams(params.IpBucket),
-		//userBuckets:   rateLimiting.CreateBucketMapFromParams(params.UserBucket),
+		rateLimitQuit: rateLimitQuit,
+		rateLimit:     rateLimiting.CreateBucketMapFromParams(params.rateLimitParams, nil, rateLimitQuit), // TODO: Fill in db8
 	}
-
-	//err = rateLimiting.CreateWhitelistFile(params.IpBucket.WhitelistFile,
-	//	IPWhiteListArr)
-	//
-	//if err != nil {
-	//	jww.WARN.Printf("Could not load whitelist: %s", err)
-	//}
-	//
-	//whitelistTemp, err := rateLimiting.InitWhitelist(params.IpBucket.WhitelistFile,
-	//	nil)
-	//if err != nil {
-	//	jww.ERROR.Printf("Could not load initiate whitelist: %s", err)
-	//}
-	//
-	//i.ipWhitelist = whitelistTemp
 
 	return i
 }
@@ -311,18 +281,17 @@ func (gw *Instance) InitNetwork() error {
 	}
 
 	// Read the permissioning server's cert from
-	if !disablePermissioning {
-		permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
-		if err != nil {
-			return errors.WithMessagef(err,
-				"Failed to read permissioning cert at %v",
-				gw.Params.PermissioningCertPath)
-		}
+	permissioningCert, err = utils.ReadFile(gw.Params.PermissioningCertPath)
+	if err != nil {
+		return errors.WithMessagef(err,
+			"Failed to read permissioning cert at %v",
+			gw.Params.PermissioningCertPath)
 	}
 
 	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
-	gw.Comms = gateway.StartGateway(&id.TempGateway, address, gatewayHandler, gwCert, gwKey)
+	gw.Comms = gateway.StartGateway(&id.TempGateway, address, gatewayHandler,
+		gwCert, gwKey, gossip.DefaultManagerFlags())
 
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
@@ -335,79 +304,74 @@ func (gw *Instance) InitNetwork() error {
 			err)
 	}
 
-	// Permissioning-enabled pathway
-	if !disablePermissioning {
+	// Begin polling server for NDF
+	jww.INFO.Printf("Beginning polling NDF...")
+	var nodeId []byte
+	var serverResponse *pb.ServerPollResponse
 
-		// Begin polling server for NDF
-		jww.INFO.Printf("Beginning polling NDF...")
-		var nodeId []byte
-		var serverResponse *pb.ServerPollResponse
+	// fixme: determine if this a proper conditional for when server is not ready
+	for serverResponse == nil {
+		// TODO: Probably not great to always sleep immediately
+		time.Sleep(3 * time.Second)
 
-		// fixme: determine if this a proper conditional for when server is not ready
-		for serverResponse == nil {
-			// TODO: Probably not great to always sleep immediately
-			time.Sleep(3 * time.Second)
-
-			// Poll Server for the NDFs, then use it to create the
-			// network instance and begin polling for server updates
-			serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
-			if err != nil {
-				eMsg := err.Error()
-				// Catch recoverable error
-				if strings.Contains(eMsg, ErrInvalidHost) {
-					jww.WARN.Printf("Node not ready...: %s",
-						eMsg)
-					continue
-					// NO_NDF will be returned if the node
-					// has not retrieved an NDF from
-					// permissioning yet
-				} else if strings.Contains(eMsg, ndf.NO_NDF) {
-					continue
-				} else if strings.Contains(eMsg, ErrAuth) {
-					jww.WARN.Printf(eMsg)
-					continue
-				} else {
-					return errors.Errorf(
-						"Error polling NDF: %+v", err)
-				}
-			}
-
-			jww.DEBUG.Printf("Creating instance!")
-			gw.NetInf, err = CreateNetworkInstance(gw.Comms,
-				serverResponse.FullNDF,
-				serverResponse.PartialNDF)
-			if err != nil {
-				jww.ERROR.Printf("Unable to create network"+
-					" instance: %v", err)
+		// Poll Server for the NDFs, then use it to create the
+		// network instance and begin polling for server updates
+		serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
+		if err != nil {
+			eMsg := err.Error()
+			// Catch recoverable error
+			if strings.Contains(eMsg, ErrInvalidHost) {
+				jww.WARN.Printf("Node not ready...: %s",
+					eMsg)
 				continue
-			}
-
-			// Add permissioning as a host
-			_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
-			if err != nil {
-				jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
+				// NO_NDF will be returned if the node
+				// has not retrieved an NDF from
+				// permissioning yet
+			} else if strings.Contains(eMsg, ndf.NO_NDF) {
 				continue
-			}
-
-			// Update the network instance
-			jww.DEBUG.Printf("Updating instance")
-			err = gw.UpdateInstance(serverResponse)
-			if err != nil {
-				jww.ERROR.Printf("Update instance error: %v", err)
+			} else if strings.Contains(eMsg, ErrAuth) {
+				jww.WARN.Printf(eMsg)
 				continue
-			}
-
-			// Install the NDF once we get it
-			if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-				err = gw.setupIDF(serverResponse.Id)
-				nodeId = serverResponse.Id
-				if err != nil {
-					jww.WARN.Printf("failed to update node information: %+v", err)
-					return err
-				}
+			} else {
+				return errors.Errorf(
+					"Error polling NDF: %+v", err)
 			}
 		}
 
+		jww.DEBUG.Printf("Creating instance!")
+		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
+			serverResponse.FullNDF,
+			serverResponse.PartialNDF)
+		if err != nil {
+			jww.ERROR.Printf("Unable to create network"+
+				" instance: %v", err)
+			continue
+		}
+
+		// Add permissioning as a host
+		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
+		if err != nil {
+			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
+			continue
+		}
+
+		// Update the network instance
+		jww.DEBUG.Printf("Updating instance")
+		err = gw.UpdateInstance(serverResponse)
+		if err != nil {
+			jww.ERROR.Printf("Update instance error: %v", err)
+			continue
+		}
+
+		// Install the NDF once we get it
+		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
+			err = gw.setupIDF(serverResponse.Id)
+			nodeId = serverResponse.Id
+			if err != nil {
+				jww.WARN.Printf("failed to update node information: %+v", err)
+				return err
+			}
+		}
 		jww.INFO.Printf("Successfully obtained NDF!")
 
 		// Replace the comms server with the newly-signed certificate
@@ -431,7 +395,9 @@ func (gw *Instance) InitNetwork() error {
 
 		gatewayId := serverID
 		gatewayId.SetType(id.Gateway)
-		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler, gwCert, gwKey)
+		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler,
+			gwCert, gwKey, gossip.DefaultManagerFlags())
+		gw.InitGossip()
 
 		// Initialize hosts for reverse-authentication
 		// This may be necessary to verify the NDF if it gets updated while
@@ -482,38 +448,18 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
 func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
-	// disabled from rate limiting for now
-	/*uIDStr := hex.EncodeToString(userID.Bytes())
-	err := gw.FilterMessage(uIDStr, ipAddress, TokensGetMessage)
-
-	if err != nil {
-		jww.INFO.Printf("Rate limiting check failed on get message from %s", uIDStr)
-		return nil, err
-	}*/
-
 	jww.DEBUG.Printf("Getting message %q:%s from buffer...", *userID, msgID)
 	return gw.MixedBuffer.GetMixedMessage(userID, msgID)
 }
 
 // Return any MessageIDs in the globals for this User
 func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string) ([]string, error) {
-	//disabled from rate limiting for now
-	/*uIDStr := hex.EncodeToString(userID.Bytes())
-	err := gw.FilterMessage(uIDStr, ipAddress, TokensCheckMessages)
-
-	if err != nil {
-		jww.INFO.Printf("Rate limiting check failed on check messages "+
-			"from %s", uIDStr)
-		return nil, err
-	}*/
-
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
 	return gw.MixedBuffer.GetMixedMessageIDs(userID, msgID)
 }
 
-// PutMessage adds a message to the outgoing queue and calls PostNewBatch when
-// it's size is the batch size
+// PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
 	// Fixme: work needs to be done to populate database with precanned values
 	//  so that precanned users aren't rejected when sending messages
@@ -541,17 +487,20 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	//	}, errors.New("Could not authenticate client. Please try again later")
 	//}
 
-	// TODO: reenable when rate limiting is ready
-	//err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
-	//	TokensPutMessage)
-	//
-	//if err != nil {
-	//	jww.INFO.Printf("Rate limiting check failed on send message from "+
-	//		"%v", msg.Message.GetSenderID())
-	//	return &pb.GatewaySlotResponse{
-	//		Accepted: false,
-	//	}, err
-	//}
+	// Rate limit messages
+	senderId, err := id.Unmarshal(msg.GetMessage().GetSenderID())
+	if err != nil {
+		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
+	}
+	err = gw.FilterMessage(senderId)
+	if err != nil {
+		jww.INFO.Printf("Rate limiting check failed on send message from "+
+			"%v", msg.Message.GetSenderID())
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, err
+	}
+
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
 	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
@@ -584,28 +533,6 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 
 // Pass-through for Registration Nonce Communication
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.Nonce, error) {
-	jww.INFO.Print("Checking rate limiting check on Nonce Request")
-	// TODO: reenable when rate limiting is ready
-	//userPublicKey, err := rsa.LoadPublicKeyFromPem([]byte(msg.ClientRSAPubKey))
-	//
-	//if err != nil {
-	//	jww.ERROR.Printf("Unable to decode client RSA Pub Key: %+v", err)
-	//	return nil, errors.New(fmt.Sprintf("Unable to decode client RSA Pub Key: %+v", err))
-	//}
-	//
-	//senderID, err := xx.NewID(userPublicKey, msg.Salt, id.User)
-	//
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	////check rate limit
-	//err = gw.FilterMessage(hex.EncodeToString(senderID.Bytes()), ipAddress, TokensRequestNonce)
-	//
-	//if err != nil {
-	//	return nil, err
-	//}
-
 	jww.INFO.Print("Passing on registration nonce request")
 	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
 
@@ -614,13 +541,6 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.No
 // Pass-through for Registration Nonce Confirmation
 func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 	ipAddress string) (*pb.RegistrationConfirmation, error) {
-
-	// TODO: reenable when rate limiting is ready
-	//err := gw.FilterMessage(hex.EncodeToString(msg.UserID), ipAddress, TokensConfirmNonce)
-	//
-	//if err != nil {
-	//	return nil, err
-	//}
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
 
@@ -745,13 +665,18 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
+	// Send the completed batch
 	err := gw.Comms.PostNewBatch(gw.ServerHost, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
-		jww.WARN.Printf("Error while sending batch %v", err)
-
+		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
 
+	// Gossip senders included in the batch to other gateways
+	err = gw.GossipBatch(batch)
+	if err != nil {
+		jww.WARN.Printf("Unable to gossip batch information: %+v", err)
+	}
 }
 
 // ProcessCompletedBatch handles messages coming out of the mixnet
@@ -814,42 +739,26 @@ func (gw *Instance) Start() {
 					err)
 				continue
 			}
-			gw.UpdateInstance(msg)
+			err = gw.UpdateInstance(msg)
+			if err != nil {
+				jww.WARN.Printf("Unable to update instance: %+v", err)
+			}
 		}
 	}()
 }
 
 // FilterMessage determines if the message should be kept or discarded based on
-// the capacity of its related buckets. The message is kept if one or more of
-// these three conditions is met:
-//  1. Both its IP address bucket and user ID bucket have room.
-//  2. Its IP address is on the whitelist and the user bucket has room/user ID
-//     is on the whitelist.
-//  2. If only the user ID is on the whitelist.
-// TODO: re-enable user ID rate limiting after issues are fixed elsewhere
-//func (gw *Instance) FilterMessage(userId, ipAddress string, token uint) error {
-//	// If the IP address bucket is full AND the message's IP address is not on
-//	// the whitelist, then reject the message (unless user ID is on the
-//	// whitelist)
-//	if !gw.ipBuckets.LookupBucket(ipAddress).Add(token) && !gw.ipWhitelist.Exists(ipAddress) {
-//		// Checks if the user ID exists in the whitelists
-//		/*if gw.userWhitelist.Exists(userId) {
-//			return nil
-//		}*/
-//
-//		return rateLimitErr
-//	}
-//
-//	// If the user ID bucket is full AND the message's user ID is not on the
-//	// whitelist, then reject the message
-//	/*if !gw.userBuckets.LookupBucket(userId).Add(1) && !gw.userWhitelist.Exists(userId) {
-//		return errors.New("Rate limit exceeded. Try again later.")
-//	}*/
-//
-//	// Otherwise, if the user ID bucket has room OR the user ID is on the
-//	// whitelist, then let the message through
-//	return nil
-//}
+// the capacity of the sender's ID bucket.
+func (gw *Instance) FilterMessage(userId *id.ID) error {
+	// If the user ID bucket is full AND the message's user ID is not on the
+	// whitelist, then reject the message
+	if !gw.rateLimit.LookupBucket(userId.String()).Add(1) {
+		return errors.New("Rate limit exceeded. Try again later.")
+	}
+
+	// Otherwise, if the user ID bucket has room then let the message through
+	return nil
+}
 
 // Notification Server polls Gateway for mobile notifications at this endpoint
 func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e error) {

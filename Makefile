@@ -23,7 +23,7 @@ update_release:
 	GOFLAGS="" go get -u gitlab.com/xx_network/primitives@release
 	GOFLAGS="" go get -u gitlab.com/elixxir/crypto@release
 	GOFLAGS="" go get -u gitlab.com/xx_network/crypto@release
-	GOFLAGS="" go get -u gitlab.com/elixxir/comms@release
+	GOFLAGS="" go get -u gitlab.com/elixxir/comms@53f01b2c748301fbe3fa6726a475986cbde11144
 	GOFLAGS="" go get -u gitlab.com/xx_network/comms@release
 
 update_master:
