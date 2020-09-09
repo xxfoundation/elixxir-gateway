@@ -29,7 +29,7 @@ func TestMixedMapBuffer_StartMessageCleanup(t *testing.T) {
 	cleanupBuf.messageIDs[*userId] = make([]string, 0)
 
 	for i := 0; i < 5; i++ {
-		msgId := string(i)
+		msgId := string(rune(i))
 		cleanupBuf.messageCollection[*userId][msgId] = &pb.Slot{}
 		cleanupBuf.messageIDs[*userId] = append(cleanupBuf.messageIDs[*userId],
 			msgId)
@@ -141,7 +141,7 @@ func TestMapBuffer_ExceedUserMsgsLimit(t *testing.T) {
 	}
 
 	for i := 0; i < MaxUserMessagesLimit; i++ {
-		msgID := msgIDFmt + string(i)
+		msgID := msgIDFmt + string(rune(i))
 		mixedMessageBuf.AddMixedMessage(userId, msgID,
 			&pb.Slot{SenderID: userId.Bytes()})
 	}
