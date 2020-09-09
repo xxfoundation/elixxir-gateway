@@ -5,6 +5,8 @@
 // LICENSE file                                                              //
 ///////////////////////////////////////////////////////////////////////////////
 
+// Contains functionality related to inter-gateway gossip
+
 package cmd
 
 import (
