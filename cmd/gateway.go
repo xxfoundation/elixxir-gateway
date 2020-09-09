@@ -540,28 +540,28 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	// Fixme: work needs to be done to populate database with precanned values
 	//  so that precanned users aren't rejected when sending messages
 	// Construct Client ID for database lookup
-	//clientID, err := id.Unmarshal(msg.Message.SenderID)
-	//if err != nil {
-	//	return &pb.GatewaySlotResponse{
-	//		Accepted: false,
-	//	}, errors.Errorf("Could not parse message: Unrecognized ID")
-	//}
+	clientID, err := id.Unmarshal(msg.Message.SenderID)
+	if err != nil {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.Errorf("Could not parse message: Unrecognized ID")
+	}
 
-	// Retrieve the client from the database
-	//cl, err := gw.database.GetClient(clientID)
-	//if err != nil {
-	//	return &pb.GatewaySlotResponse{
-	//		Accepted: false,
-	//	}, errors.New("Did not recognize ID. Have you registered successfully?")
-	//}
+	//Retrieve the client from the database
+	cl, err := gw.database.GetClient(clientID)
+	if err != nil {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.New("Did not recognize ID. Have you registered successfully?")
+	}
 
-	// Generate the MAC and check against the message's MAC
-	//clientMac := generateClientMac(cl, msg)
-	//if !bytes.Equal(clientMac, msg.MAC) {
-	//	return &pb.GatewaySlotResponse{
-	//		Accepted: false,
-	//	}, errors.New("Could not authenticate client. Please try again later")
-	//}
+	//Generate the MAC and check against the message's MAC
+	clientMac := generateClientMac(cl, msg)
+	if !bytes.Equal(clientMac, msg.MAC) {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.New("Could not authenticate client. Please try again later")
+	}
 	thisRound := id.Round(msg.RoundID)
 
 	// Check if we manage this round
