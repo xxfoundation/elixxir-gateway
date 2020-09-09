@@ -27,7 +27,6 @@ import (
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
-	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"strconv"
@@ -90,7 +89,7 @@ func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress stri
 	panic("implement me")
 }
 
-func (gw *Instance) RequestMessages(msg *pb.GetMessages, ipAddress string) (*pb.GetMessagesResponse, error) {
+func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 	panic("implement me")
 }
 
@@ -517,13 +516,13 @@ func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*
 // Return any MessageIDs in the globals for this User
 func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string) ([]string, error) {
 	// Check if sender has exceeded the rate limit
-	senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
-	// fixme: Hardcoded, or base it on something like the length of the message?
-	success := senderBucket.Add(1)
-	if !success {
-		return []string{}, errors.New("Receiving messages at a high rate. Please " +
-			"wait before sending more messages")
-	}
+	//senderBucket := gw.rateLimiter.LookupBucket(ipAddress)
+	//// fixme: Hardcoded, or base it on something like the length of the message?
+	//success := senderBucket.Add(1)
+	//if !success {
+	//	return []string{}, errors.New("Receiving messages at a high rate. Please " +
+	//		"wait before sending more messages")
+	//}
 
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
