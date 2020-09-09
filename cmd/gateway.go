@@ -140,7 +140,7 @@ func NewGatewayInstance(params Params) *Instance {
 		jww.WARN.Printf("Could not initialize database")
 	}
 	i := &Instance{
-		UnmixedBuffer: storage.NewUnmixedMessageBuffer(),
+		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		database:      newDatabase,
 		//ipBuckets:     rateLimiting.CreateBucketMapFromParams(params.IpBucket),
@@ -276,7 +276,21 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
-			err := gw.NetInf.RoundUpdate(update)
+			// Parse the topology into an id list
+			idList, err := id.NewIDListFromBytes(update.Topology)
+			if err != nil {
+				return err
+			}
+
+			// Convert the ID list to a circuit
+			topology := ds.NewCircuit(idList)
+
+			// Chek if our node is the entry point fo the circuit
+			if topology.IsFirstNode(gw.ServerHost.GetId()) {
+				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
+			}
+
+			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				return err
 			}
@@ -548,28 +562,42 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	// Fixme: work needs to be done to populate database with precanned values
 	//  so that precanned users aren't rejected when sending messages
 	// Construct Client ID for database lookup
-	//clientID, err := id.Unmarshal(msg.Message.SenderID)
-	//if err != nil {
-	//	return &pb.GatewaySlotResponse{
-	//		Accepted: false,
-	//	}, errors.Errorf("Could not parse message: Unrecognized ID")
-	//}
+	clientID, err := id.Unmarshal(msg.Message.SenderID)
+	if err != nil {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.Errorf("Could not parse message: Unrecognized ID")
+	}
 
-	// Retrieve the client from the database
-	//cl, err := gw.database.GetClient(clientID)
-	//if err != nil {
-	//	return &pb.GatewaySlotResponse{
-	//		Accepted: false,
-	//	}, errors.New("Did not recognize ID. Have you registered successfully?")
-	//}
+	//Retrieve the client from the database
+	cl, err := gw.database.GetClient(clientID)
+	if err != nil {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.New("Did not recognize ID. Have you registered successfully?")
+	}
 
-	// Generate the MAC and check against the message's MAC
-	//clientMac := generateClientMac(cl, msg)
-	//if !bytes.Equal(clientMac, msg.MAC) {
-	//	return &pb.GatewaySlotResponse{
-	//		Accepted: false,
-	//	}, errors.New("Could not authenticate client. Please try again later")
-	//}
+	//Generate the MAC and check against the message's MAC
+	clientMac := generateClientMac(cl, msg)
+	if !bytes.Equal(clientMac, msg.MAC) {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.New("Could not authenticate client. Please try again later")
+	}
+	thisRound := id.Round(msg.RoundID)
+
+	// Check if we manage this round
+	if !gw.UnmixedBuffer.IsRoundLeader(thisRound) {
+		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("Could not find round. " +
+			"Please try a different gateway.")
+	}
+
+	if gw.UnmixedBuffer.IsRoundFull(thisRound) {
+		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("This round is full and " +
+			"will not accept any new messages. Please try a different round.")
+	}
+
+	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound)
 
 	// TODO: reenable when rate limiting is ready
 	//err := gw.FilterMessage(hex.EncodeToString(msg.Message.SenderID), ipAddress,
@@ -585,12 +613,9 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
 		msg.Message.GetSenderID())
 
-	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message)
-	roundID := id.Round(msg.GetRoundID())
-
 	return &pb.GatewaySlotResponse{
 		Accepted: true,
-		RoundID:  uint64(roundID),
+		RoundID:  msg.GetRoundID(),
 	}, nil
 }
 
@@ -749,16 +774,15 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 	// a different round or another mechanism becomes available.
 	minMsgCnt = 0
 
-	batch := gw.UnmixedBuffer.PopUnmixedMessages(minMsgCnt, batchSize)
+	batch := gw.UnmixedBuffer.GetRoundMessages(minMsgCnt, id.Round(roundInfo.ID))
 	for batch == nil {
 		jww.INFO.Printf(
 			"Server is ready, but only have %d messages to send, "+
 				"need %d! Waiting 1 seconds!",
-			gw.UnmixedBuffer.LenUnmixed(),
+			gw.UnmixedBuffer.LenUnmixed(id.Round(roundInfo.ID)),
 			minMsgCnt)
 		time.Sleep(1 * time.Second)
-		batch = gw.UnmixedBuffer.PopUnmixedMessages(minMsgCnt,
-			batchSize)
+		batch = gw.UnmixedBuffer.GetRoundMessages(minMsgCnt, id.Round(roundInfo.ID))
 	}
 
 	batch.Round = roundInfo
