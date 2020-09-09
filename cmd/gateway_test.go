@@ -18,7 +18,6 @@ import (
 	"gitlab.com/elixxir/crypto/large"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	xx_pb "gitlab.com/xx_network/comms/messages"
@@ -94,24 +93,36 @@ func TestMain(m *testing.M) {
 	grp["prime"] = prime
 	grp["generator"] = generator
 
-	// Construct the rate limiting params
-	bucketMapParams := &rateLimiting.MapParams{
-		Capacity:     capacity,
-		LeakedTokens: leakedTokens,
-		LeakDuration: leakDuration,
-		PollDuration: pollDuration,
-		BucketMaxAge: bucketMaxAge,
-	}
-
 	//Build the gateway instance
 	params := Params{
-		NodeAddress:       NODE_ADDRESS,
-		ServerCertPath:    testkeys.GetNodeCertPath(),
-		CertPath:          testkeys.GetGatewayCertPath(),
-		KeyPath:           testkeys.GetGatewayKeyPath(),
-		MessageTimeout:    10 * time.Minute,
-		rateLimiterParams: bucketMapParams,
+		NodeAddress:    NODE_ADDRESS,
+		ServerCertPath: testkeys.GetNodeCertPath(),
+		CertPath:       testkeys.GetGatewayCertPath(),
+		KeyPath:        testkeys.GetGatewayKeyPath(),
+		MessageTimeout: 10 * time.Minute,
 	}
+
+	// TODO: reenable when rate limiting is ready
+	//cleanPeriodDur := 3 * time.Second
+	//maxDurationDur := 10 * time.Second
+	//
+	//rlPref := "../rateLimiting/whitelists/"
+
+	//params.IpBucket = rateLimiting.Params{
+	//	LeakRate:      0.0000012,
+	//	Capacity:      1240,
+	//	CleanPeriod:   cleanPeriodDur,
+	//	MaxDuration:   maxDurationDur,
+	//	WhitelistFile: rlPref + "ip_whitelist2.txt",
+	//}
+	//
+	//params.UserBucket = rateLimiting.Params{
+	//	LeakRate:      0.0000012,
+	//	Capacity:      500,
+	//	CleanPeriod:   cleanPeriodDur,
+	//	MaxDuration:   maxDurationDur,
+	//	WhitelistFile: rlPref + "user_whitelist.txt",
+	//}
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
@@ -265,24 +276,34 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	//Begin gateway comms
 	cmixNodes := make([]string, 1)
 	cmixNodes[0] = GW_ADDRESS
-
-	// Construct the rate limiting params
-	bucketMapParams := &rateLimiting.MapParams{
-		Capacity:     capacity,
-		LeakedTokens: leakedTokens,
-		LeakDuration: leakDuration,
-		PollDuration: pollDuration,
-		BucketMaxAge: bucketMaxAge,
-	}
-
 	//Build the gateway instance
 	params := Params{
-		NodeAddress:       NODE_ADDRESS,
-		ServerCertPath:    testkeys.GetNodeCertPath(),
-		CertPath:          testkeys.GetGatewayCertPath(),
-		MessageTimeout:    10 * time.Minute,
-		rateLimiterParams: bucketMapParams,
+		NodeAddress:    NODE_ADDRESS,
+		ServerCertPath: testkeys.GetNodeCertPath(),
+		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
 	}
+
+	// TODO: reenable when rate limiting is ready
+	//cleanPeriodDur := 3 * time.Second
+	//maxDurationDur := 10 * time.Second
+	//
+	//rlPref := "../rateLimiting/whitelists/"
+	//params.IpBucket = rateLimiting.Params{
+	//	LeakRate:      0.0000012,
+	//	Capacity:      1240,
+	//	CleanPeriod:   cleanPeriodDur,
+	//	MaxDuration:   maxDurationDur,
+	//	WhitelistFile: rlPref + "ip_whitelist2.txt",
+	//}
+	//
+	//params.UserBucket = rateLimiting.Params{
+	//	LeakRate:      0.0000012,
+	//	Capacity:      500,
+	//	CleanPeriod:   cleanPeriodDur,
+	//	MaxDuration:   maxDurationDur,
+	//	WhitelistFile: rlPref + "user_whitelist.txt",
+	//}
 
 	gw := NewGatewayInstance(params)
 	p := large.NewIntFromString(prime, 16)
@@ -350,260 +371,253 @@ func disconnectServers() {
 	n.DisconnectAll()
 }
 
+// TODO: reenable when rate limiting is ready
 // Tests that messages can get through when its IP address bucket is not full
 // and checks that they are blocked when the bucket is full.
-func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
-	time.Sleep(2 * time.Second)
-
-	data := format.NewMessage()
-	msg := pb.Slot{
-		SenderID: id.NewIdFromUInt(666, id.User, t).Marshal(),
-		PayloadA: data.GetPayloadA(),
-		PayloadB: data.GetPayloadB(),
-	}
-	slotMsg := &pb.GatewaySlot{
-		Message: &msg,
-	}
-
-	// Insert client information to database
-	newClient := &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	gatewayInstance.database.InsertClient(newClient)
-
-	_, err := gatewayInstance.PutMessage(slotMsg, "0")
-	errMsg := ("PutMessage: Could not put any messages when IP address " +
-		"should not be blocked")
-	if err != nil {
-		t.Errorf("%s: %v", errMsg, err.Error())
-	}
-
-	gatewayInstance.database.InsertClient(newClient)
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(67, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
-	gatewayInstance.database.InsertClient(newClient)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-
-		t.Errorf("%s: %v", errMsg, err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(34, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf("%s: %v", errMsg, err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf("%s: %v", errMsg, err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "1")
-	if err != nil {
-		t.Errorf("%s: %v", errMsg, err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	// fixme: rate limiting checks aren't properly done
-	//  until the storage interface is implemented, so messages won't be denied until then
-	//_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	//if err == nil {
-	//	t.Errorf(errMsg + " no error")
-	//}
-
-	time.Sleep(1 * time.Second)
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(34, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf(errMsg + ": " + err.Error())
-	}
-
-	time.Sleep(1 * time.Second)
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf(errMsg + ": " + err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "1")
-	if err != nil {
-		t.Errorf(errMsg + ": " + err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf(errMsg + ": " + err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf(errMsg + ": " + err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf(errMsg + ": " + err.Error())
-	}
-
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
-	slotMsg = &pb.GatewaySlot{
-		Message: &msg,
-	}
-	// Insert client information to database
-	newClient = &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-
-	// fixme: rate limiting checks aren't properly done
-	//  until the storage interface is implemented, so messages won't be denied until then
-	//_, err = gatewayInstance.PutMessage(slotMsg, "0")
-	//if err == nil {
-	//	t.Errorf(errMsg)
-	//}
-}
+//func TestGatewayImpl_PutMessage_IpBlock(t *testing.T) {
+//	time.Sleep(2 * time.Second)
+//
+//	msg := pb.Slot{SenderID: id.NewIdFromUInt(255, id.User, t).Marshal()}
+//	slotMsg := &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//
+//	// Insert client information to database
+//	newClient := &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	gatewayInstance.database.InsertClient(newClient)
+//
+//	_, err := gatewayInstance.PutMessage(slotMsg, "0")
+//	errMsg := ("PutMessage: Could not put any messages when IP address " +
+//		"should not be blocked")
+//	if err != nil {
+//		t.Errorf("Unexpected error: %v", err)
+//		t.Errorf(errMsg)
+//	}
+//
+//	gatewayInstance.database.InsertClient(newClient)
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(67, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//	gatewayInstance.database.InsertClient(newClient)
+//	gatewayInstance.database.InsertClient(newClient)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err != nil {
+//		t.Errorf("Unexpected error: %v", err)
+//
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(34, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//	gatewayInstance.database.InsertClient(newClient)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//	gatewayInstance.database.InsertClient(newClient)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//	gatewayInstance.database.InsertClient(newClient)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "1")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err == nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	time.Sleep(1 * time.Second)
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(34, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	time.Sleep(1 * time.Second)
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "1")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err != nil {
+//		t.Errorf(errMsg)
+//	}
+//
+//	msg = pb.Slot{SenderID: id.NewIdFromUInt(0, id.User, t).Marshal()}
+//	slotMsg = &pb.GatewaySlot{
+//		Message: &msg,
+//	}
+//	// Insert client information to database
+//	newClient = &storage.Client{
+//		Id:  msg.SenderID,
+//		Key: []byte("test"),
+//	}
+//
+//	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+//
+//	_, err = gatewayInstance.PutMessage(slotMsg, "0")
+//	if err == nil {
+//		t.Errorf(errMsg)
+//	}
+//}
 
 // Tests that messages can get through when its user ID bucket is not full and
 // checks that they are blocked when the bucket is full.

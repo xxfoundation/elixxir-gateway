@@ -15,9 +15,7 @@ import (
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
-	"gitlab.com/xx_network/comms/gossip"
 	"net"
 	"os"
 	"strings"
@@ -37,13 +35,6 @@ var (
 	ipBucketLeakRate, userBucketLeakRate float64
 	cleanPeriod, maxDuration             string
 	validConfig                          bool
-
-	// For gossip protocol
-	bufferExpiration, monitorThreadFrequency time.Duration
-
-	// For rate limiting
-	capacity, leakedTokens                   uint32
-	leakDuration, pollDuration, bucketMaxAge time.Duration
 )
 
 // RootCmd represents the base command when called without any sub-commands
@@ -149,32 +140,41 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
 	}
 
-	// If the values aren't default, repopulate flag values with customized values
-	// Otherwise use the default values
-	gossipFlags := gossip.DefaultManagerFlags()
-	if gossipFlags.BufferExpirationTime != bufferExpiration ||
-		gossipFlags.MonitorThreadFrequency != monitorThreadFrequency {
-
-		gossipFlags = gossip.ManagerFlags{
-			BufferExpirationTime:   bufferExpiration,
-			MonitorThreadFrequency: monitorThreadFrequency,
-		}
-	}
-
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
 	jww.INFO.Printf("Gateway port: %d", gwPort)
 	jww.INFO.Printf("Gateway listen IP address: %s", listeningAddress)
 	jww.INFO.Printf("Gateway node: %s", nodeAddress)
 
-	// Construct the rate limiting params
-	bucketMapParams := &rateLimiting.MapParams{
-		Capacity:     capacity,
-		LeakedTokens: leakedTokens,
-		LeakDuration: leakDuration,
-		PollDuration: pollDuration,
-		BucketMaxAge: bucketMaxAge,
-	}
+	// TODO: reenable when rate limiting is ready
+	//cleanPeriodDur, err := time.ParseDuration(cleanPeriod)
+	//if err != nil {
+	//	jww.ERROR.Printf("Value for cleanPeriod incorrect %v: %v", cleanPeriod, err)
+	//}
+	//
+	//maxDurationDur, err := time.ParseDuration(maxDuration)
+	//if err != nil {
+	//	jww.ERROR.Printf("Value for IP address MaxDuration incorrect %v: %v", maxDuration, err)
+	//}
+	//
+	//ipWhitelistFile := viper.GetString("IP_Whitelist_File")
+	//userWhitelistFile := viper.GetString("User_Whitelist_File")
+
+	//ipBucketParams := rateLimiting.Params{
+	//	Capacity:      ipBucketCapacity,
+	//	LeakRate:      ipBucketLeakRate,
+	//	CleanPeriod:   cleanPeriodDur,
+	//	MaxDuration:   maxDurationDur,
+	//	WhitelistFile: ipWhitelistFile,
+	//}
+	//
+	//userBucketParams := rateLimiting.Params{
+	//	Capacity:      userBucketCapacity,
+	//	LeakRate:      userBucketLeakRate,
+	//	CleanPeriod:   cleanPeriodDur,
+	//	MaxDuration:   maxDurationDur,
+	//	WhitelistFile: userWhitelistFile,
+	//}
 
 	p := Params{
 		Port:                  gwPort,
@@ -185,9 +185,9 @@ func InitParams(vip *viper.Viper) Params {
 		ServerCertPath:        serverCertPath,
 		IDFPath:               idfPath,
 		PermissioningCertPath: permissioningCertPath,
-		MessageTimeout:        messageTimeout,
-		gossiperFlags:         gossipFlags,
-		rateLimiterParams:     bucketMapParams,
+		//IpBucket:              ipBucketParams,
+		//UserBucket:            userBucketParams,
+		MessageTimeout: messageTimeout,
 	}
 
 	return p
@@ -281,42 +281,68 @@ func init() {
 	err = viper.BindPFlag("permissioningCertPath", rootCmd.Flags().Lookup("permissioningCertPath"))
 	handleBindingError(err, "permissioningCertPath")
 
-	// RATE LIMITING FLAGS
-	rootCmd.Flags().Uint32Var(&capacity, "capacity", 20,
-		"Amount of buckets to keep track of for rate limiting communications")
-	err = viper.BindPFlag("capacity", rootCmd.Flags().Lookup("capacity"))
-	handleBindingError(err, "Rate_Limiting_Capacity")
+	// DEPRECIATED - Flags for leaky bucket
+	rootCmd.Flags().Float64Var(&ipBucketLeakRate,
+		"IP_LeakyBucket_Rate", 0.000005,
+		"The leak rate for the IP address bucket in tokens/nanosecond.")
+	err = viper.BindPFlag("IP_LeakyBucket_Rate", rootCmd.Flags().Lookup("IP_LeakyBucket_Rate"))
+	handleBindingError(err, "IP_LeakyBucket_Rate")
+	err = rootCmd.Flags().MarkHidden("IP_LeakyBucket_Rate")
+	handleBindingError(err, "IP_LeakyBucket_Rate")
 
-	rootCmd.Flags().Uint32Var(&leakedTokens, "leakedTokens", 3,
-		"Used to calculate the leak rate")
-	err = viper.BindPFlag("leakedTokens", rootCmd.Flags().Lookup("leakedTokens"))
-	handleBindingError(err, "Rate_Limiting_LeakedTokens")
+	rootCmd.Flags().Float64Var(&userBucketLeakRate,
+		"User_LeakyBucket_Rate", 0.000005,
+		"The leak rate for the user ID bucket in tokens/nanosecond.")
+	err = viper.BindPFlag("User_LeakyBucket_Rate", rootCmd.Flags().Lookup("User_LeakyBucket_Rate"))
+	handleBindingError(err, "User_LeakyBucket_Rate")
+	err = rootCmd.Flags().MarkHidden("User_LeakyBucket_Rate")
+	handleBindingError(err, "User_LeakyBucket_Rate")
 
-	rootCmd.Flags().DurationVar(&leakDuration, "leakDuration", 1*time.Millisecond,
-		"Used to calculate the leak rate")
-	err = viper.BindPFlag("leakDuration", rootCmd.Flags().Lookup("leakDuration"))
-	handleBindingError(err, "Rate_Limiting_LeakDuration")
+	rootCmd.Flags().UintVar(&ipBucketCapacity,
+		"IP_LeakyBucket_Capacity", 4000,
+		"The max capacity for the IP address bucket.")
+	err = viper.BindPFlag("IP_LeakyBucket_Capacity", rootCmd.Flags().Lookup("IP_LeakyBucket_Capacity"))
+	handleBindingError(err, "IP_LeakyBucket_Capacity")
+	err = rootCmd.Flags().MarkHidden("IP_LeakyBucket_Capacity")
+	handleBindingError(err, "IP_LeakyBucket_Capacity")
 
-	rootCmd.Flags().DurationVar(&pollDuration, "pollDuration", 10*time.Second,
-		"Duration between polls for stale buckets")
-	err = viper.BindPFlag("pollDuration", rootCmd.Flags().Lookup("pollDuration"))
-	handleBindingError(err, "Rate_Limiting_PollDuration")
+	rootCmd.Flags().UintVar(&userBucketCapacity,
+		"User_LeakyBucket_Capacity", 4000,
+		"The max capacity for the user ID bucket.")
+	err = viper.BindPFlag("User_LeakyBucket_Capacity", rootCmd.Flags().Lookup("User_LeakyBucket_Capacity"))
+	handleBindingError(err, "User_LeakyBucket_Capacity")
+	err = rootCmd.Flags().MarkHidden("User_LeakyBucket_Capacity")
+	handleBindingError(err, "User_LeakyBucket_Capacity")
 
-	rootCmd.Flags().DurationVar(&bucketMaxAge, "bucketMaxAge", 10*time.Second,
-		"Max time of inactivity before removal")
-	err = viper.BindPFlag("bucketMaxAge", rootCmd.Flags().Lookup("bucketMaxAge"))
-	handleBindingError(err, "Rate_Limiting_BucketMaxAge")
+	rootCmd.Flags().StringVarP(&cleanPeriod,
+		"Clean_Period", "", "30m",
+		"The period at which stale buckets are removed")
+	err = viper.BindPFlag("Clean_Period", rootCmd.Flags().Lookup("Clean_Period"))
+	handleBindingError(err, "Clean_Period")
+	err = rootCmd.Flags().MarkHidden("Clean_Period")
+	handleBindingError(err, "Clean_Period")
 
-	// GOSSIP MANAGER FLAGS
-	rootCmd.Flags().DurationVar(&bufferExpiration, "bufferExpiration", 300*time.Second,
-		"How long a message record should last in the buffer")
-	err = viper.BindPFlag("bufferExpiration", rootCmd.Flags().Lookup("bufferExpiration"))
-	handleBindingError(err, "Rate_Limiting_BufferExpiration")
+	rootCmd.Flags().StringVarP(&maxDuration,
+		"Max_Duration", "", "15m",
+		"DEPRECIATED. The max duration a bucket can persist before being removed.")
+	err = viper.BindPFlag("Max_Duration", rootCmd.Flags().Lookup("Max_Duration"))
+	handleBindingError(err, "Max_Duration")
+	err = rootCmd.Flags().MarkHidden("Max_Duration")
+	handleBindingError(err, "Max_Duration")
 
-	rootCmd.Flags().DurationVar(&monitorThreadFrequency, "monitorThreadFrequency", 150*time.Second,
-		"Frequency with which to check the gossip's buffer.")
-	err = viper.BindPFlag("monitorThreadFrequency", rootCmd.Flags().Lookup("monitorThreadFrequency"))
-	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
+	rootCmd.Flags().String("IP_Whitelist_File", "",
+		"List of whitelisted IP addresses.")
+	err = viper.BindPFlag("IP_Whitelist_File", rootCmd.Flags().Lookup("IP_Whitelist_File"))
+	handleBindingError(err, "IP_Whitelist_File")
+	err = rootCmd.Flags().MarkHidden("IP_Whitelist_File")
+	handleBindingError(err, "IP_Whitelist_File")
+
+	rootCmd.Flags().String("User_Whitelist_File", "",
+		"List of whitelisted user IDs.")
+	err = viper.BindPFlag("User_Whitelist_File", rootCmd.Flags().Lookup("User_Whitelist_File"))
+	handleBindingError(err, "User_Whitelist_File")
+	err = rootCmd.Flags().MarkHidden("User_Whitelist_File")
+	handleBindingError(err, "User_Whitelist_File")
 }
 
 // Handle flag binding errors

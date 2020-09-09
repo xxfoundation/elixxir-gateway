@@ -103,6 +103,11 @@ func (d *DatabaseImpl) DeleteMixedMessage(id uint64) error {
 	}).Error
 }
 
+// Deletes all MixedMessages with the given roundId from Storage
+func (d *DatabaseImpl) DeleteMixedMessageByRound(roundId id.Round) error {
+	return d.db.Where("round_id = ?", uint64(roundId)).Delete(MixedMessage{}).Error
+}
+
 // Returns a BloomFilter from Storage with the given clientId
 // Or an error if a matching BloomFilter does not exist
 func (d *DatabaseImpl) GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error) {
