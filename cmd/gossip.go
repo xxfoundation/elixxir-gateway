@@ -78,7 +78,7 @@ func (gw *Instance) InitGossip() {
 				return errors.Errorf("Unable to verify signature: %+v", err)
 			}
 			return nil
-		}, make([]*id.ID, 0))
+		}, nil)
 }
 
 // KillRateLimiter is a helper function which sends the kill
