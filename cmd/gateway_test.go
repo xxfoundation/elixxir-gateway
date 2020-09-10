@@ -190,8 +190,16 @@ func buildTestNodeImpl() *node.Implementation {
 
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Marshal()}
-	slotMsg := &pb.GatewaySlot{
+	data := format.NewMessage()
+	rndId := uint64(1)
+
+	msg := pb.Slot{
+		SenderID: id.NewIdFromUInt(666, id.User, t).Marshal(),
+		PayloadA: data.GetPayloadA(),
+		PayloadB: data.GetPayloadB(),
+	}
+
+	slotMsg := &pb.GatewaySlot{RoundID: rndId,
 		Message: &msg,
 	}
 
@@ -203,14 +211,25 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.database.InsertClient(newClient)
+	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
+	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
+		"0.0.0.0:4200", pub, false, true)
 
-	_, err := gatewayInstance.PutMessage(slotMsg, "0")
+	ri := &pb.RoundInfo{ID: (rndId), BatchSize: 4}
+	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
+
+	rnd := &storage.Round{
+		Id:       rndId,
+		UpdateId: 0,
+	}
+	gatewayInstance.database.UpsertRound(rnd)
+	_, err = gatewayInstance.PutMessage(slotMsg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!"+
 			"Error received: %v", err)
 	}
 
-	ri := &pb.RoundInfo{ID: 1, BatchSize: 4}
+	ri = &pb.RoundInfo{ID: 1, BatchSize: 4}
 	gatewayInstance.SendBatchWhenReady(ri)
 
 	time.Sleep(1 * time.Second)
@@ -228,26 +247,6 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 }
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Bytes()}
-	slotMsg := &pb.GatewaySlot{
-		Message: &msg,
-	}
-
-	// Insert client information to database
-	newClient := &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
-
-	_, err := gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-		t.Errorf("PutMessage: Could not put any messages!")
-	}
-
 	//Begin gateway comms
 	cmixNodes := make([]string, 1)
 	cmixNodes[0] = GW_ADDRESS
@@ -268,13 +267,13 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	gw := NewGatewayInstance(params)
-
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
 
 	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
 
+	var err error
 	gw.NetInf, err = network.NewInstanceTesting(nil, testNDF, testNDF, grp2, grp2, t)
 	if err != nil {
 		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
@@ -285,6 +284,45 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		nodeCert, true, false)
 	if err != nil {
 		t.Errorf(err.Error())
+	}
+
+	data := format.NewMessage()
+	rndId := uint64(1)
+
+	msg := pb.Slot{
+		SenderID: id.NewIdFromUInt(666, id.User, t).Marshal(),
+		PayloadA: data.GetPayloadA(),
+		PayloadB: data.GetPayloadB(),
+	}
+
+	slotMsg := &pb.GatewaySlot{RoundID: rndId,
+		Message: &msg,
+	}
+
+	// Insert client information to database
+	newClient := &storage.Client{
+		Id:  msg.SenderID,
+		Key: []byte("test"),
+	}
+
+	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+	gw.database.InsertClient(newClient)
+	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
+	_, err = gw.Comms.AddHost(&id.Permissioning,
+		"0.0.0.0:4200", pub, false, true)
+
+	ri := &pb.RoundInfo{ID: (rndId), BatchSize: 4}
+	gw.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
+
+	rnd := &storage.Round{
+		Id:       rndId,
+		UpdateId: 0,
+	}
+	gw.database.UpsertRound(rnd)
+	_, err = gw.PutMessage(slotMsg, "0")
+	if err != nil {
+		t.Errorf("PutMessage: Could not put any messages!"+
+			"Error received: %v", err)
 	}
 
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
@@ -302,9 +340,11 @@ func disconnectServers() {
 func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
+	rndId := uint64(1)
 
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
 	slotMsg := &pb.GatewaySlot{
+		RoundID: rndId,
 		Message: &msg,
 	}
 
@@ -313,9 +353,10 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 		Id:  msg.SenderID,
 		Key: []byte("test"),
 	}
-
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.database.InsertClient(newClient)
+	ri := &pb.RoundInfo{ID: (rndId), BatchSize: 24}
+	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	errMsg := "PutMessage: Could not put any messages when IP " +
@@ -326,6 +367,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(129, id.User, t).Marshal()}
 	slotMsg = &pb.GatewaySlot{
+		RoundID: rndId,
 		Message: &msg,
 	}
 	// Insert client information to database
@@ -343,6 +385,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(130, id.User, t).Marshal()}
 	slotMsg = &pb.GatewaySlot{
+		RoundID: rndId,
 		Message: &msg,
 	}
 	// Insert client information to database
@@ -360,6 +403,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(131, id.User, t).Marshal()}
 	slotMsg = &pb.GatewaySlot{
+		RoundID: rndId,
 		Message: &msg,
 	}
 	// Insert client information to database
@@ -379,6 +423,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(132, id.User, t).Marshal()}
 	slotMsg = &pb.GatewaySlot{
+		RoundID: rndId,
 		Message: &msg,
 	}
 	// Insert client information to database
@@ -396,15 +441,94 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 }
 
+// Error path: Test that a message is denied when the batch is full
+func TestInstance_PutMessage_FullRound(t *testing.T) {
+	// Business logic to set up test
+	var msg pb.Slot
+	rndId := uint64(1)
+	batchSize := 4
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
+	slotMsg := &pb.GatewaySlot{
+		RoundID: rndId,
+		Message: &msg,
+	}
+
+	// Insert client information to database
+	newClient := &storage.Client{
+		Id:  msg.SenderID,
+		Key: []byte("test"),
+	}
+	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+	gatewayInstance.database.InsertClient(newClient)
+
+	// End of business logic
+
+	// Mark this as a round in which the gateway is the leader
+	ri := &pb.RoundInfo{ID: (rndId), BatchSize: uint32(batchSize)}
+	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
+
+	// Put a message in the same round to fill up the batch size
+	for i := 0; i < batchSize; i++ {
+		_, err := gatewayInstance.PutMessage(slotMsg, "0")
+		if err != nil {
+			t.Errorf("Failed to put message number %d into gateway's buffer: %v", i, err)
+		}
+	}
+
+	_, err := gatewayInstance.PutMessage(slotMsg, "0")
+	if err == nil {
+		t.Errorf("Expected error path. Should not be able to put a message into a full round!")
+
+	}
+}
+
+// Error path: Test that when the gateway is not the entry point for the round
+// that the message is rejected
+func TestInstance_PutMessage_NonLeader(t *testing.T) {
+	// Business logic to set up test
+	var msg pb.Slot
+	rndId := uint64(1)
+	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
+	slotMsg := &pb.GatewaySlot{
+		RoundID: rndId,
+		Message: &msg,
+	}
+
+	// Insert client information to database
+	newClient := &storage.Client{
+		Id:  msg.SenderID,
+		Key: []byte("test"),
+	}
+	slotMsg.MAC = generateClientMac(newClient, slotMsg)
+	gatewayInstance.database.InsertClient(newClient)
+
+	// End of business logic
+
+	// Commented out explicitly. For this test we do NOT want the
+	// gateway to be the leader for this round
+	//ri := &pb.RoundInfo{ID:(rndId), BatchSize:uint32(batchSize)}
+	//gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
+
+	_, err := gatewayInstance.PutMessage(slotMsg, "0")
+	if err == nil {
+		t.Errorf("Expected error path. Should not be able to put a message into a round when not the leader!")
+
+	}
+}
+
 // Tests that messages can get through even when their bucket is full.
 func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
-
+	rndId := uint64(1)
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	slotMsg := &pb.GatewaySlot{
+		RoundID: rndId,
 		Message: &msg,
 	}
+
+	ri := &pb.RoundInfo{ID: (rndId), BatchSize: 24}
+	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
 	// Insert client information to database
 	newClient := &storage.Client{
@@ -423,6 +547,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	slotMsg = &pb.GatewaySlot{
+		RoundID: rndId,
 		Message: &msg,
 	}
 	// Insert client information to database
@@ -441,6 +566,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	slotMsg = &pb.GatewaySlot{
+		RoundID: rndId,
 		Message: &msg,
 	}
 	// Insert client information to database
@@ -537,6 +663,96 @@ func TestCreateNetworkInstance(t *testing.T) {
 	}
 
 }
+
+// TestUpdateInstance tests that the instance updates itself appropriately
+// FIXME: This test cannot test the Ndf functionality, since we don't have
+//        signable ndf function that would enforce correctness, so not useful
+//        at the moment.
+// FIXME: the following will fail with a nil pointer deref if the
+//        CreateNetworkInstance test doesn't run....
+//func TestUpdateInstance(t *testing.T) {
+//	nodeId := id.NewIdFromString("node", id.Node, t)
+//	testNdf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
+//
+//	ndfBytes, err := testNdf.Marshal()
+//	if err != nil {
+//		t.Errorf("%v", err)
+//	}
+//	ndfMsg := &pb.NDF{
+//		Ndf: ndfBytes,
+//	}
+//	pKey, err := rsa.LoadPrivateKeyFromPem(nodeKey)
+//	if err != nil {
+//		t.Errorf("%v", err)
+//	}
+//	err = signature.Sign(ndfMsg, pKey)
+//	if err != nil {
+//		t.Errorf("%v", err)
+//	}
+//
+//	// FIXME: the following will fail with a nil pointer deref if the
+//	//        CreateNetworkInstance test doesn't run....
+//	ri := &pb.RoundInfo{
+//		ID:        uint64(1),
+//		UpdateID:  uint64(1),
+//		State:     6,
+//		BatchSize: 8,
+//	}
+//	err = signature.Sign(ri, pKey)
+//	roundUpdates := []*pb.RoundInfo{ri}
+//	data := format.NewMessage()
+//	msg := &pb.Slot{
+//		SenderID: id.NewIdFromUInt(666, id.User, t).Marshal(),
+//		PayloadA: data.GetPayloadA(),
+//		PayloadB: data.GetPayloadB(),
+//	}
+//
+//	serialmsg := format.NewMessage()
+//	serialmsg.SetPayloadB(msg.PayloadB)
+//	userId, err := serialmsg.GetRecipient()
+//
+//	slots := []*pb.Slot{msg}
+//
+//	update := &pb.ServerPollResponse{
+//		FullNDF:      ndfMsg,
+//		PartialNDF:   ndfMsg,
+//		Updates:      roundUpdates,
+//		BatchRequest: ri,
+//		Slots:        slots,
+//	}
+//
+//	err = gatewayInstance.UpdateInstance(update)
+//	if err != nil {
+//		t.Errorf("UpdateInstance() produced an error: %+v", err)
+//	}
+//
+//	// Check that updates made it
+//	r, err := gatewayInstance.NetInf.GetRoundUpdate(1)
+//	if err != nil || r == nil {
+//		t.Errorf("Failed to retrieve round update: %+v", err)
+//	}
+//
+//	// Check that mockMessage made it
+//	mockMsgUserId := id.NewIdFromUInt(1, id.User, t)
+//	msgTst, err := gatewayInstance.database.GetMixedMessages(userId, id.Round(1))
+//	if err != nil {
+//		t.Errorf("%+v", err)
+//		msgIDs, _ := gatewayInstance.database.GetMixedMessages(
+//			mockMsgUserId, id.Round(1))
+//		for i := 0; i < len(msgIDs); i++ {
+//			print("%s", msgIDs[i])
+//		}
+//	}
+//	if msgTst == nil {
+//		t.Errorf("Did not return mock message!")
+//	}
+//
+//	// Check that batchRequest was sent
+//	if len(nodeIncomingBatch.Slots) != 8 {
+//		t.Errorf("Did not send batch: %d", len(nodeIncomingBatch.Slots))
+//	}
+//
+//}
 
 var (
 	ExampleJSON = `{

@@ -172,8 +172,6 @@ $ mv version_vars.go cmd
 
 `notifications` handles notification logic use to push alerts to clients.
 
-`rateLimiting` handles rate limits from clients.
-
 `storage` contains the database and ram-based storage implementations.
 
 ## Compiling the Binary
