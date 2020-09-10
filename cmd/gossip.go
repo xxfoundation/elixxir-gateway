@@ -35,50 +35,53 @@ func (gw *Instance) InitGossip() {
 
 	// Register gossip protocol for client rate limiting
 	gw.Comms.Manager.NewGossip(RateLimitGossip, gossip.DefaultProtocolFlags(),
-		// Receive function
-		func(msg *gossip.GossipMsg) error {
-			// Unmarshal the Sender data
-			payloadMsg := &pb.BatchSenders{}
-			err := proto.Unmarshal(msg.GetPayload(), payloadMsg)
-			if err != nil {
-				return errors.Errorf("Could not unmarshal gossip payload: %v", err)
-			}
+		gw.gossipReceive, gw.gossipVerify, nil)
+}
 
-			// Add to leaky bucket for each sender
-			for _, senderBytes := range payloadMsg.SenderIds {
-				senderId, err := id.Unmarshal(senderBytes)
-				if err != nil {
-					return errors.Errorf("Could not unmarshal sender ID: %+v", err)
-				}
-				gw.rateLimit.LookupBucket(senderId.String()).Add(1)
-			}
-			return nil
-		},
-		// Verification function
-		func(msg *gossip.GossipMsg, ignore []byte) error {
-			// Locate origin host
-			origin, err := id.Unmarshal(msg.Origin)
-			if err != nil {
-				return errors.Errorf("Unable to unmarshal origin: %+v", err)
-			}
-			host, exists := gw.Comms.GetHost(origin)
-			if !exists {
-				return errors.Errorf("Unable to locate origin host: %+v", err)
-			}
+// Receive function for Gossip messages
+func (gw *Instance) gossipReceive(msg *gossip.GossipMsg) error {
+	// Unmarshal the Sender data
+	payloadMsg := &pb.BatchSenders{}
+	err := proto.Unmarshal(msg.GetPayload(), payloadMsg)
+	if err != nil {
+		return errors.Errorf("Could not unmarshal gossip payload: %v", err)
+	}
 
-			// Prepare message hash
-			options := rsa.NewDefaultOptions()
-			hash := options.Hash.New()
-			hash.Write(gossip.Marshal(msg))
-			hashed := hash.Sum(nil)
+	// Add to leaky bucket for each sender
+	for _, senderBytes := range payloadMsg.SenderIds {
+		senderId, err := id.Unmarshal(senderBytes)
+		if err != nil {
+			return errors.Errorf("Could not unmarshal sender ID: %+v", err)
+		}
+		gw.rateLimit.LookupBucket(senderId.String()).Add(1)
+	}
+	return nil
+}
 
-			// Verify signature of message using origin host's public key
-			err = rsa.Verify(host.GetPubKey(), options.Hash, hashed, msg.Signature, nil)
-			if err != nil {
-				return errors.Errorf("Unable to verify signature: %+v", err)
-			}
-			return nil
-		}, nil)
+// Verify function for Gossip messages
+func (gw *Instance) gossipVerify(msg *gossip.GossipMsg, _ []byte) error {
+	// Locate origin host
+	origin, err := id.Unmarshal(msg.Origin)
+	if err != nil {
+		return errors.Errorf("Unable to unmarshal origin: %+v", err)
+	}
+	host, exists := gw.Comms.GetHost(origin)
+	if !exists {
+		return errors.Errorf("Unable to locate origin host: %+v", err)
+	}
+
+	// Prepare message hash
+	options := rsa.NewDefaultOptions()
+	hash := options.Hash.New()
+	hash.Write(gossip.Marshal(msg))
+	hashed := hash.Sum(nil)
+
+	// Verify signature of message using origin host's public key
+	err = rsa.Verify(host.GetPubKey(), options.Hash, hashed, msg.Signature, nil)
+	if err != nil {
+		return errors.Errorf("Unable to verify signature: %+v", err)
+	}
+	return nil
 }
 
 // KillRateLimiter is a helper function which sends the kill
