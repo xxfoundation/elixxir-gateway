@@ -105,6 +105,7 @@ func (gw *Instance) StartPeersThread() {
 		}
 		for {
 			select {
+			// TODO: Add kill case?
 			case removeId := <-gw.removeGateway:
 				err := protocol.RemoveGossipPeer(removeId)
 				if err != nil {

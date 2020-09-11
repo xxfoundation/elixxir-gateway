@@ -10,8 +10,10 @@ package cmd
 import (
 	"fmt"
 	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/ndf"
 	"testing"
 )
 
@@ -80,4 +82,31 @@ func TestInstance_GossipVerify(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to verify gossip message: %+v", err)
 	}
+}
+
+//
+func TestInstance_StartPeersThread(t *testing.T) {
+	gatewayInstance.InitGossip()
+	defer gatewayInstance.KillRateLimiter()
+	var err error
+
+	// Prepare values and host
+	gwId := id.NewIdFromString("test", id.Gateway, t)
+	testSignal := network.NodeGateway{
+		Gateway: ndf.Gateway{
+			ID: gwId.Marshal(),
+		},
+	}
+	_, err = gatewayInstance.Comms.AddHost(gwId, "0.0.0.0", gatewayCert, false, false)
+	if err != nil {
+		t.Errorf("Unable to add test host: %+v", err)
+	}
+
+	// Start the channel monitor
+	gatewayInstance.StartPeersThread()
+
+	// Test the gateway signals
+	gatewayInstance.addGateway <- testSignal
+	gatewayInstance.removeGateway <- gwId
+	// TODO continue on
 }
