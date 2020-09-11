@@ -8,6 +8,7 @@
 package cmd
 
 import (
+	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
@@ -70,6 +71,7 @@ const generator = "" +
 
 // This sets up a dummy/mock globals instance for testing purposes
 func TestMain(m *testing.M) {
+	jww.SetStdoutThreshold(jww.LevelTrace)
 
 	//Begin gateway comms
 	cmixNodes := make([]string, 1)
@@ -102,11 +104,11 @@ func TestMain(m *testing.M) {
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
-		Capacity:     capacity,
-		LeakedTokens: leakedTokens,
-		LeakDuration: leakDuration,
-		PollDuration: pollDuration,
-		BucketMaxAge: bucketMaxAge,
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
 	}
 
 	gatewayInstance = NewGatewayInstance(params)
@@ -215,7 +217,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, false, true)
 
-	ri := &pb.RoundInfo{ID: (rndId), BatchSize: 4}
+	ri := &pb.RoundInfo{ID: rndId, BatchSize: 4}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
 	rnd := &storage.Round{
@@ -311,7 +313,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	_, err = gw.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, false, true)
 
-	ri := &pb.RoundInfo{ID: (rndId), BatchSize: 4}
+	ri := &pb.RoundInfo{ID: rndId, BatchSize: 4}
 	gw.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
 	rnd := &storage.Round{
@@ -355,7 +357,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.database.InsertClient(newClient)
-	ri := &pb.RoundInfo{ID: (rndId), BatchSize: 24}
+	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
@@ -464,7 +466,7 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 	// End of business logic
 
 	// Mark this as a round in which the gateway is the leader
-	ri := &pb.RoundInfo{ID: (rndId), BatchSize: uint32(batchSize)}
+	ri := &pb.RoundInfo{ID: rndId, BatchSize: uint32(batchSize)}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
 	// Put a message in the same round to fill up the batch size
@@ -527,7 +529,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 		Message: &msg,
 	}
 
-	ri := &pb.RoundInfo{ID: (rndId), BatchSize: 24}
+	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
 	// Insert client information to database
