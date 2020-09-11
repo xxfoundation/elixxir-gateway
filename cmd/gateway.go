@@ -112,13 +112,10 @@ func NewGatewayInstance(params Params) *Instance {
 	if err != nil {
 		jww.WARN.Printf("Could not initialize database")
 	}
-	rateLimitQuit := make(chan struct{}, 1)
 	i := &Instance{
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		database:      newDatabase,
-		rateLimitQuit: rateLimitQuit,
-		rateLimit:     rateLimiting.CreateBucketMapFromParams(params.rateLimitParams, nil, rateLimitQuit), // TODO: Fill in db8
 	}
 
 	return i

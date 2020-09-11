@@ -16,6 +16,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
+	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
@@ -32,6 +33,10 @@ func (gw *Instance) InitGossip() {
 	gw.removeGateway = make(chan *id.ID, chanLen)
 	gw.NetInf.SetAddGatewayChan(gw.addGateway)
 	gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
+
+	// Initialize leaky bucket
+	gw.rateLimitQuit = make(chan struct{}, 1)
+	gw.rateLimit = rateLimiting.CreateBucketMapFromParams(gw.Params.rateLimitParams, nil, gw.rateLimitQuit)
 
 	// Register gossip protocol for client rate limiting
 	gw.Comms.Manager.NewGossip(RateLimitGossip, gossip.DefaultProtocolFlags(),
@@ -123,45 +128,31 @@ func (gw *Instance) StartPeersThread() {
 // GossipBatch builds a gossip message containing all of the sender IDs
 // within the batch and gossips it to all peers
 func (gw *Instance) GossipBatch(batch *pb.Batch) error {
+	var err error
 
-	// Get the relevant GossipProtocol
+	// Build the message
+	gossipMsg := &gossip.GossipMsg{
+		Tag:    RateLimitGossip,
+		Origin: gw.Comms.Id.Marshal(),
+	}
+
+	// Add the GossipMsg payload
+	gossipMsg.Payload, err = buildGossipPayload(batch)
+	if err != nil {
+		return errors.Errorf("Unable to build gossip payload: %+v", err)
+	}
+
+	// Add the GossipMsg signature
+	gossipMsg.Signature, err = buildGossipSignature(gossipMsg, gw.Comms.GetPrivateKey())
+	if err != nil {
+		return errors.Errorf("Unable to build gossip signature: %+v", err)
+	}
+
+	// Gossip the message
 	gossipProtocol, ok := gw.Comms.Manager.Get(RateLimitGossip)
 	if !ok {
 		return errors.Errorf("Unable to get gossip protocol.")
 	}
-
-	// Collect all of the sender IDs in the batch
-	senderIds := make([][]byte, len(batch.Slots))
-	for i, slot := range batch.Slots {
-		senderIds[i] = slot.GetSenderID()
-	}
-	payloadMsg := &pb.BatchSenders{SenderIds: senderIds}
-	payloadBytes, err := proto.Marshal(payloadMsg)
-	if err != nil {
-		return errors.Errorf("Could not marshal gossip payload: %v", err)
-	}
-
-	// Build the message
-	gossipMsg := &gossip.GossipMsg{
-		Tag:     RateLimitGossip,
-		Origin:  gw.Comms.Id.Marshal(),
-		Payload: payloadBytes,
-	}
-
-	// Hash the message
-	options := rsa.NewDefaultOptions()
-	hash := options.Hash.New()
-	hash.Write(gossip.Marshal(gossipMsg))
-	hashed := hash.Sum(nil)
-
-	// Sign the message
-	gossipMsg.Signature, err = rsa.Sign(rand.Reader, gw.Comms.GetPrivateKey(),
-		options.Hash, hashed, nil)
-	if err != nil {
-		return errors.New(err.Error())
-	}
-
-	// Gossip the message
 	_, errs := gossipProtocol.Gossip(gossipMsg)
 
 	// Return any errors up the stack
@@ -169,4 +160,28 @@ func (gw *Instance) GossipBatch(batch *pb.Batch) error {
 		return errors.Errorf("Could not send to peers: %v", errs)
 	}
 	return nil
+}
+
+// Helper function used to convert Batch into a GossipMsg payload
+func buildGossipPayload(batch *pb.Batch) ([]byte, error) {
+	// Collect all of the sender IDs in the batch
+	senderIds := make([][]byte, len(batch.Slots))
+	for i, slot := range batch.Slots {
+		senderIds[i] = slot.GetSenderID()
+	}
+	payloadMsg := &pb.BatchSenders{SenderIds: senderIds}
+	return proto.Marshal(payloadMsg)
+}
+
+// Helper function used to obtain Signature bytes of a given GossipMsg
+func buildGossipSignature(gossipMsg *gossip.GossipMsg, privKey *rsa.PrivateKey) ([]byte, error) {
+	// Hash the message
+	options := rsa.NewDefaultOptions()
+	hash := options.Hash.New()
+	hash.Write(gossip.Marshal(gossipMsg))
+	hashed := hash.Sum(nil)
+
+	// Sign the message
+	return rsa.Sign(rand.Reader, privKey,
+		options.Hash, hashed, nil)
 }
