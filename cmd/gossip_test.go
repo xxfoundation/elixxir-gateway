@@ -15,6 +15,7 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"testing"
+	"time"
 )
 
 // Happy path
@@ -84,7 +85,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 	}
 }
 
-//
+// Happy path
 func TestInstance_StartPeersThread(t *testing.T) {
 	gatewayInstance.InitGossip()
 	defer gatewayInstance.KillRateLimiter()
@@ -101,12 +102,43 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
+	protocol, exists := gatewayInstance.Comms.Manager.Get(RateLimitGossip)
+	if !exists {
+		t.Errorf("Unable to get gossip protocol!")
+		return
+	}
 
 	// Start the channel monitor
 	gatewayInstance.StartPeersThread()
 
-	// Test the gateway signals
+	// Send the add gateway signal
 	gatewayInstance.addGateway <- testSignal
+
+	// Test the add gateway signals
+	// by attempting to remove the added gateway
+	for i := 0; i < 5; i++ {
+		err = protocol.RemoveGossipPeer(gwId)
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if err != nil {
+		t.Errorf("Unable to remove gossip peer: %+v", err)
+	}
+
+	// Now add a peer and send a a remove signal
+	err = protocol.AddGossipPeer(gwId)
+	if err != nil {
+		t.Errorf("Unable to add gossip peer: %+v", err)
+	}
 	gatewayInstance.removeGateway <- gwId
-	// TODO continue on
+
+	// Test the remove gateway signals
+	// by attempting to remove a gateway that should have already been removed
+	time.Sleep(100 * time.Millisecond)
+	err = protocol.RemoveGossipPeer(gwId)
+	if err == nil {
+		t.Errorf("Expected failure to remove already-removed peer!")
+	}
 }
