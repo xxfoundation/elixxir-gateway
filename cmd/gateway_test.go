@@ -252,9 +252,6 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 }
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
-	gatewayInstance.InitGossip()
-	defer gatewayInstance.KillRateLimiter()
-
 	//Begin gateway comms
 	cmixNodes := make([]string, 1)
 	cmixNodes[0] = GW_ADDRESS
@@ -293,6 +290,9 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
+
+	gw.InitGossip()
+	defer gw.KillRateLimiter()
 
 	data := format.NewMessage()
 	rndId := uint64(1)
