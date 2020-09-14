@@ -192,6 +192,9 @@ func buildTestNodeImpl() *node.Implementation {
 
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
+	gatewayInstance.InitGossip()
+	defer gatewayInstance.KillRateLimiter()
+
 	data := format.NewMessage()
 	rndId := uint64(1)
 
@@ -249,6 +252,9 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 }
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
+	gatewayInstance.InitGossip()
+	defer gatewayInstance.KillRateLimiter()
+
 	//Begin gateway comms
 	cmixNodes := make([]string, 1)
 	cmixNodes[0] = GW_ADDRESS
