@@ -303,8 +303,10 @@ func (gw *Instance) InitNetwork() error {
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
 	dummyServerID := id.DummyUser.DeepCopy()
 	dummyServerID.SetType(id.Node)
+	params := connect.GetDefaultHostParams()
+	params.MaxRetries = 0
 	gw.ServerHost, err = connect.NewHost(dummyServerID, gw.Params.NodeAddress,
-		nodeCert, true, true)
+		nodeCert, params)
 	if err != nil {
 		return errors.Errorf("Unable to create tmp server host: %+v",
 			err)
@@ -358,7 +360,9 @@ func (gw *Instance) InitNetwork() error {
 			}
 
 			// Add permissioning as a host
-			_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
+			params := connect.GetDefaultHostParams()
+			params.MaxRetries = 0
+			_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
 			if err != nil {
 				jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
 				continue
@@ -397,8 +401,10 @@ func (gw *Instance) InitNetwork() error {
 		gw.ServerHost.Disconnect()
 
 		// Update the host information with the new server ID
+		params := connect.GetDefaultHostParams()
+		params.MaxRetries = 0
 		gw.ServerHost, err = connect.NewHost(serverID, gw.Params.NodeAddress, nodeCert,
-			true, true)
+			params)
 		if err != nil {
 			return errors.Errorf(
 				"Unable to create updated server host: %+v", err)
@@ -411,7 +417,7 @@ func (gw *Instance) InitNetwork() error {
 		// Initialize hosts for reverse-authentication
 		// This may be necessary to verify the NDF if it gets updated while
 		// the network is up
-		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, true, true)
+		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
 		if err != nil {
 			return errors.Errorf("Couldn't add permissioning host: %v", err)
 		}
