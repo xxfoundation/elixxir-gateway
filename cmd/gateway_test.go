@@ -88,7 +88,7 @@ func TestMain(m *testing.M) {
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
-	n = node.StartNode(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS, nodeHandler, nodeCert, nodeKey)
+	n = node.StartNode(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS, 0, nodeHandler, nodeCert, nodeKey)
 
 	grp = make(map[string]string)
 	grp["prime"] = prime
@@ -336,12 +336,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
 	gw.SendBatchWhenReady(si)
 
-}
-
-func disconnectServers() {
-	gatewayInstance.Comms.DisconnectAll()
-	n.Manager.DisconnectAll()
-	n.DisconnectAll()
 }
 
 // Tests that messages can get through even when their bucket is full.

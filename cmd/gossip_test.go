@@ -142,3 +142,44 @@ func TestInstance_StartPeersThread(t *testing.T) {
 		t.Errorf("Expected failure to remove already-removed peer!")
 	}
 }
+
+//
+func TestInstance_GossipBatch(t *testing.T) {
+	gatewayInstance.InitGossip()
+	defer gatewayInstance.KillRateLimiter()
+	var err error
+
+	// Init comms and host
+	_, err = gatewayInstance.Comms.AddHost(gatewayInstance.Comms.Id, GW_ADDRESS, gatewayCert, false, false)
+	if err != nil {
+		t.Errorf("Unable to add test host: %+v", err)
+	}
+	protocol, exists := gatewayInstance.Comms.Manager.Get(RateLimitGossip)
+	if !exists {
+		t.Errorf("Unable to get gossip protocol!")
+		return
+	}
+	err = protocol.AddGossipPeer(gatewayInstance.Comms.Id)
+	if err != nil {
+		t.Errorf("Unable to add gossip peer: %+v", err)
+	}
+
+	// Build a test batch
+	batch := &pb.Batch{Slots: make([]*pb.Slot, 10)}
+	for i := 0; i < len(batch.Slots); i++ {
+		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
+		batch.Slots[i] = &pb.Slot{SenderID: senderId.Marshal()}
+	}
+
+	// Send the gossip
+	err = gatewayInstance.GossipBatch(batch)
+	if err != nil {
+		t.Errorf("Unable to gossip: %+v", err)
+	}
+
+	// Verify the gossip was received
+	testSenderId := id.NewIdFromString("0", id.User, t)
+	if remaining := gatewayInstance.rateLimit.LookupBucket(testSenderId.String()).Remaining(); !(remaining < gatewayInstance.Params.rateLimitParams.Capacity) {
+		t.Errorf("Expected to reduce remaining message count for test sender, got %d", remaining)
+	}
+}
