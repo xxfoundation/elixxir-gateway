@@ -134,7 +134,6 @@ func (m *MapImpl) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*Mix
 func (m *MapImpl) InsertMixedMessage(msg *MixedMessage) error {
 	m.Lock()
 	defer m.Unlock()
-
 	// Return an error if a MixedMessage with the ID already exists in the map
 	if m.mixedMessages[m.mixedMessagesCount] != nil {
 		return errors.Errorf("Could not insert MixedMessage. MixedMessage "+
@@ -161,6 +160,20 @@ func (m *MapImpl) DeleteMixedMessage(id uint64) error {
 	}
 
 	delete(m.mixedMessages, id)
+
+	return nil
+}
+
+// Deletes all MixedMessages with the given roundId from Storage
+func (m *MapImpl) DeleteMixedMessageByRound(roundId id.Round) error {
+	m.Lock()
+	defer m.Unlock()
+
+	for k, v := range m.mixedMessages {
+		if v.RoundId == uint64(roundId) {
+			delete(m.mixedMessages, k)
+		}
+	}
 
 	return nil
 }

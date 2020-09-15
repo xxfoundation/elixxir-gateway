@@ -79,7 +79,6 @@ dbPassword: ""
 dbName: "cmix_gateway"
 dbAddress: ""
 
-#todo: populate with more accurate examples and explanatory prose
 # Flags for our gossip protocol
 
 # How long a message record should last in the buffer
