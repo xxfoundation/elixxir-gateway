@@ -179,7 +179,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 
 	// Verify the gossip was received
 	testSenderId := id.NewIdFromString("0", id.User, t)
-	if remaining := gatewayInstance.rateLimit.LookupBucket(testSenderId.String()).Remaining(); !(remaining < gatewayInstance.Params.rateLimitParams.Capacity) {
+	if remaining := gatewayInstance.rateLimit.LookupBucket(testSenderId.String()).Remaining(); remaining != 1 {
 		t.Errorf("Expected to reduce remaining message count for test sender, got %d", remaining)
 	}
 }
