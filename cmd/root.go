@@ -31,12 +31,7 @@ var (
 	logLevel                                                 uint // 0 = info, 1 = debug, >1 = trace
 	messageTimeout                                           time.Duration
 	gwPort                                                   int
-
-	// For whitelist
-	ipBucketCapacity, userBucketCapacity uint
-	ipBucketLeakRate, userBucketLeakRate float64
-	cleanPeriod, maxDuration             string
-	validConfig                          bool
+	validConfig                                              bool
 
 	// For gossip protocol
 	bufferExpiration, monitorThreadFrequency time.Duration
@@ -108,6 +103,7 @@ var rootCmd = &cobra.Command{
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
 
 		// Begin gateway persistent components
+		gateway.StartPeersThread()
 		gateway.Start()
 
 		// Wait forever
@@ -149,6 +145,12 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
 	}
 
+	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
+	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
+	jww.INFO.Printf("Gateway port: %d", gwPort)
+	jww.INFO.Printf("Gateway listen IP address: %s", listeningAddress)
+	jww.INFO.Printf("Gateway node: %s", nodeAddress)
+
 	// If the values aren't default, repopulate flag values with customized values
 	// Otherwise use the default values
 	gossipFlags := gossip.DefaultManagerFlags()
@@ -160,12 +162,6 @@ func InitParams(vip *viper.Viper) Params {
 			MonitorThreadFrequency: monitorThreadFrequency,
 		}
 	}
-
-	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
-	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
-	jww.INFO.Printf("Gateway port: %d", gwPort)
-	jww.INFO.Printf("Gateway listen IP address: %s", listeningAddress)
-	jww.INFO.Printf("Gateway node: %s", nodeAddress)
 
 	// Construct the rate limiting params
 	bucketMapParams := &rateLimiting.MapParams{
@@ -185,9 +181,9 @@ func InitParams(vip *viper.Viper) Params {
 		ServerCertPath:        serverCertPath,
 		IDFPath:               idfPath,
 		PermissioningCertPath: permissioningCertPath,
+		gossipFlags:           gossipFlags,
+		rateLimitParams:       bucketMapParams,
 		MessageTimeout:        messageTimeout,
-		gossiperFlags:         gossipFlags,
-		rateLimiterParams:     bucketMapParams,
 	}
 
 	return p

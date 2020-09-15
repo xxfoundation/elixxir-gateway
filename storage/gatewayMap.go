@@ -165,6 +165,20 @@ func (m *MapImpl) DeleteMixedMessage(id uint64) error {
 	return nil
 }
 
+// Deletes all MixedMessages with the given roundId from Storage
+func (m *MapImpl) DeleteMixedMessageByRound(roundId id.Round) error {
+	m.Lock()
+	defer m.Unlock()
+
+	for k, v := range m.mixedMessages {
+		if v.RoundId == uint64(roundId) {
+			delete(m.mixedMessages, k)
+		}
+	}
+
+	return nil
+}
+
 // Returns a BloomFilter from Storage with the given clientId
 // Or an error if a matching BloomFilter does not exist
 func (m *MapImpl) GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error) {
