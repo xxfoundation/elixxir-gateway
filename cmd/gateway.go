@@ -105,7 +105,6 @@ type Params struct {
 	MessageTimeout  time.Duration
 
 	knownRounds int
-
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -721,9 +720,6 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
-
-	// Update the known round buffer
-	gw.knownRound.Check(id.Round(roundInfo.ID))
 
 	// Gossip senders included in the batch to other gateways
 	err = gw.GossipBatch(batch)
