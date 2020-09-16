@@ -26,6 +26,7 @@ import (
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
+	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
@@ -105,7 +106,6 @@ type Params struct {
 	MessageTimeout  time.Duration
 
 	knownRounds int
-
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -240,8 +240,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	if newInfo.Updates != nil {
 		for _, update := range newInfo.Updates {
-			// Update the network instance
-			err := gw.NetInf.RoundUpdate(update)
 			// Parse the topology into an id list
 			idList, err := id.NewIDListFromBytes(update.Topology)
 			if err != nil {
@@ -259,6 +257,10 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				return err
+			}
+
+			if roundState := states.Round(update.State); roundState == states.COMPLETED || roundState == states.FAILED {
+				gw.knownRound.Check(id.Round(update.ID))
 			}
 		}
 	}
@@ -721,9 +723,6 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
-
-	// Update the known round buffer
-	gw.knownRound.Check(id.Round(roundInfo.ID))
 
 	// Gossip senders included in the batch to other gateways
 	err = gw.GossipBatch(batch)

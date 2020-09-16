@@ -174,8 +174,10 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
-	// fixme: parameterize or hardcoded default. I think the latter
 	kr := viper.GetInt("KnownRounds")
+	if kr == 0 {
+		kr = 1000
+	}
 
 	p := Params{
 		Port:                  gwPort,
@@ -190,7 +192,6 @@ func InitParams(vip *viper.Viper) Params {
 		rateLimitParams:       bucketMapParams,
 		MessageTimeout:        messageTimeout,
 		knownRounds:           kr,
-
 	}
 
 	return p

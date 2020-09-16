@@ -251,68 +251,6 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 }
 
-func TestGatewayImpl_KnownRound(t *testing.T) {
-	msg := pb.Slot{SenderID: id.NewIdFromUInt(666, id.User, t).Bytes()}
-	slotMsg := &pb.GatewaySlot{
-		Message: &msg,
-	}
-
-	// Insert client information to database
-	newClient := &storage.Client{
-		Id:  msg.SenderID,
-		Key: []byte("test"),
-	}
-
-	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
-
-	_, err := gatewayInstance.PutMessage(slotMsg, "0")
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-		t.Errorf("PutMessage: Could not put any messages!")
-	}
-
-	//Begin gateway comms
-	cmixNodes := make([]string, 1)
-	cmixNodes[0] = GW_ADDRESS
-
-
-	//Build the gateway instance
-	params := Params{
-		NodeAddress:       NODE_ADDRESS,
-		ServerCertPath:    testkeys.GetNodeCertPath(),
-		CertPath:          testkeys.GetGatewayCertPath(),
-		MessageTimeout:    10 * time.Minute,
-		knownRounds:       5,
-	}
-
-	gw := NewGatewayInstance(params)
-	p := large.NewIntFromString(prime, 16)
-	g := large.NewIntFromString(generator, 16)
-	grp2 := cyclic.NewGroup(p, g)
-
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
-
-	gw.NetInf, err = network.NewInstanceTesting(nil, testNDF, testNDF, grp2, grp2, t)
-	if err != nil {
-		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
-	}
-
-	gw.Comms = gComm
-	gw.ServerHost, err = connect.NewHost(id.NewIdFromString("test", id.Node, t), NODE_ADDRESS,
-		nodeCert, true, false)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-
-	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
-	gw.SendBatchWhenReady(si)
-
-	if !gw.knownRound.Checked(id.Round(si.ID)) {
-		t.Errorf("Known round buffer wasn't updated! Round %d should be known", id.Round(si.ID))
-	}
-}
-
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	//Begin gateway comms
 	cmixNodes := make([]string, 1)
