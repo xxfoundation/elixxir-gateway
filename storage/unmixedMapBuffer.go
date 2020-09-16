@@ -58,10 +58,10 @@ func (umb *UnmixedMessagesMap) GetRoundMessages(minMsgCnt uint64, roundId id.Rou
 	}
 
 	// Handle batches too small to send
-	if numMessages := len(retrievedBatch.batch.Slots); numMessages == 0 {
-		return &pb.Batch{}
-	} else if uint64(numMessages) < minMsgCnt {
+	if uint64(len(retrievedBatch.batch.Slots)) < minMsgCnt {
 		return nil
+	} else if len(retrievedBatch.batch.Slots) == 0 {
+		return &pb.Batch{}
 	}
 
 	return retrievedBatch.batch

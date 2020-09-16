@@ -25,7 +25,9 @@ import (
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
+	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
+	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
@@ -64,6 +66,9 @@ type Instance struct {
 	// struct for tracking notifications
 	un notifications.UserNotifications
 
+	// Tracker of the gateway's known rounds
+	knownRound *knownRounds.KnownRounds
+
 	database storage.Storage
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
@@ -97,6 +102,8 @@ type Params struct {
 	rateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
+
+	knownRounds int
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -114,6 +121,7 @@ func NewGatewayInstance(params Params) *Instance {
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		database:      newDatabase,
+		knownRound:    knownRounds.NewKnownRound(params.knownRounds),
 	}
 
 	return i
@@ -247,6 +255,10 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				return err
+			}
+
+			if roundState := states.Round(update.State); roundState == states.COMPLETED || roundState == states.FAILED {
+				gw.knownRound.Check(id.Round(update.ID))
 			}
 		}
 	}
