@@ -18,7 +18,7 @@ require (
 	gitlab.com/elixxir/comms v0.0.0-20200916164349-03bd644d7453
 	gitlab.com/elixxir/crypto v0.0.0-20200731174640-0503cf80524a
 	gitlab.com/elixxir/primitives v0.0.0-20200708185800-a06e961280e6
-	gitlab.com/xx_network/comms v0.0.0-20200916164747-a54b93d66431
+	gitlab.com/xx_network/comms v0.0.0-20200916172635-6ab807c3c820
 	google.golang.org/grpc v1.30.0
 	gopkg.in/ini.v1 v1.55.0 // indirect
 )
