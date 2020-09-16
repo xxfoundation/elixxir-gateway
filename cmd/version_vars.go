@@ -29,6 +29,7 @@ require (
 	gitlab.com/xx_network/comms v0.0.0-20200915154643-d533291041b7
 	gitlab.com/xx_network/crypto v0.0.0-20200812183430-c77a5281c686
 	gitlab.com/xx_network/primitives v0.0.0-20200812183720-516a65a4a9b2
+	google.golang.org/grpc v1.31.0
 	gopkg.in/ini.v1 v1.55.0 // indirect
 )
 

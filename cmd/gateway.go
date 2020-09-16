@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
@@ -77,9 +78,6 @@ type Instance struct {
 	removeGateway chan *id.ID
 }
 
-func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress string) (*pb.HistoricalRoundsResponse, error) {
-	panic("implement me")
-}
 
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
 	panic("implement me")
@@ -150,7 +148,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.PollForNotifications(auth)
 	}
 	// Client -> Gateway historical round request
-	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
 		return instance.RequestHistoricalRounds(msg)
 	}
 	// Client -> Gateway message request
@@ -498,6 +496,55 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 	return msgIds, nil
 }
 
+// RequestHistoricalRounds retrieves all rounds requested within the HistoricalRounds
+// message from the gateway's database. A list of round info messages are returned
+// to the sender
+func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+	// Nil check external messages to avoid potential crashes
+	if msg == nil || msg.Rounds == nil {
+		return &pb.HistoricalRoundsResponse{}, errors.New("Invalid historical" +
+			" round request, could not look up rounds. Please send a valid message.")
+	}
+
+	// Parse the message for all requested rounds
+	var roundIds []id.Round
+	for _, rnd := range msg.Rounds {
+		roundIds = append(roundIds, id.Round(rnd))
+	}
+	// Look up requested rounds in the database
+	retrievedRounds, err := gw.database.GetRounds(roundIds)
+	if err != nil {
+		return &pb.HistoricalRoundsResponse{}, errors.New("Could not look up rounds requested.")
+	}
+
+	// Parse the retrieved rounds into the roundInfo message type
+	// Fixme: there is a back and forth type casting going on between placing
+	//  data into the database per the spec laid out
+	//  and taking that data out and casting it back to the original format.
+	//  it's really dumb and shouldn't happen, it should be fixed.
+	var rounds []*pb.RoundInfo
+	for _, rnd := range retrievedRounds {
+		ri := &pb.RoundInfo{}
+		err = proto.Unmarshal(rnd.InfoBlob, ri)
+		if err != nil {
+			// If trouble unmarshalling, move to next round
+			// Note this should never happen with
+			// rounds placed by us in our own database
+			jww.WARN.Printf("Could not unmarshal round %d in our database. "+
+				"Could the database be corrupted?", rnd.Id)
+			continue
+		}
+
+		rounds = append(rounds, ri)
+	}
+
+	// Return the retrievedRounds
+	return &pb.HistoricalRoundsResponse{
+		Rounds: rounds,
+	}, nil
+
+}
+
 // PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
 	// Fixme: work needs to be done to populate database with precanned values
@@ -831,11 +878,6 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 	return gw.un.Notified(), nil
-}
-
-// Client -> Gateway historical round request
-func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
-	return nil, nil
 }
 
 // Client -> Gateway message request
