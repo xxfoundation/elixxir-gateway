@@ -79,6 +79,27 @@ dbPassword: ""
 dbName: "cmix_gateway"
 dbAddress: ""
 
+# Flags for our gossip protocol
+
+# How long a message record should last in the buffer
+BufferExpirationTime: "1m0s"
+
+# Frequency with which to check the buffer.
+# Should be long, since the thread takes a lock each time it checks the buffer
+MonitorThreadFrequency: "3m0s" 
+
+# Flags for rate limiting communications
+ratelimiting:
+    # The capacity of buckets in the map
+    capacity: 5
+    # The leak rate is calculated by LeakedTokens / LeakDuration
+    # It is the rate that the bucket leaks tokens at [tokens/ns]
+    leakedTokens: 3
+    leakDuration: 1ms
+    # Duration between polls for stale buckets
+    pollDuration: 0m10s
+    # Max time of inactivity before removal
+    bucketMaxAge: 0m3s
 ```
 
 ## Command line flags
