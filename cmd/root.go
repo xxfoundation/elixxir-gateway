@@ -33,6 +33,8 @@ var (
 	gwPort                                                   int
 	validConfig                                              bool
 
+	kr int
+
 	// For gossip protocol
 	bufferExpiration, monitorThreadFrequency time.Duration
 
@@ -172,6 +174,11 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
+	kr := viper.GetInt("KnownRounds")
+	if kr == 0 {
+		kr = 1000
+	}
+
 	p := Params{
 		Port:                  gwPort,
 		Address:               listeningAddress,
@@ -184,6 +191,7 @@ func InitParams(vip *viper.Viper) Params {
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
 		MessageTimeout:        messageTimeout,
+		knownRounds:           kr,
 	}
 
 	return p
@@ -313,6 +321,12 @@ func init() {
 		"Frequency with which to check the gossip's buffer.")
 	err = viper.BindPFlag("monitorThreadFrequency", rootCmd.Flags().Lookup("monitorThreadFrequency"))
 	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
+
+	rootCmd.Flags().IntVar(&kr, "kr", 1024, // fixme: probably should be orders of magnitudes bigger?
+		"Amount of rounds to keep track of in kr")
+	err = viper.BindPFlag("kr", rootCmd.Flags().Lookup("kr"))
+	handleBindingError(err, "Known_Rounds")
+
 }
 
 // Handle flag binding errors
