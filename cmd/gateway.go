@@ -678,15 +678,15 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 		serialmsg := format.NewMessage()
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId, err := serialmsg.GetRecipient()
-
 		if err != nil {
 			jww.ERROR.Printf("Creating userId from serialmsg failed in "+
 				"ProcessCompletedBatch: %+v", err)
 		}
 
 		if !userId.Cmp(&dummyUser) {
-			jww.DEBUG.Printf("Message Received for: %v",
-				userId.Bytes())
+			jww.DEBUG.Printf("Message Received for: %s",
+				userId)
+
 			gw.un.Notify(userId)
 			numReal++
 			h.Write(msg.PayloadA)
@@ -698,6 +698,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 		h.Reset()
 	}
 	// FIXME: How do we get round info now?
+
 	jww.INFO.Printf("Round UNK received, %v real messages "+
 		"processed, ??? dummies ignored", numReal)
 
