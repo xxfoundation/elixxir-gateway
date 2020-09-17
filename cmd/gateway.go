@@ -449,7 +449,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.ServerHost.Disconnect()
 
 		// Update the host information with the new server ID
-		gw.ServerHost, err = connect.NewHost(serverID, gw.Params.NodeAddress, nodeCert,
+		gw.ServerHost, err = connect.NewHost(serverID.DeepCopy(), gw.Params.NodeAddress, nodeCert,
 			true, true)
 		if err != nil {
 			return errors.Errorf(
