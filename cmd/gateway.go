@@ -76,6 +76,8 @@ type Instance struct {
 	NetInf        *network.Instance
 	addGateway    chan network.NodeGateway
 	removeGateway chan *id.ID
+
+	lastUpdate uint64
 }
 
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
@@ -267,8 +269,13 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			return err
 		}
 	}
+
 	if newInfo.Updates != nil {
+
 		for _, update := range newInfo.Updates {
+			if update.UpdateID > gw.lastUpdate {
+				gw.lastUpdate = update.UpdateID
+			}
 			// Parse the topology into an id list
 			idList, err := id.NewIDListFromBytes(update.Topology)
 			if err != nil {
@@ -864,15 +871,14 @@ func (gw *Instance) Start() {
 	// Now that we're set up, run a thread that constantly
 	// polls for updates
 	go func() {
-		lastUpdate := uint64(time.Now().Unix())
+		//fix-me: this last update needs to be persistant across resets
 		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,
 				gw.NetInf.GetFullNdf(),
 				gw.NetInf.GetPartialNdf(),
-				lastUpdate)
-			lastUpdate = uint64(time.Now().Unix())
+				gw.lastUpdate)
 			if err != nil {
 				jww.WARN.Printf(
 					"Failed to Poll: %v",
