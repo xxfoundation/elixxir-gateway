@@ -505,7 +505,6 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 	return errors.Errorf("Unable to locate ID %v in NDF!", nodeId)
 }
 
-// TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
