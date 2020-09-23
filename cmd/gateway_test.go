@@ -354,7 +354,7 @@ func TestInstance_RequestMessages(t *testing.T) {
 	}
 
 	// Craft the request message and send
-	requestMessage := &pb.GetMessages{
+	requestMessage := &pb.MessageRequest{
 		ClientID: recipientID.Bytes(),
 		RoundID:  uint64(1),
 	}
@@ -408,7 +408,7 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	roundBytes := make([]byte, 8)
 	badClientId := id.NewIdFromBytes([]byte("badClientId"), t)
 	binary.BigEndian.PutUint64(roundBytes, uint64(expectedRound))
-	badRequest := &pb.GetMessages{
+	badRequest := &pb.MessageRequest{
 		ClientID: badClientId.Bytes(),
 		RoundID:  uint64(2),
 	}
@@ -443,7 +443,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	roundBytes := make([]byte, 8)
 	badRoundId := id.Round(42)
 	binary.BigEndian.PutUint64(roundBytes, uint64(badRoundId))
-	badRequest := &pb.GetMessages{
+	badRequest := &pb.MessageRequest{
 		ClientID: recipientID.Bytes(),
 		RoundID:  uint64(3),
 	}
@@ -475,7 +475,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	}
 
 	// Craft the request message with a nil ClientID
-	badRequest := &pb.GetMessages{
+	badRequest := &pb.MessageRequest{
 		ClientID: recipientID.Bytes(),
 		RoundID:  uint64(0),
 	}
@@ -491,7 +491,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	}
 
 	// Craft the request message with a nil RoundID
-	badRequest = &pb.GetMessages{
+	badRequest = &pb.MessageRequest{
 		ClientID: recipientID.Bytes(),
 		RoundID:  uint64(0),
 	}

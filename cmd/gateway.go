@@ -165,9 +165,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation, ipaddress string) (confirmation *pb.RegistrationConfirmation, e error) {
 		return instance.ConfirmNonce(message, ipaddress)
 	}
-	impl.Functions.GetMessage = func(userID *id.ID, msgID, ipaddress string) (slot *pb.Slot, b error) {
-		return instance.GetMessage(userID, msgID, ipaddress)
-	}
 	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipaddress string) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message, ipaddress)
 	}
@@ -182,7 +179,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.RequestHistoricalRounds(msg)
 	}
 	// Client -> Gateway message request
-	impl.Functions.RequestMessages = func(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+	impl.Functions.RequestMessages = func(msg *pb.MessageRequest) (*pb.RequestMessagesResponse, error) {
 		return instance.RequestMessages(msg)
 	}
 	// Client -> Gateway bloom request
@@ -512,17 +509,17 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
-func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+func (gw *Instance) RequestMessages(msg *pb.MessageRequest) (*pb.RequestMessagesResponse, error) {
 	// Error check for a invalidly crafted message
 	if msg == nil || msg.ClientID == nil || msg.RoundID == 0 {
-		return &pb.GetMessagesResponse{}, errors.New("Could not parse message! " +
+		return &pb.RequestMessagesResponse{}, errors.New("Could not parse message! " +
 			"Please try again with a properly crafted message!")
 	}
 
 	// Parse the requested clientID within the message for the database request
 	userId, err := id.Unmarshal(msg.ClientID)
 	if err != nil {
-		return &pb.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
+		return &pb.RequestMessagesResponse{}, errors.New("Could not parse requested user ID!")
 	}
 
 	// Parse the roundID within the message
@@ -532,7 +529,7 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 	// Search the database for the requested messages
 	msgs, err := gw.database.GetMixedMessages(userId, roundID)
 	if err != nil {
-		return &pb.GetMessagesResponse{
+		return &pb.RequestMessagesResponse{
 				HasRound: true,
 			}, errors.Errorf("Could not find any MixedMessages with "+
 				"recipient ID %v and round ID %v.", userId, roundID)
@@ -552,18 +549,11 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 	}
 
 	// Return all messages to the requester
-	return &pb.GetMessagesResponse{
+	return &pb.RequestMessagesResponse{
 		HasRound: true,
 		Messages: slots,
 	}, nil
 
-}
-
-// Returns message contents for MessageID, or a null/randomized message
-// if that ID does not exist of the same size as a regular message
-func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
-	// Fixme: populate function with requestMessage logic when comms is ready to be refactored
-	return &pb.Slot{}, nil
 }
 
 // Return any MessageIDs in the globals for this User
