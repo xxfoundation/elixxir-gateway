@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
@@ -24,7 +25,9 @@ import (
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
+	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
+	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
@@ -63,6 +66,9 @@ type Instance struct {
 	// struct for tracking notifications
 	un notifications.UserNotifications
 
+	// Tracker of the gateway's known rounds
+	knownRound *knownRounds.KnownRounds
+
 	database storage.Storage
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
@@ -70,19 +76,46 @@ type Instance struct {
 	NetInf        *network.Instance
 	addGateway    chan network.NodeGateway
 	removeGateway chan *id.ID
-}
 
-func (gw *Instance) GetHistoricalRounds(msg *pb.HistoricalRounds, ipAddress string) (*pb.HistoricalRoundsResponse, error) {
-	panic("implement me")
+	lastUpdate uint64
 }
 
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
 	panic("implement me")
 }
 
-func (gw *Instance) Poll(*pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
-	jww.FATAL.Panicf("Unimplemented!")
-	return nil, nil
+// Handler for a client's poll to a gateway. Returns all the last updates and known rounds
+func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
+	// Nil check to check for valid clientRequest
+	if clientRequest == nil || clientRequest.ClientID == nil {
+		return &pb.GatewayPollResponse{}, errors.Errorf("Unable to parse client's request. " +
+			"Please try again with a properly formed message")
+	}
+
+	lastKnownRound := gw.NetInf.GetLastRoundID()
+
+	// Get the range of updates from the network instance
+	updates, err := gw.NetInf.GetHistoricalRoundRange(id.Round(clientRequest.LastUpdate), lastKnownRound)
+	if err != nil {
+		jww.WARN.Printf("Could not retrieve updates for client [%v]'s request: %v", clientRequest.ClientID, err)
+		return &pb.GatewayPollResponse{}, errors.New("Could not retrieve updates for client's request.")
+	}
+
+	kr, err := gw.knownRound.Marshal()
+	if err != nil {
+		jww.WARN.Printf("Could not retrieve known rounds for client [%v]'s request: %v", clientRequest.ClientID, err)
+		return &pb.GatewayPollResponse{}, errors.New("Could not retrieve updates for client's request.")
+
+	}
+
+	return &pb.GatewayPollResponse{
+		PartialNDF:       gw.NetInf.GetPartialNdf().GetPb(),
+		Updates:          updates,
+		LastTrackedRound: uint64(lastKnownRound),
+		KnownRounds:      kr,
+		FilterNew:        nil,
+		FilterOld:        nil,
+	}, nil
 }
 
 type Params struct {
@@ -99,6 +132,8 @@ type Params struct {
 	rateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
+
+	knownRounds int
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -116,6 +151,7 @@ func NewGatewayInstance(params Params) *Instance {
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		database:      newDatabase,
+		knownRound:    knownRounds.NewKnownRound(params.knownRounds),
 	}
 
 	return i
@@ -142,7 +178,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.PollForNotifications(auth)
 	}
 	// Client -> Gateway historical round request
-	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
 		return instance.RequestHistoricalRounds(msg)
 	}
 	// Client -> Gateway message request
@@ -152,6 +188,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	// Client -> Gateway bloom request
 	impl.Functions.RequestBloom = func(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
 		return instance.RequestBloom(msg)
+	}
+	impl.Functions.Poll = func(msg *pb.GatewayPoll) (response *pb.GatewayPollResponse, err error) {
+		return instance.Poll(msg)
 	}
 	return impl
 }
@@ -230,8 +269,13 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			return err
 		}
 	}
+
 	if newInfo.Updates != nil {
+
 		for _, update := range newInfo.Updates {
+			if update.UpdateID > gw.lastUpdate {
+				gw.lastUpdate = update.UpdateID
+			}
 			// Parse the topology into an id list
 			idList, err := id.NewIDListFromBytes(update.Topology)
 			if err != nil {
@@ -249,6 +293,10 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				return err
+			}
+
+			if roundState := states.Round(update.State); roundState == states.COMPLETED || roundState == states.FAILED {
+				gw.knownRound.Check(id.Round(update.ID))
 			}
 		}
 	}
@@ -401,7 +449,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.ServerHost.Disconnect()
 
 		// Update the host information with the new server ID
-		gw.ServerHost, err = connect.NewHost(serverID, gw.Params.NodeAddress, nodeCert,
+		gw.ServerHost, err = connect.NewHost(serverID.DeepCopy(), gw.Params.NodeAddress, nodeCert,
 			true, true)
 		if err != nil {
 			return errors.Errorf(
@@ -466,7 +514,7 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 // we return these message(s) to the requester
 func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 	// Error check for a invalidly crafted message
-	if msg == nil || msg.ClientID == nil || msg.RoundID == nil {
+	if msg == nil || msg.ClientID == nil || msg.RoundID == 0 {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse message! " +
 			"Please try again with a properly crafted message!")
 	}
@@ -479,7 +527,7 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 
 	// Parse the roundID within the message
 	// Fixme: double check that it is in fact bigEndian
-	roundID := id.Round(binary.BigEndian.Uint64(msg.RoundID))
+	roundID := id.Round(msg.RoundID)
 
 	// Search the database for the requested messages
 	msgs, err := gw.database.GetMixedMessages(userId, roundID)
@@ -535,6 +583,55 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 		msgIds = append(msgIds, data)
 	}
 	return msgIds, nil
+}
+
+// RequestHistoricalRounds retrieves all rounds requested within the HistoricalRounds
+// message from the gateway's database. A list of round info messages are returned
+// to the sender
+func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
+	// Nil check external messages to avoid potential crashes
+	if msg == nil || msg.Rounds == nil {
+		return &pb.HistoricalRoundsResponse{}, errors.New("Invalid historical" +
+			" round request, could not look up rounds. Please send a valid message.")
+	}
+
+	// Parse the message for all requested rounds
+	var roundIds []id.Round
+	for _, rnd := range msg.Rounds {
+		roundIds = append(roundIds, id.Round(rnd))
+	}
+	// Look up requested rounds in the database
+	retrievedRounds, err := gw.database.GetRounds(roundIds)
+	if err != nil {
+		return &pb.HistoricalRoundsResponse{}, errors.New("Could not look up rounds requested.")
+	}
+
+	// Parse the retrieved rounds into the roundInfo message type
+	// Fixme: there is a back and forth type casting going on between placing
+	//  data into the database per the spec laid out
+	//  and taking that data out and casting it back to the original format.
+	//  it's really dumb and shouldn't happen, it should be fixed.
+	var rounds []*pb.RoundInfo
+	for _, rnd := range retrievedRounds {
+		ri := &pb.RoundInfo{}
+		err = proto.Unmarshal(rnd.InfoBlob, ri)
+		if err != nil {
+			// If trouble unmarshalling, move to next round
+			// Note this should never happen with
+			// rounds placed by us in our own database
+			jww.WARN.Printf("Could not unmarshal round %d in our database. "+
+				"Could the database be corrupted?", rnd.Id)
+			continue
+		}
+
+		rounds = append(rounds, ri)
+	}
+
+	// Return the retrievedRounds
+	return &pb.HistoricalRoundsResponse{
+		Rounds: rounds,
+	}, nil
+
 }
 
 // PutMessage adds a message to the outgoing queue
@@ -825,15 +922,14 @@ func (gw *Instance) Start() {
 	// Now that we're set up, run a thread that constantly
 	// polls for updates
 	go func() {
-		lastUpdate := uint64(time.Now().Unix())
+		//fix-me: this last update needs to be persistant across resets
 		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,
 				gw.NetInf.GetFullNdf(),
 				gw.NetInf.GetPartialNdf(),
-				lastUpdate)
-			lastUpdate = uint64(time.Now().Unix())
+				gw.lastUpdate)
 			if err != nil {
 				jww.WARN.Printf(
 					"Failed to Poll: %v",
@@ -870,11 +966,6 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 	return gw.un.Notified(), nil
-}
-
-// Client -> Gateway historical round request
-func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.HistoricalRoundsResponse, error) {
-	return nil, nil
 }
 
 // Client -> Gateway bloom request

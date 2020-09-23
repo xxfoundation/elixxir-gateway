@@ -343,7 +343,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 func TestInstance_RequestMessages(t *testing.T) {
 	// Create a message and insert them into a database
 	numMessages := 5
-	expectedRound := id.Round(0)
+	expectedRound := id.Round(1)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
 	for i := 0; i < numMessages; i++ {
@@ -354,11 +354,9 @@ func TestInstance_RequestMessages(t *testing.T) {
 	}
 
 	// Craft the request message and send
-	roundBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(roundBytes, uint64(expectedRound))
 	requestMessage := &pb.GetMessages{
 		ClientID: recipientID.Bytes(),
-		RoundID:  roundBytes,
+		RoundID:  uint64(1),
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(requestMessage)
@@ -412,7 +410,7 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	binary.BigEndian.PutUint64(roundBytes, uint64(expectedRound))
 	badRequest := &pb.GetMessages{
 		ClientID: badClientId.Bytes(),
-		RoundID:  roundBytes,
+		RoundID:  uint64(2),
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
@@ -447,7 +445,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	binary.BigEndian.PutUint64(roundBytes, uint64(badRoundId))
 	badRequest := &pb.GetMessages{
 		ClientID: recipientID.Bytes(),
-		RoundID:  roundBytes,
+		RoundID:  uint64(3),
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
@@ -479,7 +477,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	// Craft the request message with a nil ClientID
 	badRequest := &pb.GetMessages{
 		ClientID: recipientID.Bytes(),
-		RoundID:  nil,
+		RoundID:  uint64(0),
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
@@ -495,7 +493,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	// Craft the request message with a nil RoundID
 	badRequest = &pb.GetMessages{
 		ClientID: recipientID.Bytes(),
-		RoundID:  nil,
+		RoundID:  uint64(0),
 	}
 
 	receivedMsg, err = gatewayInstance.RequestMessages(badRequest)
@@ -884,6 +882,81 @@ func TestCreateNetworkInstance(t *testing.T) {
 		t.Errorf("Could not create network instance!")
 	}
 
+}
+
+// Happy path
+func TestInstance_Poll(t *testing.T) {
+	//Build the gateway instance
+	params := Params{
+		NodeAddress:    NODE_ADDRESS,
+		ServerCertPath: testkeys.GetNodeCertPath(),
+		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
+		knownRounds:    5,
+	}
+
+	gw := NewGatewayInstance(params)
+	gw.InitNetwork()
+	clientId := id.NewIdFromBytes([]byte("test"), t)
+
+	clientReq := &pb.GatewayPoll{
+		Partial:    nil,
+		LastUpdate: 0,
+		ClientID:   clientId.Bytes(),
+	}
+
+	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+
+	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
+	var err error
+	ers := &storage.ERS{}
+	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
+
+	_, err = gw.Poll(clientReq)
+	if err != nil {
+		t.Errorf("Failed to poll: %v", err)
+	}
+
+}
+
+// Error path: Pass in invalid messages
+func TestInstance_Poll_NilCheck(t *testing.T) {
+	//Build the gateway instance
+	params := Params{
+		NodeAddress:    NODE_ADDRESS,
+		ServerCertPath: testkeys.GetNodeCertPath(),
+		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
+		knownRounds:    5,
+	}
+
+	gw := NewGatewayInstance(params)
+	gw.InitNetwork()
+
+	// Pass in a nil client ID
+	clientReq := &pb.GatewayPoll{
+		Partial:    nil,
+		LastUpdate: 0,
+		ClientID:   nil,
+	}
+
+	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+
+	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
+	var err error
+	ers := &storage.ERS{}
+	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
+
+	_, err = gw.Poll(clientReq)
+	if err == nil {
+		t.Errorf("Expected error path. Should error when passing a nil clientID")
+	}
+
+	// Pass in a completely nil message
+	_, err = gw.Poll(nil)
+	if err == nil {
+		t.Errorf("Expected error path. Should error when passing a nil message")
+	}
 }
 
 // TestUpdateInstance tests that the instance updates itself appropriately

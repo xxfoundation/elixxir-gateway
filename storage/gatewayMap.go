@@ -95,7 +95,6 @@ func (m *MapImpl) UpsertRound(round *Round) error {
 
 	m.Lock()
 	defer m.Unlock()
-
 	// Insert the round if it does not exist or if it does exist, update it if
 	// the update ID provided is greater
 	if m.rounds[roundID] == nil || round.UpdateId > m.rounds[roundID].UpdateId {
