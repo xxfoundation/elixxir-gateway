@@ -508,6 +508,57 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 	return errors.Errorf("Unable to locate ID %v in NDF!", nodeId)
 }
 
+// TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
+// Client -> Gateway handler. Looks up messages based on a userID and a roundID.
+// If the gateway participated in this round, and the requested client had messages in that round,
+// we return these message(s) to the requester
+func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+	// Error check for a invalidly crafted message
+	if msg == nil || msg.ClientID == nil || msg.RoundID == 0 {
+		return &pb.GetMessagesResponse{}, errors.New("Could not parse message! " +
+			"Please try again with a properly crafted message!")
+	}
+
+	// Parse the requested clientID within the message for the database request
+	userId, err := id.Unmarshal(msg.ClientID)
+	if err != nil {
+		return &pb.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
+	}
+
+	// Parse the roundID within the message
+	// Fixme: double check that it is in fact bigEndian
+	roundID := id.Round(msg.RoundID)
+
+	// Search the database for the requested messages
+	msgs, err := gw.database.GetMixedMessages(userId, roundID)
+	if err != nil {
+		return &pb.GetMessagesResponse{
+				HasRound: true,
+			}, errors.Errorf("Could not find any MixedMessages with "+
+				"recipient ID %v and round ID %v.", userId, roundID)
+	}
+
+	// Parse the database response to construct individual slots
+	var slots []*pb.Slot
+	for _, msg := range msgs {
+		// Get the message contents
+		payloadA, payloadB := msg.GetMessageContents()
+		// Construct the slot and place in the list
+		data := &pb.Slot{
+			PayloadA: payloadA,
+			PayloadB: payloadB,
+		}
+		slots = append(slots, data)
+	}
+
+	// Return all messages to the requester
+	return &pb.GetMessagesResponse{
+		HasRound: true,
+		Messages: slots,
+	}, nil
+
+}
+
 // Returns message contents for MessageID, or a null/randomized message
 // if that ID does not exist of the same size as a regular message
 func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
@@ -915,11 +966,6 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 	return gw.un.Notified(), nil
-}
-
-// Client -> Gateway message request
-func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
-	return nil, nil
 }
 
 // Client -> Gateway bloom request
