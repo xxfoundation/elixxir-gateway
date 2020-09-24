@@ -113,8 +113,11 @@ func TestMain(m *testing.M) {
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
+	hostParams := connect.GetDefaultHostParams()
+	hostParams.MaxRetries = 0
+	hostParams.AuthEnabled = false
 	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS,
-		nodeCert, true, false)
+		nodeCert, hostParams)
 
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
@@ -218,7 +221,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	gatewayInstance.database.InsertClient(newClient)
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
-		"0.0.0.0:4200", pub, false, true)
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 4}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
@@ -285,8 +288,11 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	gw.Comms = gComm
+	hostParams := connect.GetDefaultHostParams()
+	hostParams.MaxRetries = 0
+	hostParams.AuthEnabled = false
 	gw.ServerHost, err = connect.NewHost(id.NewIdFromString("test", id.Node, t), NODE_ADDRESS,
-		nodeCert, true, false)
+		nodeCert, hostParams)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -317,7 +323,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw.database.InsertClient(newClient)
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err = gw.Comms.AddHost(&id.Permissioning,
-		"0.0.0.0:4200", pub, false, true)
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 4}
 	gw.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
@@ -337,6 +343,61 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw.SendBatchWhenReady(si)
 
 }
+
+func disconnectServers() {
+	gatewayInstance.Comms.DisconnectAll()
+	n.Manager.DisconnectAll()
+	n.DisconnectAll()
+}
+
+
+// Tests that messages can get through when its user ID bucket is not full and
+// checks that they are blocked when the bucket is full.
+// TODO: re-enable after user ID limiting is working
+/*func TestGatewayImpl_PutMessage_UserBlock(t *testing.T) {
+	errMsg := ("PutMessage: Could not put any messages user ID " +
+		"should not be blocked")
+	msg := pb.Slot{SenderID: id.NewUserFromUint(12, t).Bytes()}
+	ok := gatewayInstance.PutMessage(&msg, "12")
+	if !ok {
+		t.Errorf(errMsg)
+	}
+
+	msg = pb.Slot{SenderID: id.NewUserFromUint(234, t).Bytes()}
+	ok = gatewayInstance.PutMessage(&msg, "2")
+	if !ok {
+		t.Errorf(errMsg)
+	}
+
+	ok = gatewayInstance.PutMessage(&msg, "2")
+	if !ok {
+		t.Errorf(errMsg)
+	}
+
+	ok = gatewayInstance.PutMessage(&msg, "3")
+	if ok {
+		t.Errorf("PutMessage: Put message when it should have" +
+" been blocked based on user ID")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	ok = gatewayInstance.PutMessage(&msg, "4")
+	if !ok {
+		t.Errorf(errMsg)
+	}
+
+	ok = gatewayInstance.PutMessage(&msg, "4")
+	if !ok {
+		t.Errorf(errMsg)
+	}
+
+	ok = gatewayInstance.PutMessage(&msg, "5")
+	if ok {
+		t.Errorf("PutMessage: Put message when it should have" +
+" been blocked based on user ID")
+	}
+}*/
 
 // Tests that messages can get through even when their bucket is full.
 func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
@@ -628,7 +689,7 @@ func buildMockNdf(nodeId *id.ID, nodeAddress, gwAddress string, cert,
 func TestCreateNetworkInstance(t *testing.T) {
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
-		"0.0.0.0:4200", pub, false, true)
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 	if err != nil {
 		t.Errorf("Failed to add permissioning host: %+v", err)
 	}
