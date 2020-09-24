@@ -44,9 +44,10 @@ var disablePermissioning = false
 var rateLimitErr = errors.New("Client has exceeded communications rate limit")
 
 // Tokens required by clients for different messages
-const TokensPutMessage = uint(250)  // Sends a message, the networks does n * 5 exponentiations, n = 5, 25
-const TokensRequestNonce = uint(30) // Requests a nonce from the node to verify the user, 3 exponentiations
-const TokensConfirmNonce = uint(10) // Requests a nonce from the node to verify the user, 1 exponentiation
+const TokensPutMessage = uint(250)        // Sends a message, the networks does n * 5 exponentiations, n = 5, 25
+const TokensRequestNonce = uint(30)       // Requests a nonce from the node to verify the user, 3 exponentiations
+const TokensConfirmNonce = uint(10)       // Requests a nonce from the node to verify the user, 1 exponentiation
+const PollPeriod = 100 * time.Millisecond // how often gateway polls server
 
 // Errors to suppress
 const (
@@ -711,7 +712,7 @@ func (gw *Instance) Start() {
 	// polls for updates
 	go func() {
 		lastUpdate := uint64(time.Now().Unix())
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(PollPeriod)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,
