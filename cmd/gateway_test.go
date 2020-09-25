@@ -223,7 +223,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	gatewayInstance.database.InsertClient(newClient)
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
-		"0.0.0.0:4200", pub, false, true)
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 4}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
@@ -325,7 +325,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw.database.InsertClient(newClient)
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err = gw.Comms.AddHost(&id.Permissioning,
-		"0.0.0.0:4200", pub, false, true)
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 4}
 	gw.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)

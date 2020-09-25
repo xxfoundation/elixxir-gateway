@@ -415,8 +415,8 @@ func (gw *Instance) InitNetwork() error {
 
 		// Add permissioning as a host
 		params := connect.GetDefaultHostParams()
-			params.MaxRetries = 0
-			_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
+		params.MaxRetries = 0
+		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
 		if err != nil {
 			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
 			continue
@@ -930,7 +930,7 @@ func (gw *Instance) Start() {
 	// polls for updates
 	go func() {
 		//fix-me: this last update needs to be persistant across resets
-		ticker := time.NewTicker(PollPeriod)
+		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,

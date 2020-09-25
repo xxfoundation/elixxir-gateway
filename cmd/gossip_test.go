@@ -11,6 +11,7 @@ import (
 	"fmt"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
+	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
@@ -73,7 +74,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 	gossipMsg.Signature, err = buildGossipSignature(gossipMsg, gatewayInstance.Comms.GetPrivateKey())
 
 	// Set up origin host
-	_, err = gatewayInstance.Comms.AddHost(originId, "", gatewayCert, false, false)
+	_, err = gatewayInstance.Comms.AddHost(originId, "", gatewayCert, connect.GetDefaultHostParams())
 	if err != nil {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
@@ -98,7 +99,7 @@ func TestInstance_StartPeersThread(t *testing.T) {
 			ID: gwId.Marshal(),
 		},
 	}
-	_, err = gatewayInstance.Comms.AddHost(gwId, "0.0.0.0", gatewayCert, false, false)
+	_, err = gatewayInstance.Comms.AddHost(gwId, "0.0.0.0", gatewayCert, connect.GetDefaultHostParams())
 	if err != nil {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
@@ -150,7 +151,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	var err error
 
 	// Init comms and host
-	_, err = gatewayInstance.Comms.AddHost(gatewayInstance.Comms.Id, GW_ADDRESS, gatewayCert, false, false)
+	_, err = gatewayInstance.Comms.AddHost(gatewayInstance.Comms.Id, GW_ADDRESS, gatewayCert, connect.GetDefaultHostParams())
 	if err != nil {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
