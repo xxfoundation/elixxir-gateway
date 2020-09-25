@@ -115,8 +115,11 @@ func TestMain(m *testing.M) {
 
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
+	hostParams := connect.GetDefaultHostParams()
+	hostParams.MaxRetries = 0
+	hostParams.AuthEnabled = false
 	gatewayInstance.ServerHost, _ = connect.NewHost(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS,
-		nodeCert, true, false)
+		nodeCert, hostParams)
 
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
@@ -287,8 +290,11 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	gw.Comms = gComm
+	hostParams := connect.GetDefaultHostParams()
+	hostParams.MaxRetries = 0
+	hostParams.AuthEnabled = false
 	gw.ServerHost, err = connect.NewHost(id.NewIdFromString("test", id.Node, t), NODE_ADDRESS,
-		nodeCert, true, false)
+		nodeCert, hostParams)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -846,7 +852,7 @@ func buildMockNdf(nodeId *id.ID, nodeAddress, gwAddress string, cert,
 func TestCreateNetworkInstance(t *testing.T) {
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
-		"0.0.0.0:4200", pub, false, true)
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 	if err != nil {
 		t.Errorf("Failed to add permissioning host: %+v", err)
 	}
