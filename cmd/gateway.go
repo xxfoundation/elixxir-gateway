@@ -85,26 +85,36 @@ func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomRe
 }
 
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
-func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (*pb.GatewayPollResponse, error) {
+func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
+	*pb.GatewayPollResponse, error) {
 	// Nil check to check for valid clientRequest
-	if clientRequest == nil || clientRequest.ClientID == nil {
-		return &pb.GatewayPollResponse{}, errors.Errorf("Unable to parse client's request. " +
-			"Please try again with a properly formed message")
+	if clientRequest == nil {
+		return &pb.GatewayPollResponse{}, errors.Errorf(
+			"Poll() clientRequest is empty")
+	}
+	if clientRequest.ClientID == nil {
+		return &pb.GatewayPollResponse{}, errors.Errorf(
+			"Poll() clientRequest.ClientID required")
 	}
 
 	lastKnownRound := gw.NetInf.GetLastRoundID()
 
 	// Get the range of updates from the network instance
-	updates, err := gw.NetInf.GetHistoricalRoundRange(id.Round(clientRequest.LastUpdate), lastKnownRound)
+	updates, err := gw.NetInf.GetHistoricalRoundRange(
+		id.Round(clientRequest.LastUpdate), lastKnownRound)
 	if err != nil {
-		jww.WARN.Printf("Could not retrieve updates for client [%v]'s request: %v", clientRequest.ClientID, err)
-		return &pb.GatewayPollResponse{}, errors.New("Could not retrieve updates for client's request.")
+		errStr := fmt.Sprintf("couldn't get updates for client "+
+			"[%v]'s request4: %v", clientRequest.ClientID, err)
+		jww.WARN.Printf(errStr)
+		return &pb.GatewayPollResponse{}, errors.New(errStr)
 	}
 
 	kr, err := gw.knownRound.Marshal()
 	if err != nil {
-		jww.WARN.Printf("Could not retrieve known rounds for client [%v]'s request: %v", clientRequest.ClientID, err)
-		return &pb.GatewayPollResponse{}, errors.New("Could not retrieve updates for client's request.")
+		errStr := fmt.Sprintf("couldn't get known rounds for client "+
+			"[%v]'s request: %v", clientRequest.ClientID, err)
+		jww.WARN.Printf(errStr)
+		return &pb.GatewayPollResponse{}, errors.New(errStr)
 
 	}
 
