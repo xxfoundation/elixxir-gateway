@@ -146,7 +146,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// build a single mock message
-	primeLength := len(grp2.GetPBytes())
+	primeLength := grp2.GetP().ByteLen()
 	msg := format.NewMessage(primeLength)
 
 	payloadA := make([]byte, primeLength)
