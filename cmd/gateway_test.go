@@ -146,9 +146,10 @@ func TestMain(m *testing.M) {
 	}
 
 	// build a single mock message
-	msg := format.NewMessage(256)
+	primeLength := len(grp2.GetPBytes())
+	msg := format.NewMessage(primeLength)
 
-	payloadA := make([]byte, 256)
+	payloadA := make([]byte, primeLength)
 	payloadA[0] = 1
 	msg.SetPayloadA(payloadA)
 
@@ -574,7 +575,7 @@ func buildMockNdf(nodeId *id.ID, nodeAddress, gwAddress string, cert,
 			Generator:  "2",
 		},
 		CMIX: ndf.Group{
-			Prime:      "123",
+			Prime:      prime,
 			SmallPrime: "456",
 			Generator:  "2",
 		},

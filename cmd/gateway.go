@@ -568,8 +568,8 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 
 	salt := make([]byte, 32)
 	salt[0] = 0x01
-
-	msg := format.NewMessage(256)
+	primeLength := len(grp.GetPBytes())
+	msg := format.NewMessage(primeLength)
 	payloadBytes := make([]byte, 256)
 	bs := make([]byte, 4)
 	// Note: Cannot be 0, must be inside group
@@ -675,7 +675,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 	// At this point, the returned batch and its fields should be non-nil
 	h, _ := hash.NewCMixHash()
 	for _, msg := range msgs {
-		serialmsg := format.NewMessage(256)
+		primeLen := len(gw.NetInf.GetCmixGroup().GetPBytes())
+		serialmsg := format.NewMessage(primeLen)
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipientID()
 
