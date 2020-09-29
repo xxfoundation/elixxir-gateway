@@ -689,7 +689,7 @@ func TestUpdateInstance(t *testing.T) {
 	}
 
 	// Check that mockMessage made it
-	mockmsgId := "xL+3JSRKJZPEu01Uv8Nh6dtRa+tjqkruwbsZmVuP218="
+	mockmsgId := "1jaa7wMbv2lHm8sw3L98FzwLw5IDhLfOuvOaOZLcdZs="
 	mockMsgUserId := id.NewIdFromUInt(1, id.User, t)
 	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId, mockmsgId)
 	if err != nil {
