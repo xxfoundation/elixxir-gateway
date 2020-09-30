@@ -90,10 +90,11 @@ type BloomFilter struct {
 
 // Represents an ephemeral Client's temporary BloomFilter
 type EphemeralBloomFilter struct {
-	Id          uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
-	RecipientId []byte `gorm:"NOT NULL"`
-	Count       uint64 `gorm:"NOT NULL"`
-	Filter      []byte `gorm:"NOT NULL"`
+	Id           uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
+	RecipientId  []byte    `gorm:"NOT NULL"`
+	Count        uint64    `gorm:"NOT NULL"`
+	Filter       []byte    `gorm:"NOT NULL"`
+	DateModified time.Time `gorm:"NOT NULL"`
 }
 
 // Represents a MixedMessage and its contents
