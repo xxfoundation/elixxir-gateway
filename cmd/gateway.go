@@ -674,12 +674,11 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 	numReal := 0
 	// At this point, the returned batch and its fields should be non-nil
 	h, _ := hash.NewCMixHash()
+	primeLength := gw.NetInf.GetCmixGroup().GetP().ByteLen()
 	for _, msg := range msgs {
-		primeLength := gw.NetInf.GetCmixGroup().GetP().ByteLen()
 		serialmsg := format.NewMessage(primeLength)
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipientID()
-
 		if !userId.Cmp(&dummyUser) {
 			jww.DEBUG.Printf("Message Received for: %s",
 				userId)
