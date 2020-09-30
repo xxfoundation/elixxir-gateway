@@ -82,7 +82,7 @@ type Round struct {
 // Represents a Client's BloomFilter
 type BloomFilter struct {
 	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
-	ClientId    []byte    `gorm:"INDEX;type:bytea REFERENCES clients(Id)"`
+	ClientId    []byte    `gorm:"NOT NULL;INDEX;type:bytea REFERENCES clients(Id)"`
 	Count       uint64    `gorm:"NOT NULL"`
 	Filter      []byte    `gorm:"NOT NULL"`
 	DateCreated time.Time `gorm:"NOT NULL"`
