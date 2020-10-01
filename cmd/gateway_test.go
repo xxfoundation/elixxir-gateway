@@ -92,10 +92,6 @@ func TestMain(m *testing.M) {
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
 	n = node.StartNode(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS, 0, nodeHandler, nodeCert, nodeKey)
 
-	grp = make(map[string]string)
-	grp["prime"] = prime
-	grp["generator"] = generator
-
 	//Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
@@ -136,14 +132,13 @@ func TestMain(m *testing.M) {
 	}
 
 	// build a single mock message
-	msg := format.NewMessage()
+	msg := format.NewMessage(grp2.GetP().ByteLen())
 
-	payloadA := make([]byte, format.PayloadLen)
+	payloadA := make([]byte, grp2.GetP().ByteLen())
 	payloadA[0] = 1
 	msg.SetPayloadA(payloadA)
 
-	recipientID := id.NewIdFromUInt(1, id.User, m).Marshal()
-	msg.AssociatedData.SetRecipientID(recipientID[:len(recipientID)-1])
+	msg.SetRecipientID(id.NewIdFromUInt(1, id.User, m))
 
 	mockMessage = &pb.Slot{
 		Index:    42,
@@ -200,7 +195,11 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	gatewayInstance.InitGossip()
 	defer gatewayInstance.KillRateLimiter()
 
-	data := format.NewMessage()
+	p := large.NewIntFromString(prime, 16)
+	g := large.NewIntFromString(generator, 16)
+	grp := cyclic.NewGroup(p, g)
+
+	data := format.NewMessage(grp.GetP().ByteLen())
 	rndId := uint64(1)
 
 	msg := pb.Slot{
@@ -302,7 +301,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw.InitGossip()
 	defer gw.KillRateLimiter()
 
-	data := format.NewMessage()
+	data := format.NewMessage(grp2.GetP().ByteLen())
 	rndId := uint64(1)
 
 	msg := pb.Slot{

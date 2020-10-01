@@ -783,8 +783,8 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	salt := make([]byte, 32)
 	salt[0] = 0x01
 
-	msg := format.NewMessage()
-	payloadBytes := make([]byte, format.PayloadLen)
+	msg := format.NewMessage(grp.GetP().ByteLen())
+	payloadBytes := make([]byte, grp.GetP().ByteLen())
 	bs := make([]byte, 4)
 	// Note: Cannot be 0, must be inside group
 	// So we add 1, and start at offset in payload
@@ -795,7 +795,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
-	msg.SetRecipient(&dummyUser)
+	msg.SetRecipientID(&dummyUser)
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
@@ -894,13 +894,9 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 	// At this point, the returned batch and its fields should be non-nil
 	h, _ := hash.NewCMixHash()
 	for _, msg := range msgs {
-		serialmsg := format.NewMessage()
+		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialmsg.SetPayloadB(msg.PayloadB)
-		userId, err := serialmsg.GetRecipient()
-		if err != nil {
-			jww.ERROR.Printf("Creating userId from serialmsg failed in "+
-				"ProcessCompletedBatch: %+v", err)
-		}
+		userId := serialmsg.GetRecipientID()
 
 		if !userId.Cmp(&dummyUser) {
 			jww.DEBUG.Printf("Message Received for: %s",
@@ -916,7 +912,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 			// Create new message and insert into database
 			newMsg := storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
 			newMsg.Id = msgID
-			err = gw.database.InsertMixedMessage(newMsg)
+			err := gw.database.InsertMixedMessage(newMsg)
 			if err != nil {
 				jww.ERROR.Printf("Inserting a new mixed message failed in "+
 					"ProcessCompletedBatch: %+v", err)
