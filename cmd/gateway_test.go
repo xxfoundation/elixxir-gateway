@@ -20,6 +20,7 @@ import (
 	"gitlab.com/elixxir/crypto/large"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
+	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
@@ -893,11 +894,11 @@ func TestCreateNetworkInstance(t *testing.T) {
 func TestInstance_Poll(t *testing.T) {
 	//Build the gateway instance
 	params := Params{
-		NodeAddress:    NODE_ADDRESS,
-		ServerCertPath: testkeys.GetNodeCertPath(),
-		CertPath:       testkeys.GetGatewayCertPath(),
-		MessageTimeout: 10 * time.Minute,
-		knownRounds:    5,
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "",
 	}
 
 	gw := NewGatewayInstance(params)
@@ -928,11 +929,11 @@ func TestInstance_Poll(t *testing.T) {
 func TestInstance_Poll_NilCheck(t *testing.T) {
 	//Build the gateway instance
 	params := Params{
-		NodeAddress:    NODE_ADDRESS,
-		ServerCertPath: testkeys.GetNodeCertPath(),
-		CertPath:       testkeys.GetGatewayCertPath(),
-		MessageTimeout: 10 * time.Minute,
-		knownRounds:    5,
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "",
 	}
 
 	gw := NewGatewayInstance(params)
@@ -961,6 +962,158 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 	_, err = gw.Poll(nil)
 	if err == nil {
 		t.Errorf("Expected error path. Should error when passing a nil message")
+	}
+}
+
+// Tests happy path of Instance.SaveKnownRounds and Instance.LoadKnownRounds.
+func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
+	// Build the gateway instance
+	params := Params{
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "testKR.json",
+	}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.knownRoundsPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify knownRounds
+	gw := NewGatewayInstance(params)
+	_ = gw.InitNetwork()
+	gw.knownRound.Check(4)
+	expectedData, err := gw.knownRound.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal() failed to marshal knownRounds: %v", err)
+	}
+
+	// Attempt to save knownRounds to file
+	if err := gw.SaveKnownRounds(); err != nil {
+		t.Errorf("SaveKnownRounds() produced an error: %v", err)
+	}
+
+	// Attempt to load knownRounds from file
+	if err := gw.LoadKnownRounds(); err != nil {
+		t.Errorf("LoadKnownRounds() produced an error: %v", err)
+	}
+
+	// Ensure that the data loaded from file matches the expected data
+	testData, err := gw.knownRound.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal() failed to marshal knownRounds: %v", err)
+	}
+	if !reflect.DeepEqual(expectedData, testData) {
+		t.Errorf("Failed to load correct KnownRounds."+
+			"\n\texpected: %s\n\treceived: %s", expectedData, testData)
+	}
+}
+
+// Tests that Instance.SaveKnownRounds and Instance.LoadKnownRounds return
+// errors for an invalid path.
+func TestInstance_SaveKnownRounds_LoadKnownRounds_FileError(t *testing.T) {
+	// Build the gateway instance
+	params := Params{
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "~a/testKR.json",
+	}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.knownRoundsPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify knownRounds
+	gw := NewGatewayInstance(params)
+	_ = gw.InitNetwork()
+
+	if gw.SaveKnownRounds() == nil {
+		t.Error("SaveKnownRounds() did not produce an error on invalid path.")
+	}
+
+	err := gw.LoadKnownRounds()
+	if err == nil {
+		t.Error("LoadKnownRounds() did not produce an error on invalid path.")
+	}
+	if os.IsNotExist(err) {
+		t.Errorf("LoadKnownRounds() produced an error for a file that does not "+
+			"exist.\n\texpected: %v\n\trecieved: %v", nil, err)
+	}
+}
+
+// Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
+func TestInstance_LoadKnownRounds_NoFile(t *testing.T) {
+	// Build the gateway instance
+	params := Params{
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "testKR.json",
+	}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.knownRoundsPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify knownRounds
+	gw := NewGatewayInstance(params)
+
+	err := gw.LoadKnownRounds()
+	if err != nil {
+		t.Errorf("LoadKnownRounds() returned an error for a file that does "+
+			"not exist: %v", err)
+	}
+}
+
+// Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
+func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
+	// Build the gateway instance
+	params := Params{
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "testKR.json",
+	}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.knownRoundsPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify knownRounds
+	gw := NewGatewayInstance(params)
+	gw.knownRound.Check(67)
+
+	if err := gw.SaveKnownRounds(); err != nil {
+		t.Fatalf("SaveKnownRounds() produced an error: %v", err)
+	}
+
+	gw.knownRound = knownRounds.NewKnownRound(1)
+
+	err := gw.LoadKnownRounds()
+	if err == nil {
+		t.Error("LoadKnownRounds() did not return an error when unmarshalling " +
+			"should have failed.")
 	}
 }
 

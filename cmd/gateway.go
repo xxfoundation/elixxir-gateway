@@ -33,6 +33,7 @@ import (
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,9 @@ const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
 )
+
+// The max number of rounds to be stored in the KnownRounds buffer.
+const knownRoundsSize = 1000
 
 type Instance struct {
 	// Storage buffer for messages to be submitted to the network
@@ -143,7 +147,7 @@ type Params struct {
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
 
-	knownRounds int
+	knownRoundsPath string
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -161,7 +165,7 @@ func NewGatewayInstance(params Params) *Instance {
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		database:      newDatabase,
-		knownRound:    knownRounds.NewKnownRound(params.knownRounds),
+		knownRound:    knownRounds.NewKnownRound(knownRoundsSize),
 	}
 
 	return i
@@ -307,6 +311,9 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 			if roundState := states.Round(update.State); roundState == states.COMPLETED || roundState == states.FAILED {
 				gw.knownRound.Check(id.Round(update.ID))
+				if err := gw.SaveKnownRounds(); err != nil {
+					jww.ERROR.Print(err)
+				}
 			}
 		}
 	}
@@ -359,6 +366,16 @@ func (gw *Instance) InitNetwork() error {
 		return errors.WithMessagef(err,
 			"Failed to read permissioning cert at %v",
 			gw.Params.PermissioningCertPath)
+	}
+
+	// Load knownRounds data from file
+	err = gw.LoadKnownRounds()
+	if err != nil {
+		return err
+	}
+	err = gw.SaveKnownRounds()
+	if err != nil {
+		jww.FATAL.Panicf("Failed to save KnownRounds: %v", err)
 	}
 
 	// Set up temporary gateway listener
@@ -984,4 +1001,40 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 // Client -> Gateway bloom request
 func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
 	return nil, nil
+}
+
+// SaveKnownRounds saves the KnownRounds to a file.
+func (gw *Instance) SaveKnownRounds() error {
+	path := gw.Params.knownRoundsPath
+	data, err := gw.knownRound.Marshal()
+	if err != nil {
+		return errors.Errorf("Failed to marshal KnownRounds: %v", err)
+	}
+	err = utils.WriteFile(path, data, utils.FilePerms, utils.DirPerms)
+	if err != nil {
+		return errors.Errorf("Failed to save KnownRounds to file: %v", err)
+	}
+
+	return nil
+}
+
+// LoadKnownRounds loads the KnownRounds from file into the Instance, if the
+// file exists. Returns nil on successful loading or if the file does not exist.
+// Returns an error if the file cannot be accessed or the data cannot be
+// unmarshaled.
+func (gw *Instance) LoadKnownRounds() error {
+	data, err := utils.ReadFile(gw.Params.knownRoundsPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return errors.Errorf("Failed to read KnownRounds from file: %v", err)
+	}
+
+	err = gw.knownRound.Unmarshal(data)
+	if err != nil {
+		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
+	}
+
+	return nil
 }
