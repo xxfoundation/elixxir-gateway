@@ -174,10 +174,7 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
-	kr := viper.GetInt("KnownRounds")
-	if kr == 0 {
-		kr = 1000
-	}
+	krPath := viper.GetString("knownRoundsPath")
 
 	p := Params{
 		Port:                  gwPort,
@@ -191,7 +188,7 @@ func InitParams(vip *viper.Viper) Params {
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
 		MessageTimeout:        messageTimeout,
-		knownRounds:           kr,
+		knownRoundsPath:       krPath,
 	}
 
 	return p

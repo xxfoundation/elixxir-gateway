@@ -37,41 +37,45 @@ Note: YAML prohibits the use of tabs because whitespace has meaning.
 ```yaml
 # Level of debugging to print (0 = info, 1 = debug, >1 = trace). (default 0)
 logLevel: 1
-​
+
 # Path where log file will be saved. (default "./gateway-logs/gateway.log")
 log: "/opt/xxnetwork/gateway-logs/gateway.log"
-​
+
 # Port for Gateway to listen on. Gateway must be the only listener on this port.
 # Required field.
 port: 22840
-​
+
 # Public IP address of the Node associated with this Gateway. Required field.
 nodeAddress: "0.0.0.128:11420"
-​
+
 # Period in which the message cleanup function executes. All users who message
 # buffer have exceeded the maximum size will get their messages deleted.
 # Recommended period is on the order of a minute to an hour. (default 1m0s)
 messageTimeout: "1m0s"
-​
+
 # Path to where the IDF is saved. This is used by the wrapper management script.
 # (default "./gateway-logs/gatewayIDF.json")
 idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
-​
+
 # Path to the private key associated with the self-signed TLS certificate.
 # Required field.
 keyPath: "/opt/xxnetwork/creds/gateway_key.key"
-​
+
 # Path to the self-signed TLS certificate for Gateway. Expects PEM format.
 # Required field.
 certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
-​
+
 # Path to the self-signed TLS certificate for Server. Expects PEM format.
 # Required field.
 serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
-​
+
 # Path to the self-signed TLS certificate for the Permissioning server. Expects
 # PEM format. Required field.
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
+
+# Path of where a copy of the known rounds buffer is saved and loaded from.
+# Required field.
+knownRoundsPath: "/opt/xxnetwork/gateway-logs/knownRounds.json"
 
 # Database connection information
 dbUsername: "cmix"
