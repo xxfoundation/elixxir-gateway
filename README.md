@@ -74,7 +74,7 @@ serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
 # Path of where a copy of the known rounds buffer is saved and loaded from.
-# Required field.
+# Defaults to "/opt/xxnetwork/gateway-logs/knownRounds.json", if not set.
 knownRoundsPath: "/opt/xxnetwork/gateway-logs/knownRounds.json"
 
 # Database connection information

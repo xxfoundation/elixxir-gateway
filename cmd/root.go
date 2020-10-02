@@ -24,6 +24,9 @@ import (
 	"time"
 )
 
+// Default path used to KnownRounds if one is not provided
+const knownRoundsDefaultPath = "/opt/xxnetwork/gateway-logs/knownRounds.json"
+
 // Flags to import from command line or config file
 var (
 	cfgFile, idfPath, logPath                                string
@@ -174,6 +177,7 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
+	viper.SetDefault("knownRoundsPath", knownRoundsDefaultPath)
 	krPath := viper.GetString("knownRoundsPath")
 
 	p := Params{
