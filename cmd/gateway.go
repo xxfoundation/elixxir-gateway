@@ -82,6 +82,9 @@ type Instance struct {
 	removeGateway chan *id.ID
 
 	lastUpdate uint64
+
+	curentRound id.Round
+	hasCurentRound bool
 }
 
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
@@ -298,6 +301,11 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				return err
 			}
 
+			err = gw.NetInf.RoundUpdate(update)
+			if err != nil {
+				return err
+			}
+
 			// Convert the ID list to a circuit
 			topology := ds.NewCircuit(idList)
 
@@ -306,12 +314,15 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
 			}
 
-			err = gw.NetInf.RoundUpdate(update)
-			if err != nil {
-				return err
+			roundState := states.Round(update.State);
+
+			if topology.GetNodeLocation(gw.ServerHost.GetId())!=-1 &&
+				roundState == states.PRECOMPUTING{
+				gw.curentRound = id.Round(update.ID)
+				gw.hasCurentRound = true
 			}
 
-			if roundState := states.Round(update.State); roundState == states.COMPLETED || roundState == states.FAILED {
+			if  roundState == states.COMPLETED || roundState == states.FAILED {
 				gw.knownRound.Check(id.Round(update.ID))
 				if err := gw.SaveKnownRounds(); err != nil {
 					jww.ERROR.Print(err)
@@ -326,7 +337,11 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	// Process a batch that has been completed by this server
 	if newInfo.Slots != nil {
-		gw.ProcessCompletedBatch(newInfo.Slots)
+		if !gw.hasCurentRound{
+			jww.FATAL.Panicf("No round known about, cannot process slots")
+		}
+		gw.hasCurentRound = false
+		gw.ProcessCompletedBatch(newInfo.Slots, gw.curentRound)
 	}
 	return nil
 }
@@ -903,7 +918,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 }
 
 // ProcessCompletedBatch handles messages coming out of the mixnet
-func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
+func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	if len(msgs) == 0 {
 		return
 	}
@@ -919,17 +934,15 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 
 		if !userId.Cmp(&dummyUser) {
 			jww.DEBUG.Printf("Message Received for: %s",
-				userId)
+				userId.String())
 
-			gw.un.Notify(userId)
 			numReal++
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
 			msgID := binary.BigEndian.Uint64(h.Sum(nil))
-			roundID := gw.NetInf.GetLastRoundID()
 
 			// Create new message and insert into database
-			newMsg := storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
+			newMsg := storage.NewMixedMessage(roundID, userId, msg.PayloadA, msg.PayloadB)
 			newMsg.Id = msgID
 			err := gw.database.InsertMixedMessage(newMsg)
 			if err != nil {
