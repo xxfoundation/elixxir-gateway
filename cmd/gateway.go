@@ -101,7 +101,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() clientRequest.ClientID required")
 	}
 
-	lastKnownRound := gw.NetInf.GetLastRoundID()
+	//lastKnownRound := gw.NetInf.GetLastRoundID()
 
 	// Get the range of updates from the network instance
 	updates := gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
@@ -115,13 +115,16 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	}
 
+	jww.TRACE.Printf("KnownRounds: %v", kr)
+
 	return &pb.GatewayPollResponse{
 		PartialNDF:       gw.NetInf.GetPartialNdf().GetPb(),
 		Updates:          updates,
-		LastTrackedRound: uint64(lastKnownRound),
-		KnownRounds:      kr,
-		FilterNew:        nil,
-		FilterOld:        nil,
+		LastTrackedRound: uint64(0), // FIXME: This should be the
+		// earliest tracked network round
+		KnownRounds: kr,
+		FilterNew:   nil,
+		FilterOld:   nil,
 	}, nil
 }
 
@@ -160,6 +163,12 @@ func NewGatewayInstance(params Params) *Instance {
 		database:      newDatabase,
 		knownRound:    knownRounds.NewKnownRound(knownRoundsSize),
 	}
+	//There is no round 0
+	i.knownRound.Check(0)
+	jww.DEBUG.Printf("Initial KnownRound State: %+v", i.knownRound)
+	msh, _ := i.knownRound.Marshal()
+	jww.DEBUG.Printf("Initial KnownRound Marshal: %s",
+		string(msh))
 
 	return i
 }
