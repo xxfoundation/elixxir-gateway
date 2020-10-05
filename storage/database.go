@@ -32,7 +32,7 @@ type Storage interface {
 
 	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessage(msg *MixedMessage) error
-	DeleteMixedMessage(id uint64) error
+	//DeleteMixedMessage(id uint64) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
 	GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
@@ -49,14 +49,15 @@ type DatabaseImpl struct {
 	db *gorm.DB // Stored database connection
 }
 
+type mixedMessageIDHash [32]byte
+
 // Struct implementing the Database Interface with an underlying Map
 type MapImpl struct {
 	clients                    map[id.ID]*Client
 	rounds                     map[id.Round]*Round
-	mixedMessages              map[uint64]*MixedMessage
+	mixedMessages              map[mixedMessageIDHash][]*MixedMessage
 	bloomFilters               map[uint64]*BloomFilter
 	ephemeralBloomFilters      map[uint64]*EphemeralBloomFilter
-	mixedMessagesCount         uint64
 	bloomFiltersCount          uint64
 	ephemeralBloomFiltersCount uint64
 	sync.RWMutex
@@ -157,10 +158,9 @@ func NewDatabase(username, password, database, address,
 		mapImpl := &MapImpl{
 			clients:                    map[id.ID]*Client{},
 			rounds:                     map[id.Round]*Round{},
-			mixedMessages:              map[uint64]*MixedMessage{},
+			mixedMessages:              map[mixedMessageIDHash][]*MixedMessage{},
 			bloomFilters:               map[uint64]*BloomFilter{},
 			ephemeralBloomFilters:      map[uint64]*EphemeralBloomFilter{},
-			mixedMessagesCount:         0,
 			bloomFiltersCount:          0,
 			ephemeralBloomFiltersCount: 0,
 		}
