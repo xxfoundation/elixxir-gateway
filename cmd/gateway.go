@@ -14,7 +14,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
@@ -47,7 +46,7 @@ const (
 )
 
 type Instance struct {
-	// Storage buffer for messages to be submitted to the network
+	// database buffer for messages to be submitted to the network
 	UnmixedBuffer storage.UnmixedMessageBuffer
 
 	// Contains all Gateway relevant fields
@@ -69,7 +68,7 @@ type Instance struct {
 	// Tracker of the gateway's known rounds
 	knownRound *knownRounds.KnownRounds
 
-	database storage.Storage
+	storage *storage.Storage
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
@@ -128,31 +127,13 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}, nil
 }
 
-type Params struct {
-	NodeAddress string
-	Port        int
-	Address     string
-	CertPath    string
-	KeyPath     string
-
-	ServerCertPath        string
-	IDFPath               string
-	PermissioningCertPath string
-
-	rateLimitParams *rateLimiting.MapParams
-	gossipFlags     gossip.ManagerFlags
-	MessageTimeout  time.Duration
-
-	knownRounds int
-}
-
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
-	newDatabase, _, err := storage.NewDatabase(viper.GetString("dbUsername"),
-		viper.GetString("dbPassword"),
-		viper.GetString("dbName"),
-		viper.GetString("dbAddress"),
-		viper.GetString("dbPort"),
+	newDatabase, _, err := storage.NewStorage(params.DbUsername,
+		params.DbPassword,
+		params.DbName,
+		params.DbAddress,
+		params.DbPort,
 	)
 	if err != nil {
 		jww.WARN.Printf("Could not initialize database")
@@ -160,7 +141,7 @@ func NewGatewayInstance(params Params) *Instance {
 	i := &Instance{
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
-		database:      newDatabase,
+		storage:       newDatabase,
 		knownRound:    knownRounds.NewKnownRound(params.knownRounds),
 	}
 
@@ -254,10 +235,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	var ers ds.ExternalRoundStorage = nil
-	if storage.GatewayDB != nil {
-		ers = &storage.ERS{}
-	}
+	ers := &storage.ERS{}
 	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers)
 }
 
@@ -546,7 +524,7 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 	roundID := id.Round(msg.RoundID)
 
 	// Search the database for the requested messages
-	msgs, err := gw.database.GetMixedMessages(userId, roundID)
+	msgs, err := gw.storage.GetMixedMessages(userId, roundID)
 	if err != nil {
 		return &pb.GetMessagesResponse{
 				HasRound: true,
@@ -587,7 +565,7 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
 
-	msgs, err := gw.database.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
+	msgs, err := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
 	if err != nil {
 		return nil, errors.Errorf("Could not look up message ids")
 	}
@@ -617,7 +595,7 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 		roundIds = append(roundIds, id.Round(rnd))
 	}
 	// Look up requested rounds in the database
-	retrievedRounds, err := gw.database.GetRounds(roundIds)
+	retrievedRounds, err := gw.storage.GetRounds(roundIds)
 	if err != nil {
 		return &pb.HistoricalRoundsResponse{}, errors.New("Could not look up rounds requested.")
 	}
@@ -663,7 +641,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	}
 
 	//Retrieve the client from the database
-	cl, err := gw.database.GetClient(clientID)
+	cl, err := gw.storage.GetClient(clientID)
 	if err != nil {
 		return &pb.GatewaySlotResponse{
 			Accepted: false,
@@ -761,7 +739,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 		Key: resp.ClientGatewayKey,
 	}
 
-	err = gw.database.InsertClient(newClient)
+	err = gw.storage.InsertClient(newClient)
 	if err != nil {
 		return resp, nil
 	}
@@ -916,11 +894,10 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 			// Create new message and insert into database
 			newMsg := storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
 			newMsg.Id = msgID
-			err = gw.database.InsertMixedMessage(newMsg)
+			err = gw.storage.InsertMixedMessage(newMsg)
 			if err != nil {
 				jww.ERROR.Printf("Inserting a new mixed message failed in "+
 					"ProcessCompletedBatch: %+v", err)
-
 			}
 		}
 

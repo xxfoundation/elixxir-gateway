@@ -4,7 +4,7 @@
 // All rights reserved.                                                        /
 ////////////////////////////////////////////////////////////////////////////////
 
-// Handles high level database control and interfaces
+// Handles low level database control and interfaces
 
 package storage
 
@@ -18,11 +18,8 @@ import (
 	"time"
 )
 
-// Global variable for database interaction
-var GatewayDB Storage
-
 // Interface declaration for storage methods
-type Storage interface {
+type database interface {
 	GetClient(id *id.ID) (*Client, error)
 	InsertClient(client *Client) error
 
@@ -32,7 +29,6 @@ type Storage interface {
 
 	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessage(msg *MixedMessage) error
-	DeleteMixedMessage(id uint64) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
 	GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
@@ -44,12 +40,12 @@ type Storage interface {
 	DeleteEphemeralBloomFilter(id uint64) error
 }
 
-// Struct implementing the Database Interface with an underlying DB
+// Struct implementing the database Interface with an underlying DB
 type DatabaseImpl struct {
 	db *gorm.DB // Stored database connection
 }
 
-// Struct implementing the Database Interface with an underlying Map
+// Struct implementing the database Interface with an underlying Map
 type MapImpl struct {
 	clients                    map[id.ID]*Client
 	rounds                     map[id.Round]*Round
@@ -79,22 +75,30 @@ type Round struct {
 	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
 }
 
+//
+type Epoch struct {
+	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:false"`
+	RoundId     uint64    `gorm:"NOT NULL"` // Explicitly not a FK
+	DateCreated time.Time `gorm:"NOT NULL"`
+
+	BloomFilters          []BloomFilter          `gorm:"foreignkey:EpochId;association_foreignkey:Id"`
+	EphemeralBloomFilters []EphemeralBloomFilter `gorm:"foreignkey:EpochId;association_foreignkey:Id"`
+}
+
 // Represents a Client's BloomFilter
 type BloomFilter struct {
-	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
-	ClientId    []byte    `gorm:"NOT NULL;INDEX;type:bytea REFERENCES clients(Id)"`
-	Count       uint64    `gorm:"NOT NULL"`
-	Filter      []byte    `gorm:"NOT NULL"`
-	DateCreated time.Time `gorm:"NOT NULL"`
+	Id       uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
+	ClientId []byte `gorm:"NOT NULL;INDEX;type:bytea REFERENCES clients(Id)"`
+	Filter   []byte `gorm:"NOT NULL"`
+	EpochId  uint64 `gorm:"NOT NULL;type:bigint REFERENCES epochs(Id)"`
 }
 
 // Represents an ephemeral Client's temporary BloomFilter
 type EphemeralBloomFilter struct {
-	Id           uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
-	RecipientId  []byte    `gorm:"NOT NULL"`
-	Count        uint64    `gorm:"NOT NULL"`
-	Filter       []byte    `gorm:"NOT NULL"`
-	DateModified time.Time `gorm:"NOT NULL"`
+	Id          uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
+	RecipientId []byte `gorm:"NOT NULL"`
+	Filter      []byte `gorm:"NOT NULL"`
+	EpochId     uint64 `gorm:"NOT NULL;type:bigint REFERENCES epochs(Id)"`
 }
 
 // Represents a MixedMessage and its contents
@@ -122,10 +126,10 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 	return
 }
 
-// Initialize the Database interface with database backend
-// Returns a Storage interface, Close function, and error
-func NewDatabase(username, password, database, address,
-	port string) (Storage, func() error, error) {
+// Initialize the database interface with database backend
+// Returns a database interface, Close function, and error
+func NewDatabase(username, password, dbName, address,
+	port string) (database, func() error, error) {
 
 	var err error
 	var db *gorm.DB
@@ -134,7 +138,7 @@ func NewDatabase(username, password, database, address,
 		// Create the database connection
 		connectString := fmt.Sprintf(
 			"host=%s port=%s user=%s dbname=%s sslmode=disable",
-			address, port, username, database)
+			address, port, username, dbName)
 		// Handle empty database password
 		if len(password) > 0 {
 			connectString += fmt.Sprintf(" password=%s", password)
@@ -149,7 +153,7 @@ func NewDatabase(username, password, database, address,
 		if err != nil {
 			jww.WARN.Printf("Unable to initialize database backend: %+v", err)
 		} else {
-			jww.WARN.Printf("Database backend connection information not provided")
+			jww.WARN.Printf("database backend connection information not provided")
 		}
 
 		defer jww.INFO.Println("Map backend initialized successfully!")
@@ -165,7 +169,7 @@ func NewDatabase(username, password, database, address,
 			ephemeralBloomFiltersCount: 0,
 		}
 
-		return Storage(mapImpl), func() error { return nil }, nil
+		return database(mapImpl), func() error { return nil }, nil
 	}
 
 	// Initialize the database logger
@@ -186,7 +190,7 @@ func NewDatabase(username, password, database, address,
 	for _, model := range models {
 		err = db.AutoMigrate(model).Error
 		if err != nil {
-			return Storage(&DatabaseImpl{}), func() error { return nil }, err
+			return database(&DatabaseImpl{}), func() error { return nil }, err
 		}
 	}
 
@@ -195,6 +199,6 @@ func NewDatabase(username, password, database, address,
 		db: db,
 	}
 
-	jww.INFO.Println("Database backend initialized successfully!")
-	return Storage(di), db.Close, nil
+	jww.INFO.Println("database backend initialized successfully!")
+	return database(di), db.Close, nil
 }
