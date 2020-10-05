@@ -46,7 +46,7 @@ const (
 )
 
 type Instance struct {
-	// database buffer for messages to be submitted to the network
+	// Storage buffer for messages to be submitted to the network
 	UnmixedBuffer storage.UnmixedMessageBuffer
 
 	// Contains all Gateway relevant fields
