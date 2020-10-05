@@ -170,10 +170,9 @@ func (m *MapImpl) InsertMixedMessage(msg *MixedMessage) error {
 	mixedMessages, ok = m.mixedMessages[mmid]
 	if !ok {
 		mixedMessages = make([]*MixedMessage, 0)
-		m.mixedMessages[mmid] = mixedMessages
 	}
 
-	mixedMessages = append(mixedMessages, msg)
+	m.mixedMessages[mmid] = append(mixedMessages, msg)
 
 	m.Unlock()
 	return nil
