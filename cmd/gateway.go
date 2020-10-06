@@ -314,7 +314,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
 			}
 
-			roundState := states.Round(update.State);
+			roundState := states.Round(update.State)
 
 			if topology.GetNodeLocation(gw.ServerHost.GetId())!=-1 &&
 				roundState == states.PRECOMPUTING{
@@ -322,7 +322,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.hasCurentRound = true
 			}
 
-			if  roundState == states.COMPLETED || roundState == states.FAILED {
+			if roundState == states.COMPLETED || roundState == states.FAILED {
 				gw.knownRound.Check(id.Round(update.ID))
 				if err := gw.SaveKnownRounds(); err != nil {
 					jww.ERROR.Print(err)
@@ -713,19 +713,6 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	}
 	thisRound := id.Round(msg.RoundID)
 
-	// Check if we manage this round
-	if !gw.UnmixedBuffer.IsRoundLeader(thisRound) {
-		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("Could not find round. " +
-			"Please try a different gateway.")
-	}
-
-	if gw.UnmixedBuffer.IsRoundFull(thisRound) {
-		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("This round is full and " +
-			"will not accept any new messages. Please try a different round.")
-	}
-
-	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound)
-
 	// Rate limit messages
 	senderId, err := id.Unmarshal(msg.GetMessage().GetSenderID())
 	if err != nil {
@@ -738,6 +725,21 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 		return &pb.GatewaySlotResponse{
 			Accepted: false,
 		}, err
+	}
+
+	// Check if we manage this round
+	if !gw.UnmixedBuffer.IsRoundLeader(thisRound) {
+		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("Could not find round. " +
+			"Please try a different gateway.")
+	}
+
+	if gw.UnmixedBuffer.IsRoundFull(thisRound) {
+		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("This round is full and " +
+			"will not accept any new messages. Please try a different round.")
+	}
+
+	if err= gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err!=nil{
+		return &pb.GatewaySlotResponse{Accepted: false}, err
 	}
 
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
