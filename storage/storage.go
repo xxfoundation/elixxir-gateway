@@ -9,42 +9,42 @@
 
 package storage
 
-import "gitlab.com/xx_network/primitives/id"
+import "time"
 
 // API for the storage layer
 type Storage struct {
 	// Stored database interface
-	db database
+	database
 }
 
 //
+type BloomFilterReturned struct {
+	RecipientId  []byte
+	Filter       []byte
+	FirstRound   uint64
+	LastRound    uint64
+	DateModified time.Time
+}
+
+// Create a new Storage object wrapping a database interface
+// Returns a Storage object, close function, and error
 func NewStorage(username, password, dbName, address, port string) (*Storage, func() error, error) {
-	db, closeFunc, err := NewDatabase(username, password, dbName, address, port)
-	storage := &Storage{db: db}
+	db, closeFunc, err := newDatabase(username, password, dbName, address, port)
+	storage := &Storage{db}
 	return storage, closeFunc, err
 }
 
 //
-func (s *Storage) InsertMixedMessage(msg *MixedMessage) error {
-	return s.db.InsertMixedMessage(msg)
+func (s *Storage) IncrementEpoch(firstRound uint64) (uint64, error) {
+
 }
 
 //
-func (s *Storage) GetClient(id *id.ID) (*Client, error) {
-	return s.db.GetClient(id)
-}
+func (s *Storage) DeleteBloomsByEpoch(epochId uint64) error {
+	err := s.deleteEphemeralBloomFilterByEpoch(epochId)
+	if err != nil {
+		return err
+	}
 
-//
-func (s *Storage) InsertClient(client *Client) error {
-	return s.db.InsertClient(client)
-}
-
-//
-func (s *Storage) GetRounds(ids []id.Round) ([]*Round, error) {
-	return s.db.GetRounds(ids)
-}
-
-//
-func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error) {
-	return s.GetMixedMessages(recipientId, roundId)
+	return s.deleteBloomFilterByEpoch(epochId)
 }

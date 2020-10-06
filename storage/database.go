@@ -31,13 +31,16 @@ type database interface {
 	InsertMixedMessage(msg *MixedMessage) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
-	GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
-	InsertBloomFilter(filter *BloomFilter) error
-	DeleteBloomFilter(id uint64) error
+	GetEpoch(id uint64) (*Epoch, error)
+	GetLatestEpoch() (*Epoch, error)
 
-	GetEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error)
+	getBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
+	InsertBloomFilter(filter *BloomFilter) error
+	deleteBloomFilterByEpoch(epochId uint64) error
+
+	getEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error)
 	InsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
-	DeleteEphemeralBloomFilter(id uint64) error
+	deleteEphemeralBloomFilterByEpoch(epochId uint64) error
 }
 
 // Struct implementing the database Interface with an underlying DB
@@ -75,10 +78,11 @@ type Round struct {
 	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
 }
 
-//
+// Represents an Epoch that is associated with each BloomFilter or EphemeralBloomFilter
+// Used to determine a time period during which a set of Filters were created
 type Epoch struct {
-	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:false"`
-	RoundId     uint64    `gorm:"NOT NULL"` // Explicitly not a FK
+	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
+	RoundId     uint64    `gorm:"NOT NULL"` // Explicitly not a FK, a Round may be deleted
 	DateCreated time.Time `gorm:"NOT NULL"`
 
 	BloomFilters          []BloomFilter          `gorm:"foreignkey:EpochId;association_foreignkey:Id"`
@@ -127,8 +131,8 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 }
 
 // Initialize the database interface with database backend
-// Returns a database interface, Close function, and error
-func NewDatabase(username, password, dbName, address,
+// Returns a database interface, close function, and error
+func newDatabase(username, password, dbName, address,
 	port string) (database, func() error, error) {
 
 	var err error
@@ -186,7 +190,7 @@ func NewDatabase(username, password, dbName, address,
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
 	models := []interface{}{&Client{}, &Round{}, &MixedMessage{},
-		&BloomFilter{}, &EphemeralBloomFilter{}}
+		&Epoch{}, &BloomFilter{}, &EphemeralBloomFilter{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model).Error
 		if err != nil {

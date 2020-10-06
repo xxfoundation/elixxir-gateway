@@ -17,7 +17,7 @@ import (
 // Or an error if a matching Client does not exist
 func (d *DatabaseImpl) GetClient(id *id.ID) (*Client, error) {
 	result := &Client{}
-	err := d.db.First(&result, "id = ?", id.Marshal()).Error
+	err := d.db.Take(&result, "id = ?", id.Marshal()).Error
 	return result, err
 }
 
@@ -31,7 +31,7 @@ func (d *DatabaseImpl) InsertClient(client *Client) error {
 // Or an error if a matching Round does not exist
 func (d *DatabaseImpl) GetRound(id id.Round) (*Round, error) {
 	result := &Round{}
-	err := d.db.First(&result, "id = ?", uint64(id)).Error
+	err := d.db.Take(&result, "id = ?", uint64(id)).Error
 	return result, err
 }
 
@@ -102,7 +102,7 @@ func (d *DatabaseImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 
 // Returns a BloomFilter from database with the given clientId
 // Or an error if a matching BloomFilter does not exist
-func (d *DatabaseImpl) GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error) {
+func (d *DatabaseImpl) getBloomFilters(clientId *id.ID) ([]*BloomFilter, error) {
 	results := make([]*BloomFilter, 0)
 	err := d.db.Find(&results,
 		&BloomFilter{ClientId: clientId.Marshal()}).Error
@@ -115,17 +115,17 @@ func (d *DatabaseImpl) InsertBloomFilter(filter *BloomFilter) error {
 	return d.db.Create(filter).Error
 }
 
-// Deletes a BloomFilter with the given id from database
+// Deletes all BloomFilter with the given epochId from database
 // Returns an error if a matching BloomFilter does not exist
-func (d *DatabaseImpl) DeleteBloomFilter(id uint64) error {
+func (d *DatabaseImpl) deleteBloomFilterByEpoch(epochId uint64) error {
 	return d.db.Delete(&BloomFilter{
-		Id: id,
+		EpochId: epochId,
 	}).Error
 }
 
 // Returns a EphemeralBloomFilter from database with the given recipientId
 // Or an error if a matching EphemeralBloomFilter does not exist
-func (d *DatabaseImpl) GetEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error) {
+func (d *DatabaseImpl) getEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error) {
 	results := make([]*EphemeralBloomFilter, 0)
 	err := d.db.Find(&results,
 		&EphemeralBloomFilter{RecipientId: recipientId.Marshal()}).Error
@@ -138,10 +138,26 @@ func (d *DatabaseImpl) InsertEphemeralBloomFilter(filter *EphemeralBloomFilter) 
 	return d.db.Create(filter).Error
 }
 
-// Deletes a EphemeralBloomFilter with the given id from database
+// Deletes all EphemeralBloomFilter with the given epochId from database
 // Returns an error if a matching EphemeralBloomFilter does not exist
-func (d *DatabaseImpl) DeleteEphemeralBloomFilter(id uint64) error {
+func (d *DatabaseImpl) deleteEphemeralBloomFilterByEpoch(epochId uint64) error {
 	return d.db.Delete(&EphemeralBloomFilter{
-		Id: id,
+		EpochId: epochId,
 	}).Error
+}
+
+//
+//
+func (d *DatabaseImpl) GetEpoch(id uint64) (*Epoch, error) {
+	result := &Epoch{}
+	err := d.db.Take(&result, "id = ?", id).Error
+	return result, err
+}
+
+//
+//
+func (d *DatabaseImpl) GetLatestEpoch() (*Epoch, error) {
+	result := &Epoch{}
+	err := d.db.Last(&result).Error
+	return result, err
 }
