@@ -576,16 +576,16 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 	}
 
 	// Parse the roundID within the message
-	// Fixme: double check that it is in fact bigEndian
 	roundID := id.Round(msg.RoundID)
 
 	// Search the database for the requested messages
-	msgs, err := gw.database.GetMixedMessages(userId, roundID)
-	if err != nil {
+	msgs, hasRound := gw.database.GetMixedMessages(userId, roundID)
+	if !hasRound {
+		jww.WARN.Printf("A client (%s) has requested messages for a " +
+			"round (%v) which is not recorded with messages", userId, roundID)
 		return &pb.GetMessagesResponse{
-				HasRound: true,
-			}, errors.Errorf("Could not find any MixedMessages with "+
-				"recipient ID %v and round ID %v.", userId, roundID)
+				HasRound: false,
+			}, nil
 	}
 
 	// Parse the database response to construct individual slots

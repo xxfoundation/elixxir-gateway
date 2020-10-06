@@ -130,23 +130,17 @@ func hashMixedMessageID(recipientId *id.ID, roundId id.Round) mixedMessageIDHash
 // Returns a slice of MixedMessages from Storage
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (m *MapImpl) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error) {
+func (m *MapImpl) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, bool) {
 	var mixedMessages []*MixedMessage
-
+	var hasRound bool
 	mmid := hashMixedMessageID(recipientId, roundId)
 
 	m.RLock()
 	// Search map for all MixedMessages with matching recipient ID and round ID
-	mixedMessages = m.mixedMessages[mmid]
+	mixedMessages, hasRound = m.mixedMessages[mmid]
 	m.RUnlock()
 
-	// Return an error if no MixedMessages were found.
-	if len(mixedMessages) == 0 {
-		return nil, errors.Errorf("Could not find any MixedMessages with the "+
-			"recipient ID %v and the round ID %v in map.", recipientId, roundId)
-	}
-
-	return mixedMessages, nil
+	return mixedMessages, hasRound
 }
 
 // Inserts the given MixedMessage into Storage

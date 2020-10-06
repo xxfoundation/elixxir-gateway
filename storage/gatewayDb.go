@@ -81,12 +81,12 @@ func (d *DatabaseImpl) UpsertRound(round *Round) error {
 // Returns a slice of MixedMessages from Storage
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (d *DatabaseImpl) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error) {
+func (d *DatabaseImpl) GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, bool) {
 	results := make([]*MixedMessage, 0)
 	err := d.db.Find(&results,
 		&MixedMessage{RecipientId: recipientId.Marshal(),
 			RoundId: uint64(roundId)}).Error
-	return results, err
+	return results, err==nil
 }
 
 // Inserts the given MixedMessage into Storage

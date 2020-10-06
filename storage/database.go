@@ -30,7 +30,7 @@ type Storage interface {
 	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
 
-	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
+	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, bool)
 	InsertMixedMessage(msg *MixedMessage) error
 	//DeleteMixedMessage(id uint64) error
 	DeleteMixedMessageByRound(roundId id.Round) error
