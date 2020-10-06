@@ -621,8 +621,8 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
 
-	msgs, err := gw.database.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
-	if err != nil {
+	msgs, hasRound := gw.database.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
+	if !hasRound {
 		return nil, errors.Errorf("Could not look up message ids")
 	}
 
