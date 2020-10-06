@@ -956,10 +956,9 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 		h.Reset()
 	}
-	// FIXME: How do we get round info now?
 
-	jww.INFO.Printf("Round UNK received, %v real messages "+
-		"processed, ??? dummies ignored", numReal)
+	jww.INFO.Printf("Round %v received, %v real messages "+
+		"processed, ??? dummies ignored", roundID, numReal)
 
 	go PrintProfilingStatistics()
 }
