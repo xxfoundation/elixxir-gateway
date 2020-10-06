@@ -9,10 +9,16 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
+	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
+	"gitlab.com/elixxir/comms/testkeys"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
+	"gitlab.com/xx_network/crypto/signature"
+	"gitlab.com/xx_network/crypto/signature/rsa"
+	"gitlab.com/xx_network/crypto/tls"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"testing"
@@ -21,12 +27,28 @@ import (
 
 // Happy path
 func TestInstance_GossipReceive(t *testing.T) {
-	gatewayInstance.InitGossip()
+	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
 
+	// Create a fake round info
+	ri := &pb.RoundInfo{
+		ID:       10,
+		UpdateID: 10,
+	}
+
+	// Sign the round info with the mock permissioning private key
+	err = signRoundInfo(ri)
+	if err != nil {
+		t.Errorf("Error signing round info: %s", err)
+	}
+
 	// Build a test batch
-	batch := &pb.Batch{Slots: make([]*pb.Slot, 10)}
+	batch := &pb.Batch{
+		Slots: make([]*pb.Slot, 10),
+		Round: ri,
+	}
+
 	for i := 0; i < len(batch.Slots); i++ {
 		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
 		batch.Slots[i] = &pb.Slot{SenderID: senderId.Marshal()}
@@ -34,13 +56,13 @@ func TestInstance_GossipReceive(t *testing.T) {
 
 	// Build a test gossip message
 	gossipMsg := &gossip.GossipMsg{}
-	gossipMsg.Payload, err = buildGossipPayload(batch)
+	gossipMsg.Payload, err = buildGossipPayloadRateLimit(batch)
 	if err != nil {
 		t.Errorf("Unable to build gossip payload: %+v", err)
 	}
 
-	// Test the gossipReceive function
-	err = gatewayInstance.gossipReceive(gossipMsg)
+	// Test the gossipRateLimitReceive function
+	err = gatewayInstance.gossipRateLimitReceive(gossipMsg)
 	if err != nil {
 		t.Errorf("Unable to receive gossip message: %+v", err)
 	}
@@ -59,17 +81,59 @@ func TestInstance_GossipReceive(t *testing.T) {
 }
 
 // Happy path
-func TestInstance_GossipVerify(t *testing.T) {
-	gatewayInstance.InitGossip()
+func TestInstance_GossipVerify_RateLimit(t *testing.T) {
+	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
 
-	// Build a test gossip message
+	// Add permissioning as a host
+	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
+	_, err = gatewayInstance.Comms.AddHost(&id.Permissioning,
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
+
 	originId := id.NewIdFromString("test", id.Gateway, t)
+
+	// Build a mock node ID for a topology
+	idCopy := originId.DeepCopy()
+	idCopy.SetType(id.Node)
+	topology := [][]byte{idCopy.Bytes()}
+
+	// Create a fake round info to store
+	ri := &pb.RoundInfo{
+		ID:       10,
+		UpdateID: 10,
+		Topology: topology,
+	}
+
+	// Sign the round info with the mock permissioning private key
+	err = signRoundInfo(ri)
+	if err != nil {
+		t.Errorf("Error signing round info: %s", err)
+	}
+
+	// Insert the mock round into the network instance
+	err = gatewayInstance.NetInf.RoundUpdate(ri)
+	if err != nil {
+		t.Errorf("Could not place mock round: %v", err)
+	}
+
+	// Build the mock message
+	payloadMsg := &pb.BatchSenders{
+		SenderIds: topology,
+		RoundID:   10,
+	}
+
+	// Marshal the payload for the gossip message
+	payload, err := proto.Marshal(payloadMsg)
+	if err != nil {
+		t.Errorf("Could not marshal mock message: %s", err)
+	}
+
+	// Build a test gossip message
 	gossipMsg := &gossip.GossipMsg{
-		Tag:     "1",
+		Tag:     RateLimitGossip,
 		Origin:  originId.Marshal(),
-		Payload: []byte("3"),
+		Payload: payload,
 	}
 	gossipMsg.Signature, err = buildGossipSignature(gossipMsg, gatewayInstance.Comms.GetPrivateKey())
 
@@ -79,7 +143,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
 
-	// Test the gossipReceive function
+	// Test the gossipRateLimitReceive function
 	err = gatewayInstance.gossipVerify(gossipMsg, nil)
 	if err != nil {
 		t.Errorf("Unable to verify gossip message: %+v", err)
@@ -88,7 +152,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 
 // Happy path
 func TestInstance_StartPeersThread(t *testing.T) {
-	gatewayInstance.InitGossip()
+	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
 
@@ -146,9 +210,14 @@ func TestInstance_StartPeersThread(t *testing.T) {
 
 //
 func TestInstance_GossipBatch(t *testing.T) {
-	gatewayInstance.InitGossip()
+	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
+
+	// Add permissioning as a host
+	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
+	_, err = gatewayInstance.Comms.AddHost(&id.Permissioning,
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
 	// Init comms and host
 	_, err = gatewayInstance.Comms.AddHost(gatewayInstance.Comms.Id, GW_ADDRESS, gatewayCert, connect.GetDefaultHostParams())
@@ -165,8 +234,34 @@ func TestInstance_GossipBatch(t *testing.T) {
 		t.Errorf("Unable to add gossip peer: %+v", err)
 	}
 
+	// Build a mock node ID for a topology
+	nodeID := gatewayInstance.Comms.Id.DeepCopy()
+	nodeID.SetType(id.Node)
+	topology := [][]byte{nodeID.Bytes()}
+	// Create a fake round info to store
+	ri := &pb.RoundInfo{
+		ID:       10,
+		UpdateID: 10,
+		Topology: topology,
+	}
+
+	// Sign the round info with the mock permissioning private key
+	err = signRoundInfo(ri)
+	if err != nil {
+		t.Errorf("Error signing round info: %s", err)
+	}
+
+	// Insert the mock round into the network instance
+	err = gatewayInstance.NetInf.RoundUpdate(ri)
+	if err != nil {
+		t.Errorf("Could not place mock round: %v", err)
+	}
+
 	// Build a test batch
-	batch := &pb.Batch{Slots: make([]*pb.Slot, 10)}
+	batch := &pb.Batch{
+		Round: ri,
+		Slots: make([]*pb.Slot, 10),
+	}
 	for i := 0; i < len(batch.Slots); i++ {
 		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
 		batch.Slots[i] = &pb.Slot{SenderID: senderId.Marshal()}
@@ -183,4 +278,19 @@ func TestInstance_GossipBatch(t *testing.T) {
 	if remaining := gatewayInstance.rateLimit.LookupBucket(testSenderId.String()).Remaining(); remaining != 1 {
 		t.Errorf("Expected to reduce remaining message count for test sender, got %d", remaining)
 	}
+}
+
+// Utility function which signs a round info message
+func signRoundInfo(ri *pb.RoundInfo) error {
+	privKeyFromFile := testkeys.LoadFromPath(testkeys.GetNodeKeyPath())
+
+	pk, err := tls.LoadRSAPrivateKey(string(privKeyFromFile))
+	if err != nil {
+		return errors.Errorf("Couldn't load private key: %+v", err)
+	}
+
+	ourPrivateKey := &rsa.PrivateKey{PrivateKey: *pk}
+
+	signature.Sign(ri, ourPrivateKey)
+	return nil
 }
