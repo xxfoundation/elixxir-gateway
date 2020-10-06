@@ -26,12 +26,13 @@ import (
 
 // Flags to import from command line or config file
 var (
-	cfgFile, idfPath, logPath                                string
-	certPath, keyPath, serverCertPath, permissioningCertPath string
-	logLevel                                                 uint // 0 = info, 1 = debug, >1 = trace
-	messageTimeout                                           time.Duration
-	gwPort                                                   int
-	validConfig                                              bool
+	cfgFile, idfPath, logPath string
+	certPath, keyPath, serverCertPath,
+	permissioningCertPath, bloomFilterTrackerPath string
+	logLevel       uint // 0 = info, 1 = debug, >1 = trace
+	messageTimeout time.Duration
+	gwPort         int
+	validConfig    bool
 
 	kr int
 
@@ -79,6 +80,18 @@ var rootCmd = &cobra.Command{
 
 		// Build gateway implementation object
 		gateway := NewGatewayInstance(params)
+
+		//
+		if utils.FileExists(bloomFilterTrackerPath) {
+			nextClearance, err := utils.ReadFile(bloomFilterTrackerPath)
+			if err != nil {
+				// fixme: panic or set to next week
+			}
+			err = LastBloomFilterClearance.UnmarshalText(nextClearance)
+
+		} else {
+			LastBloomFilterClearance = time.Now()
+		}
 
 		// start gateway network interactions
 		for {
@@ -179,19 +192,22 @@ func InitParams(vip *viper.Viper) Params {
 		kr = 1000
 	}
 
+	bloomFilterTrackerPath = viper.GetString("bloomFilterDeletion")
+
 	p := Params{
-		Port:                  gwPort,
-		Address:               listeningAddress,
-		NodeAddress:           nodeAddress,
-		CertPath:              certPath,
-		KeyPath:               keyPath,
-		ServerCertPath:        serverCertPath,
-		IDFPath:               idfPath,
-		PermissioningCertPath: permissioningCertPath,
-		gossipFlags:           gossipFlags,
-		rateLimitParams:       bucketMapParams,
-		MessageTimeout:        messageTimeout,
-		knownRounds:           kr,
+		Port:                   gwPort,
+		Address:                listeningAddress,
+		NodeAddress:            nodeAddress,
+		CertPath:               certPath,
+		KeyPath:                keyPath,
+		ServerCertPath:         serverCertPath,
+		IDFPath:                idfPath,
+		PermissioningCertPath:  permissioningCertPath,
+		BloomFilterTrackerPath: bloomFilterTrackerPath,
+		gossipFlags:            gossipFlags,
+		rateLimitParams:        bucketMapParams,
+		MessageTimeout:         messageTimeout,
+		knownRounds:            kr,
 	}
 
 	return p

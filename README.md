@@ -73,6 +73,10 @@ serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 # PEM format. Required field.
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
+# Path to file which tracks the last 
+# clearance of a users bloom filter
+bloomFilterDeletion: "/opt/xxnetwork/bloom/userBloomDeletion.txt"
+
 # Database connection information
 dbUsername: "cmix"
 dbPassword: ""

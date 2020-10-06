@@ -35,6 +35,7 @@ import (
 	"gitlab.com/xx_network/primitives/ndf"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -78,6 +79,8 @@ type Instance struct {
 	removeGateway chan *id.ID
 
 	lastUpdate uint64
+
+	bloomFilterGossip sync.Mutex
 }
 
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
@@ -92,7 +95,10 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		return &pb.GatewayPollResponse{}, errors.Errorf(
 			"Poll() clientRequest is empty")
 	}
-	if clientRequest.ClientID == nil {
+
+	// Check if the clientID is populated and valid
+	clientId, err := id.Unmarshal(clientRequest.ClientID)
+	if clientRequest.ClientID == nil || err != nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
 			"Poll() clientRequest.ClientID required")
 	}
@@ -101,7 +107,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	// Get the range of updates from the network instance
 	updates, err := gw.NetInf.GetHistoricalRoundRange(
-		id.Round(clientRequest.LastUpdate), lastKnownRound)
+		id.Round(clientRequest.FirstRound), id.Round(clientRequest.LastRound))
 	if err != nil {
 		errStr := fmt.Sprintf("couldn't get updates for client "+
 			"[%v]'s request4: %v", clientRequest.ClientID, err)
@@ -118,14 +124,66 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	}
 
+	// These errors are suppressed, as DB errors shouldn't go to client
+	//  and if there is trouble getting filters returned, nil filters
+	//  are returned to the client
+	userFilters, _ := gw.database.GetBloomFilters(clientId)
+	ephemeralFilters, _ := gw.database.GetEphemeralBloomFilters(clientId)
+
+	userFilterNew, userFilerOld,
+		ephemeralFilterNew, ephemeralFilterOld := parseFilters(userFilters, ephemeralFilters)
+
 	return &pb.GatewayPollResponse{
-		PartialNDF:       gw.NetInf.GetPartialNdf().GetPb(),
-		Updates:          updates,
-		LastTrackedRound: uint64(lastKnownRound),
-		KnownRounds:      kr,
-		FilterNew:        nil,
-		FilterOld:        nil,
+		PartialNDF:         gw.NetInf.GetPartialNdf().GetPb(),
+		Updates:            updates,
+		LastTrackedRound:   uint64(lastKnownRound), // fixme: is this being deprecated?
+		KnownRounds:        kr,
+		UserFilterNew:      userFilterNew,
+		UserFilterOld:      userFilerOld,
+		EphemeralFilterNew: ephemeralFilterNew,
+		EphemeralFilterOld: ephemeralFilterOld,
 	}, nil
+}
+
+// Parses the user and ephemeral bloom filters returned by the
+//  database, returning the two newest ones for each
+func parseFilters(userFilters []*storage.BloomFilter,
+	ephemeralFilters []*storage.EphemeralBloomFilter) ([]byte, []byte, []byte, []byte) {
+
+	var userFilterNew, userFilerOld, ephemeralFilterNew, ephemeralFilterOld []byte
+
+	// Check to see that the filter is parsable
+	if userFilters != nil {
+		// Check to see if there is only a single filter for this client.
+		// If so, set that filter as the new one
+		if len(userFilters) == 1 {
+			userFilterNew = userFilters[0].Filter
+		} else {
+			// Otherwise, return the last two filters in the list
+			lastBloomFilterIndex := len(userFilters) - 1
+			userFilterNew = userFilters[lastBloomFilterIndex].Filter
+			userFilerOld = userFilters[lastBloomFilterIndex-1].Filter
+
+		}
+	}
+
+	// Check to see that the filter is parsable
+	if ephemeralFilters != nil {
+		// Check to see if there is only a single filter for this ephemeral ID.
+		// If so, set that filter as the new one
+		if len(userFilters) == 1 {
+			ephemeralFilterNew = ephemeralFilters[0].Filter
+		} else {
+			// Otherwise, return the last two filters in the list
+			lastBloomFilterIndex := len(ephemeralFilters) - 1
+			ephemeralFilterNew = ephemeralFilters[lastBloomFilterIndex].Filter
+			ephemeralFilterOld = ephemeralFilters[lastBloomFilterIndex-1].Filter
+
+		}
+
+	}
+
+	return userFilterNew, userFilerOld, ephemeralFilterNew, ephemeralFilterOld
 }
 
 type Params struct {
@@ -138,6 +196,10 @@ type Params struct {
 	ServerCertPath        string
 	IDFPath               string
 	PermissioningCertPath string
+
+	// Path to file which tracks the last
+	// clearance of a users bloom filter
+	BloomFilterTrackerPath string
 
 	rateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
@@ -158,10 +220,11 @@ func NewGatewayInstance(params Params) *Instance {
 		jww.WARN.Printf("Could not initialize database")
 	}
 	i := &Instance{
-		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
-		Params:        params,
-		database:      newDatabase,
-		knownRound:    knownRounds.NewKnownRound(params.knownRounds),
+		UnmixedBuffer:     storage.NewUnmixedMessagesMap(),
+		Params:            params,
+		database:          newDatabase,
+		knownRound:        knownRounds.NewKnownRound(params.knownRounds),
+		bloomFilterGossip: sync.Mutex{},
 	}
 
 	return i
@@ -476,7 +539,7 @@ func (gw *Instance) InitNetwork() error {
 		gatewayId.SetType(id.Gateway)
 		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler,
 			gwCert, gwKey, gossip.DefaultManagerFlags())
-		gw.InitGossip()
+		gw.InitRateLimitGossip()
 
 		// Initialize hosts for reverse-authentication
 		// This may be necessary to verify the NDF if it gets updated while
