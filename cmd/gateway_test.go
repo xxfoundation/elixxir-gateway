@@ -146,15 +146,15 @@ func TestMain(m *testing.M) {
 	}
 
 	// build a single mock message
-	msg := format.NewMessage()
+	primeLength := grp2.GetP().ByteLen()
+	msg := format.NewMessage(primeLength)
 
-	payloadA := make([]byte, format.PayloadLen)
+	payloadA := make([]byte, primeLength)
 	payloadA[0] = 1
 	msg.SetPayloadA(payloadA)
 
-	recipientID := id.NewIdFromUInt(1, id.User, m).Marshal()
-	msg.AssociatedData.SetRecipientID(recipientID[:len(recipientID)-1])
-
+	recipientID := id.NewIdFromUInt(1, id.User, m)
+	msg.SetRecipientID(recipientID)
 	mockMessage = &pb.Slot{
 		Index:    42,
 		PayloadA: msg.GetPayloadA(),
@@ -575,7 +575,7 @@ func buildMockNdf(nodeId *id.ID, nodeAddress, gwAddress string, cert,
 			Generator:  "2",
 		},
 		CMIX: ndf.Group{
-			Prime:      "123",
+			Prime:      prime,
 			SmallPrime: "456",
 			Generator:  "2",
 		},
@@ -653,6 +653,7 @@ func TestUpdateInstance(t *testing.T) {
 
 	// FIXME: the following will fail with a nil pointer deref if the
 	//        CreateNetworkInstance test doesn't run....
+
 	ri := &pb.RoundInfo{
 		ID:        uint64(1),
 		UpdateID:  uint64(1),
@@ -672,6 +673,10 @@ func TestUpdateInstance(t *testing.T) {
 		Slots:        slots,
 	}
 
+	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
+	_, err = gatewayInstance.Comms.AddHost(&id.Permissioning,
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
+
 	// gatewayInstance.UpdateInstance(update)
 	err = gatewayInstance.UpdateInstance(update)
 	if err != nil {
@@ -685,7 +690,7 @@ func TestUpdateInstance(t *testing.T) {
 	}
 
 	// Check that mockMessage made it
-	mockmsgId := "xL+3JSRKJZPEu01Uv8Nh6dtRa+tjqkruwbsZmVuP218="
+	mockmsgId := "1jaa7wMbv2lHm8sw3L98FzwLw5IDhLfOuvOaOZLcdZs="
 	mockMsgUserId := id.NewIdFromUInt(1, id.User, t)
 	msgTst, err := gatewayInstance.MixedBuffer.GetMixedMessage(mockMsgUserId, mockmsgId)
 	if err != nil {

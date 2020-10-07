@@ -169,7 +169,6 @@ func (mmb *MixedMapBuffer) AddMixedMessage(userID *id.ID, msgID string, msg *pb.
 	jww.DEBUG.Printf("Adding mixed message %v for user %v to buffer.", msgID, userID)
 
 	mmb.mux.Lock()
-
 	if len(mmb.messageCollection[*userID]) == 0 {
 		// If the User->Message map has not been initialized, then initialize it
 		mmb.messageCollection[*userID] = make(map[string]*pb.Slot)
