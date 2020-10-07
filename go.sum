@@ -179,6 +179,8 @@ github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:
 gitlab.com/elixxir/comms v0.0.0-20200707210150-b8ebd0951d23/go.mod h1:OsWMZ1O/R9fOkm+PoHnR3rkXfFtipGoPs73FuKuurHY=
 gitlab.com/elixxir/comms v0.0.0-20200918162005-7643c6e5eca8 h1:GvP5ZvEuAAXTXry0lg3nC6i8l9MBvSyO6a2QkfFTnHI=
 gitlab.com/elixxir/comms v0.0.0-20200918162005-7643c6e5eca8/go.mod h1:L2Va13j2AbQkpkveOQmNzrQD37uI5NKeBhYH+LWMOx0=
+gitlab.com/elixxir/comms v0.0.0-20201007164918-8331c82e4f19 h1:g8KpUhsUPRppsGlN4F5/yJLpG/adxM6jb+4to4dGaWo=
+gitlab.com/elixxir/comms v0.0.0-20201007164918-8331c82e4f19/go.mod h1:kY0+AZPKkZMB+Dgvwj5cfqNE+OJjtbkxYj9hLhddN4A=
 gitlab.com/elixxir/crypto v0.0.0-20200707005343-97f868cbd930 h1:9qzfwyR12OYgn3j30qcHZHHVfWshWnH54lcAHppEROQ=
 gitlab.com/elixxir/crypto v0.0.0-20200707005343-97f868cbd930/go.mod h1:LHBAaEf48a0/AjU118rjoworH0LgXifhAqmNX3ZRvME=
 gitlab.com/elixxir/crypto v0.0.0-20200731174640-0503cf80524a h1:peZpulfSqLSceA5ovtzQ5MPgQt4YbJY8FzpV2S2Nrhc=
