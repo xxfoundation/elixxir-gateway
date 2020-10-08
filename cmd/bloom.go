@@ -7,10 +7,12 @@
 package cmd
 
 import (
+	"encoding/binary"
 	"github.com/pkg/errors"
 	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
+	"strings"
 	"time"
 )
 
@@ -52,78 +54,211 @@ var LastBloomFilterClearance time.Time
 //	return nil
 //}
 
-// Initializes a  bloom filter on a client ID, and inserts into database
-func (gw *Instance) CreateBloomFilter(clientId *id.ID) error {
+// Upserts filters of passed in recipients, using the round ID
+func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
+	var errReturn error
+	var errs []string
+	for _, recipient := range recipients {
+		err := gw.UpsertFilter(recipient.Bytes(), roundId)
+		if err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if len(errs) > 0 {
+		errReturn = errors.New(strings.Join(errs, errorDelimiter))
+	}
+
+	return errReturn
+}
+
+// Update function which updates a recipient's bloom filter.
+//  If the client is recognized, we update the user directly
+//  If the client is not recognized, we update the ephemeral bloom filter
+func (gw *Instance) UpsertFilter(recipient []byte, roundId id.Round) error {
+	// Marshal the id
+	recipientId, err := id.Unmarshal(recipient)
+	if err != nil {
+		return err
+	}
 
 	// See if we recognize this user
-	retrievedClient, err := gw.database.GetClient(clientId)
+	retrievedClient, err := gw.database.GetClient(recipientId)
 	if err != nil || retrievedClient == nil {
 		// If we do not recognize the client, create an ephemeral filter
-		return gw.createEphemeralBloomFilter(clientId)
+		return gw.upsertEphemeralFilter(recipientId, roundId)
 	}
 
 	// If we do recognize the client, create a filter on the client
-	return gw.createUserBloomFilter(clientId, retrievedClient)
+	return gw.upsertUserFilter(recipientId, roundId)
 
 }
 
-// Creates a bloom filter on a known client,
-func (gw *Instance) createUserBloomFilter(clientId *id.ID, retrievedClient *storage.Client) error {
-
-	// Initialize a new bloom filter
-	newBloom, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
+// Helper function which updates the clients bloom filter
+func (gw *Instance) upsertUserFilter(clientId *id.ID, roundId id.Round) error {
+	// Get the filters for the associated client
+	filters, err := gw.database.GetBloomFilters(clientId)
 	if err != nil {
-		return errors.Errorf("Could not initialize new bloom filter: %s", err)
+		newUserFilter, err := generateNewUserFilter(clientId, roundId)
+		if err != nil {
+			return err
+		}
+		return gw.database.InsertBloomFilter(newUserFilter)
 	}
 
-	// Marshal the new bloom filter
-	marshaledBloom, err := newBloom.MarshalBinary()
-	if err != nil {
-		return errors.Errorf("Could not marshal new bloom filter: %s", err)
-	}
+	// Go through the filters and update each one
+	for _, filter := range filters {
+		bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
+		if err != nil {
+			return err
+		}
+		err = bloomFilter.UnmarshalBinary(filter.Filter)
+		if err != nil {
+			return err
+		}
 
-	countOfBloomFilters := uint64(len(retrievedClient.Filters))
+		// fixme: better way to do this? look into internals of bloom filter
+		//  consider adding this as a marshal function internal to bloomFilter
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, uint64(roundId))
 
-	// Insert the bloom filter into the database
-	// fixme: Likely to change due to DB restructure
-	err = gw.database.InsertBloomFilter(&storage.BloomFilter{
-		ClientId:    clientId.Bytes(),
-		Count:       countOfBloomFilters + 1,
-		Filter:      marshaledBloom,
-		DateCreated: time.Now(),
-	})
+		bloomFilter.Add(b)
 
-	if err != nil {
-		return errors.Errorf("Could not insert User Bloom Filter into database: %s", err)
+		marshaledFilter, err := bloomFilter.MarshalBinary()
+		if err != nil {
+			return err
+		}
+
+		// fixme: is this right? I don't see an upsert. Would it make more sense to
+		//  call insert client with a list of updated filters?
+		// fixme: Likely to change due to DB restructure
+		err = gw.database.InsertBloomFilter(&storage.BloomFilter{
+			ClientId:    clientId.Bytes(),
+			Count:       filter.Count,
+			Filter:      marshaledFilter,
+			DateCreated: filter.DateCreated,
+		})
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-// Creates a bloom filter on a ephemeral user
-func (gw *Instance) createEphemeralBloomFilter(clientId *id.ID) error {
+// Helper function which updates the ephemeral bloom filter
+func (gw *Instance) upsertEphemeralFilter(clientId *id.ID, roundId id.Round) error {
+	filters, err := gw.database.GetEphemeralBloomFilters(clientId)
+	if err != nil {
+		newEphemeralFilter, err := generateNewEphemeralFilter(clientId, roundId)
+		if err != nil {
+			return err
+		}
+		return gw.database.InsertEphemeralBloomFilter(newEphemeralFilter)
+	}
+
+	// Iterate through the filters, updating each one
+	for _, filter := range filters {
+		bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
+		if err != nil {
+			return err
+		}
+		err = bloomFilter.UnmarshalBinary(filter.Filter)
+		if err != nil {
+			return err
+		}
+
+		// Add the round to the bloom filter
+		// fixme: better way to do this? look into internals of bloom filter
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, uint64(roundId))
+
+		bloomFilter.Add(b)
+
+		// Marshal the bloom filter back
+		marshaledBloom, err := bloomFilter.MarshalBinary()
+		if err != nil {
+			return err
+		}
+
+		// fixme: Likely to change due to DB restructure
+		err = gw.database.InsertEphemeralBloomFilter(&storage.EphemeralBloomFilter{
+			Id:           filter.Id,
+			RecipientId:  clientId.Bytes(),
+			Filter:       marshaledBloom,
+			DateModified: time.Now(),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+
+}
+
+// Helper function which generates a bloom filter with the round hashed into it
+func generateNewEphemeralFilter(recipient *id.ID, roundId id.Round) (*storage.EphemeralBloomFilter, error) {
 	// Initialize a new bloom filter
 	newBloom, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
-		return errors.Errorf("Could not initialize new bloom filter: %s", err)
+		return &storage.EphemeralBloomFilter{},
+			errors.Errorf("Unable to generate new bloom filter: %s", err)
 	}
 
+	// Add the round to the bloom filter
+	// fixme: better way to do this? look into internals of bloom filter
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(roundId))
+
+	newBloom.Add(b)
+
+	// Add the round to the bloom filter
 	// Marshal the new bloom filter
 	marshaledBloom, err := newBloom.MarshalBinary()
 	if err != nil {
-		return errors.Errorf("Could not marshal new bloom filter: %s", err)
+		return &storage.EphemeralBloomFilter{},
+			errors.Errorf("Unable to marshal new bloom filter: %s", err)
 	}
-	// fixme: Likely to change due to DB restructure
-	err = gw.database.InsertEphemeralBloomFilter(&storage.EphemeralBloomFilter{
-		RecipientId:  clientId.Bytes(),
+
+	return &storage.EphemeralBloomFilter{
+		RecipientId:  recipient.Bytes(),
 		Filter:       marshaledBloom,
 		DateModified: time.Now(),
-	})
+	}, nil
 
+}
+
+// Helper function which generates a bloom filter with the round hashed into it
+func generateNewUserFilter(recipient *id.ID, roundId id.Round) (*storage.BloomFilter, error) {
+	// Initialize a new bloom filter
+	newBloom, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
-		return errors.Errorf("Could not insert Ephemeral Bloom Filter into database: %s", err)
+		return &storage.BloomFilter{},
+			errors.Errorf("Unable to generate new bloom filter: %s", err)
 	}
 
-	return nil
+	// Add the round to the bloom filter
+	// fixme: better way to do this? look into internals of bloom filter
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(roundId))
+
+	newBloom.Add(b)
+
+	// Add the round to the bloom filter
+	// Marshal the new bloom filter
+	marshaledBloom, err := newBloom.MarshalBinary()
+	if err != nil {
+		return &storage.BloomFilter{},
+			errors.Errorf("Unable to marshal new bloom filter: %s", err)
+	}
+
+	return &storage.BloomFilter{
+		ClientId:    recipient.Bytes(),
+		Count:       0,
+		Filter:      marshaledBloom,
+		DateCreated: time.Now(),
+	}, nil
 
 }

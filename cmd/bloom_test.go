@@ -7,23 +7,29 @@
 package cmd
 
 import (
+	"gitlab.com/elixxir/comms/testkeys"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
 	"testing"
+	"time"
 )
 
 // Happy path
-func TestInstance_CreateUserBloomFilter(t *testing.T) {
+func TestInstance_upsertUserFilter(t *testing.T) {
+	// Create gateway instance
+	params := Params{
+		NodeAddress:    NODE_ADDRESS,
+		ServerCertPath: testkeys.GetNodeCertPath(),
+		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
+	}
+	gw := NewGatewayInstance(params)
+
 	// Create a mock client
 	testClientId := id.NewIdFromString("0", id.User, t)
-	storedClient := &storage.Client{
-		Id:      []byte("test"),
-		Key:     nil,
-		Filters: nil,
-	}
 
 	// Pull a bloom filter from the database on the client ID BEFORE INSERTION
-	retrievedFilters, err := gatewayInstance.database.GetBloomFilters(testClientId)
+	retrievedFilters, err := gw.database.GetBloomFilters(testClientId)
 
 	// Check that this filter is nil
 	if err == nil || retrievedFilters != nil {
@@ -31,20 +37,124 @@ func TestInstance_CreateUserBloomFilter(t *testing.T) {
 	}
 
 	// Create a bloom filter on this client ID
-	err = gatewayInstance.createUserBloomFilter(testClientId, storedClient)
+	err = gw.upsertUserFilter(testClientId, 0)
 	if err != nil {
 		t.Errorf("Failed to create user bloom filter: %s", err)
 	}
 
 	// Pull a bloom filter from the database on the client ID AFTER INSERTION
-	retrievedFilters, err = gatewayInstance.database.GetBloomFilters(testClientId)
+	retrievedFilters, err = gw.database.GetBloomFilters(testClientId)
 	if err != nil {
-		t.Errorf("Could not get test client from storage: %s", err)
+		t.Errorf("Could not get filters from storage: %s", err)
 	}
 
 	// Check that it is of the expected length and not nil
 	if retrievedFilters == nil || len(retrievedFilters) != 1 {
 		t.Errorf("Retrieved client did not store new bloom filter")
+	}
+
+}
+
+// Happy path
+func TestInstance_upsertEphemeralFilter(t *testing.T) {
+	// Create gateway instance
+	params := Params{
+		NodeAddress:    NODE_ADDRESS,
+		ServerCertPath: testkeys.GetNodeCertPath(),
+		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
+	}
+	gw := NewGatewayInstance(params)
+
+	// Create a mock client
+	testClientId := id.NewIdFromString("0", id.User, t)
+
+	retrievedFilters, err := gw.database.GetEphemeralBloomFilters(testClientId)
+	// Check that this filter is nil
+	if err == nil || retrievedFilters != nil {
+		t.Errorf("Should not get test client from storage prior to insertion.")
+	}
+
+	err = gw.upsertEphemeralFilter(testClientId, 0)
+	if err != nil {
+		t.Errorf("Failed to create ephemeral bloom filter: %s", err)
+	}
+
+	retrievedFilters, err = gw.database.GetEphemeralBloomFilters(testClientId)
+	if err != nil {
+		t.Errorf("Could not get filters from storage: %s", err)
+	}
+
+	if retrievedFilters == nil || len(retrievedFilters) != 1 {
+		t.Errorf("Retrieved ehphemeral filter was not expected. Should be non-nil an dlength of 1")
+	}
+}
+
+// Happy path
+func TestInstance_UpsertFilters(t *testing.T) {
+	// Create gateway instance
+	params := Params{
+		NodeAddress:    NODE_ADDRESS,
+		ServerCertPath: testkeys.GetNodeCertPath(),
+		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
+	}
+	gw := NewGatewayInstance(params)
+
+	// Create a mock client
+	testClientId := id.NewIdFromString("0", id.User, t)
+
+	// Check that the databases are empty for ephemeral filters
+	retrievedEphFilters, err := gw.database.GetEphemeralBloomFilters(testClientId)
+	// Check that this filter is nil
+	if err == nil || retrievedEphFilters != nil {
+		t.Errorf("Should not get test client from storage prior to insertion.")
+	}
+
+	// Check that the databases are empty for ephemeral filters
+	retrievedUserFilters, err := gw.database.GetBloomFilters(testClientId)
+
+	// Check that this filter is nil
+	if err == nil || retrievedUserFilters != nil {
+		t.Errorf("Should not get test client from storage prior to insertion.")
+	}
+
+	// This should result in an ephemeral bloom filter being created
+	err = gw.UpsertFilter(testClientId.Bytes(), 0)
+	if err != nil {
+		t.Errorf("Could not create a bloom filter: %v", err)
+	}
+
+	// Check that an ephemeral bloom filter has been created
+	retrievedEphFilters, err = gw.database.GetEphemeralBloomFilters(testClientId)
+	if retrievedEphFilters == nil || len(retrievedEphFilters) != 1 {
+		t.Errorf("Retrieved ehphemeral filter was not expected. Should be non-nil an dlength of 1")
+	}
+
+	// Insert client into database
+	err = gw.database.InsertClient(&storage.Client{
+		Id: testClientId.Bytes(),
+	})
+	if err != nil {
+		t.Errorf("Failed to insert client into storage: %s", err)
+	}
+
+	// This should create a user bloom filter
+	err = gw.UpsertFilter(testClientId.Bytes(), 0)
+	if err != nil {
+		t.Errorf("Could not create a bloom filter: %v", err)
+	}
+
+	// Check that a user bloom filter has been created
+	retrievedUserFilters, err = gw.database.GetBloomFilters(testClientId)
+	if retrievedUserFilters == nil || len(retrievedUserFilters) != 1 {
+		t.Errorf("Retrieved user filter was not expected. Should be non-nil an dlength of 1")
+	}
+
+	// Check that an ephemeral bloom filter has not been modified by the insertion
+	retrievedEphFilters, err = gw.database.GetEphemeralBloomFilters(testClientId)
+	if retrievedEphFilters == nil || len(retrievedEphFilters) != 1 {
+		t.Errorf("Retrieved ehphemeral filter was not expected. Should be non-nil an dlength of 1")
 	}
 
 }

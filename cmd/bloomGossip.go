@@ -10,19 +10,18 @@
 package cmd
 
 import (
-	"encoding/binary"
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
-	jww "github.com/spf13/jwalterweatherman"
-	ring "gitlab.com/elixxir/bloomfilter"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
-	"time"
+	"strings"
+	"sync"
 )
+
+const errorDelimiter = "; "
 
 // Initialize fields required for the gossip protocol specialized to bloom filters
 func (gw *Instance) InitBloomGossip() {
@@ -109,6 +108,7 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 // Receive function for Gossip messages regarding bloom filters
 func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	gw.bloomFilterGossip.Lock()
+
 	// Unmarshal the Recipients data
 	payloadMsg := &pb.Recipients{}
 	err := proto.Unmarshal(msg.Payload, payloadMsg)
@@ -116,124 +116,29 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 		return errors.Errorf("Could not unmarshal message into expected format: %s", err)
 	}
 
-	for _, recipient := range payloadMsg.RecipientIds {
-		go gw.updateBloomFilter(recipient, payloadMsg.RoundID)
+	var errs []string
+	var wg sync.WaitGroup
 
+	// Go through each of the recipients
+	for _, recipient := range payloadMsg.RecipientIds {
+		wg.Add(1)
+		go func() {
+			err = gw.UpsertFilter(recipient, id.Round(payloadMsg.RoundID))
+			errs = append(errs, err.Error())
+			wg.Done()
+		}()
+
+	}
+	wg.Wait()
+
+	// Parse through the errors returned from the worker pool
+	var errReturn error
+	if len(errs) > 0 {
+		errReturn = errors.New(strings.Join(errs, errorDelimiter))
 	}
 
 	gw.bloomFilterGossip.Unlock()
-	return nil
-}
-
-// Update function which updates a recipient's bloom filter.
-//  If the client is recognized, we update the user directly
-//  If the client is not recognized, we update the ephemeral bloom filter
-func (gw *Instance) updateBloomFilter(recipient []byte, roundId uint64) {
-	// Marshal the id
-	recipientId, err := id.Unmarshal(recipient)
-	if err != nil {
-		jww.WARN.Printf("Received invalid id through bloom filter gossip: %v", recipient)
-		return
-	}
-
-	// Attempt to look up the client
-	client, err := gw.database.GetClient(recipientId)
-	if err != nil || client == nil {
-		// If it's an unrecognized client, store to ephemeral
-		gw.updateBloomFilter(recipient, roundId)
-	} else {
-
-		// Otherwise store as a user
-		gw.updateUserBloom(recipientId, client, roundId)
-	}
-
-}
-
-// Helper function which updates the clients bloom filter
-func (gw *Instance) updateUserBloom(recipientId *id.ID, client *storage.Client, roundId uint64) {
-	for _, filter := range client.Filters {
-		bloomFilter, err := ring.InitByParameters(bloomFilterSize, bloomFilterHashes)
-		if err != nil {
-			jww.WARN.Printf("Could not create bloom filter...")
-			continue
-		}
-		err = bloomFilter.UnmarshalBinary(filter.Filter)
-		if err != nil {
-			jww.WARN.Printf("Could not read filter for ID client: %s", err)
-			continue
-		}
-
-		// fixme: better way to do this? look into internals of bloom filter
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, roundId)
-
-		bloomFilter.Add(b)
-
-		marshaledFilter, err := bloomFilter.MarshalBinary()
-		if err != nil {
-			continue
-		}
-
-		// fixme: is this right? I don't see an upsert. Would it make more sense to
-		//  call insert client with a list of updated filters?
-		// fixme: Likely to change due to DB restructure
-		err = gw.database.InsertBloomFilter(&storage.BloomFilter{
-			ClientId:    recipientId.Bytes(),
-			Count:       filter.Count,
-			Filter:      marshaledFilter,
-			DateCreated: filter.DateCreated,
-		})
-
-		if err != nil {
-			continue
-		}
-	}
-
-}
-
-// Helper function which updates the ephemeral bloom filter
-func (gw *Instance) updateEphemeralBloom(recipient *id.ID, roundId uint64) {
-	// Get the recipient ID if it exists
-	filters, err := gw.database.GetEphemeralBloomFilters(recipient)
-	if err != nil {
-		// todo: create an ephemeral ID here?
-		return
-	}
-
-	for _, filter := range filters {
-		bloomFilter, err := ring.InitByParameters(bloomFilterSize, bloomFilterHashes)
-		if err != nil {
-			jww.WARN.Printf("Could not create bloom filter...")
-			continue
-		}
-		err = bloomFilter.UnmarshalBinary(filter.Filter)
-		if err != nil {
-			jww.WARN.Printf("Could not read filter for ID client: %s", err)
-			continue
-		}
-
-		// fixme: better way to do this? look into internals of bloom filter
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, roundId)
-
-		bloomFilter.Add(b)
-
-		marshaledBloom, err := bloomFilter.MarshalBinary()
-		if err != nil {
-			continue
-		}
-
-		// fixme: Likely to change due to DB restructure
-		err = gw.database.InsertEphemeralBloomFilter(&storage.EphemeralBloomFilter{
-			RecipientId:  recipient.Bytes(),
-			Filter:       marshaledBloom,
-			DateModified: time.Now(),
-		})
-
-		if err != nil {
-			continue
-		}
-	}
+	return errReturn
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
