@@ -7,6 +7,8 @@
 package cmd
 
 import (
+	"encoding/binary"
+	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/comms/testkeys"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
@@ -88,6 +90,38 @@ func TestInstance_upsertEphemeralFilter(t *testing.T) {
 	if retrievedFilters == nil || len(retrievedFilters) != 1 {
 		t.Errorf("Retrieved ehphemeral filter was not expected. Should be non-nil an dlength of 1")
 	}
+
+	err = gw.upsertEphemeralFilter(testClientId, 1)
+	if err != nil {
+		t.Errorf("Failed to create ephemeral bloom filter: %s", err)
+
+	}
+
+	retrievedFilters, err = gw.database.GetEphemeralBloomFilters(testClientId)
+	if err != nil {
+		t.Errorf("Could not get filters from storage: %s", err)
+	}
+
+	bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
+	if err != nil {
+		t.Errorf("Failed to create bloom filter: %s", err)
+	}
+	err = bloomFilter.UnmarshalBinary(retrievedFilters[0].Filter)
+	if err != nil {
+		t.Errorf("Could not get unmarshal bloom filter: %s", err)
+	}
+
+	// fixme: better way to do this? look into internals of bloom filter
+	roundOne := make([]byte, 8)
+	binary.LittleEndian.PutUint64(roundOne, uint64(1))
+
+	roundTwo := make([]byte, 8)
+	binary.LittleEndian.PutUint64(roundTwo, uint64(1))
+
+	if bloomFilter.Test(roundOne) && bloomFilter.Test(roundTwo) {
+		t.Error("Does not have expected rounds")
+	}
+
 }
 
 // Happy path
@@ -120,7 +154,7 @@ func TestInstance_UpsertFilters(t *testing.T) {
 	}
 
 	// This should result in an ephemeral bloom filter being created
-	err = gw.UpsertFilter(testClientId.Bytes(), 0)
+	err = gw.UpsertFilter(testClientId, 0)
 	if err != nil {
 		t.Errorf("Could not create a bloom filter: %v", err)
 	}
@@ -140,7 +174,7 @@ func TestInstance_UpsertFilters(t *testing.T) {
 	}
 
 	// This should create a user bloom filter
-	err = gw.UpsertFilter(testClientId.Bytes(), 0)
+	err = gw.UpsertFilter(testClientId, 0)
 	if err != nil {
 		t.Errorf("Could not create a bloom filter: %v", err)
 	}

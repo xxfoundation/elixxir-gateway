@@ -123,7 +123,14 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	for _, recipient := range payloadMsg.RecipientIds {
 		wg.Add(1)
 		go func() {
-			err = gw.UpsertFilter(recipient, id.Round(payloadMsg.RoundID))
+			// Marshal the id
+			recipientId, err := id.Unmarshal(recipient)
+			if err != nil {
+				errs = append(errs, err.Error())
+				return
+			}
+
+			err = gw.UpsertFilter(recipientId, id.Round(payloadMsg.RoundID))
 			errs = append(errs, err.Error())
 			wg.Done()
 		}()
