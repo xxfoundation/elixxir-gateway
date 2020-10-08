@@ -27,12 +27,14 @@ type database interface {
 	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
 
-	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
-	InsertMixedMessage(msg *MixedMessage) error
+	countMixedMessagesByRound(roundId id.Round) (uint64, error)
+	getMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
+	InsertMixedMessages(msgs []*MixedMessage) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
 	GetEpoch(id uint64) (*Epoch, error)
 	GetLatestEpoch() (*Epoch, error)
+	InsertEpoch(roundId id.Round) error
 
 	getBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
 	InsertBloomFilter(filter *BloomFilter) error
