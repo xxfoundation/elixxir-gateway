@@ -8,6 +8,7 @@ package cmd
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/pkg/errors"
 	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/gateway/storage"
@@ -76,10 +77,10 @@ func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
 //  If the client is recognized, we update the user directly
 //  If the client is not recognized, we update the ephemeral bloom filter
 func (gw *Instance) UpsertFilter(recipientId *id.ID, roundId id.Round) error {
-
 	// See if we recognize this user or if they are ephemeral
 	retrievedClient, err := gw.database.GetClient(recipientId)
 	if err != nil || retrievedClient == nil {
+
 		// If we do not recognize the client, create an ephemeral filter
 		return gw.upsertEphemeralFilter(recipientId, roundId)
 	}
@@ -103,7 +104,6 @@ func (gw *Instance) upsertUserFilter(recipientId *id.ID, roundId id.Round) error
 
 	// Pull the most recent filter
 	recentFilter := filters[len(filters)-1]
-
 	// Unmarshal the most recent filter
 	bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
@@ -128,13 +128,13 @@ func (gw *Instance) upsertUserFilter(recipientId *id.ID, roundId id.Round) error
 	// Place filter back into database
 	err = gw.database.InsertBloomFilter(&storage.BloomFilter{
 		ClientId:    recipientId.Bytes(),
-		Count:       recentFilter.Count,
+		Count:       recentFilter.Count + 1,
 		Filter:      marshaledFilter,
 		DateCreated: recentFilter.DateCreated,
 	})
 
 	if err != nil {
-		return errors.Errorf("Unable to insert user filter into database: %v")
+		return errors.Errorf("Unable to insert user filter into database: %v", err)
 	}
 
 	return nil
@@ -148,12 +148,14 @@ func (gw *Instance) upsertEphemeralFilter(recipientId *id.ID, roundId id.Round) 
 		if err != nil {
 			return errors.Errorf("Unable to generate a new ephemeral filter: %v", err)
 		}
+
 		return gw.database.InsertEphemeralBloomFilter(newEphemeralFilter)
+
 	}
 
 	// Pull the most recent filter
 	recentFilter := filters[len(filters)-1]
-
+	fmt.Printf("recognized that this isn't first time!\n")
 	// Unmarshal the most recent filter
 	bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
@@ -183,7 +185,7 @@ func (gw *Instance) upsertEphemeralFilter(recipientId *id.ID, roundId id.Round) 
 		DateModified: time.Now(),
 	})
 	if err != nil {
-		return errors.Errorf("Unable to insert ephemeral filter into database: %v")
+		return errors.Errorf("Unable to insert ephemeral filter into database: %v", err)
 	}
 
 	return nil

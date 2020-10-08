@@ -7,8 +7,6 @@
 package cmd
 
 import (
-	"encoding/binary"
-	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/comms/testkeys"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
@@ -53,6 +51,37 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 	// Check that it is of the expected length and not nil
 	if retrievedFilters == nil || len(retrievedFilters) != 1 {
 		t.Errorf("Retrieved client did not store new bloom filter")
+	}
+
+	// Insert a client already
+	err = gw.database.InsertClient(&storage.Client{
+		Id: testClientId.Bytes(),
+	})
+	if err != nil {
+		t.Errorf("Could not load client into storage: %v", err)
+	}
+
+	// Create a bloom filter on this client ID
+	err = gw.upsertUserFilter(testClientId, 1)
+	if err != nil {
+		t.Errorf("Failed to create user bloom filter: %s", err)
+	}
+
+	// Pull a bloom filter from the database on the client ID AFTER INSERTION
+	retrievedFilters, err = gw.database.GetBloomFilters(testClientId)
+	if err != nil {
+		t.Errorf("Could not get filters from storage: %s", err)
+	}
+
+	// Check that it is of the expected length and not nil
+	if retrievedFilters == nil {
+		t.Errorf("Retrieved client did not store new bloom filter")
+	}
+
+	if retrievedFilters[1].Count != 1 {
+		t.Errorf("Count not expected. "+
+			"\n\tReceived: %d"+
+			"\n\tExpected: %v", retrievedFilters[1].Count, 1)
 	}
 
 }
@@ -102,24 +131,15 @@ func TestInstance_upsertEphemeralFilter(t *testing.T) {
 		t.Errorf("Could not get filters from storage: %s", err)
 	}
 
-	bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
+	err = gw.upsertEphemeralFilter(testClientId, 2)
 	if err != nil {
-		t.Errorf("Failed to create bloom filter: %s", err)
-	}
-	err = bloomFilter.UnmarshalBinary(retrievedFilters[0].Filter)
-	if err != nil {
-		t.Errorf("Could not get unmarshal bloom filter: %s", err)
+		t.Errorf("Failed to create ephemeral bloom filter: %s", err)
+
 	}
 
-	// fixme: better way to do this? look into internals of bloom filter
-	roundOne := make([]byte, 8)
-	binary.LittleEndian.PutUint64(roundOne, uint64(1))
-
-	roundTwo := make([]byte, 8)
-	binary.LittleEndian.PutUint64(roundTwo, uint64(1))
-
-	if bloomFilter.Test(roundOne) && bloomFilter.Test(roundTwo) {
-		t.Error("Does not have expected rounds")
+	retrievedFilters, err = gw.database.GetEphemeralBloomFilters(testClientId)
+	if err != nil {
+		t.Errorf("Could not get filters from storage: %s", err)
 	}
 
 }

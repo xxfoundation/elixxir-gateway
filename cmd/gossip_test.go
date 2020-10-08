@@ -14,6 +14,7 @@ import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/comms/testkeys"
+	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/crypto/signature"
@@ -363,19 +364,38 @@ func TestInstance_GossipBloom(t *testing.T) {
 		clients = append(clients, tempId)
 	}
 
+	// Insert the first five IDs as known clients
+	for i := 0; i < 5; i++ {
+		mockClient := &storage.Client{
+			Id: clients[i].Bytes(),
+		}
+		gatewayInstance.database.InsertClient(mockClient)
+	}
+
 	// Send the gossip
 	err = gatewayInstance.GossipBloom(clients, 10)
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
 	time.Sleep(1 * time.Second)
+
 	for i, clientId := range clients {
-		//bloomFilter, err1 := gatewayInstance.database.GetBloomFilters(clientId)
-		ephemeralFilter, err2 := gatewayInstance.database.GetEphemeralBloomFilters(clientId)
-		if err2 != nil || ephemeralFilter == nil {
+		// Check that the first five IDs are known clients, and thus
+		// in the user bloom filter
+		if i < 5 {
+			userFilter, err := gatewayInstance.database.GetBloomFilters(clientId)
+			if err != nil || userFilter == nil {
+				t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId)
+			}
+
+			continue
+		}
+
+		// The last five should be ephemeral, as they were not added as known clients
+		ephemeralFilter, err := gatewayInstance.database.GetEphemeralBloomFilters(clientId)
+		if err != nil || ephemeralFilter == nil {
 			t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId)
 		}
-		fmt.Printf("ephemeral filter recieved: %v\n", ephemeralFilter)
 	}
 }
 
