@@ -104,7 +104,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	lastKnownRound := gw.NetInf.GetLastRoundID()
-
 	// Get the range of updates from the network instance
 	updates, err := gw.NetInf.GetHistoricalRoundRange(
 		id.Round(clientRequest.FirstRound), id.Round(clientRequest.LastRound))
@@ -540,7 +539,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler,
 			gwCert, gwKey, gossip.DefaultManagerFlags())
 		gw.InitRateLimitGossip()
-
+		gw.InitBloomGossip()
 		// Initialize hosts for reverse-authentication
 		// This may be necessary to verify the NDF if it gets updated while
 		// the network is up
@@ -605,7 +604,6 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 	}
 
 	// Parse the roundID within the message
-	// Fixme: double check that it is in fact bigEndian
 	roundID := id.Round(msg.RoundID)
 
 	// Search the database for the requested messages
@@ -956,7 +954,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 
 	// At this point, the returned batch and its fields should be non-nil
 	h, _ := hash.NewCMixHash()
-	for _, msg := range msgs {
+	recipients := make([]*id.ID, len(msgs))
+	for i, msg := range msgs {
 		serialmsg := format.NewMessage()
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId, err := serialmsg.GetRecipient()
@@ -964,6 +963,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 			jww.ERROR.Printf("Creating userId from serialmsg failed in "+
 				"ProcessCompletedBatch: %+v", err)
 		}
+
+		recipients[i] = userId
 
 		if !userId.Cmp(&dummyUser) {
 			jww.DEBUG.Printf("Message Received for: %s",
@@ -989,7 +990,18 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 
 		h.Reset()
 	}
-	// FIXME: How do we get round info now?
+
+	// Update filters in our storage system
+	err := gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
+	if err != nil {
+		jww.WARN.Printf("Unable to update local bloom filters: %+v", err)
+	}
+
+	// Gossip recipients included in the completed batch to other gateways
+	err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
+	if err != nil {
+		jww.WARN.Printf("Unable to gossip bloom information: %+v", err)
+	}
 
 	jww.INFO.Printf("Round UNK received, %v real messages "+
 		"processed, ??? dummies ignored", numReal)

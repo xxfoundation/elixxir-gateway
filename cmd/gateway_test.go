@@ -909,6 +909,8 @@ func TestInstance_Poll(t *testing.T) {
 		Partial:    nil,
 		LastUpdate: 0,
 		ClientID:   clientId.Bytes(),
+		FirstRound: 0,
+		LastRound:  0,
 	}
 
 	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
@@ -917,6 +919,10 @@ func TestInstance_Poll(t *testing.T) {
 	var err error
 	ers := &storage.ERS{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
+
+	// TODO: Remove this when jake fixes the database please [Insert deity]
+	// Setup a database based on a map impl
+	storage.GatewayDB, _, _ = storage.NewDatabase("", "", "", "", "")
 
 	_, err = gw.Poll(clientReq)
 	if err != nil {
