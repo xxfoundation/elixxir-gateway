@@ -26,7 +26,7 @@ import (
 )
 
 // Happy path
-func TestInstance_GossipReceive(t *testing.T) {
+func TestInstance_GossipReceive_RateLimit(t *testing.T) {
 	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
@@ -81,7 +81,7 @@ func TestInstance_GossipReceive(t *testing.T) {
 }
 
 // Happy path
-func TestInstance_GossipVerify_RateLimit(t *testing.T) {
+func TestInstance_GossipVerify(t *testing.T) {
 	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
@@ -117,14 +117,16 @@ func TestInstance_GossipVerify_RateLimit(t *testing.T) {
 		t.Errorf("Could not place mock round: %v", err)
 	}
 
+	// ----------- Rate Limit Check ---------------------
+
 	// Build the mock message
-	payloadMsg := &pb.BatchSenders{
+	payloadMsgRateLimit := &pb.BatchSenders{
 		SenderIds: topology,
 		RoundID:   10,
 	}
 
 	// Marshal the payload for the gossip message
-	payload, err := proto.Marshal(payloadMsg)
+	payload, err := proto.Marshal(payloadMsgRateLimit)
 	if err != nil {
 		t.Errorf("Could not marshal mock message: %s", err)
 	}
@@ -143,11 +145,39 @@ func TestInstance_GossipVerify_RateLimit(t *testing.T) {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
 
-	// Test the gossipRateLimitReceive function
+	// Test the gossipVerify function
 	err = gatewayInstance.gossipVerify(gossipMsg, nil)
 	if err != nil {
 		t.Errorf("Unable to verify gossip message: %+v", err)
 	}
+
+	// ----------- Bloom Filter Check ---------------------
+	// Build the mock message
+	payloadMsgBloom := &pb.Recipients{
+		RecipientIds: topology,
+		RoundID:      10,
+	}
+
+	// Marshal the payload for the gossip message
+	payload, err = proto.Marshal(payloadMsgBloom)
+	if err != nil {
+		t.Errorf("Could not marshal mock message: %s", err)
+	}
+
+	// Build a test gossip message
+	gossipMsg = &gossip.GossipMsg{
+		Tag:     BloomFilterGossip,
+		Origin:  originId.Marshal(),
+		Payload: payload,
+	}
+	gossipMsg.Signature, err = buildGossipSignature(gossipMsg, gatewayInstance.Comms.GetPrivateKey())
+
+	// Test the gossipVerify function
+	err = gatewayInstance.gossipVerify(gossipMsg, nil)
+	if err != nil {
+		t.Errorf("Unable to verify gossip message: %+v", err)
+	}
+
 }
 
 // Happy path
@@ -277,6 +307,75 @@ func TestInstance_GossipBatch(t *testing.T) {
 	testSenderId := id.NewIdFromString("0", id.User, t)
 	if remaining := gatewayInstance.rateLimit.LookupBucket(testSenderId.String()).Remaining(); remaining != 1 {
 		t.Errorf("Expected to reduce remaining message count for test sender, got %d", remaining)
+	}
+}
+
+func TestInstance_GossipBloom(t *testing.T) {
+	gatewayInstance.InitBloomGossip()
+	var err error
+
+	// Add permissioning as a host
+	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
+	_, err = gatewayInstance.Comms.AddHost(&id.Permissioning,
+		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
+
+	// Init comms and host
+	_, err = gatewayInstance.Comms.AddHost(gatewayInstance.Comms.Id, GW_ADDRESS, gatewayCert, connect.GetDefaultHostParams())
+	if err != nil {
+		t.Errorf("Unable to add test host: %+v", err)
+	}
+	protocol, exists := gatewayInstance.Comms.Manager.Get(BloomFilterGossip)
+	if !exists {
+		t.Errorf("Unable to get gossip protocol!")
+		return
+	}
+	err = protocol.AddGossipPeer(gatewayInstance.Comms.Id)
+	if err != nil {
+		t.Errorf("Unable to add gossip peer: %+v", err)
+	}
+
+	// Build a mock node ID for a topology
+	nodeID := gatewayInstance.Comms.Id.DeepCopy()
+	nodeID.SetType(id.Node)
+	topology := [][]byte{nodeID.Bytes()}
+	// Create a fake round info to store
+	ri := &pb.RoundInfo{
+		ID:       10,
+		UpdateID: 10,
+		Topology: topology,
+	}
+
+	// Sign the round info with the mock permissioning private key
+	err = signRoundInfo(ri)
+	if err != nil {
+		t.Errorf("Error signing round info: %s", err)
+	}
+
+	// Insert the mock round into the network instance
+	err = gatewayInstance.NetInf.RoundUpdate(ri)
+	if err != nil {
+		t.Errorf("Could not place mock round: %v", err)
+	}
+
+	var clients []*id.ID
+	for i := uint64(0); i < 10; i++ {
+		tempId := id.NewIdFromUInt(i, id.User, t)
+		clients = append(clients, tempId)
+	}
+
+	// Send the gossip
+	err = gatewayInstance.GossipBloom(clients, 10)
+	if err != nil {
+		t.Errorf("Unable to gossip: %+v", err)
+	}
+	time.Sleep(1 * time.Second)
+	for i, clientId := range clients {
+		//bloomFilter, err1 := gatewayInstance.database.GetBloomFilters(clientId)
+		ephemeralFilter, err2 := gatewayInstance.database.GetEphemeralBloomFilters(clientId)
+		if err2 != nil || ephemeralFilter == nil {
+			t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId)
+		}
+		fmt.Printf("ephemeral filter recieved: %v\n", ephemeralFilter)
 	}
 }
 
