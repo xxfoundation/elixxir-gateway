@@ -36,7 +36,28 @@ import (
 //	testRecip := id.NewIdFromBytes(testBytes, t)
 //	testRoundId := id.Round(testRound)
 //	testRoundId3 := id.Round(testRound3)
+//	testEpoch, err := db.InsertEpoch(testRoundId)
+//	if err != nil {
+//		t.Errorf("%+v", err)
+//	}
+//	testEpoch2, err := db.InsertEpoch(testRoundId)
+//	if err != nil {
+//		t.Errorf("%+v", err)
+//	}
 //
+//	rtnEpoch, err := db.GetEpoch(testEpoch.Id)
+//	if err != nil || rtnEpoch == nil {
+//		t.Errorf("%+v, %+v", rtnEpoch, err)
+//	}
+//
+//	latestEpoch, err := db.GetLatestEpoch()
+//	if err != nil {
+//		t.Errorf("%+v", err)
+//	}
+//
+//	if testEpoch2.Id != latestEpoch.Id {
+//		t.Errorf("Expected epoch ids to match!")
+//	}
 //
 //	err = db.InsertClient(&Client{
 //		Id:      testClient.Marshal(),
@@ -75,9 +96,8 @@ import (
 //	}
 //	err = db.InsertBloomFilter(&BloomFilter{
 //		ClientId:    testClient.Marshal(),
-//		Count:       10,
 //		Filter:      testBytes,
-//		DateCreated: time.Now(),
+//		EpochId: testEpoch.Id,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
@@ -85,9 +105,8 @@ import (
 //	}
 //	err = db.InsertBloomFilter(&BloomFilter{
 //		ClientId:    testClient.Marshal(),
-//		Count:       20,
 //		Filter:      testBytes,
-//		DateCreated: time.Now(),
+//		EpochId: testEpoch2.Id,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
@@ -95,8 +114,8 @@ import (
 //	}
 //	err = db.InsertEphemeralBloomFilter(&EphemeralBloomFilter{
 //		RecipientId: testRecip.Marshal(),
-//		Count:       20,
 //		Filter:      testBytes,
+//		EpochId: testEpoch.Id,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
@@ -104,21 +123,33 @@ import (
 //	}
 //	err = db.InsertEphemeralBloomFilter(&EphemeralBloomFilter{
 //		RecipientId: testRecip.Marshal(),
-//		Count:       40,
 //		Filter:      testBytes,
+//		EpochId: testEpoch2.Id,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertMixedMessage(&MixedMessage{
+//	err = db.InsertMixedMessages([]*MixedMessage{{
 //		RoundId:         testRound,
 //		RecipientId:     testClient.Marshal(),
 //		MessageContents: testBytes,
-//	})
+//	}, {
+//		RoundId:         testRound,
+//		RecipientId:     testClient.Marshal(),
+//		MessageContents: testBytes,
+//	}, {
+//		RoundId:         testRound + 1,
+//		RecipientId:     testClient.Marshal(),
+//		MessageContents: testBytes,
+//	}})
+//	count, err := db.countMixedMessagesByRound(testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
+//	}
+//	if count != 2 {
+//		t.Errorf("Unexpected count! Got %d", count)
 //	}
 //	err = db.InsertMixedMessage(&MixedMessage{
 //		RoundId:         testRound,
@@ -173,17 +204,12 @@ import (
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", ephFilters)
 //
-//	err = db.DeleteMixedMessage(messages[0].Id)
+//	err = db.deleteBloomFilterByEpoch(testEpoch.Id)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.deleteBloomFilterByEpoch(filters[0].Id)
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
-//	err = db.deleteEphemeralBloomFilterByEpoch(ephFilters[0].Id)
+//	err = db.deleteEphemeralBloomFilterByEpoch(testEpoch.Id)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -419,7 +445,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	}
 
 	// Get list of 1 item
-	mixedMsgs, err := m.GetMixedMessages(testRecipientID, testRoundID)
+	mixedMsgs, err := m.getMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -444,7 +470,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	m.mixedMessages[testMsgID] = testMixedMessage
 
 	// Get list of 3 items
-	mixedMsgs, err = m.GetMixedMessages(testRecipientID, testRoundID)
+	mixedMsgs, err = m.getMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -469,7 +495,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 	m.mixedMessages[testMsgID] = testMixedMessage
 
 	// Get list of 3 items
-	mixedMsgs, err = m.GetMixedMessages(testRecipientID, testRoundID)
+	mixedMsgs, err = m.getMixedMessages(testRecipientID, testRoundID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving mixedMessage: %v", err)
 	}
@@ -496,7 +522,7 @@ func TestMapImpl_GetMixedMessages_NoMessageError(t *testing.T) {
 	}
 
 	// Attempt to get message that is not in map
-	mixedMsgs, err := m.GetMixedMessages(testRecipientID, testRoundID)
+	mixedMsgs, err := m.getMixedMessages(testRecipientID, testRoundID)
 	if err == nil {
 		t.Errorf("Expected an error when mixedMessage is not found in map.")
 	}
@@ -516,7 +542,7 @@ func TestMapImpl_InsertMixedMessage(t *testing.T) {
 		mixedMessages: make(map[uint64]*MixedMessage),
 	}
 
-	err := m.InsertMixedMessage(testMixedMessage)
+	err := m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
 	if err != nil || m.mixedMessages[testMsgID] == nil {
 		t.Errorf("Failed to insert MixedMessage: %v", err)
 	}
@@ -533,7 +559,7 @@ func TestMapImpl_InsertMixedMessage_MessageAlreadyExistsError(t *testing.T) {
 		mixedMessages: map[uint64]*MixedMessage{testMsgID: testMixedMessage},
 	}
 
-	err := m.InsertMixedMessage(testMixedMessage)
+	err := m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
 	if err == nil {
 		t.Errorf("Did not error when attempting to insert a mixedMessage that " +
 			"already exists.")

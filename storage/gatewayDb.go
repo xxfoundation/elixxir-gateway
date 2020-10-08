@@ -132,9 +132,8 @@ func (d *DatabaseImpl) InsertBloomFilter(filter *BloomFilter) error {
 // Deletes all BloomFilter with the given epochId from database
 // Returns an error if a matching BloomFilter does not exist
 func (d *DatabaseImpl) deleteBloomFilterByEpoch(epochId uint64) error {
-	return d.db.Delete(&BloomFilter{
-		EpochId: epochId,
-	}).Error
+	return d.db.Delete(BloomFilter{}, "epoch_id = ?", epochId).Error
+
 }
 
 // Returns a EphemeralBloomFilter from database with the given recipientId
@@ -155,9 +154,7 @@ func (d *DatabaseImpl) InsertEphemeralBloomFilter(filter *EphemeralBloomFilter) 
 // Deletes all EphemeralBloomFilter with the given epochId from database
 // Returns an error if a matching EphemeralBloomFilter does not exist
 func (d *DatabaseImpl) deleteEphemeralBloomFilterByEpoch(epochId uint64) error {
-	return d.db.Delete(&EphemeralBloomFilter{
-		EpochId: epochId,
-	}).Error
+	return d.db.Delete(EphemeralBloomFilter{}, "epoch_id = ?", epochId).Error
 }
 
 // Returns an Epoch from the database with the given id
@@ -176,10 +173,12 @@ func (d *DatabaseImpl) GetLatestEpoch() (*Epoch, error) {
 }
 
 // Inserts an Epoch with the given roundId into the database
-func (d *DatabaseImpl) InsertEpoch(roundId id.Round) error {
+// Returns the newly-created Epoch from the database
+func (d *DatabaseImpl) InsertEpoch(roundId id.Round) (*Epoch, error) {
 	epoch := &Epoch{
 		RoundId:     uint64(roundId),
 		DateCreated: time.Now(),
 	}
-	return d.db.Create(epoch).Error
+	err := d.db.Create(epoch).Error
+	return epoch, err
 }

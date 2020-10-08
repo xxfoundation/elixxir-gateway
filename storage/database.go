@@ -34,7 +34,7 @@ type database interface {
 
 	GetEpoch(id uint64) (*Epoch, error)
 	GetLatestEpoch() (*Epoch, error)
-	InsertEpoch(roundId id.Round) error
+	InsertEpoch(roundId id.Round) (*Epoch, error)
 
 	getBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
 	InsertBloomFilter(filter *BloomFilter) error
@@ -105,6 +105,11 @@ type EphemeralBloomFilter struct {
 	RecipientId []byte `gorm:"NOT NULL"`
 	Filter      []byte `gorm:"NOT NULL"`
 	EpochId     uint64 `gorm:"NOT NULL;type:bigint REFERENCES epochs(Id)"`
+}
+
+// Used to force correct pluralization of Epoch table name
+func (Epoch) TableName() string {
+	return "epochs"
 }
 
 // Represents a MixedMessage and its contents

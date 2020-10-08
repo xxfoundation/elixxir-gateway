@@ -269,7 +269,8 @@ func (m *MapImpl) GetLatestEpoch() (*Epoch, error) {
 }
 
 // Inserts an Epoch with the given roundId into the database
-func (m *MapImpl) InsertEpoch(roundId id.Round) error {
+// Returns the newly-created Epoch from the database
+func (m *MapImpl) InsertEpoch(roundId id.Round) (*Epoch, error) {
 	// TODO
-	return nil
+	return nil, nil
 }
