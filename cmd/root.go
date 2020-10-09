@@ -9,6 +9,7 @@
 package cmd
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"github.com/spf13/cobra"
@@ -16,7 +17,6 @@ import (
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/crypto/cmix"
-	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
@@ -111,14 +111,16 @@ var rootCmd = &cobra.Command{
 		}
 
 		//add precannedIDs
-		for i:=uint64(0);i<41;i++{
+		for i := uint64(0); i < 41; i++ {
 			u := new(id.ID)
 			binary.BigEndian.PutUint64(u[:], i)
 			u.SetType(id.User)
-			h, _ := hash.NewCMixHash()
+			h := sha256.New()
 			h.Reset()
 			h.Write([]byte(strconv.Itoa(int(4000 + i))))
 			baseKey := gateway.NetInf.GetCmixGroup().NewIntFromBytes(h.Sum(nil))
+			jww.INFO.Printf("Added precan transmisssion key: %v",
+				baseKey.Bytes())
 			cgKey := cmix.GenerateClientGatewayKey(baseKey)
 			// Insert client information to database
 			newClient := &storage.Client{
