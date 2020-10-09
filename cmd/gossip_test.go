@@ -369,11 +369,13 @@ func TestInstance_GossipBloom(t *testing.T) {
 		mockClient := &storage.Client{
 			Id: clients[i].Bytes(),
 		}
-		gatewayInstance.database.InsertClient(mockClient)
+		gatewayInstance.storage.InsertClient(mockClient)
 	}
 
+	rndId := id.Round(10)
+
 	// Send the gossip
-	err = gatewayInstance.GossipBloom(clients, 10)
+	err = gatewayInstance.GossipBloom(clients, rndId)
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
@@ -382,20 +384,11 @@ func TestInstance_GossipBloom(t *testing.T) {
 	for i, clientId := range clients {
 		// Check that the first five IDs are known clients, and thus
 		// in the user bloom filter
-		if i < 5 {
-			userFilter, err := gatewayInstance.database.GetBloomFilters(clientId)
-			if err != nil || userFilter == nil {
-				t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId)
-			}
-
-			continue
-		}
-
-		// The last five should be ephemeral, as they were not added as known clients
-		ephemeralFilter, err := gatewayInstance.database.GetEphemeralBloomFilters(clientId)
-		if err != nil || ephemeralFilter == nil {
+		filters, err := gatewayInstance.storage.GetBloomFilters(clientId, rndId)
+		if err != nil || filters == nil {
 			t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId)
 		}
+
 	}
 }
 

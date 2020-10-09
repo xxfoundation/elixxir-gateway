@@ -94,7 +94,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertBloomFilter(&BloomFilter{
+//	err = db.UpsertBloomFilter(&BloomFilter{
 //		ClientId:    testClient.Marshal(),
 //		Filter:      testBytes,
 //		EpochId: testEpoch.Id,
@@ -103,7 +103,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertBloomFilter(&BloomFilter{
+//	err = db.UpsertBloomFilter(&BloomFilter{
 //		ClientId:    testClient.Marshal(),
 //		Filter:      testBytes,
 //		EpochId: testEpoch2.Id,
@@ -112,7 +112,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertEphemeralBloomFilter(&EphemeralBloomFilter{
+//	err = db.UpsertEphemeralBloomFilter(&EphemeralBloomFilter{
 //		RecipientId: testRecip.Marshal(),
 //		Filter:      testBytes,
 //		EpochId: testEpoch.Id,
@@ -121,7 +121,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertEphemeralBloomFilter(&EphemeralBloomFilter{
+//	err = db.UpsertEphemeralBloomFilter(&EphemeralBloomFilter{
 //		RecipientId: testRecip.Marshal(),
 //		Filter:      testBytes,
 //		EpochId: testEpoch2.Id,
@@ -662,7 +662,7 @@ func TestMapImpl_InsertBloomFilter(t *testing.T) {
 		bloomFilters: make(map[uint64]*BloomFilter),
 	}
 
-	err := m.InsertBloomFilter(testBloomFilter)
+	err := m.UpsertBloomFilter(testBloomFilter)
 	if err != nil || m.bloomFilters[testID] == nil {
 		t.Errorf("Failed to insert bloom filter: %v", err)
 	}
@@ -676,7 +676,7 @@ func TestMapImpl_InsertBloomFilter_FilterAlreadyExistsError(t *testing.T) {
 		bloomFilters: map[uint64]*BloomFilter{testID: testBloomFilter},
 	}
 
-	err := m.InsertBloomFilter(testBloomFilter)
+	err := m.UpsertBloomFilter(testBloomFilter)
 	if err == nil {
 		t.Errorf("Did not error when attempting to insert a bloom filter that " +
 			"already exists.")
@@ -763,7 +763,7 @@ func TestMapImpl_InsertEphemeralBloomFilter(t *testing.T) {
 		ephemeralBloomFilters: make(map[uint64]*EphemeralBloomFilter),
 	}
 
-	err := m.InsertEphemeralBloomFilter(testEphemeralBloomFilter)
+	err := m.UpsertEphemeralBloomFilter(testEphemeralBloomFilter)
 	if err != nil || m.ephemeralBloomFilters[testID] == nil {
 		t.Errorf("Failed to insert ephemeral bloom filters: %v", err)
 	}
@@ -777,7 +777,7 @@ func TestMapImpl_InsertEphemeralBloomFilter_FilterAlreadyExistsError(t *testing.
 		ephemeralBloomFilters: map[uint64]*EphemeralBloomFilter{testID: testEphemeralBloomFilter},
 	}
 
-	err := m.InsertEphemeralBloomFilter(testEphemeralBloomFilter)
+	err := m.UpsertEphemeralBloomFilter(testEphemeralBloomFilter)
 	if err == nil {
 		t.Errorf("Did not error when attempting to insert a ephemeral bloom filters that " +
 			"already exists.")

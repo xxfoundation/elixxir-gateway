@@ -10,7 +10,9 @@
 package storage
 
 import (
+	"github.com/pkg/errors"
 	"gitlab.com/xx_network/primitives/id"
+	"strings"
 )
 
 // API for the storage layer
@@ -49,13 +51,14 @@ func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs [
 // Returns all of the ClientBloomFilter relevant to the given clientId
 // latestRound is the most recent round in the network, used to populate fields of ClientBloomFilter
 func (s *Storage) GetBloomFilters(clientId *id.ID, latestRound id.Round) ([]*ClientBloomFilter, error) {
-	bloomFilters, err := s.getBloomFilters(clientId)
-	if err != nil {
-		return nil, err
-	}
-	ephFilters, err := s.getEphemeralBloomFilters(clientId)
-	if err != nil {
-		return nil, err
+	// Retrieve filters
+	bloomFilters, err1 := s.getBloomFilters(clientId)
+	ephFilters, err2 := s.getEphemeralBloomFilters(clientId)
+
+	// Only return an error if BOTH storage queries errored
+	if err1 != nil && err2 != nil {
+		errMsg := strings.Join([]string{err1.Error(), err2.Error()}, ";")
+		return nil, errors.New(errMsg)
 	}
 
 	return s.convertBloomFilters(bloomFilters, ephFilters, latestRound)

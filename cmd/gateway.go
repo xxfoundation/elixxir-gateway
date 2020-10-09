@@ -125,63 +125,23 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client
-	userFilters, _ := gw.database.GetBloomFilters(clientId)
-	ephemeralFilters, _ := gw.database.GetEphemeralBloomFilters(clientId)
+	clientFilters, err := gw.storage.GetBloomFilters(clientId, id.Round(clientRequest.LastRound))
+	if err != nil {
+		jww.WARN.Printf("Could not get filters for %s when polling: %v", clientId, err)
+	}
 
-	userFilterNew, userFilerOld,
-		ephemeralFilterNew, ephemeralFilterOld := parseFilters(userFilters, ephemeralFilters)
+	var filters [][]byte
+	for _, f := range clientFilters {
+		filters = append(filters, f.Filter)
+	}
 
 	return &pb.GatewayPollResponse{
 		PartialNDF:         gw.NetInf.GetPartialNdf().GetPb(),
 		Updates:            updates,
 		LastTrackedRound:   uint64(lastKnownRound), // fixme: is this being deprecated?
 		KnownRounds:        kr,
-		UserFilterNew:      userFilterNew,
-		UserFilterOld:      userFilerOld,
-		EphemeralFilterNew: ephemeralFilterNew,
-		EphemeralFilterOld: ephemeralFilterOld,
+		BloomFilters:      filters,
 	}, nil
-}
-
-// Parses the user and ephemeral bloom filters returned by the
-//  database, returning the two newest ones for each
-func parseFilters(userFilters []*storage.BloomFilter,
-	ephemeralFilters []*storage.EphemeralBloomFilter) ([]byte, []byte, []byte, []byte) {
-
-	var userFilterNew, userFilerOld, ephemeralFilterNew, ephemeralFilterOld []byte
-
-	// Check to see that the filter is parsable
-	if userFilters != nil {
-		// Check to see if there is only a single filter for this client.
-		// If so, set that filter as the new one
-		if len(userFilters) == 1 {
-			userFilterNew = userFilters[0].Filter
-		} else {
-			// Otherwise, return the last two filters in the list
-			lastBloomFilterIndex := len(userFilters) - 1
-			userFilterNew = userFilters[lastBloomFilterIndex].Filter
-			userFilerOld = userFilters[lastBloomFilterIndex-1].Filter
-
-		}
-	}
-
-	// Check to see that the filter is parsable
-	if ephemeralFilters != nil {
-		// Check to see if there is only a single filter for this ephemeral ID.
-		// If so, set that filter as the new one
-		if len(userFilters) == 1 {
-			ephemeralFilterNew = ephemeralFilters[0].Filter
-		} else {
-			// Otherwise, return the last two filters in the list
-			lastBloomFilterIndex := len(ephemeralFilters) - 1
-			ephemeralFilterNew = ephemeralFilters[lastBloomFilterIndex].Filter
-			ephemeralFilterOld = ephemeralFilters[lastBloomFilterIndex-1].Filter
-
-		}
-
-	}
-
-	return userFilterNew, userFilerOld, ephemeralFilterNew, ephemeralFilterOld
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -580,7 +540,7 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 	roundID := id.Round(msg.RoundID)
 
 	// Search the database for the requested messages
-	msgs, err := gw.storage.GetMixedMessages(userId, roundID)
+	msgs, err, _ := gw.storage.GetMixedMessages(userId, roundID)
 	if err != nil {
 		return &pb.GetMessagesResponse{
 				HasRound: true,
@@ -621,7 +581,7 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
 
-	msgs, err := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
+	msgs, err, _ := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
 	if err != nil {
 		return nil, errors.Errorf("Could not look up message ids")
 	}
@@ -928,6 +888,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 	// At this point, the returned batch and its fields should be non-nil
 	h, _ := hash.NewCMixHash()
 	recipients := make([]*id.ID, len(msgs))
+	var newMsgs []*storage.MixedMessage
 	for i, msg := range msgs {
 		serialmsg := format.NewMessage()
 		serialmsg.SetPayloadB(msg.PayloadB)
@@ -953,18 +914,23 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 			// Create new message and insert into database
 			newMsg := storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
 			newMsg.Id = msgID
-			err = gw.storage.InsertMixedMessage(newMsg)
-			if err != nil {
-				jww.ERROR.Printf("Inserting a new mixed message failed in "+
-					"ProcessCompletedBatch: %+v", err)
-			}
+
+			newMsgs = append(newMsgs, newMsg)
 		}
 
 		h.Reset()
 	}
 
+	// Insert all the mixed messages
+	err := gw.storage.InsertMixedMessages(newMsgs)
+	if err != nil {
+		jww.ERROR.Printf("Inserting a new mixed message failed in "+
+			"ProcessCompletedBatch: %+v", err)
+	}
+
+
 	// Update filters in our storage system
-	err := gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
+	err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
 	if err != nil {
 		jww.WARN.Printf("Unable to update local bloom filters: %+v", err)
 	}

@@ -8,7 +8,6 @@ package cmd
 
 import (
 	"encoding/binary"
-	"fmt"
 	"github.com/pkg/errors"
 	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/gateway/storage"
@@ -78,7 +77,7 @@ func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
 //  If the client is not recognized, we update the ephemeral bloom filter
 func (gw *Instance) UpsertFilter(recipientId *id.ID, roundId id.Round) error {
 	// See if we recognize this user or if they are ephemeral
-	retrievedClient, err := gw.database.GetClient(recipientId)
+	retrievedClient, err := gw.storage.GetClient(recipientId)
 	if err != nil || retrievedClient == nil {
 
 		// If we do not recognize the client, create an ephemeral filter
@@ -92,14 +91,22 @@ func (gw *Instance) UpsertFilter(recipientId *id.ID, roundId id.Round) error {
 
 // Helper function which updates the clients bloom filter
 func (gw *Instance) upsertUserFilter(recipientId *id.ID, roundId id.Round) error {
+	// Get the latest epoch value
+	epoch, err := gw.storage.GetLatestEpoch()
+	if err != nil {
+		return errors.Errorf("Unable to get latest epoch: %s", err)
+	}
+
+
 	// Get the filters for the associated client
-	filters, err := gw.database.GetBloomFilters(recipientId)
+	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
 	if err != nil || filters == nil {
 		newUserFilter, err := generateNewUserFilter(recipientId, roundId)
 		if err != nil {
 			return errors.Errorf("Unable to generate a new user filter: %v", err)
 		}
-		return gw.database.InsertBloomFilter(newUserFilter)
+		newUserFilter.EpochId = epoch.Id
+		return gw.storage.UpsertBloomFilter(newUserFilter)
 	}
 
 	// Pull the most recent filter
@@ -124,13 +131,13 @@ func (gw *Instance) upsertUserFilter(recipientId *id.ID, roundId id.Round) error
 		return errors.Errorf("Unable to marshal user filter: %v", err)
 	}
 
+
 	// fixme: Likely to change due to DB restructure
 	// Place filter back into database
-	err = gw.database.InsertBloomFilter(&storage.BloomFilter{
+	err = gw.storage.UpsertBloomFilter(&storage.BloomFilter{
 		ClientId:    recipientId.Bytes(),
-		Count:       recentFilter.Count + 1,
 		Filter:      marshaledFilter,
-		DateCreated: recentFilter.DateCreated,
+		EpochId: epoch.Id,
 	})
 
 	if err != nil {
@@ -142,28 +149,34 @@ func (gw *Instance) upsertUserFilter(recipientId *id.ID, roundId id.Round) error
 
 // Helper function which updates the ephemeral bloom filter
 func (gw *Instance) upsertEphemeralFilter(recipientId *id.ID, roundId id.Round) error {
-	filters, err := gw.database.GetEphemeralBloomFilters(recipientId)
+	// Get the latest epoch value
+	epoch, err := gw.storage.GetLatestEpoch()
+	if err != nil {
+		return errors.Errorf("Unable to get latest epoch: %s", err)
+	}
+
+	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
 	if err != nil || filters == nil {
 		newEphemeralFilter, err := generateNewEphemeralFilter(recipientId, roundId)
 		if err != nil {
 			return errors.Errorf("Unable to generate a new ephemeral filter: %v", err)
 		}
-
-		return gw.database.InsertEphemeralBloomFilter(newEphemeralFilter)
+		newEphemeralFilter.Id = epoch.Id
+		return gw.storage.UpsertEphemeralBloomFilter(newEphemeralFilter)
 
 	}
 
 	// Pull the most recent filter
 	recentFilter := filters[len(filters)-1]
-	fmt.Printf("recognized that this isn't first time!\n")
+
 	// Unmarshal the most recent filter
 	bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
-		return errors.Errorf("Unable to create a bloom filter: %v", err)
+		return errors.Errorf("Unable to create a bloom filter: %s", err)
 	}
 	err = bloomFilter.UnmarshalBinary(recentFilter.Filter)
 	if err != nil {
-		return errors.Errorf("Unable to unmarshal filter from storage: %v", err)
+		return errors.Errorf("Unable to unmarshal filter from storage: %s", err)
 	}
 
 	// Add the round to the bloom filter
@@ -173,19 +186,20 @@ func (gw *Instance) upsertEphemeralFilter(recipientId *id.ID, roundId id.Round) 
 	// Marshal the bloom filter back
 	marshaledBloom, err := bloomFilter.MarshalBinary()
 	if err != nil {
-		return errors.Errorf("Unable to marshal ephemeral filter: %v", err)
+		return errors.Errorf("Unable to marshal ephemeral filter: %s", err)
 	}
+
+
 
 	// fixme: Likely to change due to DB restructure
 	// Place filter back into database
-	err = gw.database.InsertEphemeralBloomFilter(&storage.EphemeralBloomFilter{
-		Id:           recentFilter.Id,
+	err = gw.storage.UpsertEphemeralBloomFilter(&storage.EphemeralBloomFilter{
 		RecipientId:  recipientId.Bytes(),
 		Filter:       marshaledBloom,
-		DateModified: time.Now(),
+		EpochId:  epoch.Id,
 	})
 	if err != nil {
-		return errors.Errorf("Unable to insert ephemeral filter into database: %v", err)
+		return errors.Errorf("Unable to insert ephemeral filter into database: %s", err)
 	}
 
 	return nil
@@ -216,7 +230,6 @@ func generateNewEphemeralFilter(recipientId *id.ID, roundId id.Round) (*storage.
 	return &storage.EphemeralBloomFilter{
 		RecipientId:  recipientId.Bytes(),
 		Filter:       marshaledBloom,
-		DateModified: time.Now(),
 	}, nil
 
 }
@@ -244,9 +257,7 @@ func generateNewUserFilter(recipientId *id.ID, roundId id.Round) (*storage.Bloom
 
 	return &storage.BloomFilter{
 		ClientId:    recipientId.Bytes(),
-		Count:       0,
 		Filter:      marshaledBloom,
-		DateCreated: time.Now(),
 	}, nil
 
 }

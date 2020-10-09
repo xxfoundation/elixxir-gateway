@@ -37,11 +37,11 @@ type database interface {
 	InsertEpoch(roundId id.Round) (*Epoch, error)
 
 	getBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
-	InsertBloomFilter(filter *BloomFilter) error
+	UpsertBloomFilter(filter *BloomFilter) error
 	deleteBloomFilterByEpoch(epochId uint64) error
 
 	getEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error)
-	InsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
+	UpsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
 	deleteEphemeralBloomFilterByEpoch(epochId uint64) error
 }
 

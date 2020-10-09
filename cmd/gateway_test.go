@@ -352,12 +352,19 @@ func TestInstance_RequestMessages(t *testing.T) {
 	expectedRound := id.Round(1)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	var mixedMsgs []*storage.MixedMessage
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
 		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.storage.InsertMixedMessage(dbMsg)
-
+		mixedMsgs = append(mixedMsgs, dbMsg)
 	}
+	// Insert mixed messages to storage
+	err := gatewayInstance.storage.InsertMixedMessages(mixedMsgs)
+	if err != nil {
+		t.Errorf("Could not insert messages into database")
+		t.FailNow()
+	}
+
 
 	// Craft the request message and send
 	requestMessage := &pb.GetMessages{
@@ -403,11 +410,18 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	var mixedMsgs []*storage.MixedMessage
+
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
 		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.storage.InsertMixedMessage(dbMsg)
-
+		mixedMsgs = append(mixedMsgs, dbMsg)
+	}
+	// Insert mixed messages to storage
+	err := gatewayInstance.storage.InsertMixedMessages(mixedMsgs)
+	if err != nil {
+		t.Errorf("Could not insert messages into database")
+		t.FailNow()
 	}
 
 	// Craft the request message with an unrecognized userID
@@ -438,11 +452,18 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	var mixedMsgs []*storage.MixedMessage
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
 		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.storage.InsertMixedMessage(dbMsg)
+		mixedMsgs = append(mixedMsgs, dbMsg)
+	}
 
+	// Insert mixed messages to storage
+	err := gatewayInstance.storage.InsertMixedMessages(mixedMsgs)
+	if err != nil {
+		t.Errorf("Could not insert messages into database")
+		t.FailNow()
 	}
 
 	// Craft the request message with an unknown round
@@ -473,12 +494,21 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	var mixedMsgs []*storage.MixedMessage
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
 		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.storage.InsertMixedMessage(dbMsg)
+		mixedMsgs = append(mixedMsgs, dbMsg)
 
 	}
+
+	// Insert mixed messages to storage
+	err := gatewayInstance.storage.InsertMixedMessages(mixedMsgs)
+	if err != nil {
+		t.Errorf("Could not insert messages into database")
+		t.FailNow()
+	}
+
 
 	// Craft the request message with a nil ClientID
 	badRequest := &pb.GetMessages{
@@ -922,7 +952,7 @@ func TestInstance_Poll(t *testing.T) {
 
 	// TODO: Remove this when jake fixes the database please [Insert deity]
 	// Setup a database based on a map impl
-	storage.GatewayDB, _, _ = storage.NewDatabase("", "", "", "", "")
+	//storage.GatewayDB, _, _ = storage.NewDatabase("", "", "", "", "")
 
 	_, err = gw.Poll(clientReq)
 	if err != nil {
