@@ -220,7 +220,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
@@ -232,7 +232,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 		Id:       rndId,
 		UpdateId: 0,
 	}
-	gatewayInstance.database.UpsertRound(rnd)
+	gatewayInstance.storage.UpsertRound(rnd)
 	_, err = gatewayInstance.PutMessage(slotMsg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!"+
@@ -322,7 +322,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gw.database.InsertClient(newClient)
+	gw.storage.InsertClient(newClient)
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err = gw.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
@@ -334,7 +334,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		Id:       rndId,
 		UpdateId: 0,
 	}
-	gw.database.UpsertRound(rnd)
+	gw.storage.UpsertRound(rnd)
 	_, err = gw.PutMessage(slotMsg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!"+
@@ -355,7 +355,7 @@ func TestInstance_RequestMessages(t *testing.T) {
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
 		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.database.InsertMixedMessage(dbMsg)
+		gatewayInstance.storage.InsertMixedMessage(dbMsg)
 
 	}
 
@@ -406,7 +406,7 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
 		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.database.InsertMixedMessage(dbMsg)
+		gatewayInstance.storage.InsertMixedMessage(dbMsg)
 
 	}
 
@@ -441,7 +441,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
 		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.database.InsertMixedMessage(dbMsg)
+		gatewayInstance.storage.InsertMixedMessage(dbMsg)
 
 	}
 
@@ -476,7 +476,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
 		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.database.InsertMixedMessage(dbMsg)
+		gatewayInstance.storage.InsertMixedMessage(dbMsg)
 
 	}
 
@@ -580,7 +580,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 		Key: []byte("test"),
 	}
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
@@ -603,7 +603,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -621,7 +621,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -639,7 +639,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -659,7 +659,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
@@ -685,7 +685,7 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 		Key: []byte("test"),
 	}
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 
 	// End of business logic
 
@@ -726,7 +726,7 @@ func TestInstance_PutMessage_NonLeader(t *testing.T) {
 		Key: []byte("test"),
 	}
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 
 	// End of business logic
 
@@ -763,7 +763,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 
 	_, err = gatewayInstance.PutMessage(slotMsg, "aa")
 	if err != nil {
@@ -783,7 +783,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "bb")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
@@ -802,7 +802,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "cc")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when user " +
