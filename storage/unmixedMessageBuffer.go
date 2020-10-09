@@ -15,7 +15,7 @@ import (
 // Interface for interacting with the UnmixedMessageBuffer.
 type UnmixedMessageBuffer interface {
 	// AddUnmixedMessage adds an unmixed message to send to the cMix node.
-	AddUnmixedMessage(msg *pb.Slot, round id.Round)
+	AddUnmixedMessage(msg *pb.Slot, round id.Round)error
 
 	// GetRoundMessages returns the batch associated with the roundID
 	GetRoundMessages(minMsgCnt uint64, rndId id.Round) *pb.Batch

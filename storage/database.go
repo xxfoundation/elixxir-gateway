@@ -30,9 +30,9 @@ type Storage interface {
 	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
 
-	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
+	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, bool)
 	InsertMixedMessage(msg *MixedMessage) error
-	DeleteMixedMessage(id uint64) error
+	//DeleteMixedMessage(id uint64) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
 	GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
@@ -49,14 +49,15 @@ type DatabaseImpl struct {
 	db *gorm.DB // Stored database connection
 }
 
+type mixedMessageIDHash [32]byte
+
 // Struct implementing the Database Interface with an underlying Map
 type MapImpl struct {
 	clients                    map[id.ID]*Client
 	rounds                     map[id.Round]*Round
-	mixedMessages              map[uint64]*MixedMessage
+	mixedMessages              map[mixedMessageIDHash][]*MixedMessage
 	bloomFilters               map[uint64]*BloomFilter
 	ephemeralBloomFilters      map[uint64]*EphemeralBloomFilter
-	mixedMessagesCount         uint64
 	bloomFiltersCount          uint64
 	ephemeralBloomFiltersCount uint64
 	sync.RWMutex
@@ -106,9 +107,9 @@ type MixedMessage struct {
 }
 
 // Creates a new MixedMessage object with the given attributes
-func NewMixedMessage(roundId *id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
+func NewMixedMessage(roundId id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
 	return &MixedMessage{
-		RoundId:         uint64(*roundId),
+		RoundId:         uint64(roundId),
 		RecipientId:     recipientId.Marshal(),
 		MessageContents: append(messageContentsA, messageContentsB...),
 	}
@@ -157,10 +158,9 @@ func NewDatabase(username, password, database, address,
 		mapImpl := &MapImpl{
 			clients:                    map[id.ID]*Client{},
 			rounds:                     map[id.Round]*Round{},
-			mixedMessages:              map[uint64]*MixedMessage{},
+			mixedMessages:              map[mixedMessageIDHash][]*MixedMessage{},
 			bloomFilters:               map[uint64]*BloomFilter{},
 			ephemeralBloomFilters:      map[uint64]*EphemeralBloomFilter{},
-			mixedMessagesCount:         0,
 			bloomFiltersCount:          0,
 			ephemeralBloomFiltersCount: 0,
 		}

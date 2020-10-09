@@ -354,7 +354,7 @@ func TestInstance_RequestMessages(t *testing.T) {
 	payload := "test"
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		dbMsg := storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 		gatewayInstance.database.InsertMixedMessage(dbMsg)
 
 	}
@@ -405,7 +405,7 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	payload := "test"
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		dbMsg := storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 		gatewayInstance.database.InsertMixedMessage(dbMsg)
 
 	}
@@ -440,7 +440,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	payload := "test"
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		dbMsg := storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 		gatewayInstance.database.InsertMixedMessage(dbMsg)
 
 	}
@@ -475,7 +475,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	payload := "test"
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		dbMsg := storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 		gatewayInstance.database.InsertMixedMessage(dbMsg)
 
 	}
