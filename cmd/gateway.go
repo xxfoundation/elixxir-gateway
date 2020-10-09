@@ -83,7 +83,7 @@ type Instance struct {
 
 	lastUpdate uint64
 
-	curentRound id.Round
+	curentRound    id.Round
 	hasCurentRound bool
 }
 
@@ -316,8 +316,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 			roundState := states.Round(update.State)
 
-			if topology.GetNodeLocation(gw.ServerHost.GetId())!=-1 &&
-				roundState == states.PRECOMPUTING{
+			if topology.GetNodeLocation(gw.ServerHost.GetId()) != -1 &&
+				roundState == states.PRECOMPUTING {
 				gw.curentRound = id.Round(update.ID)
 				gw.hasCurentRound = true
 			}
@@ -337,7 +337,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	// Process a batch that has been completed by this server
 	if newInfo.Slots != nil {
-		if !gw.hasCurentRound{
+		if !gw.hasCurentRound {
 			jww.FATAL.Panicf("No round known about, cannot process slots")
 		}
 		gw.hasCurentRound = false
@@ -562,30 +562,30 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
-func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 	// Error check for a invalidly crafted message
-	if msg == nil || msg.ClientID == nil || msg.RoundID == 0 {
+	if req == nil || req.ClientID == nil || req.RoundID == 0 {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse message! " +
 			"Please try again with a properly crafted message!")
 	}
 
 	// Parse the requested clientID within the message for the database request
-	userId, err := id.Unmarshal(msg.ClientID)
+	userId, err := id.Unmarshal(req.ClientID)
 	if err != nil {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
 	}
 
 	// Parse the roundID within the message
-	roundID := id.Round(msg.RoundID)
+	roundID := id.Round(req.RoundID)
 
 	// Search the database for the requested messages
 	msgs, hasRound := gw.database.GetMixedMessages(userId, roundID)
 	if !hasRound {
-		jww.WARN.Printf("A client (%s) has requested messages for a " +
+		jww.WARN.Printf("A client (%s) has requested messages for a "+
 			"round (%v) which is not recorded with messages", userId, roundID)
 		return &pb.GetMessagesResponse{
-				HasRound: false,
-			}, nil
+			HasRound: false,
+		}, nil
 	}
 
 	// Parse the database response to construct individual slots
@@ -598,6 +598,9 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 			PayloadA: payloadA,
 			PayloadB: payloadB,
 		}
+		jww.DEBUG.Printf("Message Retrieved: %s, %s, %s",
+			userId.String(), payloadA, payloadB)
+
 		slots = append(slots, data)
 	}
 
@@ -738,7 +741,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 			"will not accept any new messages. Please try a different round.")
 	}
 
-	if err= gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err!=nil{
+	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false}, err
 	}
 
@@ -935,8 +938,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		userId := serialmsg.GetRecipientID()
 
 		if !userId.Cmp(&dummyUser) {
-			jww.DEBUG.Printf("Message Received for: %s",
-				userId.String())
+			jww.DEBUG.Printf("Message Received for: %s, %s, %s",
+				userId.String(), msg.GetPayloadA(), msg.GetPayloadB())
 
 			numReal++
 			h.Write(msg.PayloadA)
