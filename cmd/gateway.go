@@ -318,7 +318,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			roundState := states.Round(update.State)
 
 			if topology.GetNodeLocation(gw.ServerHost.GetId()) != -1 &&
-				roundState == states.PRECOMPUTING {
+				(roundState == states.COMPLETED ||
+					roundState == states.FAILED) {
 				gw.curentRound = id.Round(update.ID)
 				gw.hasCurentRound = true
 			}
