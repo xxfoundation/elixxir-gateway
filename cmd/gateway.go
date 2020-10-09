@@ -166,6 +166,7 @@ func NewGatewayInstance(params Params) *Instance {
 		database:      newDatabase,
 		knownRound:    knownRounds.NewKnownRound(knownRoundsSize),
 	}
+
 	//There is no round 0
 	i.knownRound.Check(0)
 	jww.DEBUG.Printf("Initial KnownRound State: %+v", i.knownRound)

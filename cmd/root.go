@@ -9,17 +9,22 @@
 package cmd
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/crypto/cmix"
+	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/gossip"
+	"gitlab.com/xx_network/primitives/id"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -103,6 +108,25 @@ var rootCmd = &cobra.Command{
 				continue
 			}
 			jww.FATAL.Panicf(err.Error())
+		}
+
+		//add precannedIDs
+		for i:=uint64(0);i<41;i++{
+			u := new(id.ID)
+			binary.BigEndian.PutUint64(u[:], i)
+			u.SetType(id.User)
+			h, _ := hash.NewCMixHash()
+			h.Reset()
+			h.Write([]byte(strconv.Itoa(int(4000 + i))))
+			baseKey := gateway.NetInf.GetCmixGroup().NewIntFromBytes(h.Sum(nil))
+			cgKey := cmix.GenerateClientGatewayKey(baseKey)
+			// Insert client information to database
+			newClient := &storage.Client{
+				Id:  u.Marshal(),
+				Key: cgKey,
+			}
+
+			err = gateway.database.InsertClient(newClient)
 		}
 
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
