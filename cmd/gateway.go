@@ -221,8 +221,8 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 }
 
 // CreateNetworkInstance will generate a new network instance object given
-// properly formed ndf, partialNdf, and connection object
-func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
+// properly formed ndf, partialNdf, connection, and Storage object
+func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF, ers *storage.Storage) (
 	*network.Instance, error) {
 	newNdf := &ds.Ndf{}
 	newPartialNdf := &ds.Ndf{}
@@ -235,7 +235,6 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	ers := &storage.ERS{}
 	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers)
 }
 
@@ -394,7 +393,7 @@ func (gw *Instance) InitNetwork() error {
 		jww.DEBUG.Printf("Creating instance!")
 		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
 			serverResponse.FullNDF,
-			serverResponse.PartialNDF)
+			serverResponse.PartialNDF, gw.storage)
 		if err != nil {
 			jww.ERROR.Printf("Unable to create network"+
 				" instance: %v", err)
@@ -524,7 +523,7 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 	roundID := id.Round(msg.RoundID)
 
 	// Search the database for the requested messages
-	msgs, err := gw.storage.GetMixedMessages(userId, roundID)
+	msgs, _, err := gw.storage.GetMixedMessages(userId, roundID)
 	if err != nil {
 		return &pb.GetMessagesResponse{
 				HasRound: true,
@@ -565,7 +564,7 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
 
-	msgs, err := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
+	msgs, _, err := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
 	if err != nil {
 		return nil, errors.Errorf("Could not look up message ids")
 	}
@@ -871,7 +870,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 
 	// At this point, the returned batch and its fields should be non-nil
 	h, _ := hash.NewCMixHash()
-	for _, msg := range msgs {
+	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
+	for i, msg := range msgs {
 		serialmsg := format.NewMessage()
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId, err := serialmsg.GetRecipient()
@@ -888,25 +888,23 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 			numReal++
 			h.Write(msg.PayloadA)
 			h.Write(msg.PayloadB)
-			msgID := binary.BigEndian.Uint64(h.Sum(nil))
 			roundID := gw.NetInf.GetLastRoundID()
 
-			// Create new message and insert into database
-			newMsg := storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
-			newMsg.Id = msgID
-			err = gw.storage.InsertMixedMessage(newMsg)
-			if err != nil {
-				jww.ERROR.Printf("Inserting a new mixed message failed in "+
-					"ProcessCompletedBatch: %+v", err)
-			}
+			// Create new message and add it to the list for insertion
+			msgsToInsert[i] = storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
 		}
 
 		h.Reset()
 	}
-	// FIXME: How do we get round info now?
 
-	jww.INFO.Printf("Round UNK received, %v real messages "+
-		"processed, ??? dummies ignored", numReal)
+	// Perform the message insertion into Storage
+	err := gw.storage.InsertMixedMessages(msgsToInsert)
+	if err != nil {
+		jww.ERROR.Printf("Inserting new mixed messages failed in "+
+			"ProcessCompletedBatch: %+v", err)
+	}
+	jww.INFO.Printf("Round received, %d real messages "+
+		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
 
 	go PrintProfilingStatistics()
 }

@@ -37,11 +37,11 @@ type database interface {
 	InsertEpoch(roundId id.Round) (*Epoch, error)
 
 	getBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
-	InsertBloomFilter(filter *BloomFilter) error
+	UpsertBloomFilter(filter *BloomFilter) error
 	deleteBloomFilterByEpoch(epochId uint64) error
 
 	getEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error)
-	InsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
+	UpsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
 	deleteEphemeralBloomFilterByEpoch(epochId uint64) error
 }
 
@@ -121,6 +121,7 @@ type MixedMessage struct {
 }
 
 // Creates a new MixedMessage object with the given attributes
+// NOTE: Do not modify the MixedMessage.Id attribute.
 func NewMixedMessage(roundId *id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
 	return &MixedMessage{
 		RoundId:         uint64(*roundId),

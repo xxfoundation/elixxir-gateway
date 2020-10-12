@@ -36,7 +36,7 @@ func NewStorage(username, password, dbName, address, port string) (*Storage, fun
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId
 // Also returns a boolean for whether the gateway contains other messages for the given Round
-func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs []*MixedMessage, err error, isValidGateway bool) {
+func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
 	count, err := s.countMixedMessagesByRound(roundId)
 	if err != nil {
 		return

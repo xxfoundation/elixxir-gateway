@@ -352,11 +352,14 @@ func TestInstance_RequestMessages(t *testing.T) {
 	expectedRound := id.Round(1)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.storage.InsertMixedMessage(dbMsg)
-
+		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+	}
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message and send
@@ -403,11 +406,14 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.storage.InsertMixedMessage(dbMsg)
-
+		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+	}
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message with an unrecognized userID
@@ -438,11 +444,14 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.storage.InsertMixedMessage(dbMsg)
-
+		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+	}
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message with an unknown round
@@ -473,11 +482,14 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.storage.InsertMixedMessage(dbMsg)
-
+		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+	}
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message with a nil ClientID
@@ -878,7 +890,7 @@ func TestCreateNetworkInstance(t *testing.T) {
 	}
 
 	netInst, err := CreateNetworkInstance(
-		gatewayInstance.Comms, ndfMsg, ndfMsg)
+		gatewayInstance.Comms, ndfMsg, ndfMsg, &storage.Storage{})
 
 	gatewayInstance.NetInf = netInst
 	if err != nil {
@@ -915,7 +927,7 @@ func TestInstance_Poll(t *testing.T) {
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
-	ers := &storage.ERS{}
+	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
 
 	_, err = gw.Poll(clientReq)
@@ -950,7 +962,7 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
-	ers := &storage.ERS{}
+	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
 
 	_, err = gw.Poll(clientReq)
