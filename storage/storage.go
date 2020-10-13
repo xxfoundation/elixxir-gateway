@@ -37,25 +37,30 @@ func NewStorage(username, password, dbName, address, port string) (*Storage, fun
 // Returns a slice of MixedMessage from database with matching recipientId and roundId
 // Also returns a boolean for whether the gateway contains other messages for the given Round
 func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
+	// Determine whether this gateway has any messages for the given roundId
 	count, err := s.countMixedMessagesByRound(roundId)
-	if err != nil {
+	isValidGateway = count > 0
+	if err != nil || !isValidGateway {
 		return
 	}
-	isValidGateway = count > 0
+
+	// If the gateway has messages, return messages relevant to the given recipientId and roundId
 	msgs, err = s.getMixedMessages(recipientId, roundId)
 	return
 }
 
 // Returns all of the ClientBloomFilter from Storage relevant to the given clientId
 // latestRound is the most recent round in the network, used to populate fields of ClientBloomFilter
-func (s *Storage) GetBloomFilters(clientId *id.ID, latestRound id.Round) ([]*ClientBloomFilter, error) {
-	bloomFilters, err := s.getBloomFilters(clientId)
+func (s *Storage) GetBloomFilters(recipientId *id.ID, latestRound id.Round) ([]*ClientBloomFilter, error) {
+	result := make([]*ClientBloomFilter, 0)
+
+	// Get all BloomFilter from Storage for the given recipientId
+	bloomFilters, err := s.getBloomFilters(recipientId)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]*ClientBloomFilter, 0)
-
+	// Get the latest epoch for determining how current the filters are
 	latestEpoch, err := s.GetLatestEpoch()
 	if err != nil {
 		return nil, err
@@ -68,10 +73,11 @@ func (s *Storage) GetBloomFilters(clientId *id.ID, latestRound id.Round) ([]*Cli
 
 		// Determine relevant rounds for the ClientBloomFilter
 		if filter.EpochId == latestEpoch.Id {
+			// If the BloomFilter is current, use the current round
 			clientFilter.FirstRound = id.Round(latestEpoch.RoundId)
 			clientFilter.LastRound = latestRound
 		} else {
-
+			// If the BloomFilter is not current, infer the LastRound from the next Epoch
 			epoch, err := s.GetEpoch(filter.EpochId)
 			if err != nil {
 				return nil, err
@@ -82,6 +88,7 @@ func (s *Storage) GetBloomFilters(clientId *id.ID, latestRound id.Round) ([]*Cli
 			}
 
 			clientFilter.FirstRound = id.Round(epoch.RoundId)
+			// (Epoch n).LastRound = (Epoch n + 1).FirstRound - 1
 			clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
 		}
 
