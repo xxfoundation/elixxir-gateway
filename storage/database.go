@@ -87,10 +87,9 @@ type Epoch struct {
 
 // Represents a Client's BloomFilter
 type BloomFilter struct {
-	Id          uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
-	RecipientId []byte `gorm:"NOT NULL"`
+	RecipientId []byte `gorm:"primary_key;"`
+	EpochId     uint64 `gorm:"primary_key;;type:bigint REFERENCES epochs(Id)"`
 	Filter      []byte `gorm:"NOT NULL"`
-	EpochId     uint64 `gorm:"NOT NULL;type:bigint REFERENCES epochs(Id)"`
 }
 
 // Used to force correct pluralization of Epoch table name

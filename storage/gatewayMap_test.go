@@ -27,6 +27,7 @@ import (
 //	}
 //
 //	testBytes := []byte("test")
+//	testBytes2 := []byte("words")
 //	testClientId := []byte("client")
 //	testRound := uint64(10)
 //	testRound2 := uint64(11)
@@ -95,18 +96,18 @@ import (
 //		return
 //	}
 //	err = db.UpsertBloomFilter(&BloomFilter{
-//		ClientId:    testClient.Marshal(),
+//		RecipientId:    testClient.Marshal(),
 //		Filter:      testBytes,
-//		EpochId: testEpoch.Id,
+//		EpochId: 1,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	err = db.UpsertBloomFilter(&BloomFilter{
-//		ClientId:    testClient.Marshal(),
-//		Filter:      testBytes,
-//		EpochId: testEpoch2.Id,
+//		RecipientId:    testClient.Marshal(),
+//		Filter:      testBytes2,
+//		EpochId: testEpoch.Id,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
@@ -400,7 +401,7 @@ func TestMapImpl_UpsertRound_RoundAlreadyExists(t *testing.T) {
 }
 
 // Happy path.
-func TestMapImpl_GetMixedMessages(t *testing.T) {
+func TestMapImpl_getMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()
 	testRoundID := id.Round(rand.Uint64())
 	testRecipientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
@@ -476,7 +477,7 @@ func TestMapImpl_GetMixedMessages(t *testing.T) {
 }
 
 // Error Path: No matching messages exist in the map.
-func TestMapImpl_GetMixedMessages_NoMessageError(t *testing.T) {
+func TestMapImpl_getMixedMessages_NoMessageError(t *testing.T) {
 	testRoundID := id.Round(rand.Uint64())
 	testRecipientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
 	m := &MapImpl{
@@ -503,7 +504,7 @@ func TestMapImpl_GetMixedMessages_NoMessageError(t *testing.T) {
 }
 
 // Happy path.
-func TestMapImpl_InsertMixedMessage(t *testing.T) {
+func TestMapImpl_InsertMixedMessages(t *testing.T) {
 	testMsgID := uint64(0)
 	testMixedMessage := &MixedMessage{
 		RoundId:     rand.Uint64(),
@@ -520,7 +521,7 @@ func TestMapImpl_InsertMixedMessage(t *testing.T) {
 }
 
 // Error Path: MixedMessage already exists in map.
-func TestMapImpl_InsertMixedMessage_MessageAlreadyExistsError(t *testing.T) {
+func TestMapImpl_InsertMixedMessages_MessageAlreadyExistsError(t *testing.T) {
 	testMsgID := uint64(0)
 	testMixedMessage := &MixedMessage{
 		RoundId:     rand.Uint64(),
@@ -626,60 +627,16 @@ func TestMapImpl_GetBloomFilters_NoFiltersError(t *testing.T) {
 }
 
 // Happy path.
-func TestMapImpl_InsertBloomFilter(t *testing.T) {
-	testID := uint64(0)
-	testBloomFilter := &BloomFilter{Id: testID}
-	m := &MapImpl{
-		bloomFilters: make(map[uint64]*BloomFilter),
-	}
-
-	err := m.UpsertBloomFilter(testBloomFilter)
-	if err != nil || m.bloomFilters[testID] == nil {
-		t.Errorf("Failed to insert bloom filter: %v", err)
-	}
-}
-
-// Error Path: Bloom filter already exists in map.
-func TestMapImpl_InsertBloomFilter_FilterAlreadyExistsError(t *testing.T) {
-	testID := uint64(0)
-	testBloomFilter := &BloomFilter{Id: testID}
-	m := &MapImpl{
-		bloomFilters: map[uint64]*BloomFilter{testID: testBloomFilter},
-	}
-
-	err := m.UpsertBloomFilter(testBloomFilter)
-	if err == nil {
-		t.Errorf("Did not error when attempting to insert a bloom filter that " +
-			"already exists.")
-	}
+func TestMapImpl_UpsertBloomFilter(t *testing.T) {
+	// TODO
 }
 
 // Happy path.
-func TestMapImpl_DeleteBloomFilter(t *testing.T) {
-	testID := rand.Uint64()
-	testBloomFilter := &BloomFilter{Id: testID}
-	m := &MapImpl{
-		bloomFilters: map[uint64]*BloomFilter{testID: testBloomFilter},
-	}
-
-	err := m.DeleteBloomFilterByEpoch(testID)
-
-	if err != nil || m.bloomFilters[testID] != nil {
-		t.Errorf("Failed to delete bloom filter: %v", err)
-	}
+func TestMapImpl_DeleteBloomFilterByEpoch(t *testing.T) {
+	// TODO
 }
 
 // Error Path: The bloom filter does not exists in map.
-func TestMapImpl_DeleteBloomFilter_NoFilterError(t *testing.T) {
-	testID := rand.Uint64()
-	m := &MapImpl{
-		bloomFilters: make(map[uint64]*BloomFilter),
-	}
-
-	err := m.DeleteBloomFilterByEpoch(testID)
-
-	if err == nil {
-		t.Errorf("No error received when attemting to delete bloom filter " +
-			"that does not exist in map.")
-	}
+func TestMapImpl_DeleteBloomFilterByEpoch_NoFilterError(t *testing.T) {
+	// TODO
 }

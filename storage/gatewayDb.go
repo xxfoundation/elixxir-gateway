@@ -9,6 +9,7 @@
 package storage
 
 import (
+	"bytes"
 	"github.com/jinzhu/gorm"
 	"gitlab.com/xx_network/primitives/id"
 	"time"
@@ -126,14 +127,32 @@ func (d *DatabaseImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, erro
 // Inserts the given BloomFilter into database if it does not exist
 // Or updates the BloomFilter in the database if the BloomFilter already exists
 func (d *DatabaseImpl) UpsertBloomFilter(filter *BloomFilter) error {
-	return d.db.Create(filter).Error
+	// Build a transaction to prevent race conditions
+	return d.db.Transaction(func(tx *gorm.DB) error {
+		// Initialize variable for returning existing value from the database
+		oldFilter := &BloomFilter{}
+
+		// Attempt to insert filter into the database,
+		// or if it already exists, replace filter with the database value
+		err := tx.FirstOrCreate(oldFilter, &BloomFilter{RecipientId: filter.RecipientId, EpochId: filter.EpochId}).Error
+		if err != nil {
+			return err
+		}
+
+		// If filter is already present in the database, overwrite it with newFilter
+		if !bytes.Equal(oldFilter.Filter, filter.Filter) {
+			return tx.Save(filter).Error
+		}
+
+		// Commit
+		return nil
+	})
 }
 
 // Deletes all BloomFilter with the given epochId from database
 // Returns an error if a matching BloomFilter does not exist
 func (d *DatabaseImpl) DeleteBloomFilterByEpoch(epochId uint64) error {
 	return d.db.Delete(BloomFilter{}, "epoch_id = ?", epochId).Error
-
 }
 
 // Returns an Epoch from the database with the given id
