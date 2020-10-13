@@ -112,24 +112,6 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.UpsertEphemeralBloomFilter(&EphemeralBloomFilter{
-//		RecipientId: testRecip.Marshal(),
-//		Filter:      testBytes,
-//		EpochId: testEpoch.Id,
-//	})
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
-//	err = db.UpsertEphemeralBloomFilter(&EphemeralBloomFilter{
-//		RecipientId: testRecip.Marshal(),
-//		Filter:      testBytes,
-//		EpochId: testEpoch2.Id,
-//	})
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
 //	err = db.InsertMixedMessages([]*MixedMessage{{
 //		RoundId:         testRound,
 //		RecipientId:     testClient.Marshal(),
@@ -197,19 +179,8 @@ import (
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", filters)
-//	ephFilters, err := db.getEphemeralBloomFilters(testRecip)
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
-//	jwalterweatherman.INFO.Printf("%+v", ephFilters)
 //
 //	err = db.DeleteBloomFilterByEpoch(testEpoch.Id)
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
-//	err = db.deleteEphemeralBloomFilterByEpoch(testEpoch.Id)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return

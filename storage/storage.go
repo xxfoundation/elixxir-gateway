@@ -19,7 +19,7 @@ type Storage struct {
 	database
 }
 
-// Return-type object for non-database representation of a BloomFilter or EphemeralBloomFilter
+// Return-type object for non-database representation of a BloomFilter
 type ClientBloomFilter struct {
 	Filter     []byte
 	FirstRound id.Round

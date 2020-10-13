@@ -75,7 +75,7 @@ type Round struct {
 	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
 }
 
-// Represents an Epoch that is associated with each BloomFilter or EphemeralBloomFilter
+// Represents an Epoch that is associated with each BloomFilter
 // Used to determine a time period during which a set of Filters were created
 type Epoch struct {
 	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
