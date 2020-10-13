@@ -46,24 +46,14 @@ func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs [
 	return
 }
 
-// Returns all of the ClientBloomFilter relevant to the given clientId
+// Returns all of the ClientBloomFilter from Storage relevant to the given clientId
 // latestRound is the most recent round in the network, used to populate fields of ClientBloomFilter
 func (s *Storage) GetBloomFilters(clientId *id.ID, latestRound id.Round) ([]*ClientBloomFilter, error) {
 	bloomFilters, err := s.getBloomFilters(clientId)
 	if err != nil {
 		return nil, err
 	}
-	ephFilters, err := s.getEphemeralBloomFilters(clientId)
-	if err != nil {
-		return nil, err
-	}
 
-	return s.convertBloomFilters(bloomFilters, ephFilters, latestRound)
-}
-
-// Helper function for converting BloomFilter and EphemeralBloomFilter to ClientBloomFilter
-func (s *Storage) convertBloomFilters(bloomFilters []*BloomFilter,
-	ephFilters []*EphemeralBloomFilter, latestRound id.Round) ([]*ClientBloomFilter, error) {
 	result := make([]*ClientBloomFilter, 0)
 
 	latestEpoch, err := s.GetLatestEpoch()
@@ -98,42 +88,5 @@ func (s *Storage) convertBloomFilters(bloomFilters []*BloomFilter,
 		result = append(result, clientFilter)
 	}
 
-	for _, filter := range ephFilters {
-		clientFilter := &ClientBloomFilter{
-			Filter: filter.Filter,
-		}
-
-		// Determine relevant rounds for the ClientBloomFilter
-		if filter.EpochId == latestEpoch.Id {
-			clientFilter.FirstRound = id.Round(latestEpoch.RoundId)
-			clientFilter.LastRound = latestRound
-		} else {
-
-			epoch, err := s.GetEpoch(filter.EpochId)
-			if err != nil {
-				return nil, err
-			}
-			nextEpoch, err := s.GetEpoch(filter.EpochId + 1)
-			if err != nil {
-				return nil, err
-			}
-
-			clientFilter.FirstRound = id.Round(epoch.RoundId)
-			clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
-		}
-
-		result = append(result, clientFilter)
-	}
-
 	return result, nil
-}
-
-// Delete all BloomFilter and EphemeralBloomFilter associated with the given epochId
-func (s *Storage) DeleteBloomsByEpoch(epochId uint64) error {
-	err := s.deleteEphemeralBloomFilterByEpoch(epochId)
-	if err != nil {
-		return err
-	}
-
-	return s.deleteBloomFilterByEpoch(epochId)
 }

@@ -36,13 +36,9 @@ type database interface {
 	GetLatestEpoch() (*Epoch, error)
 	InsertEpoch(roundId id.Round) (*Epoch, error)
 
-	getBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
+	getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error)
 	UpsertBloomFilter(filter *BloomFilter) error
-	deleteBloomFilterByEpoch(epochId uint64) error
-
-	getEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error)
-	UpsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
-	deleteEphemeralBloomFilterByEpoch(epochId uint64) error
+	DeleteBloomFilterByEpoch(epochId uint64) error
 }
 
 // Struct implementing the database Interface with an underlying DB
@@ -56,7 +52,6 @@ type MapImpl struct {
 	rounds                     map[id.Round]*Round
 	mixedMessages              map[uint64]*MixedMessage
 	bloomFilters               map[uint64]*BloomFilter
-	ephemeralBloomFilters      map[uint64]*EphemeralBloomFilter
 	mixedMessagesCount         uint64
 	bloomFiltersCount          uint64
 	ephemeralBloomFiltersCount uint64
@@ -87,20 +82,11 @@ type Epoch struct {
 	RoundId     uint64    `gorm:"NOT NULL"` // Explicitly not a FK, a Round may be deleted
 	DateCreated time.Time `gorm:"NOT NULL"`
 
-	BloomFilters          []BloomFilter          `gorm:"foreignkey:EpochId;association_foreignkey:Id"`
-	EphemeralBloomFilters []EphemeralBloomFilter `gorm:"foreignkey:EpochId;association_foreignkey:Id"`
+	BloomFilters []BloomFilter `gorm:"foreignkey:EpochId;association_foreignkey:Id"`
 }
 
 // Represents a Client's BloomFilter
 type BloomFilter struct {
-	Id       uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
-	ClientId []byte `gorm:"NOT NULL;INDEX;type:bytea REFERENCES clients(Id)"`
-	Filter   []byte `gorm:"NOT NULL"`
-	EpochId  uint64 `gorm:"NOT NULL;type:bigint REFERENCES epochs(Id)"`
-}
-
-// Represents an ephemeral Client's temporary BloomFilter
-type EphemeralBloomFilter struct {
 	Id          uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
 	RecipientId []byte `gorm:"NOT NULL"`
 	Filter      []byte `gorm:"NOT NULL"`
@@ -175,7 +161,6 @@ func newDatabase(username, password, dbName, address,
 			rounds:                     map[id.Round]*Round{},
 			mixedMessages:              map[uint64]*MixedMessage{},
 			bloomFilters:               map[uint64]*BloomFilter{},
-			ephemeralBloomFilters:      map[uint64]*EphemeralBloomFilter{},
 			mixedMessagesCount:         0,
 			bloomFiltersCount:          0,
 			ephemeralBloomFiltersCount: 0,
@@ -198,7 +183,7 @@ func newDatabase(username, password, dbName, address,
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
 	models := []interface{}{&Client{}, &Round{}, &MixedMessage{},
-		&Epoch{}, &BloomFilter{}, &EphemeralBloomFilter{}}
+		&Epoch{}, &BloomFilter{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model).Error
 		if err != nil {

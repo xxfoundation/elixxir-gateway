@@ -116,10 +116,10 @@ func (d *DatabaseImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 
 // Returns a BloomFilter from database with the given clientId
 // Or an error if a matching BloomFilter does not exist
-func (d *DatabaseImpl) getBloomFilters(clientId *id.ID) ([]*BloomFilter, error) {
+func (d *DatabaseImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error) {
 	results := make([]*BloomFilter, 0)
 	err := d.db.Find(&results,
-		&BloomFilter{ClientId: clientId.Marshal()}).Error
+		&BloomFilter{RecipientId: recipientId.Marshal()}).Error
 	return results, err
 }
 
@@ -131,50 +131,9 @@ func (d *DatabaseImpl) UpsertBloomFilter(filter *BloomFilter) error {
 
 // Deletes all BloomFilter with the given epochId from database
 // Returns an error if a matching BloomFilter does not exist
-func (d *DatabaseImpl) deleteBloomFilterByEpoch(epochId uint64) error {
+func (d *DatabaseImpl) DeleteBloomFilterByEpoch(epochId uint64) error {
 	return d.db.Delete(BloomFilter{}, "epoch_id = ?", epochId).Error
 
-}
-
-// Returns a EphemeralBloomFilter from database with the given recipientId
-// Or an error if a matching EphemeralBloomFilter does not exist
-func (d *DatabaseImpl) getEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error) {
-	results := make([]*EphemeralBloomFilter, 0)
-	err := d.db.Find(&results,
-		&EphemeralBloomFilter{RecipientId: recipientId.Marshal()}).Error
-	return results, err
-}
-
-// Inserts the given EphemeralBloomFilter into database if it does not exist
-// Or updates the EphemeralBloomFilter in the database if the EphemeralBloomFilter already exists
-func (d *DatabaseImpl) UpsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error {
-	// Make a copy of the provided EphemeralBloomFilter
-	newFilter := *filter
-
-	// Build a transaction to prevent race conditions
-	return d.db.Transaction(func(tx *gorm.DB) error {
-
-		// Attempt to insert filter into the database,
-		// or if it already exists, replace filter with the database value
-		err := tx.FirstOrCreate(filter, &EphemeralBloomFilter{Id: filter.Id}).Error
-		if err != nil {
-			return err
-		}
-
-		// If filter is already present in the database, overwrite it with newFilter
-		if filter.Id == newFilter.Id {
-			return tx.Save(&newFilter).Error
-		}
-
-		// Commit
-		return nil
-	})
-}
-
-// Deletes all EphemeralBloomFilter with the given epochId from database
-// Returns an error if a matching EphemeralBloomFilter does not exist
-func (d *DatabaseImpl) deleteEphemeralBloomFilterByEpoch(epochId uint64) error {
-	return d.db.Delete(EphemeralBloomFilter{}, "epoch_id = ?", epochId).Error
 }
 
 // Returns an Epoch from the database with the given id

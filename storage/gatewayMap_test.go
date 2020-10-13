@@ -204,7 +204,7 @@ import (
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", ephFilters)
 //
-//	err = db.deleteBloomFilterByEpoch(testEpoch.Id)
+//	err = db.DeleteBloomFilterByEpoch(testEpoch.Id)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -617,11 +617,11 @@ func TestMapImpl_GetBloomFilters(t *testing.T) {
 	testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
 	m := &MapImpl{
 		bloomFilters: map[uint64]*BloomFilter{
-			rand.Uint64(): {ClientId: testClientID.Marshal()},
-			rand.Uint64(): {ClientId: testClientID.Marshal()},
-			rand.Uint64(): {ClientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
-			rand.Uint64(): {ClientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
-			rand.Uint64(): {ClientId: testClientID.Marshal()},
+			rand.Uint64(): {RecipientId: testClientID.Marshal()},
+			rand.Uint64(): {RecipientId: testClientID.Marshal()},
+			rand.Uint64(): {RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
+			rand.Uint64(): {RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
+			rand.Uint64(): {RecipientId: testClientID.Marshal()},
 		},
 	}
 
@@ -639,8 +639,8 @@ func TestMapImpl_GetBloomFilters_NoFiltersError(t *testing.T) {
 	testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
 	m := &MapImpl{
 		bloomFilters: map[uint64]*BloomFilter{
-			rand.Uint64(): {ClientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
-			rand.Uint64(): {ClientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
+			rand.Uint64(): {RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
+			rand.Uint64(): {RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
 		},
 	}
 
@@ -691,7 +691,7 @@ func TestMapImpl_DeleteBloomFilter(t *testing.T) {
 		bloomFilters: map[uint64]*BloomFilter{testID: testBloomFilter},
 	}
 
-	err := m.deleteBloomFilterByEpoch(testID)
+	err := m.DeleteBloomFilterByEpoch(testID)
 
 	if err != nil || m.bloomFilters[testID] != nil {
 		t.Errorf("Failed to delete bloom filter: %v", err)
@@ -705,111 +705,10 @@ func TestMapImpl_DeleteBloomFilter_NoFilterError(t *testing.T) {
 		bloomFilters: make(map[uint64]*BloomFilter),
 	}
 
-	err := m.deleteBloomFilterByEpoch(testID)
+	err := m.DeleteBloomFilterByEpoch(testID)
 
 	if err == nil {
 		t.Errorf("No error received when attemting to delete bloom filter " +
-			"that does not exist in map.")
-	}
-}
-
-// Happy path.
-func TestMapImpl_GetEphemeralBloomFilters(t *testing.T) {
-	testRecipientIdID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
-	m := &MapImpl{
-		ephemeralBloomFilters: map[uint64]*EphemeralBloomFilter{
-			rand.Uint64(): {RecipientId: testRecipientIdID.Marshal()},
-			rand.Uint64(): {RecipientId: testRecipientIdID.Marshal()},
-			rand.Uint64(): {RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
-			rand.Uint64(): {RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
-			rand.Uint64(): {RecipientId: testRecipientIdID.Marshal()},
-		},
-	}
-
-	ephemeralBloomFilters, err := m.getEphemeralBloomFilters(testRecipientIdID)
-	if err != nil {
-		t.Errorf("Unexpected error retrieving ephemeral bloom filterss: %v", err)
-	}
-	if len(ephemeralBloomFilters) != 3 {
-		t.Errorf("Received unexpected number of ephemeral bloom filterss: %v", ephemeralBloomFilters)
-	}
-}
-
-// Error Path: No matching ephemeral bloom filters exist in the map.
-func TestMapImpl_GetEphemeralBloomFilters_NoFiltersError(t *testing.T) {
-	testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
-	m := &MapImpl{
-		ephemeralBloomFilters: map[uint64]*EphemeralBloomFilter{
-			rand.Uint64(): {RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
-			rand.Uint64(): {RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal()},
-		},
-	}
-
-	ephemeralBloomFilters, err := m.getEphemeralBloomFilters(testClientID)
-	if err == nil {
-		t.Errorf("Expected an error when ephemeral bloom filterss is not in map.")
-	}
-	if ephemeralBloomFilters != nil {
-		t.Errorf("Expected nil ephemeral bloom filterss returned. Received: %v",
-			ephemeralBloomFilters)
-	}
-}
-
-// Happy path.
-func TestMapImpl_InsertEphemeralBloomFilter(t *testing.T) {
-	testID := uint64(0)
-	testEphemeralBloomFilter := &EphemeralBloomFilter{Id: testID}
-	m := &MapImpl{
-		ephemeralBloomFilters: make(map[uint64]*EphemeralBloomFilter),
-	}
-
-	err := m.UpsertEphemeralBloomFilter(testEphemeralBloomFilter)
-	if err != nil || m.ephemeralBloomFilters[testID] == nil {
-		t.Errorf("Failed to insert ephemeral bloom filters: %v", err)
-	}
-}
-
-// Error Path: Bloom filter already exists in map.
-func TestMapImpl_InsertEphemeralBloomFilter_FilterAlreadyExistsError(t *testing.T) {
-	testID := uint64(0)
-	testEphemeralBloomFilter := &EphemeralBloomFilter{Id: testID}
-	m := &MapImpl{
-		ephemeralBloomFilters: map[uint64]*EphemeralBloomFilter{testID: testEphemeralBloomFilter},
-	}
-
-	err := m.UpsertEphemeralBloomFilter(testEphemeralBloomFilter)
-	if err == nil {
-		t.Errorf("Did not error when attempting to insert a ephemeral bloom filters that " +
-			"already exists.")
-	}
-}
-
-// Happy path.
-func TestMapImpl_DeleteEphemeralBloomFilter(t *testing.T) {
-	testID := rand.Uint64()
-	testEphemeralBloomFilter := &EphemeralBloomFilter{Id: testID}
-	m := &MapImpl{
-		ephemeralBloomFilters: map[uint64]*EphemeralBloomFilter{testID: testEphemeralBloomFilter},
-	}
-
-	err := m.deleteEphemeralBloomFilterByEpoch(testID)
-
-	if err != nil || m.ephemeralBloomFilters[testID] != nil {
-		t.Errorf("Failed to delete ephemeral bloom filters: %v", err)
-	}
-}
-
-// Error Path: The ephemeral bloom filters does not exists in map.
-func TestMapImpl_DeleteEphemeralBloomFilter_NoFilterError(t *testing.T) {
-	testID := rand.Uint64()
-	m := &MapImpl{
-		ephemeralBloomFilters: make(map[uint64]*EphemeralBloomFilter),
-	}
-
-	err := m.deleteEphemeralBloomFilterByEpoch(testID)
-
-	if err == nil {
-		t.Errorf("No error received when attemting to delete ephemeral bloom filters " +
 			"that does not exist in map.")
 	}
 }

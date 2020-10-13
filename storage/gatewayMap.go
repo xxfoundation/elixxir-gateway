@@ -158,13 +158,13 @@ func (m *MapImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 
 // Returns a BloomFilter from database with the given clientId
 // Or an error if a matching BloomFilter does not exist
-func (m *MapImpl) getBloomFilters(clientId *id.ID) ([]*BloomFilter, error) {
+func (m *MapImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error) {
 	var bloomFilters []*BloomFilter
 
 	m.RLock()
 	// Search map for all BloomFilters with matching client ID
 	for _, bf := range m.bloomFilters {
-		if bytes.Equal(bf.ClientId, clientId.Marshal()) {
+		if bytes.Equal(bf.RecipientId, recipientId.Marshal()) {
 			bloomFilters = append(bloomFilters, bf)
 		}
 	}
@@ -173,7 +173,7 @@ func (m *MapImpl) getBloomFilters(clientId *id.ID) ([]*BloomFilter, error) {
 	// Return an error if no BloomFilters were found.
 	if len(bloomFilters) == 0 {
 		return nil, errors.Errorf("Could not find any BloomFilters with the "+
-			"client ID %v in map.", clientId)
+			"client ID %v in map.", recipientId)
 	}
 
 	return bloomFilters, nil
@@ -188,44 +188,7 @@ func (m *MapImpl) UpsertBloomFilter(filter *BloomFilter) error {
 
 // Deletes all BloomFilter with the given epochId from database
 // Returns an error if a matching BloomFilter does not exist
-func (m *MapImpl) deleteBloomFilterByEpoch(epochId uint64) error {
-	// TODO
-	return nil
-}
-
-// Returns a EphemeralBloomFilter from database with the given recipientId
-// Or an error if a matching EphemeralBloomFilter does not exist
-func (m *MapImpl) getEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error) {
-	var ephemeralBloomFilter []*EphemeralBloomFilter
-
-	m.RLock()
-	// Search map for all EphemeralBloomFilters with matching recipient ID
-	for _, ebf := range m.ephemeralBloomFilters {
-		if bytes.Equal(ebf.RecipientId, recipientId.Marshal()) {
-			ephemeralBloomFilter = append(ephemeralBloomFilter, ebf)
-		}
-	}
-	m.RUnlock()
-
-	// Return an error if no EphemeralBloomFilters were found.
-	if len(ephemeralBloomFilter) == 0 {
-		return nil, errors.Errorf("Could not find any EphemeralBloomFilters "+
-			"with the recipient ID %v in map.", recipientId)
-	}
-
-	return ephemeralBloomFilter, nil
-}
-
-// Inserts the given EphemeralBloomFilter into database if it does not exist
-// Or updates the EphemeralBloomFilter in the database if the EphemeralBloomFilter already exists
-func (m *MapImpl) UpsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error {
-	// TODO
-	return nil
-}
-
-// Deletes all EphemeralBloomFilter with the given epochId from database
-// Returns an error if a matching EphemeralBloomFilter does not exist
-func (m *MapImpl) deleteEphemeralBloomFilterByEpoch(epochId uint64) error {
+func (m *MapImpl) DeleteBloomFilterByEpoch(epochId uint64) error {
 	// TODO
 	return nil
 }
