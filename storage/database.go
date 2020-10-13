@@ -88,7 +88,7 @@ type Epoch struct {
 // Represents a Client's BloomFilter
 type BloomFilter struct {
 	RecipientId []byte `gorm:"primary_key;"`
-	EpochId     uint64 `gorm:"primary_key;;type:bigint REFERENCES epochs(Id)"`
+	EpochId     uint64 `gorm:"primary_key;type:bigint REFERENCES epochs(Id)"`
 	Filter      []byte `gorm:"NOT NULL"`
 }
 
