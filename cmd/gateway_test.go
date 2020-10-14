@@ -9,7 +9,7 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/binary"
+	//	"encoding/binary"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -395,6 +395,7 @@ func TestInstance_RequestMessages(t *testing.T) {
 	}
 }
 
+/*
 // Error path: Request a round that exists in the database but the requested user
 //  is not within this round
 func TestInstance_RequestMessages_NoUser(t *testing.T) {
@@ -465,6 +466,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	}
 
 }
+*/
 
 // Error path: Craft a nil message which should not be accepted
 func TestInstance_RequestMessages_NilCheck(t *testing.T) {
