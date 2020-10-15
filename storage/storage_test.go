@@ -19,7 +19,7 @@ func TestStorage_GetBloomFilters(t *testing.T) {
 func TestStorage_GetMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
+	testRecipientID := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
 	testMixedMessage := &MixedMessage{
 		Id:          testMsgID,
 		RoundId:     uint64(testRoundID),
@@ -27,13 +27,15 @@ func TestStorage_GetMixedMessages(t *testing.T) {
 	}
 	storage := &Storage{
 		&MapImpl{
-			mixedMessages: map[uint64]*MixedMessage{
-				testMsgID: testMixedMessage,
+			mixedMessages: MixedMessageMap{
+				RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{testRoundID: {testRecipientID: {testMsgID: testMixedMessage}}},
+				RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{testRecipientID: {testRoundID: {testMsgID: testMixedMessage}}},
+				RoundIdCount: map[id.Round]uint64{testRoundID: 1},
 			},
 		},
 	}
 
-	msgs, isValidGateway, err := storage.GetMixedMessages(testRecipientID, testRoundID)
+	msgs, isValidGateway, err := storage.GetMixedMessages(&testRecipientID, testRoundID)
 	if len(msgs) != 1 {
 		t.Errorf("Retrieved unexpected number of messages: %d", len(msgs))
 	}
@@ -51,7 +53,10 @@ func TestStorage_GetMixedMessagesInvalidGw(t *testing.T) {
 
 	storage := &Storage{
 		&MapImpl{
-			mixedMessages: map[uint64]*MixedMessage{},
+			mixedMessages: MixedMessageMap{
+				RoundId:     map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
+				RecipientId: map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+			},
 		},
 	}
 

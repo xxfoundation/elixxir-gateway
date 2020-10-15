@@ -48,13 +48,38 @@ type DatabaseImpl struct {
 
 // Struct implementing the database Interface with an underlying Map
 type MapImpl struct {
-	clients                    map[id.ID]*Client
-	rounds                     map[id.Round]*Round
-	mixedMessages              map[uint64]*MixedMessage
-	bloomFilters               map[uint64]*BloomFilter
-	mixedMessagesCount         uint64
-	bloomFiltersCount          uint64
-	ephemeralBloomFiltersCount uint64
+	clients       map[id.ID]*Client
+	rounds        map[id.Round]*Round
+	mixedMessages MixedMessageMap
+	bloomFilters  BloomFilterMap
+	epochs        EpochMap
+	sync.RWMutex
+}
+
+// MixedMessageMap contains a list of MixedMessage sorted into two maps so that
+// they can key on RoundId and RecipientId. All messages are stored by their
+// unique ID.
+type MixedMessageMap struct {
+	RoundId      map[id.Round]map[id.ID]map[uint64]*MixedMessage
+	RecipientId  map[id.ID]map[id.Round]map[uint64]*MixedMessage
+	RoundIdCount map[id.Round]uint64
+	IdTrack      uint64
+	sync.RWMutex
+}
+
+// BloomFilterMap contains a list of BloomFilter sorted in two maps so that they
+// can key on RecipientId and EpochId.
+type BloomFilterMap struct {
+	RecipientId map[id.ID]map[uint64]*BloomFilter
+	EpochId     map[uint64]map[id.ID]*BloomFilter
+	sync.RWMutex
+}
+
+// EpochMap contains a map of Epoch keyed on their ID. Also tracks incrementing
+// of new IDs, and the latest Epoch in the map.
+type EpochMap struct {
+	M       map[uint64]*Epoch
+	IdTrack uint64
 	sync.RWMutex
 }
 
@@ -130,7 +155,7 @@ func newDatabase(username, password, dbName, address,
 
 	var err error
 	var db *gorm.DB
-	//connect to the database if the correct information is provided
+	// Connect to the database if the correct information is provided
 	if address != "" && port != "" {
 		// Create the database connection
 		connectString := fmt.Sprintf(
@@ -156,13 +181,23 @@ func newDatabase(username, password, dbName, address,
 		defer jww.INFO.Println("Map backend initialized successfully!")
 
 		mapImpl := &MapImpl{
-			clients:                    map[id.ID]*Client{},
-			rounds:                     map[id.Round]*Round{},
-			mixedMessages:              map[uint64]*MixedMessage{},
-			bloomFilters:               map[uint64]*BloomFilter{},
-			mixedMessagesCount:         0,
-			bloomFiltersCount:          0,
-			ephemeralBloomFiltersCount: 0,
+			clients: map[id.ID]*Client{},
+			rounds:  map[id.Round]*Round{},
+
+			mixedMessages: MixedMessageMap{
+				RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
+				RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+				RoundIdCount: map[id.Round]uint64{},
+				IdTrack:      0,
+			},
+			bloomFilters: BloomFilterMap{
+				RecipientId: map[id.ID]map[uint64]*BloomFilter{},
+				EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+			},
+			epochs: EpochMap{
+				M:       map[uint64]*Epoch{},
+				IdTrack: 0,
+			},
 		}
 
 		return database(mapImpl), func() error { return nil }, nil
