@@ -12,10 +12,60 @@ import (
 	"testing"
 )
 
+// Happy path
 func TestStorage_GetBloomFilters(t *testing.T) {
-	// TODO
+	testEpochId := uint64(0)
+	testEpochId2 := uint64(1)
+	testRoundId := uint64(0)
+	testRoundId2 := uint64(100)
+	testRecipientID := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
+	storage := &Storage{
+		&MapImpl{
+			epochs: EpochMap{
+				M: map[uint64]*Epoch{testEpochId: {
+					Id:      testEpochId,
+					RoundId: testRoundId,
+				},
+					testEpochId2: {
+						Id:      testEpochId2,
+						RoundId: testRoundId2,
+					}},
+				IdTrack: testEpochId2 + 1,
+			},
+			bloomFilters: BloomFilterMap{
+				RecipientId: map[id.ID]map[uint64]*BloomFilter{
+					testRecipientID: {testEpochId: {RecipientId: testRecipientID.Marshal(), EpochId: testEpochId},
+						testEpochId2: {RecipientId: testRecipientID.Marshal(), EpochId: testEpochId2},
+					},
+				},
+				EpochId: map[uint64]map[id.ID]*BloomFilter{
+					testEpochId: {testRecipientID: {RecipientId: testRecipientID.Marshal(), EpochId: testEpochId},
+					},
+					testEpochId2: {testRecipientID: {RecipientId: testRecipientID.Marshal(), EpochId: testEpochId2},
+					},
+				},
+			},
+		},
+	}
+
+	latestRound := id.Round(100)
+	results, err := storage.GetBloomFilters(&testRecipientID, latestRound)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	if len(results) != 2 {
+		t.Errorf("Returned unexpected number of results: %d", len(results))
+		return
+	}
+	if results[0].LastRound != id.Round(testRoundId2-1) {
+		t.Errorf("Got unexpected LastRound value: %d", results[0].LastRound)
+	}
+	if results[1].LastRound != latestRound {
+		t.Errorf("Got unexpected LastRound value: %d", results[1].LastRound)
+	}
 }
 
+// Happy path
 func TestStorage_GetMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()
 	testRoundID := id.Round(rand.Uint64())
@@ -47,6 +97,7 @@ func TestStorage_GetMixedMessages(t *testing.T) {
 	}
 }
 
+// Invalid gateway path
 func TestStorage_GetMixedMessagesInvalidGw(t *testing.T) {
 	testRoundID := id.Round(rand.Uint64())
 	testRecipientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)

@@ -303,12 +303,12 @@ func (m *MapImpl) GetLatestEpoch() (*Epoch, error) {
 	defer m.epochs.RUnlock()
 
 	// Return an error if no epochs are in the map
-	if len(m.epochs.M) == 0 {
+	if result := m.epochs.M[m.epochs.IdTrack-1]; len(m.epochs.M) == 0 || result == nil {
 		return nil, errors.Errorf("Could not get latest epoch, map is empty.")
+	} else {
+		// Return the epoch with the newest ID
+		return result, nil
 	}
-
-	// Return the epoch with the newest ID
-	return m.epochs.M[m.epochs.IdTrack-1], nil
 }
 
 // Inserts an Epoch with the given roundId into the database
