@@ -523,12 +523,16 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 	roundID := id.Round(msg.RoundID)
 
 	// Search the database for the requested messages
-	msgs, _, err := gw.storage.GetMixedMessages(userId, roundID)
+	msgs, isValidGateway, err := gw.storage.GetMixedMessages(userId, roundID)
 	if err != nil {
 		return &pb.GetMessagesResponse{
 				HasRound: true,
 			}, errors.Errorf("Could not find any MixedMessages with "+
 				"recipient ID %v and round ID %v.", userId, roundID)
+	}
+	if !isValidGateway {
+		return &pb.GetMessagesResponse{}, errors.Errorf("Could not find any "+
+			"MixedMessages for round ID %d. Gateway may not be valid.", roundID)
 	}
 
 	// Parse the database response to construct individual slots
