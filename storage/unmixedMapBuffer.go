@@ -17,9 +17,8 @@ import (
 // UnmixedMessagesMap holds messages that have been received by gateway but have
 // yet to been submitted to the network for mixing.
 type UnmixedMessagesMap struct {
-	messages  map[id.Round]*SendRound
-	lastRound id.Round
-	mux       sync.Mutex
+	messages map[id.Round]*SendRound
+	mux      sync.Mutex
 }
 
 type SendRound struct {
@@ -43,12 +42,10 @@ func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
-	if umb.lastRound == roundId {
-		return errors.New("Attempted to add mixed message to round " +
-			"that was already sent.")
+	retrievedBatch, ok := umb.messages[roundId]
+	if !ok {
+		return errors.New("cannot add message to unknown round")
 	}
-
-	retrievedBatch := umb.messages[roundId]
 
 	if retrievedBatch.sent {
 		return errors.New("Cannot add message to already sent batch")
@@ -77,7 +74,6 @@ func (umb *UnmixedMessagesMap) GetRoundMessages(minMsgCnt uint64, roundId id.Rou
 	}
 
 	retrievedBatch.sent = true
-	umb.lastRound = roundId
 
 	return retrievedBatch.batch
 }
@@ -117,5 +113,6 @@ func (umb *UnmixedMessagesMap) IsRoundLeader(roundId id.Round) bool {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
-	return umb.messages[roundId] != nil
+	_, ok := umb.messages[roundId]
+	return ok
 }
