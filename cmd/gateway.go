@@ -744,7 +744,9 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	}
 
 	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
-		return &pb.GatewaySlotResponse{Accepted: false}, err
+		return &pb.GatewaySlotResponse{Accepted: false},
+			errors.WithMessage(err, "could not add to round. "+
+				"Please try a different round.")
 	}
 
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",

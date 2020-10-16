@@ -17,14 +17,15 @@ import (
 // UnmixedMessagesMap holds messages that have been received by gateway but have
 // yet to been submitted to the network for mixing.
 type UnmixedMessagesMap struct {
-	messages map[id.Round]*SendRound
-	mux      sync.Mutex
+	messages  map[id.Round]*SendRound
+	lastRound id.Round
+	mux       sync.Mutex
 }
 
 type SendRound struct {
 	batch       *pb.Batch
 	maxElements uint32
-	sent bool
+	sent        bool
 }
 
 // NewUnmixedMessagesMap initialize a UnmixedMessageBuffer interface.
@@ -38,13 +39,18 @@ func NewUnmixedMessagesMap() UnmixedMessageBuffer {
 }
 
 // AddUnmixedMessage adds a message to send to the cMix node.
-func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)error {
+func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round) error {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
+	if umb.lastRound == roundId {
+		return errors.New("Attempted to add mixed message to round " +
+			"that was already sent.")
+	}
+
 	retrievedBatch := umb.messages[roundId]
 
-	if retrievedBatch.sent{
+	if retrievedBatch.sent {
 		return errors.New("Cannot add message to already sent batch")
 	}
 
@@ -71,6 +77,7 @@ func (umb *UnmixedMessagesMap) GetRoundMessages(minMsgCnt uint64, roundId id.Rou
 	}
 
 	retrievedBatch.sent = true
+	umb.lastRound = roundId
 
 	return retrievedBatch.batch
 }
