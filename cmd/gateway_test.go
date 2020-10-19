@@ -9,6 +9,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/binary"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -425,9 +426,8 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
-	if err == nil {
-		t.Errorf("Error path should not have a nil error. " +
-			"Asking for a user ID not within the round should return an error")
+	if receivedMsg != nil && receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
 	}
 
 	if len(receivedMsg.Messages) != 0 {
@@ -463,9 +463,8 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
-	if err == nil {
-		t.Errorf("Error path should not have a nil error. " +
-			"Asking for an unknown round should return an error")
+	if receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
 	}
 
 	if len(receivedMsg.Messages) != 0 {
