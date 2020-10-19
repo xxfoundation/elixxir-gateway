@@ -9,7 +9,7 @@ package cmd
 
 import (
 	"bytes"
-	//	"encoding/binary"
+	"encoding/binary"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -220,7 +220,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err := gatewayInstance.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
@@ -232,7 +232,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 		Id:       rndId,
 		UpdateId: 0,
 	}
-	gatewayInstance.database.UpsertRound(rnd)
+	gatewayInstance.storage.UpsertRound(rnd)
 	_, err = gatewayInstance.PutMessage(slotMsg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!"+
@@ -322,7 +322,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gw.database.InsertClient(newClient)
+	gw.storage.InsertClient(newClient)
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
 	_, err = gw.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
@@ -334,7 +334,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		Id:       rndId,
 		UpdateId: 0,
 	}
-	gw.database.UpsertRound(rnd)
+	gw.storage.UpsertRound(rnd)
 	_, err = gw.PutMessage(slotMsg, "0")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!"+
@@ -352,11 +352,14 @@ func TestInstance_RequestMessages(t *testing.T) {
 	expectedRound := id.Round(1)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.database.InsertMixedMessage(dbMsg)
-
+		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+	}
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message and send
@@ -395,7 +398,6 @@ func TestInstance_RequestMessages(t *testing.T) {
 	}
 }
 
-/*
 // Error path: Request a round that exists in the database but the requested user
 //  is not within this round
 func TestInstance_RequestMessages_NoUser(t *testing.T) {
@@ -404,11 +406,14 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.database.InsertMixedMessage(dbMsg)
-
+		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+	}
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message with an unrecognized userID
@@ -421,9 +426,8 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
-	if err == nil {
-		t.Errorf("Error path should not have a nil error. " +
-			"Asking for a user ID not within the round should return an error")
+	if receivedMsg != nil && receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
 	}
 
 	if len(receivedMsg.Messages) != 0 {
@@ -439,11 +443,14 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.database.InsertMixedMessage(dbMsg)
-
+		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+	}
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message with an unknown round
@@ -456,9 +463,8 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
-	if err == nil {
-		t.Errorf("Error path should not have a nil error. " +
-			"Asking for an unknown round should return an error")
+	if receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
 	}
 
 	if len(receivedMsg.Messages) != 0 {
@@ -466,7 +472,6 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	}
 
 }
-*/
 
 // Error path: Craft a nil message which should not be accepted
 func TestInstance_RequestMessages_NilCheck(t *testing.T) {
@@ -475,11 +480,14 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
-		gatewayInstance.database.InsertMixedMessage(dbMsg)
-
+		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+	}
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	if err != nil {
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message with a nil ClientID
@@ -582,7 +590,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 		Key: []byte("test"),
 	}
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
@@ -605,7 +613,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -623,7 +631,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -641,7 +649,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	if err != nil {
 		t.Errorf(errMsg)
@@ -661,7 +669,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "158.85.140.178")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
@@ -687,7 +695,7 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 		Key: []byte("test"),
 	}
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 
 	// End of business logic
 
@@ -728,7 +736,7 @@ func TestInstance_PutMessage_NonLeader(t *testing.T) {
 		Key: []byte("test"),
 	}
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 
 	// End of business logic
 
@@ -765,7 +773,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 
 	_, err = gatewayInstance.PutMessage(slotMsg, "aa")
 	if err != nil {
@@ -785,7 +793,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "bb")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
@@ -804,7 +812,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	}
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
-	gatewayInstance.database.InsertClient(newClient)
+	gatewayInstance.storage.InsertClient(newClient)
 	_, err = gatewayInstance.PutMessage(slotMsg, "cc")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when user " +
@@ -880,7 +888,7 @@ func TestCreateNetworkInstance(t *testing.T) {
 	}
 
 	netInst, err := CreateNetworkInstance(
-		gatewayInstance.Comms, ndfMsg, ndfMsg)
+		gatewayInstance.Comms, ndfMsg, ndfMsg, &storage.Storage{})
 
 	gatewayInstance.NetInf = netInst
 	if err != nil {
@@ -917,7 +925,7 @@ func TestInstance_Poll(t *testing.T) {
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
-	ers := &storage.ERS{}
+	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
 
 	_, err = gw.Poll(clientReq)
@@ -952,7 +960,7 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
-	ers := &storage.ERS{}
+	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
 
 	_, err = gw.Poll(clientReq)

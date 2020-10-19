@@ -18,11 +18,8 @@ import (
 	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
-	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -58,32 +55,9 @@ var rootCmd = &cobra.Command{
 	Long:  `The cMix gateways coordinate communications between servers and clients`,
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
 		initConfig()
 		initLog()
 		params := InitParams(viper.GetViper())
-
-		// Obtain database connection info
-		rawAddr := viper.GetString("dbAddress")
-		var addr, port string
-		if rawAddr != "" {
-			addr, port, err = net.SplitHostPort(rawAddr)
-			if err != nil {
-				jww.FATAL.Panicf("Unable to get database port: %+v", err)
-			}
-		}
-
-		// Attempt to initialize the backend storage
-		storage.GatewayDB, _, err = storage.NewDatabase(
-			viper.GetString("dbUsername"),
-			viper.GetString("dbPassword"),
-			viper.GetString("dbName"),
-			addr,
-			port,
-		)
-		if err != nil {
-			jww.FATAL.Panicf("Unable to initialize storage: %+v", err)
-		}
 
 		// Build gateway implementation object
 		gateway := NewGatewayInstance(params)
@@ -110,7 +84,7 @@ var rootCmd = &cobra.Command{
 			jww.FATAL.Panicf(err.Error())
 		}
 
-		//add precannedIDs
+		// add precannedIDs
 		for i := uint64(0); i < 41; i++ {
 			u := new(id.ID)
 			binary.BigEndian.PutUint64(u[:], i)
@@ -128,7 +102,10 @@ var rootCmd = &cobra.Command{
 				Key: cgKey,
 			}
 
-			err = gateway.database.InsertClient(newClient)
+			err := gateway.storage.InsertClient(newClient)
+			if err != nil {
+				jww.ERROR.Printf("Unable to insert precanned client: %+v", err)
+			}
 		}
 
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
@@ -140,88 +117,6 @@ var rootCmd = &cobra.Command{
 		// Wait forever
 		select {}
 	},
-}
-
-func InitParams(vip *viper.Viper) Params {
-	if !validConfig {
-		jww.FATAL.Panicf("Invalid Config File: %s", cfgFile)
-	}
-
-	//print all config options
-	jww.INFO.Printf("All config params: %+v", vip.AllKeys())
-
-	certPath = viper.GetString("certPath")
-	if certPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml certPath is required, path provided is empty.")
-	}
-
-	idfPath = viper.GetString("idfPath")
-	keyPath = viper.GetString("keyPath")
-	listeningAddress := viper.GetString("listeningAddress")
-	messageTimeout = viper.GetDuration("messageTimeout")
-	nodeAddress := viper.GetString("nodeAddress")
-	if nodeAddress == "" {
-		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
-	}
-	permissioningCertPath = viper.GetString("permissioningCertPath")
-	if permissioningCertPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml permissioningCertPath is required, path provided is empty.")
-	}
-	gwPort = viper.GetInt("port")
-	if gwPort == 0 {
-		jww.FATAL.Panicf("Gateway.yaml port is required, provided port is empty/not set.")
-	}
-	serverCertPath = viper.GetString("serverCertPath")
-	if serverCertPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
-	}
-
-	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
-	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
-	jww.INFO.Printf("Gateway port: %d", gwPort)
-	jww.INFO.Printf("Gateway listen IP address: %s", listeningAddress)
-	jww.INFO.Printf("Gateway node: %s", nodeAddress)
-
-	// If the values aren't default, repopulate flag values with customized values
-	// Otherwise use the default values
-	gossipFlags := gossip.DefaultManagerFlags()
-	if gossipFlags.BufferExpirationTime != bufferExpiration ||
-		gossipFlags.MonitorThreadFrequency != monitorThreadFrequency {
-
-		gossipFlags = gossip.ManagerFlags{
-			BufferExpirationTime:   bufferExpiration,
-			MonitorThreadFrequency: monitorThreadFrequency,
-		}
-	}
-
-	// Construct the rate limiting params
-	bucketMapParams := &rateLimiting.MapParams{
-		Capacity:     capacity,
-		LeakedTokens: leakedTokens,
-		LeakDuration: leakDuration,
-		PollDuration: pollDuration,
-		BucketMaxAge: bucketMaxAge,
-	}
-
-	viper.SetDefault("knownRoundsPath", knownRoundsDefaultPath)
-	krPath := viper.GetString("knownRoundsPath")
-
-	p := Params{
-		Port:                  gwPort,
-		Address:               listeningAddress,
-		NodeAddress:           nodeAddress,
-		CertPath:              certPath,
-		KeyPath:               keyPath,
-		ServerCertPath:        serverCertPath,
-		IDFPath:               idfPath,
-		PermissioningCertPath: permissioningCertPath,
-		gossipFlags:           gossipFlags,
-		rateLimitParams:       bucketMapParams,
-		MessageTimeout:        messageTimeout,
-		knownRoundsPath:       krPath,
-	}
-
-	return p
 }
 
 // Execute adds all child commands to the root command and sets flags
