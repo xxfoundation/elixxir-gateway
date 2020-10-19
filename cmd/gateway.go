@@ -919,7 +919,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 	// At this point, the returned batch and its fields should be non-nil
 	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
-	for i, msg := range msgs {
+	for _, msg := range msgs {
 		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipientID()
