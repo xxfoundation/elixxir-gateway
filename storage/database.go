@@ -132,9 +132,9 @@ type MixedMessage struct {
 
 // Creates a new MixedMessage object with the given attributes
 // NOTE: Do not modify the MixedMessage.Id attribute.
-func NewMixedMessage(roundId *id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
+func NewMixedMessage(roundId id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
 	return &MixedMessage{
-		RoundId:         uint64(*roundId),
+		RoundId:         uint64(roundId),
 		RecipientId:     recipientId.Marshal(),
 		MessageContents: append(messageContentsA, messageContentsB...),
 	}
