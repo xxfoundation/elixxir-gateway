@@ -198,7 +198,7 @@ func TestNewMixedMessage(t *testing.T) {
 	testRecip := id.NewIdFromBytes(testBytes, t)
 	testRoundId := id.Round(testRound)
 
-	mm := NewMixedMessage(&testRoundId, testRecip, testBytes1, testBytes2)
+	mm := NewMixedMessage(testRoundId, testRecip, testBytes1, testBytes2)
 
 	if mm.Id != 0 {
 		t.Errorf("Invalid Id: %d", mm.Id)
@@ -223,7 +223,7 @@ func TestMixedMessage_GetMessageContents(t *testing.T) {
 	testRecip := id.NewIdFromBytes(testBytes, t)
 	testRoundId := id.Round(testRound)
 
-	mm := NewMixedMessage(&testRoundId, testRecip, testBytes1, testBytes2)
+	mm := NewMixedMessage(testRoundId, testRecip, testBytes1, testBytes2)
 	messageContentsA, messageContentsB := mm.GetMessageContents()
 
 	if bytes.Compare(testBytes1, messageContentsA) != 0 {

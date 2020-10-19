@@ -355,7 +355,7 @@ func TestInstance_RequestMessages(t *testing.T) {
 	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 	}
 	err := gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
@@ -409,7 +409,7 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 	}
 	err := gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
@@ -446,7 +446,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 	}
 	err := gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
@@ -483,7 +483,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		messages[i] = storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
+		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 	}
 	err := gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
