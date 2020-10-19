@@ -931,7 +931,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 			numReal++
 
 			// Create new message and add it to the list for insertion
-			msgsToInsert[i] = storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
+			msgsToInsert[i] = storage.NewMixedMessage(roundID, userId, msg.PayloadA, msg.PayloadB)
 		}
 	}
 
