@@ -928,10 +928,9 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 			jww.DEBUG.Printf("Message Received for: %s, %s, %s",
 				userId.String(), msg.GetPayloadA(), msg.GetPayloadB())
 
-			numReal++
-
 			// Create new message and add it to the list for insertion
-			msgsToInsert[i] = storage.NewMixedMessage(roundID, userId, msg.PayloadA, msg.PayloadB)
+			msgsToInsert[numReal] = storage.NewMixedMessage(roundID, userId, msg.PayloadA, msg.PayloadB)
+			numReal++
 		}
 	}
 
