@@ -32,6 +32,7 @@ import (
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -44,6 +45,9 @@ const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
 )
+
+// The max number of rounds to be stored in the KnownRounds buffer.
+const knownRoundsSize = 1000
 
 type Instance struct {
 	// Storage buffer for messages to be submitted to the network
@@ -77,6 +81,9 @@ type Instance struct {
 	removeGateway chan *id.ID
 
 	lastUpdate uint64
+
+	curentRound    id.Round
+	hasCurentRound bool
 }
 
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
@@ -96,17 +103,10 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() clientRequest.ClientID required")
 	}
 
-	lastKnownRound := gw.NetInf.GetLastRoundID()
+	//lastKnownRound := gw.NetInf.GetLastRoundID()
 
 	// Get the range of updates from the network instance
-	updates, err := gw.NetInf.GetHistoricalRoundRange(
-		id.Round(clientRequest.LastUpdate), lastKnownRound)
-	if err != nil {
-		errStr := fmt.Sprintf("couldn't get updates for client "+
-			"[%v]'s request4: %v", clientRequest.ClientID, err)
-		jww.WARN.Printf(errStr)
-		return &pb.GatewayPollResponse{}, errors.New(errStr)
-	}
+	updates := gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
 
 	kr, err := gw.knownRound.Marshal()
 	if err != nil {
@@ -117,13 +117,16 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	}
 
+	jww.TRACE.Printf("KnownRounds: %v", kr)
+
 	return &pb.GatewayPollResponse{
 		PartialNDF:       gw.NetInf.GetPartialNdf().GetPb(),
 		Updates:          updates,
-		LastTrackedRound: uint64(lastKnownRound),
-		KnownRounds:      kr,
-		FilterNew:        nil,
-		FilterOld:        nil,
+		LastTrackedRound: uint64(0), // FIXME: This should be the
+		// earliest tracked network round
+		KnownRounds: kr,
+		FilterNew:   nil,
+		FilterOld:   nil,
 	}, nil
 }
 
@@ -142,8 +145,15 @@ func NewGatewayInstance(params Params) *Instance {
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		storage:       newDatabase,
-		knownRound:    knownRounds.NewKnownRound(params.knownRounds),
+		knownRound:    knownRounds.NewKnownRound(knownRoundsSize),
 	}
+
+	//There is no round 0
+	i.knownRound.Check(0)
+	jww.DEBUG.Printf("Initial KnownRound State: %+v", i.knownRound)
+	msh, _ := i.knownRound.Marshal()
+	jww.DEBUG.Printf("Initial KnownRound Marshal: %s",
+		string(msh))
 
 	return i
 }
@@ -269,6 +279,11 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				return err
 			}
 
+			err = gw.NetInf.RoundUpdate(update)
+			if err != nil {
+				return err
+			}
+
 			// Convert the ID list to a circuit
 			topology := ds.NewCircuit(idList)
 
@@ -277,13 +292,20 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
 			}
 
-			err = gw.NetInf.RoundUpdate(update)
-			if err != nil {
-				return err
+			roundState := states.Round(update.State)
+
+			if topology.GetNodeLocation(gw.ServerHost.GetId()) != -1 &&
+				(roundState == states.COMPLETED ||
+					roundState == states.FAILED) {
+				gw.curentRound = id.Round(update.ID)
+				gw.hasCurentRound = true
 			}
 
-			if roundState := states.Round(update.State); roundState == states.COMPLETED || roundState == states.FAILED {
+			if roundState == states.COMPLETED || roundState == states.FAILED {
 				gw.knownRound.Check(id.Round(update.ID))
+				if err := gw.SaveKnownRounds(); err != nil {
+					jww.ERROR.Print(err)
+				}
 			}
 		}
 	}
@@ -294,7 +316,11 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	// Process a batch that has been completed by this server
 	if newInfo.Slots != nil {
-		gw.ProcessCompletedBatch(newInfo.Slots)
+		if !gw.hasCurentRound {
+			jww.FATAL.Panicf("No round known about, cannot process slots")
+		}
+		gw.hasCurentRound = false
+		gw.ProcessCompletedBatch(newInfo.Slots, gw.curentRound)
 	}
 	return nil
 }
@@ -336,6 +362,16 @@ func (gw *Instance) InitNetwork() error {
 		return errors.WithMessagef(err,
 			"Failed to read permissioning cert at %v",
 			gw.Params.PermissioningCertPath)
+	}
+
+	// Load knownRounds data from file
+	err = gw.LoadKnownRounds()
+	if err != nil {
+		return err
+	}
+	err = gw.SaveKnownRounds()
+	if err != nil {
+		jww.FATAL.Panicf("Failed to save KnownRounds: %v", err)
 	}
 
 	// Set up temporary gateway listener
@@ -505,22 +541,21 @@ func (gw *Instance) setupIDF(nodeId []byte) (err error) {
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
-func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 	// Error check for a invalidly crafted message
-	if msg == nil || msg.ClientID == nil || msg.RoundID == 0 {
+	if req == nil || req.ClientID == nil || req.RoundID == 0 {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse message! " +
 			"Please try again with a properly crafted message!")
 	}
 
 	// Parse the requested clientID within the message for the database request
-	userId, err := id.Unmarshal(msg.ClientID)
+	userId, err := id.Unmarshal(req.ClientID)
 	if err != nil {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
 	}
 
 	// Parse the roundID within the message
-	// Fixme: double check that it is in fact bigEndian
-	roundID := id.Round(msg.RoundID)
+	roundID := id.Round(req.RoundID)
 
 	// Search the database for the requested messages
 	msgs, isValidGateway, err := gw.storage.GetMixedMessages(userId, roundID)
@@ -529,10 +564,12 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 				HasRound: true,
 			}, errors.Errorf("Could not find any MixedMessages with "+
 				"recipient ID %v and round ID %v.", userId, roundID)
-	}
-	if !isValidGateway {
-		return &pb.GetMessagesResponse{}, errors.Errorf("Could not find any "+
-			"MixedMessages for round ID %d. Gateway may not be valid.", roundID)
+	} else if !isValidGateway {
+		jww.WARN.Printf("A client (%s) has requested messages for a "+
+			"round (%v) which is not recorded with messages", userId, roundID)
+		return &pb.GetMessagesResponse{
+			HasRound: false,
+		}, nil
 	}
 
 	// Parse the database response to construct individual slots
@@ -545,6 +582,9 @@ func (gw *Instance) RequestMessages(msg *pb.GetMessages) (*pb.GetMessagesRespons
 			PayloadA: payloadA,
 			PayloadB: payloadB,
 		}
+		jww.DEBUG.Printf("Message Retrieved: %s, %s, %s",
+			userId.String(), payloadA, payloadB)
+
 		slots = append(slots, data)
 	}
 
@@ -564,6 +604,7 @@ func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*
 }
 
 // Return any MessageIDs in the globals for this User
+// FIXME: Remove this function
 func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string) ([]string, error) {
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
@@ -660,19 +701,6 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	}
 	thisRound := id.Round(msg.RoundID)
 
-	// Check if we manage this round
-	if !gw.UnmixedBuffer.IsRoundLeader(thisRound) {
-		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("Could not find round. " +
-			"Please try a different gateway.")
-	}
-
-	if gw.UnmixedBuffer.IsRoundFull(thisRound) {
-		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("This round is full and " +
-			"will not accept any new messages. Please try a different round.")
-	}
-
-	gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound)
-
 	// Rate limit messages
 	senderId, err := id.Unmarshal(msg.GetMessage().GetSenderID())
 	if err != nil {
@@ -685,6 +713,23 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 		return &pb.GatewaySlotResponse{
 			Accepted: false,
 		}, err
+	}
+
+	// Check if we manage this round
+	if !gw.UnmixedBuffer.IsRoundLeader(thisRound) {
+		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("Could not find round. " +
+			"Please try a different gateway.")
+	}
+
+	if gw.UnmixedBuffer.IsRoundFull(thisRound) {
+		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("This round is full and " +
+			"will not accept any new messages. Please try a different round.")
+	}
+
+	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
+		return &pb.GatewaySlotResponse{Accepted: false},
+			errors.WithMessage(err, "could not add to round. "+
+				"Please try a different round.")
 	}
 
 	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
@@ -764,8 +809,8 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	salt := make([]byte, 32)
 	salt[0] = 0x01
 
-	msg := format.NewMessage()
-	payloadBytes := make([]byte, format.PayloadLen)
+	msg := format.NewMessage(grp.GetP().ByteLen())
+	payloadBytes := make([]byte, grp.GetP().ByteLen())
 	bs := make([]byte, 4)
 	// Note: Cannot be 0, must be inside group
 	// So we add 1, and start at offset in payload
@@ -776,7 +821,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
-	msg.SetRecipient(&dummyUser)
+	msg.SetRecipientID(&dummyUser)
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
@@ -865,7 +910,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 }
 
 // ProcessCompletedBatch handles messages coming out of the mixnet
-func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
+func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	if len(msgs) == 0 {
 		return
 	}
@@ -873,36 +918,25 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot) {
 	numReal := 0
 
 	// At this point, the returned batch and its fields should be non-nil
-	h, _ := hash.NewCMixHash()
 	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
 	for i, msg := range msgs {
-		serialmsg := format.NewMessage()
+		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialmsg.SetPayloadB(msg.PayloadB)
-		userId, err := serialmsg.GetRecipient()
-		if err != nil {
-			jww.ERROR.Printf("Creating userId from serialmsg failed in "+
-				"ProcessCompletedBatch: %+v", err)
-		}
+		userId := serialmsg.GetRecipientID()
 
 		if !userId.Cmp(&dummyUser) {
-			jww.DEBUG.Printf("Message Received for: %s",
-				userId)
+			jww.DEBUG.Printf("Message Received for: %s, %s, %s",
+				userId.String(), msg.GetPayloadA(), msg.GetPayloadB())
 
-			gw.un.Notify(userId)
 			numReal++
-			h.Write(msg.PayloadA)
-			h.Write(msg.PayloadB)
-			roundID := gw.NetInf.GetLastRoundID()
 
 			// Create new message and add it to the list for insertion
 			msgsToInsert[i] = storage.NewMixedMessage(&roundID, userId, msg.PayloadA, msg.PayloadB)
 		}
-
-		h.Reset()
 	}
 
 	// Perform the message insertion into Storage
-	err := gw.storage.InsertMixedMessages(msgsToInsert)
+	err := gw.storage.InsertMixedMessages(msgsToInsert[:numReal])
 	if err != nil {
 		jww.ERROR.Printf("Inserting new mixed messages failed in "+
 			"ProcessCompletedBatch: %+v", err)
@@ -967,4 +1001,40 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 // Client -> Gateway bloom request
 func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
 	return nil, nil
+}
+
+// SaveKnownRounds saves the KnownRounds to a file.
+func (gw *Instance) SaveKnownRounds() error {
+	path := gw.Params.knownRoundsPath
+	data, err := gw.knownRound.Marshal()
+	if err != nil {
+		return errors.Errorf("Failed to marshal KnownRounds: %v", err)
+	}
+	err = utils.WriteFile(path, data, utils.FilePerms, utils.DirPerms)
+	if err != nil {
+		return errors.Errorf("Failed to save KnownRounds to file: %v", err)
+	}
+
+	return nil
+}
+
+// LoadKnownRounds loads the KnownRounds from file into the Instance, if the
+// file exists. Returns nil on successful loading or if the file does not exist.
+// Returns an error if the file cannot be accessed or the data cannot be
+// unmarshaled.
+func (gw *Instance) LoadKnownRounds() error {
+	data, err := utils.ReadFile(gw.Params.knownRoundsPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return errors.Errorf("Failed to read KnownRounds from file: %v", err)
+	}
+
+	err = gw.knownRound.Unmarshal(data)
+	if err != nil {
+		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
+	}
+
+	return nil
 }

@@ -8,6 +8,7 @@
 package storage
 
 import (
+	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/xx_network/primitives/id"
 	"sync"
@@ -23,6 +24,7 @@ type UnmixedMessagesMap struct {
 type SendRound struct {
 	batch       *pb.Batch
 	maxElements uint32
+	sent        bool
 }
 
 // NewUnmixedMessagesMap initialize a UnmixedMessageBuffer interface.
@@ -36,15 +38,22 @@ func NewUnmixedMessagesMap() UnmixedMessageBuffer {
 }
 
 // AddUnmixedMessage adds a message to send to the cMix node.
-func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round) {
+func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round) error {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
-	retrievedBatch := umb.messages[roundId]
+	retrievedBatch, ok := umb.messages[roundId]
+	if !ok {
+		return errors.New("cannot add message to unknown round")
+	}
+
+	if retrievedBatch.sent {
+		return errors.New("Cannot add message to already sent batch")
+	}
 
 	// If the batch for this round was already created, add another message
 	retrievedBatch.batch.Slots = append(retrievedBatch.batch.Slots, msg)
-	return
+	return nil
 }
 
 // GetRoundMessages returns the batch associated with the roundID
@@ -56,6 +65,8 @@ func (umb *UnmixedMessagesMap) GetRoundMessages(minMsgCnt uint64, roundId id.Rou
 	if !ok {
 		return nil
 	}
+
+	retrievedBatch.sent = true
 
 	// Handle batches too small to send
 	if uint64(len(retrievedBatch.batch.Slots)) < minMsgCnt {
@@ -102,5 +113,6 @@ func (umb *UnmixedMessagesMap) IsRoundLeader(roundId id.Round) bool {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
-	return umb.messages[roundId] != nil
+	_, ok := umb.messages[roundId]
+	return ok
 }

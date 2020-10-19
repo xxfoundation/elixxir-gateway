@@ -9,16 +9,28 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/elixxir/crypto/cmix"
+	"gitlab.com/elixxir/gateway/storage"
+	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
+	"gitlab.com/xx_network/comms/gossip"
+	"gitlab.com/xx_network/primitives/id"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
+
+// Default path used to KnownRounds if one is not provided
+const knownRoundsDefaultPath = "/opt/xxnetwork/gateway-logs/knownRounds.json"
 
 // Flags to import from command line or config file
 var (
@@ -73,6 +85,30 @@ var rootCmd = &cobra.Command{
 				continue
 			}
 			jww.FATAL.Panicf(err.Error())
+		}
+
+		// add precannedIDs
+		for i := uint64(0); i < 41; i++ {
+			u := new(id.ID)
+			binary.BigEndian.PutUint64(u[:], i)
+			u.SetType(id.User)
+			h := sha256.New()
+			h.Reset()
+			h.Write([]byte(strconv.Itoa(int(4000 + i))))
+			baseKey := gateway.NetInf.GetCmixGroup().NewIntFromBytes(h.Sum(nil))
+			jww.INFO.Printf("Added precan transmisssion key: %v",
+				baseKey.Bytes())
+			cgKey := cmix.GenerateClientGatewayKey(baseKey)
+			// Insert client information to database
+			newClient := &storage.Client{
+				Id:  u.Marshal(),
+				Key: cgKey,
+			}
+
+			err := gateway.storage.InsertClient(newClient)
+			if err != nil {
+				jww.ERROR.Printf("Unable to insert precanned client: %+v", err)
+			}
 		}
 
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
