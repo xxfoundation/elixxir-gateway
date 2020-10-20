@@ -24,7 +24,6 @@ func TestERS(t *testing.T) {
 	m := &MapImpl{
 		rounds: map[id.Round]*Round{},
 	}
-	GatewayDB = m
 
 	// Create a fake round info to store
 	origR10 := pb.RoundInfo{
@@ -35,7 +34,7 @@ func TestERS(t *testing.T) {
 	}
 
 	// Store a round
-	ers := ERS{}
+	ers := Storage{m}
 	err := ers.Store(&origR10)
 	if err != nil {
 		t.Error(err)

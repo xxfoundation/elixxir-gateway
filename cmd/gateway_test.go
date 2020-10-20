@@ -20,6 +20,7 @@ import (
 	"gitlab.com/elixxir/crypto/large"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
+	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
@@ -92,10 +93,6 @@ func TestMain(m *testing.M) {
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
 	n = node.StartNode(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS, 0, nodeHandler, nodeCert, nodeKey)
 
-	grp = make(map[string]string)
-	grp["prime"] = prime
-	grp["generator"] = generator
-
 	//Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
@@ -136,14 +133,13 @@ func TestMain(m *testing.M) {
 	}
 
 	// build a single mock message
-	msg := format.NewMessage()
+	msg := format.NewMessage(grp2.GetP().ByteLen())
 
-	payloadA := make([]byte, format.PayloadLen)
+	payloadA := make([]byte, grp2.GetP().ByteLen())
 	payloadA[0] = 1
 	msg.SetPayloadA(payloadA)
 
-	recipientID := id.NewIdFromUInt(1, id.User, m).Marshal()
-	msg.AssociatedData.SetRecipientID(recipientID[:len(recipientID)-1])
+	msg.SetRecipientID(id.NewIdFromUInt(1, id.User, m))
 
 	mockMessage = &pb.Slot{
 		Index:    42,
@@ -200,7 +196,11 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
 
-	data := format.NewMessage()
+	p := large.NewIntFromString(prime, 16)
+	g := large.NewIntFromString(generator, 16)
+	grp := cyclic.NewGroup(p, g)
+
+	data := format.NewMessage(grp.GetP().ByteLen())
 	rndId := uint64(1)
 
 	msg := pb.Slot{
@@ -302,7 +302,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	gw.InitRateLimitGossip()
 	defer gw.KillRateLimiter()
 
-	data := format.NewMessage()
+	data := format.NewMessage(grp2.GetP().ByteLen())
 	rndId := uint64(1)
 
 	msg := pb.Slot{
@@ -352,19 +352,15 @@ func TestInstance_RequestMessages(t *testing.T) {
 	expectedRound := id.Round(1)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
-	var mixedMsgs []*storage.MixedMessage
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		mixedMsgs = append(mixedMsgs, dbMsg)
+		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 	}
-	// Insert mixed messages to storage
-	err := gatewayInstance.storage.InsertMixedMessages(mixedMsgs)
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
-		t.Errorf("Could not insert messages into database")
-		t.FailNow()
+		t.Errorf(err.Error())
 	}
-
 
 	// Craft the request message and send
 	requestMessage := &pb.GetMessages{
@@ -410,18 +406,14 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
-	var mixedMsgs []*storage.MixedMessage
-
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		mixedMsgs = append(mixedMsgs, dbMsg)
+		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 	}
-	// Insert mixed messages to storage
-	err := gatewayInstance.storage.InsertMixedMessages(mixedMsgs)
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
-		t.Errorf("Could not insert messages into database")
-		t.FailNow()
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message with an unrecognized userID
@@ -434,9 +426,8 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
-	if err == nil {
-		t.Errorf("Error path should not have a nil error. " +
-			"Asking for a user ID not within the round should return an error")
+	if receivedMsg != nil && receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
 	}
 
 	if len(receivedMsg.Messages) != 0 {
@@ -452,18 +443,14 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
-	var mixedMsgs []*storage.MixedMessage
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		mixedMsgs = append(mixedMsgs, dbMsg)
+		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 	}
-
-	// Insert mixed messages to storage
-	err := gatewayInstance.storage.InsertMixedMessages(mixedMsgs)
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
-		t.Errorf("Could not insert messages into database")
-		t.FailNow()
+		t.Errorf(err.Error())
 	}
 
 	// Craft the request message with an unknown round
@@ -476,9 +463,8 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
-	if err == nil {
-		t.Errorf("Error path should not have a nil error. " +
-			"Asking for an unknown round should return an error")
+	if receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
 	}
 
 	if len(receivedMsg.Messages) != 0 {
@@ -494,21 +480,15 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
 	payload := "test"
-	var mixedMsgs []*storage.MixedMessage
+	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		dbMsg := storage.NewMixedMessage(&expectedRound, recipientID, messageContents, messageContents)
-		mixedMsgs = append(mixedMsgs, dbMsg)
-
+		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
 	}
-
-	// Insert mixed messages to storage
-	err := gatewayInstance.storage.InsertMixedMessages(mixedMsgs)
+	err := gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
-		t.Errorf("Could not insert messages into database")
-		t.FailNow()
+		t.Errorf(err.Error())
 	}
-
 
 	// Craft the request message with a nil ClientID
 	badRequest := &pb.GetMessages{
@@ -908,7 +888,7 @@ func TestCreateNetworkInstance(t *testing.T) {
 	}
 
 	netInst, err := CreateNetworkInstance(
-		gatewayInstance.Comms, ndfMsg, ndfMsg)
+		gatewayInstance.Comms, ndfMsg, ndfMsg, &storage.Storage{})
 
 	gatewayInstance.NetInf = netInst
 	if err != nil {
@@ -924,11 +904,11 @@ func TestCreateNetworkInstance(t *testing.T) {
 func TestInstance_Poll(t *testing.T) {
 	//Build the gateway instance
 	params := Params{
-		NodeAddress:    NODE_ADDRESS,
-		ServerCertPath: testkeys.GetNodeCertPath(),
-		CertPath:       testkeys.GetGatewayCertPath(),
-		MessageTimeout: 10 * time.Minute,
-		knownRounds:    5,
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "",
 	}
 
 	gw := NewGatewayInstance(params)
@@ -947,7 +927,7 @@ func TestInstance_Poll(t *testing.T) {
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
-	ers := &storage.ERS{}
+	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
 
 	// TODO: Remove this when jake fixes the database please [Insert deity]
@@ -965,11 +945,11 @@ func TestInstance_Poll(t *testing.T) {
 func TestInstance_Poll_NilCheck(t *testing.T) {
 	//Build the gateway instance
 	params := Params{
-		NodeAddress:    NODE_ADDRESS,
-		ServerCertPath: testkeys.GetNodeCertPath(),
-		CertPath:       testkeys.GetGatewayCertPath(),
-		MessageTimeout: 10 * time.Minute,
-		knownRounds:    5,
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "",
 	}
 
 	gw := NewGatewayInstance(params)
@@ -986,7 +966,7 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
-	ers := &storage.ERS{}
+	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
 
 	_, err = gw.Poll(clientReq)
@@ -998,6 +978,158 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 	_, err = gw.Poll(nil)
 	if err == nil {
 		t.Errorf("Expected error path. Should error when passing a nil message")
+	}
+}
+
+// Tests happy path of Instance.SaveKnownRounds and Instance.LoadKnownRounds.
+func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
+	// Build the gateway instance
+	params := Params{
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "testKR.json",
+	}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.knownRoundsPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify knownRounds
+	gw := NewGatewayInstance(params)
+	_ = gw.InitNetwork()
+	gw.knownRound.Check(4)
+	expectedData, err := gw.knownRound.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal() failed to marshal knownRounds: %v", err)
+	}
+
+	// Attempt to save knownRounds to file
+	if err := gw.SaveKnownRounds(); err != nil {
+		t.Errorf("SaveKnownRounds() produced an error: %v", err)
+	}
+
+	// Attempt to load knownRounds from file
+	if err := gw.LoadKnownRounds(); err != nil {
+		t.Errorf("LoadKnownRounds() produced an error: %v", err)
+	}
+
+	// Ensure that the data loaded from file matches the expected data
+	testData, err := gw.knownRound.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal() failed to marshal knownRounds: %v", err)
+	}
+	if !reflect.DeepEqual(expectedData, testData) {
+		t.Errorf("Failed to load correct KnownRounds."+
+			"\n\texpected: %s\n\treceived: %s", expectedData, testData)
+	}
+}
+
+// Tests that Instance.SaveKnownRounds and Instance.LoadKnownRounds return
+// errors for an invalid path.
+func TestInstance_SaveKnownRounds_LoadKnownRounds_FileError(t *testing.T) {
+	// Build the gateway instance
+	params := Params{
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "~a/testKR.json",
+	}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.knownRoundsPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify knownRounds
+	gw := NewGatewayInstance(params)
+	_ = gw.InitNetwork()
+
+	if gw.SaveKnownRounds() == nil {
+		t.Error("SaveKnownRounds() did not produce an error on invalid path.")
+	}
+
+	err := gw.LoadKnownRounds()
+	if err == nil {
+		t.Error("LoadKnownRounds() did not produce an error on invalid path.")
+	}
+	if os.IsNotExist(err) {
+		t.Errorf("LoadKnownRounds() produced an error for a file that does not "+
+			"exist.\n\texpected: %v\n\trecieved: %v", nil, err)
+	}
+}
+
+// Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
+func TestInstance_LoadKnownRounds_NoFile(t *testing.T) {
+	// Build the gateway instance
+	params := Params{
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "testKR.json",
+	}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.knownRoundsPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify knownRounds
+	gw := NewGatewayInstance(params)
+
+	err := gw.LoadKnownRounds()
+	if err != nil {
+		t.Errorf("LoadKnownRounds() returned an error for a file that does "+
+			"not exist: %v", err)
+	}
+}
+
+// Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
+func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
+	// Build the gateway instance
+	params := Params{
+		NodeAddress:     NODE_ADDRESS,
+		ServerCertPath:  testkeys.GetNodeCertPath(),
+		CertPath:        testkeys.GetGatewayCertPath(),
+		MessageTimeout:  10 * time.Minute,
+		knownRoundsPath: "testKR.json",
+	}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.knownRoundsPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify knownRounds
+	gw := NewGatewayInstance(params)
+	gw.knownRound.Check(67)
+
+	if err := gw.SaveKnownRounds(); err != nil {
+		t.Fatalf("SaveKnownRounds() produced an error: %v", err)
+	}
+
+	gw.knownRound = knownRounds.NewKnownRound(1)
+
+	err := gw.LoadKnownRounds()
+	if err == nil {
+		t.Error("LoadKnownRounds() did not return an error when unmarshalling " +
+			"should have failed.")
 	}
 }
 

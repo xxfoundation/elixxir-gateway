@@ -10,9 +10,7 @@
 package storage
 
 import (
-	"github.com/pkg/errors"
 	"gitlab.com/xx_network/primitives/id"
-	"strings"
 )
 
 // API for the storage layer
@@ -21,7 +19,7 @@ type Storage struct {
 	database
 }
 
-// Return-type object for non-database representation of a BloomFilter or EphemeralBloomFilter
+// Return-type object for non-database representation of a BloomFilter
 type ClientBloomFilter struct {
 	Filter     []byte
 	FirstRound id.Round
@@ -38,37 +36,31 @@ func NewStorage(username, password, dbName, address, port string) (*Storage, fun
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId
 // Also returns a boolean for whether the gateway contains other messages for the given Round
-func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs []*MixedMessage, err error, isValidGateway bool) {
+func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
+	// Determine whether this gateway has any messages for the given roundId
 	count, err := s.countMixedMessagesByRound(roundId)
-	if err != nil {
+	isValidGateway = count > 0
+	if err != nil || !isValidGateway {
 		return
 	}
-	isValidGateway = count > 0
+
+	// If the gateway has messages, return messages relevant to the given recipientId and roundId
 	msgs, err = s.getMixedMessages(recipientId, roundId)
 	return
 }
 
-// Returns all of the ClientBloomFilter relevant to the given clientId
+// Returns all of the ClientBloomFilter from Storage relevant to the given clientId
 // latestRound is the most recent round in the network, used to populate fields of ClientBloomFilter
-func (s *Storage) GetBloomFilters(clientId *id.ID, latestRound id.Round) ([]*ClientBloomFilter, error) {
-	// Retrieve filters
-	bloomFilters, err1 := s.getBloomFilters(clientId)
-	ephFilters, err2 := s.getEphemeralBloomFilters(clientId)
-
-	// Only return an error if BOTH storage queries errored
-	if err1 != nil && err2 != nil {
-		errMsg := strings.Join([]string{err1.Error(), err2.Error()}, ";")
-		return nil, errors.New(errMsg)
-	}
-
-	return s.convertBloomFilters(bloomFilters, ephFilters, latestRound)
-}
-
-// Helper function for converting BloomFilter and EphemeralBloomFilter to ClientBloomFilter
-func (s *Storage) convertBloomFilters(bloomFilters []*BloomFilter,
-	ephFilters []*EphemeralBloomFilter, latestRound id.Round) ([]*ClientBloomFilter, error) {
+func (s *Storage) GetBloomFilters(recipientId *id.ID, latestRound id.Round) ([]*ClientBloomFilter, error) {
 	result := make([]*ClientBloomFilter, 0)
 
+	// Get all BloomFilter from Storage for the given recipientId
+	bloomFilters, err := s.getBloomFilters(recipientId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the latest epoch for determining how current the filters are
 	latestEpoch, err := s.GetLatestEpoch()
 	if err != nil {
 		return nil, err
@@ -81,10 +73,11 @@ func (s *Storage) convertBloomFilters(bloomFilters []*BloomFilter,
 
 		// Determine relevant rounds for the ClientBloomFilter
 		if filter.EpochId == latestEpoch.Id {
+			// If the BloomFilter is current, use the current round
 			clientFilter.FirstRound = id.Round(latestEpoch.RoundId)
 			clientFilter.LastRound = latestRound
 		} else {
-
+			// If the BloomFilter is not current, infer the LastRound from the next Epoch
 			epoch, err := s.GetEpoch(filter.EpochId)
 			if err != nil {
 				return nil, err
@@ -95,33 +88,7 @@ func (s *Storage) convertBloomFilters(bloomFilters []*BloomFilter,
 			}
 
 			clientFilter.FirstRound = id.Round(epoch.RoundId)
-			clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
-		}
-
-		result = append(result, clientFilter)
-	}
-
-	for _, filter := range ephFilters {
-		clientFilter := &ClientBloomFilter{
-			Filter: filter.Filter,
-		}
-
-		// Determine relevant rounds for the ClientBloomFilter
-		if filter.EpochId == latestEpoch.Id {
-			clientFilter.FirstRound = id.Round(latestEpoch.RoundId)
-			clientFilter.LastRound = latestRound
-		} else {
-
-			epoch, err := s.GetEpoch(filter.EpochId)
-			if err != nil {
-				return nil, err
-			}
-			nextEpoch, err := s.GetEpoch(filter.EpochId + 1)
-			if err != nil {
-				return nil, err
-			}
-
-			clientFilter.FirstRound = id.Round(epoch.RoundId)
+			// (Epoch n).LastRound = (Epoch n + 1).FirstRound - 1
 			clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
 		}
 
@@ -129,14 +96,4 @@ func (s *Storage) convertBloomFilters(bloomFilters []*BloomFilter,
 	}
 
 	return result, nil
-}
-
-// Delete all BloomFilter and EphemeralBloomFilter associated with the given epochId
-func (s *Storage) DeleteBloomsByEpoch(epochId uint64) error {
-	err := s.deleteEphemeralBloomFilterByEpoch(epochId)
-	if err != nil {
-		return err
-	}
-
-	return s.deleteBloomFilterByEpoch(epochId)
 }

@@ -39,7 +39,7 @@ type Params struct {
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
 
-	knownRounds int
+	knownRoundsPath string
 }
 
 func InitParams(vip *viper.Viper) Params {
@@ -103,10 +103,8 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
-	kr := viper.GetInt("KnownRounds")
-	if kr == 0 {
-		kr = 1000
-	}
+	viper.SetDefault("knownRoundsPath", knownRoundsDefaultPath)
+	krPath := viper.GetString("knownRoundsPath")
 
 	// Obtain database connection info
 	rawAddr := viper.GetString("dbAddress")
@@ -131,7 +129,7 @@ func InitParams(vip *viper.Viper) Params {
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
 		MessageTimeout:        messageTimeout,
-		knownRounds:           kr,
+		knownRoundsPath:       krPath,
 		DbName:                viper.GetString("dbName"),
 		DbUsername:            viper.GetString("dbUsername"),
 		DbPassword:            viper.GetString("dbPassword"),
