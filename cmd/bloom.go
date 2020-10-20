@@ -13,7 +13,6 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
 	"strings"
-	"time"
 )
 
 // This file will handle the logistics of maintaining, creating and deleting user bloom filters
@@ -21,38 +20,6 @@ import (
 // Constants for constructing a bloom filter
 const bloomFilterSize = 71888 // In Bits
 const bloomFilterHashes = 8
-
-var LastBloomFilterClearance time.Time
-
-//func (gw *Instance) CleanBloomFilters() {
-//	// todo: implement me
-//	//scheduler := gocron.NewScheduler()
-//	//j, _ := scheduler.NextRun()
-//	//j.From(&LastBloomFilterClearance)
-//	//j.Do(gw.cleanBloomFilters)
-//}
-//
-//// Globally clears out all but one of the existing bloom filters
-//// Happens on a weekly basis
-//func (gw *Instance) cleanBloomFilters() error {
-//	//gw.database.DeleteBloomFilterBYDate()
-//
-//	// Once the bloom filters have been clear out
-//	//  reset the time
-//	LastBloomFilterClearance = time.Now()
-//	// Marshal the clearance time to a string
-//	marshaledClearanceTime, err := LastBloomFilterClearance.MarshalText()
-//	if err != nil {
-//		return errors.Errorf("Could not marshal time into a string: %s", err)
-//	}
-//
-//	// Write this new clearance time to file
-//	err = utils.WriteFile(gw.Params.BloomFilterTrackerPath, marshaledClearanceTime, utils.FilePerms, utils.DirPerms)
-//	if err != nil {
-//		return errors.Errorf("Could not write bloom filter clearance to file: %s", err)
-//	}
-//	return nil
-//}
 
 // Upserts filters of passed in recipients, using the round ID
 func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
@@ -76,9 +43,7 @@ func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
 // TODO: will handle higher business logic when complex filter design
 //  is ready
 func (gw *Instance) UpsertFilter(recipientId *id.ID, roundId id.Round) error {
-
 	return gw.upsertFilter(recipientId, roundId)
-
 }
 
 // Helper function which updates the clients bloom filter
@@ -92,16 +57,22 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 	// Get the filters for the associated client
 	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
 	if err != nil || filters == nil {
+		// Generate a new filter
 		newUserFilter, err := generateNewFilter(recipientId, roundId)
 		if err != nil {
 			return errors.Errorf("Unable to generate a new user filter: %v", err)
 		}
+
+		// Update the epoch it was created in
 		newUserFilter.EpochId = epoch.Id
+
+		// Upsert the filter to storage
 		return gw.storage.UpsertBloomFilter(newUserFilter)
 	}
 
 	// Pull the most recent filter
 	recentFilter := filters[len(filters)-1]
+
 	// Unmarshal the most recent filter
 	bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
