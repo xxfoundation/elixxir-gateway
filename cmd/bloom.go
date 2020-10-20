@@ -73,11 +73,10 @@ func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
 }
 
 // Update function which updates a recipient's bloom filter.
-//  If the client is recognized, we update the user directly
-//  If the client is not recognized, we update the ephemeral bloom filter
+// TODO: will handle higher business logic when complex filter design
+//  is ready
 func (gw *Instance) UpsertFilter(recipientId *id.ID, roundId id.Round) error {
 
-	// If we do recognize the client, create a filter on the client
 	return gw.upsertFilter(recipientId, roundId)
 
 }

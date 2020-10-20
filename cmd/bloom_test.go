@@ -101,7 +101,7 @@ func TestInstance_UpsertFilters(t *testing.T) {
 	// Create a mock client
 	testClientId := id.NewIdFromString("0", id.User, t)
 
-	// Check that the databases are empty for ephemeral filters
+	// Check that the databases are empty of filters
 	retrievedFilter, err := gw.storage.GetBloomFilters(testClientId, rndId)
 	// Check that this filter is nil
 	if err == nil || retrievedFilter != nil {
@@ -110,13 +110,13 @@ func TestInstance_UpsertFilters(t *testing.T) {
 
 	gw.storage.InsertEpoch(rndId)
 
-	// This should result in an ephemeral bloom filter being created
+	// This should result in a bloom filter being created
 	err = gw.UpsertFilter(testClientId, 0)
 	if err != nil {
 		t.Errorf("Could not create a bloom filter: %v", err)
 	}
 
-	// Check that an ephemeral bloom filter has been created
+	// Check that a bloom filter has been created
 	retrievedFilter, err = gw.storage.GetBloomFilters(testClientId, rndId)
 	if retrievedFilter == nil || len(retrievedFilter) != 1 {
 		t.Errorf("Retrieved ehphemeral filter was not expected. Should be non-nil an dlength of 1")
