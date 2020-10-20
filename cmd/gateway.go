@@ -135,7 +135,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		filters = append(filters, f.Filter)
 	}
 
-
 	jww.TRACE.Printf("KnownRounds: %v", kr)
 
 	return &pb.GatewayPollResponse{
@@ -143,7 +142,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		Updates:          updates,
 		LastTrackedRound: uint64(0), // FIXME: This should be the
 		// earliest tracked network round
-		BloomFilters:      filters,
+		BloomFilters: filters,
 	}, nil
 }
 
@@ -575,7 +574,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	roundID := id.Round(req.RoundID)
 
 	// Search the database for the requested messages
-	msgs, isValidGateway, err, _ := gw.storage.GetMixedMessages(userId, roundID)
+	msgs, isValidGateway, err := gw.storage.GetMixedMessages(userId, roundID)
 	if err != nil {
 		return &pb.GetMessagesResponse{
 				HasRound: true,
@@ -626,7 +625,7 @@ func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string)
 	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
 		userID, msgID)
 
-	msgs, _, err, _ := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
+	msgs, _, err := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
 	if err != nil {
 		return nil, errors.Errorf("Could not look up message ids")
 	}
@@ -937,8 +936,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	// At this point, the returned batch and its fields should be non-nil
 	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
 	recipients := make([]*id.ID, len(msgs))
-	var newMsgs []*storage.MixedMessage
-	for i, msg := range msgs {
+	for _, msg := range msgs {
 		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipientID()
@@ -959,7 +957,6 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		jww.ERROR.Printf("Inserting new mixed messages failed in "+
 			"ProcessCompletedBatch: %+v", err)
 	}
-
 
 	// Update filters in our storage system
 	err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())

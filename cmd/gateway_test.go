@@ -913,6 +913,7 @@ func TestInstance_Poll(t *testing.T) {
 
 	gw := NewGatewayInstance(params)
 	gw.InitNetwork()
+
 	clientId := id.NewIdFromBytes([]byte("test"), t)
 
 	clientReq := &pb.GatewayPoll{
@@ -922,11 +923,10 @@ func TestInstance_Poll(t *testing.T) {
 		FirstRound: 0,
 		LastRound:  0,
 	}
-
+	var err error
 	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
-	var err error
 	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
 

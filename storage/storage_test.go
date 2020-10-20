@@ -39,10 +39,8 @@ func TestStorage_GetBloomFilters(t *testing.T) {
 					},
 				},
 				EpochId: map[uint64]map[id.ID]*BloomFilter{
-					testEpochId: {testRecipientID: {RecipientId: testRecipientID.Marshal(), EpochId: testEpochId},
-					},
-					testEpochId2: {testRecipientID: {RecipientId: testRecipientID.Marshal(), EpochId: testEpochId2},
-					},
+					testEpochId:  {testRecipientID: {RecipientId: testRecipientID.Marshal(), EpochId: testEpochId}},
+					testEpochId2: {testRecipientID: {RecipientId: testRecipientID.Marshal(), EpochId: testEpochId2}},
 				},
 			},
 		},

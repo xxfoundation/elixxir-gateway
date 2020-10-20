@@ -76,32 +76,24 @@ func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
 //  If the client is recognized, we update the user directly
 //  If the client is not recognized, we update the ephemeral bloom filter
 func (gw *Instance) UpsertFilter(recipientId *id.ID, roundId id.Round) error {
-	// See if we recognize this user or if they are ephemeral
-	retrievedClient, err := gw.storage.GetClient(recipientId)
-	if err != nil || retrievedClient == nil {
-
-		// If we do not recognize the client, create an ephemeral filter
-		return gw.upsertEphemeralFilter(recipientId, roundId)
-	}
 
 	// If we do recognize the client, create a filter on the client
-	return gw.upsertUserFilter(recipientId, roundId)
+	return gw.upsertFilter(recipientId, roundId)
 
 }
 
 // Helper function which updates the clients bloom filter
-func (gw *Instance) upsertUserFilter(recipientId *id.ID, roundId id.Round) error {
+func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 	// Get the latest epoch value
 	epoch, err := gw.storage.GetLatestEpoch()
 	if err != nil {
 		return errors.Errorf("Unable to get latest epoch: %s", err)
 	}
 
-
 	// Get the filters for the associated client
 	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
 	if err != nil || filters == nil {
-		newUserFilter, err := generateNewUserFilter(recipientId, roundId)
+		newUserFilter, err := generateNewFilter(recipientId, roundId)
 		if err != nil {
 			return errors.Errorf("Unable to generate a new user filter: %v", err)
 		}
@@ -131,13 +123,12 @@ func (gw *Instance) upsertUserFilter(recipientId *id.ID, roundId id.Round) error
 		return errors.Errorf("Unable to marshal user filter: %v", err)
 	}
 
-
 	// fixme: Likely to change due to DB restructure
 	// Place filter back into database
 	err = gw.storage.UpsertBloomFilter(&storage.BloomFilter{
-		ClientId:    recipientId.Bytes(),
+		RecipientId: recipientId.Bytes(),
 		Filter:      marshaledFilter,
-		EpochId: epoch.Id,
+		EpochId:     epoch.Id,
 	})
 
 	if err != nil {
@@ -147,95 +138,8 @@ func (gw *Instance) upsertUserFilter(recipientId *id.ID, roundId id.Round) error
 	return nil
 }
 
-// Helper function which updates the ephemeral bloom filter
-func (gw *Instance) upsertEphemeralFilter(recipientId *id.ID, roundId id.Round) error {
-	// Get the latest epoch value
-	epoch, err := gw.storage.GetLatestEpoch()
-	if err != nil {
-		return errors.Errorf("Unable to get latest epoch: %s", err)
-	}
-
-	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
-	if err != nil || filters == nil {
-		newEphemeralFilter, err := generateNewEphemeralFilter(recipientId, roundId)
-		if err != nil {
-			return errors.Errorf("Unable to generate a new ephemeral filter: %v", err)
-		}
-		newEphemeralFilter.Id = epoch.Id
-		return gw.storage.UpsertEphemeralBloomFilter(newEphemeralFilter)
-
-	}
-
-	// Pull the most recent filter
-	recentFilter := filters[len(filters)-1]
-
-	// Unmarshal the most recent filter
-	bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
-	if err != nil {
-		return errors.Errorf("Unable to create a bloom filter: %s", err)
-	}
-	err = bloomFilter.UnmarshalBinary(recentFilter.Filter)
-	if err != nil {
-		return errors.Errorf("Unable to unmarshal filter from storage: %s", err)
-	}
-
-	// Add the round to the bloom filter
-	serializedRound := serializeRound(roundId)
-	bloomFilter.Add(serializedRound)
-
-	// Marshal the bloom filter back
-	marshaledBloom, err := bloomFilter.MarshalBinary()
-	if err != nil {
-		return errors.Errorf("Unable to marshal ephemeral filter: %s", err)
-	}
-
-
-
-	// fixme: Likely to change due to DB restructure
-	// Place filter back into database
-	err = gw.storage.UpsertEphemeralBloomFilter(&storage.EphemeralBloomFilter{
-		RecipientId:  recipientId.Bytes(),
-		Filter:       marshaledBloom,
-		EpochId:  epoch.Id,
-	})
-	if err != nil {
-		return errors.Errorf("Unable to insert ephemeral filter into database: %s", err)
-	}
-
-	return nil
-
-}
-
 // Helper function which generates a bloom filter with the round hashed into it
-func generateNewEphemeralFilter(recipientId *id.ID, roundId id.Round) (*storage.EphemeralBloomFilter, error) {
-	// Initialize a new bloom filter
-	newBloom, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
-	if err != nil {
-		return &storage.EphemeralBloomFilter{},
-			errors.Errorf("Unable to generate new bloom filter: %s", err)
-	}
-
-	// Add the round to the bloom filter
-	serializedRound := serializeRound(roundId)
-	newBloom.Add(serializedRound)
-
-	// Add the round to the bloom filter
-	// Marshal the new bloom filter
-	marshaledBloom, err := newBloom.MarshalBinary()
-	if err != nil {
-		return &storage.EphemeralBloomFilter{},
-			errors.Errorf("Unable to marshal new bloom filter: %s", err)
-	}
-
-	return &storage.EphemeralBloomFilter{
-		RecipientId:  recipientId.Bytes(),
-		Filter:       marshaledBloom,
-	}, nil
-
-}
-
-// Helper function which generates a bloom filter with the round hashed into it
-func generateNewUserFilter(recipientId *id.ID, roundId id.Round) (*storage.BloomFilter, error) {
+func generateNewFilter(recipientId *id.ID, roundId id.Round) (*storage.BloomFilter, error) {
 	// Initialize a new bloom filter
 	newBloom, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
@@ -256,7 +160,7 @@ func generateNewUserFilter(recipientId *id.ID, roundId id.Round) (*storage.Bloom
 	}
 
 	return &storage.BloomFilter{
-		ClientId:    recipientId.Bytes(),
+		RecipientId: recipientId.Bytes(),
 		Filter:      marshaledBloom,
 	}, nil
 

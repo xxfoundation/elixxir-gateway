@@ -10,6 +10,7 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -32,6 +33,8 @@ func (gw *Instance) InitRateLimitGossip() {
 	// Initialize leaky bucket
 	gw.rateLimitQuit = make(chan struct{}, 1)
 	gw.rateLimit = rateLimiting.CreateBucketMapFromParams(gw.Params.rateLimitParams, nil, gw.rateLimitQuit)
+	fmt.Printf("gwComms: %v\n", gw.Comms)
+	fmt.Printf("gwManager: %v\n", gw.Comms.Manager)
 
 	// Register gossip protocol for client rate limiting
 	gw.Comms.Manager.NewGossip(RateLimitGossip, gossip.DefaultProtocolFlags(),
