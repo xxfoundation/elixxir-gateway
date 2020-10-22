@@ -9,7 +9,6 @@ package cmd
 import (
 	"encoding/binary"
 	"github.com/pkg/errors"
-	jww "github.com/spf13/jwalterweatherman"
 	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
@@ -56,7 +55,7 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 	//if err != nil {
 	//	return errors.Errorf("Unable to get latest epoch: %s", err)
 	//}
-	jww.FATAL.Printf("Bloom filter built for [%v]", recipientId)
+
 	// Get the filters for the associated client
 	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
 	if err != nil || filters == nil {
