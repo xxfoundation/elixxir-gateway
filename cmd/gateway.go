@@ -141,6 +141,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		PartialNDF:       gw.NetInf.GetPartialNdf().GetPb(),
 		Updates:          updates,
 		LastTrackedRound: uint64(0), // FIXME: This should be the
+		KnownRounds:      kr,
 		// earliest tracked network round
 		BloomFilters: filters,
 	}, nil
@@ -936,10 +937,11 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	// At this point, the returned batch and its fields should be non-nil
 	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
 	recipients := make([]*id.ID, len(msgs))
-	for _, msg := range msgs {
+	for i, msg := range msgs {
 		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipientID()
+		recipients[i] = userId
 
 		if !userId.Cmp(&dummyUser) {
 			jww.DEBUG.Printf("Message Received for: %s, %s, %s",

@@ -9,6 +9,7 @@ package cmd
 import (
 	"encoding/binary"
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
@@ -25,6 +26,7 @@ const bloomFilterHashes = 8
 func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
 	var errReturn error
 	var errs []string
+
 	for _, recipient := range recipients {
 		err := gw.UpsertFilter(recipient, roundId)
 		if err != nil {
@@ -48,12 +50,13 @@ func (gw *Instance) UpsertFilter(recipientId *id.ID, roundId id.Round) error {
 
 // Helper function which updates the clients bloom filter
 func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
-	// Get the latest epoch value
-	epoch, err := gw.storage.GetLatestEpoch()
-	if err != nil {
-		return errors.Errorf("Unable to get latest epoch: %s", err)
-	}
-
+	//// Get the latest epoch value
+	// todo: uncomment when epoch implementation is complete
+	//epoch, err := gw.storage.GetLatestEpoch()
+	//if err != nil {
+	//	return errors.Errorf("Unable to get latest epoch: %s", err)
+	//}
+	jww.FATAL.Printf("Bloom filter built for [%v]", recipientId)
 	// Get the filters for the associated client
 	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
 	if err != nil || filters == nil {
@@ -64,7 +67,8 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 		}
 
 		// Update the epoch it was created in
-		newUserFilter.EpochId = epoch.Id
+		// todo: uncomment when epoch implementation is complete
+		//newUserFilter.EpochId = epoch.Id
 
 		// Upsert the filter to storage
 		return gw.storage.UpsertBloomFilter(newUserFilter)
@@ -98,7 +102,8 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 	err = gw.storage.UpsertBloomFilter(&storage.BloomFilter{
 		RecipientId: recipientId.Bytes(),
 		Filter:      marshaledFilter,
-		EpochId:     epoch.Id,
+		// todo: uncomment when epoch implementation is complete
+		//EpochId:     epoch.Id,
 	})
 
 	if err != nil {

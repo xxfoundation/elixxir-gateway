@@ -57,13 +57,13 @@ func TestStorage_GetBloomFilters(t *testing.T) {
 	}
 
 	if results[0].LastRound != id.Round(testRoundId2-1) {
-		t.Errorf("Got unexpected LastRound value." +
-			"\n\tExpected: %d" +
+		t.Errorf("Got unexpected LastRound value."+
+			"\n\tExpected: %d"+
 			"\n\tReceived: %d", id.Round(testRoundId2-1), results[0].LastRound)
 	}
 	if results[1].LastRound != latestRound {
-		t.Errorf("Got unexpected LastRound value." +
-			"\n\tExpected: %d" +
+		t.Errorf("Got unexpected LastRound value."+
+			"\n\tExpected: %d"+
 			"\n\tReceived: %d", latestRound, results[1].LastRound)
 	}
 }
