@@ -728,6 +728,10 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 			"will not accept any new messages. Please try a different round.")
 	}
 
+	jww.INFO.Printf("Transmission Packet: %+v", msg.Message)
+	jww.INFO.Printf("Gateway Slot: %+v", msg)
+
+
 	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
