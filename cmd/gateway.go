@@ -561,7 +561,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	msgs, isValidGateway, err := gw.storage.GetMixedMessages(userId, roundID)
 	if err != nil {
 		jww.WARN.Printf("Could not find any MixedMessages with "+
-		"recipient ID %v and round ID %v: %+v", userId, roundID, err)
+			"recipient ID %v and round ID %v: %+v", userId, roundID, err)
 		return &pb.GetMessagesResponse{
 				HasRound: true,
 			}, errors.Errorf("Could not find any MixedMessages with "+
