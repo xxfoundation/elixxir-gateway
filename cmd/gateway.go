@@ -130,6 +130,25 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}, nil
 }
 
+type Params struct {
+	NodeAddress string
+	Port        int
+	Address     string
+	CertPath    string
+	KeyPath     string
+
+	ServerCertPath        string
+	IDFPath               string
+	PermissioningCertPath string
+
+	rateLimitParams *rateLimiting.MapParams
+	gossipFlags     gossip.ManagerFlags
+	MessageTimeout  time.Duration
+
+	knownRoundsPath  string
+	lastUpdateIdPath string
+}
+
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
 	newDatabase, _, err := storage.NewStorage(params.DbUsername,
@@ -272,6 +291,11 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		for _, update := range newInfo.Updates {
 			if update.UpdateID > gw.lastUpdate {
 				gw.lastUpdate = update.UpdateID
+
+				// Save lastUpdate ID to file
+				if err := gw.SaveLastUpdateID(); err != nil {
+					jww.ERROR.Print(err)
+				}
 			}
 			// Parse the topology into an id list
 			idList, err := id.NewIDListFromBytes(update.Topology)
@@ -365,13 +389,21 @@ func (gw *Instance) InitNetwork() error {
 	}
 
 	// Load knownRounds data from file
-	err = gw.LoadKnownRounds()
-	if err != nil {
+	if err := gw.LoadKnownRounds(); err != nil {
 		return err
 	}
-	err = gw.SaveKnownRounds()
-	if err != nil {
+	// Ensure that knowRounds can be saved and crash if it cannot
+	if err := gw.SaveKnownRounds(); err != nil {
 		jww.FATAL.Panicf("Failed to save KnownRounds: %v", err)
+	}
+
+	// Load lastUpdate ID from file
+	if err := gw.LoadLastUpdateID(); err != nil {
+		return err
+	}
+	// Ensure that lastUpdate ID can be saved and crash if it cannot
+	if err := gw.SaveLastUpdateID(); err != nil {
+		jww.FATAL.Panicf("Failed to save lastUpdate: %v", err)
 	}
 
 	// Set up temporary gateway listener
@@ -1010,6 +1042,7 @@ func (gw *Instance) SaveKnownRounds() error {
 	if err != nil {
 		return errors.Errorf("Failed to marshal KnownRounds: %v", err)
 	}
+
 	err = utils.WriteFile(path, data, utils.FilePerms, utils.DirPerms)
 	if err != nil {
 		return errors.Errorf("Failed to save KnownRounds to file: %v", err)
@@ -1026,8 +1059,7 @@ func (gw *Instance) LoadKnownRounds() error {
 	data, err := utils.ReadFile(gw.Params.knownRoundsPath)
 	if os.IsNotExist(err) {
 		return nil
-	}
-	if err != nil {
+	} else if err != nil {
 		return errors.Errorf("Failed to read KnownRounds from file: %v", err)
 	}
 
@@ -1035,6 +1067,43 @@ func (gw *Instance) LoadKnownRounds() error {
 	if err != nil {
 		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
 	}
+
+	return nil
+}
+
+// SaveLastUpdateID saves the Instance.lastUpdate to a file.
+func (gw *Instance) SaveLastUpdateID() error {
+	path := gw.Params.lastUpdateIdPath
+	data := []byte(strconv.FormatUint(gw.lastUpdate, 10))
+
+	err := utils.WriteFile(path, data, utils.FilePerms, utils.DirPerms)
+	if err != nil {
+		return errors.Errorf("Failed to save lastUpdate to file: %v", err)
+	}
+
+	return nil
+}
+
+// LoadLastUpdateID loads the Instance.lastUpdate from file into the Instance,
+// if the file exists. Returns nil on successful loading or if the file does not
+// exist. Returns an error if the file cannot be accessed or the data cannot be
+// parsed.
+func (gw *Instance) LoadLastUpdateID() error {
+	data, err := utils.ReadFile(gw.Params.lastUpdateIdPath)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return errors.Errorf("Failed to read lastUpdate from file: %v", err)
+	}
+
+	dataStr := strings.TrimSpace(string(data))
+
+	lastUpdate, err := strconv.ParseUint(dataStr, 10, 64)
+	if err != nil {
+		return errors.Errorf("Failed to parse lastUpdate from file: %v", err)
+	}
+
+	gw.lastUpdate = lastUpdate
 
 	return nil
 }
