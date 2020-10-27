@@ -29,8 +29,10 @@ import (
 	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
+	"math/rand"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -984,13 +986,7 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 // Tests happy path of Instance.SaveKnownRounds and Instance.LoadKnownRounds.
 func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	// Build the gateway instance
-	params := Params{
-		NodeAddress:     NODE_ADDRESS,
-		ServerCertPath:  testkeys.GetNodeCertPath(),
-		CertPath:        testkeys.GetGatewayCertPath(),
-		MessageTimeout:  10 * time.Minute,
-		knownRoundsPath: "testKR.json",
-	}
+	params := Params{knownRoundsPath: "testKR.json"}
 
 	// Delete the test file at the end
 	defer func() {
@@ -1034,13 +1030,7 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 // errors for an invalid path.
 func TestInstance_SaveKnownRounds_LoadKnownRounds_FileError(t *testing.T) {
 	// Build the gateway instance
-	params := Params{
-		NodeAddress:     NODE_ADDRESS,
-		ServerCertPath:  testkeys.GetNodeCertPath(),
-		CertPath:        testkeys.GetGatewayCertPath(),
-		MessageTimeout:  10 * time.Minute,
-		knownRoundsPath: "~a/testKR.json",
-	}
+	params := Params{knownRoundsPath: "~a/testKR.json"}
 
 	// Delete the test file at the end
 	defer func() {
@@ -1071,13 +1061,7 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds_FileError(t *testing.T) {
 // Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
 func TestInstance_LoadKnownRounds_NoFile(t *testing.T) {
 	// Build the gateway instance
-	params := Params{
-		NodeAddress:     NODE_ADDRESS,
-		ServerCertPath:  testkeys.GetNodeCertPath(),
-		CertPath:        testkeys.GetGatewayCertPath(),
-		MessageTimeout:  10 * time.Minute,
-		knownRoundsPath: "testKR.json",
-	}
+	params := Params{knownRoundsPath: "testKR.json"}
 
 	// Delete the test file at the end
 	defer func() {
@@ -1100,13 +1084,7 @@ func TestInstance_LoadKnownRounds_NoFile(t *testing.T) {
 // Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
 func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 	// Build the gateway instance
-	params := Params{
-		NodeAddress:     NODE_ADDRESS,
-		ServerCertPath:  testkeys.GetNodeCertPath(),
-		CertPath:        testkeys.GetGatewayCertPath(),
-		MessageTimeout:  10 * time.Minute,
-		knownRoundsPath: "testKR.json",
-	}
+	params := Params{knownRoundsPath: "testKR.json"}
 
 	// Delete the test file at the end
 	defer func() {
@@ -1130,6 +1108,62 @@ func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 	if err == nil {
 		t.Error("LoadKnownRounds() did not return an error when unmarshalling " +
 			"should have failed.")
+	}
+}
+
+// Tests happy path of Instance.SaveLastUpdateID and Instance.LoadLastUpdateID.
+func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
+	// Build the gateway instance
+	params := Params{lastUpdateIdPath: "lastUpdateID.txt"}
+
+	// Delete the test file at the end
+	defer func() {
+		err := os.RemoveAll(params.lastUpdateIdPath)
+		if err != nil {
+			t.Fatalf("Error deleting test file: %v", err)
+		}
+	}()
+
+	// Create new gateway instance and modify lastUpdate
+	gw := NewGatewayInstance(params)
+	expectedLastUpdate := rand.Uint64()
+	gw.lastUpdate = expectedLastUpdate
+
+	err := gw.SaveLastUpdateID()
+	if err != nil {
+		t.Errorf("SaveLastUpdateID() produced an error: %v", err)
+	}
+
+	gw.lastUpdate = rand.Uint64()
+
+	err = gw.LoadLastUpdateID()
+	if err != nil {
+		t.Errorf("LoadLastUpdateID() produced an error: %+v", err)
+	}
+
+	if expectedLastUpdate != gw.lastUpdate {
+		t.Errorf("Failed to save/load lastUpdate correctly."+
+			"\n\texpected: %d\n\treceived: %d",
+			expectedLastUpdate, gw.lastUpdate)
+	}
+
+	// Write the same number to file with extra whitespace
+	err = utils.WriteFile(gw.Params.lastUpdateIdPath,
+		[]byte("\r\n  "+strconv.Itoa(int(expectedLastUpdate))+"\n\n\n"),
+		utils.FilePerms, utils.DirPerms)
+	if err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	err = gw.LoadLastUpdateID()
+	if err != nil {
+		t.Errorf("LoadLastUpdateID() produced an error: %v", err)
+	}
+
+	if expectedLastUpdate != gw.lastUpdate {
+		t.Errorf("Failed to save/load lastUpdate correctly."+
+			"\n\texpected: %d\n\treceived: %d",
+			expectedLastUpdate, gw.lastUpdate)
 	}
 }
 

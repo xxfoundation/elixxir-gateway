@@ -77,6 +77,10 @@ permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 # Defaults to "/opt/xxnetwork/gateway-logs/knownRounds.json", if not set.
 knownRoundsPath: "/opt/xxnetwork/gateway-logs/knownRounds.json"
 
+# Path of where a copy of the last checked update ID is saved and loaded from.
+# Defaults to "/opt/xxnetwork/gateway-logs/lastUpdateID.txt", if not set.
+lastUpdateIdPath: "/opt/xxnetwork/gateway-logs/lastUpdateID.txt"
+
 # Database connection information
 dbUsername: "cmix"
 dbPassword: ""
