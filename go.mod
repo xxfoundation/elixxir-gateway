@@ -13,12 +13,13 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.6.3
-	gitlab.com/elixxir/comms v0.0.0-20201005232129-4fcbcb1b8720
-	gitlab.com/elixxir/crypto v0.0.0-20201005231932-7d290c959bdb
-	gitlab.com/elixxir/primitives v0.0.0-20201005231810-020916f67bd6
-	gitlab.com/xx_network/comms v0.0.0-20201002004653-0c3c6660adbb
-	gitlab.com/xx_network/crypto v0.0.0-20200812183430-c77a5281c686
-	gitlab.com/xx_network/primitives v0.0.0-20200812183720-516a65a4a9b2
+	gitlab.com/elixxir/client v1.5.0 // indirect
+	gitlab.com/elixxir/comms v0.0.1
+	gitlab.com/elixxir/crypto v0.0.1
+	gitlab.com/elixxir/primitives v0.0.1
+	gitlab.com/xx_network/comms v0.0.1
+	gitlab.com/xx_network/crypto v0.0.1
+	gitlab.com/xx_network/primitives v0.0.1
 	gopkg.in/ini.v1 v1.55.0 // indirect
 )
 
