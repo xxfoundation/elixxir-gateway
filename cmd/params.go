@@ -39,7 +39,8 @@ type Params struct {
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
 
-	knownRoundsPath string
+	knownRoundsPath  string
+	lastUpdateIdPath string
 }
 
 func InitParams(vip *viper.Viper) Params {
@@ -106,6 +107,9 @@ func InitParams(vip *viper.Viper) Params {
 	viper.SetDefault("knownRoundsPath", knownRoundsDefaultPath)
 	krPath := viper.GetString("knownRoundsPath")
 
+	viper.SetDefault("lastUpdateIdPath", lastUpdateIdDefaultPath)
+	lastUpdateIdPath := viper.GetString("lastUpdateIdPath")
+
 	// Obtain database connection info
 	rawAddr := viper.GetString("dbAddress")
 	var addr, port string
@@ -135,5 +139,6 @@ func InitParams(vip *viper.Viper) Params {
 		DbPassword:            viper.GetString("dbPassword"),
 		DbAddress:             addr,
 		DbPort:                port,
+		lastUpdateIdPath:      lastUpdateIdPath,
 	}
 }

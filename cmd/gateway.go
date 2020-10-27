@@ -125,28 +125,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		LastTrackedRound: uint64(0), // FIXME: This should be the
 		// earliest tracked network round
 		KnownRounds: kr,
-		FilterNew:   nil,
-		FilterOld:   nil,
 	}, nil
-}
-
-type Params struct {
-	NodeAddress string
-	Port        int
-	Address     string
-	CertPath    string
-	KeyPath     string
-
-	ServerCertPath        string
-	IDFPath               string
-	PermissioningCertPath string
-
-	rateLimitParams *rateLimiting.MapParams
-	gossipFlags     gossip.ManagerFlags
-	MessageTimeout  time.Duration
-
-	knownRoundsPath  string
-	lastUpdateIdPath string
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
