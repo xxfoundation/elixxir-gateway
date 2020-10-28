@@ -4,7 +4,7 @@
 // All rights reserved.                                                        /
 ////////////////////////////////////////////////////////////////////////////////
 
-// Handles high level database control and interfaces
+// Handles low level database control and interfaces
 
 package storage
 
@@ -18,11 +18,8 @@ import (
 	"time"
 )
 
-// Global variable for database interaction
-var GatewayDB Storage
-
 // Interface declaration for storage methods
-type Storage interface {
+type database interface {
 	GetClient(id *id.ID) (*Client, error)
 	InsertClient(client *Client) error
 
@@ -30,35 +27,59 @@ type Storage interface {
 	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
 
-	GetMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
-	InsertMixedMessage(msg *MixedMessage) error
-	DeleteMixedMessage(id uint64) error
+	countMixedMessagesByRound(roundId id.Round) (uint64, error)
+	getMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
+	InsertMixedMessages(msgs []*MixedMessage) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
-	GetBloomFilters(clientId *id.ID) ([]*BloomFilter, error)
-	InsertBloomFilter(filter *BloomFilter) error
-	DeleteBloomFilter(id uint64) error
+	GetEpoch(id uint64) (*Epoch, error)
+	GetLatestEpoch() (*Epoch, error)
+	InsertEpoch(roundId id.Round) (*Epoch, error)
 
-	GetEphemeralBloomFilters(recipientId *id.ID) ([]*EphemeralBloomFilter, error)
-	InsertEphemeralBloomFilter(filter *EphemeralBloomFilter) error
-	DeleteEphemeralBloomFilter(id uint64) error
+	getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error)
+	UpsertBloomFilter(filter *BloomFilter) error
+	DeleteBloomFilterByEpoch(epochId uint64) error
 }
 
-// Struct implementing the Database Interface with an underlying DB
+// Struct implementing the database Interface with an underlying DB
 type DatabaseImpl struct {
 	db *gorm.DB // Stored database connection
 }
 
-// Struct implementing the Database Interface with an underlying Map
+// Struct implementing the database Interface with an underlying Map
 type MapImpl struct {
-	clients                    map[id.ID]*Client
-	rounds                     map[id.Round]*Round
-	mixedMessages              map[uint64]*MixedMessage
-	bloomFilters               map[uint64]*BloomFilter
-	ephemeralBloomFilters      map[uint64]*EphemeralBloomFilter
-	mixedMessagesCount         uint64
-	bloomFiltersCount          uint64
-	ephemeralBloomFiltersCount uint64
+	clients       map[id.ID]*Client
+	rounds        map[id.Round]*Round
+	mixedMessages MixedMessageMap
+	bloomFilters  BloomFilterMap
+	epochs        EpochMap
+	sync.RWMutex
+}
+
+// MixedMessageMap contains a list of MixedMessage sorted into two maps so that
+// they can key on RoundId and RecipientId. All messages are stored by their
+// unique ID.
+type MixedMessageMap struct {
+	RoundId      map[id.Round]map[id.ID]map[uint64]*MixedMessage
+	RecipientId  map[id.ID]map[id.Round]map[uint64]*MixedMessage
+	RoundIdCount map[id.Round]uint64
+	IdTrack      uint64
+	sync.RWMutex
+}
+
+// BloomFilterMap contains a list of BloomFilter sorted in two maps so that they
+// can key on RecipientId and EpochId.
+type BloomFilterMap struct {
+	RecipientId map[id.ID]map[uint64]*BloomFilter
+	EpochId     map[uint64]map[id.ID]*BloomFilter
+	sync.RWMutex
+}
+
+// EpochMap contains a map of Epoch keyed on their ID. Also tracks incrementing
+// of new IDs, and the latest Epoch in the map.
+type EpochMap struct {
+	M       map[uint64]*Epoch
+	IdTrack uint64
 	sync.RWMutex
 }
 
@@ -79,22 +100,26 @@ type Round struct {
 	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
 }
 
-// Represents a Client's BloomFilter
-type BloomFilter struct {
+// Represents an Epoch that is associated with each BloomFilter
+// Used to determine a time period during which a set of Filters were created
+type Epoch struct {
 	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
-	ClientId    []byte    `gorm:"NOT NULL;INDEX;type:bytea REFERENCES clients(Id)"`
-	Count       uint64    `gorm:"NOT NULL"`
-	Filter      []byte    `gorm:"NOT NULL"`
+	RoundId     uint64    `gorm:"NOT NULL"` // Explicitly not a FK, a Round may be deleted
 	DateCreated time.Time `gorm:"NOT NULL"`
+
+	BloomFilters []BloomFilter `gorm:"foreignkey:EpochId;association_foreignkey:Id"`
 }
 
-// Represents an ephemeral Client's temporary BloomFilter
-type EphemeralBloomFilter struct {
-	Id           uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
-	RecipientId  []byte    `gorm:"NOT NULL"`
-	Count        uint64    `gorm:"NOT NULL"`
-	Filter       []byte    `gorm:"NOT NULL"`
-	DateModified time.Time `gorm:"NOT NULL"`
+// Represents a Client's BloomFilter
+type BloomFilter struct {
+	RecipientId []byte `gorm:"primary_key;"`
+	EpochId     uint64 `gorm:"primary_key;type:bigint REFERENCES epochs(Id)"`
+	Filter      []byte `gorm:"NOT NULL"`
+}
+
+// Used to force correct pluralization of Epoch table name
+func (Epoch) TableName() string {
+	return "epochs"
 }
 
 // Represents a MixedMessage and its contents
@@ -106,9 +131,10 @@ type MixedMessage struct {
 }
 
 // Creates a new MixedMessage object with the given attributes
-func NewMixedMessage(roundId *id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
+// NOTE: Do not modify the MixedMessage.Id attribute.
+func NewMixedMessage(roundId id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
 	return &MixedMessage{
-		RoundId:         uint64(*roundId),
+		RoundId:         uint64(roundId),
 		RecipientId:     recipientId.Marshal(),
 		MessageContents: append(messageContentsA, messageContentsB...),
 	}
@@ -122,19 +148,19 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 	return
 }
 
-// Initialize the Database interface with database backend
-// Returns a Storage interface, Close function, and error
-func NewDatabase(username, password, database, address,
-	port string) (Storage, func() error, error) {
+// Initialize the database interface with database backend
+// Returns a database interface, close function, and error
+func newDatabase(username, password, dbName, address,
+	port string) (database, func() error, error) {
 
 	var err error
 	var db *gorm.DB
-	//connect to the database if the correct information is provided
+	// Connect to the database if the correct information is provided
 	if address != "" && port != "" {
 		// Create the database connection
 		connectString := fmt.Sprintf(
 			"host=%s port=%s user=%s dbname=%s sslmode=disable",
-			address, port, username, database)
+			address, port, username, dbName)
 		// Handle empty database password
 		if len(password) > 0 {
 			connectString += fmt.Sprintf(" password=%s", password)
@@ -155,17 +181,26 @@ func NewDatabase(username, password, database, address,
 		defer jww.INFO.Println("Map backend initialized successfully!")
 
 		mapImpl := &MapImpl{
-			clients:                    map[id.ID]*Client{},
-			rounds:                     map[id.Round]*Round{},
-			mixedMessages:              map[uint64]*MixedMessage{},
-			bloomFilters:               map[uint64]*BloomFilter{},
-			ephemeralBloomFilters:      map[uint64]*EphemeralBloomFilter{},
-			mixedMessagesCount:         0,
-			bloomFiltersCount:          0,
-			ephemeralBloomFiltersCount: 0,
+			clients: map[id.ID]*Client{},
+			rounds:  map[id.Round]*Round{},
+
+			mixedMessages: MixedMessageMap{
+				RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
+				RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+				RoundIdCount: map[id.Round]uint64{},
+				IdTrack:      0,
+			},
+			bloomFilters: BloomFilterMap{
+				RecipientId: map[id.ID]map[uint64]*BloomFilter{},
+				EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+			},
+			epochs: EpochMap{
+				M:       map[uint64]*Epoch{},
+				IdTrack: 0,
+			},
 		}
 
-		return Storage(mapImpl), func() error { return nil }, nil
+		return database(mapImpl), func() error { return nil }, nil
 	}
 
 	// Initialize the database logger
@@ -182,11 +217,11 @@ func NewDatabase(username, password, database, address,
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
 	models := []interface{}{&Client{}, &Round{}, &MixedMessage{},
-		&BloomFilter{}, &EphemeralBloomFilter{}}
+		&Epoch{}, &BloomFilter{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model).Error
 		if err != nil {
-			return Storage(&DatabaseImpl{}), func() error { return nil }, err
+			return database(&DatabaseImpl{}), func() error { return nil }, err
 		}
 	}
 
@@ -196,5 +231,5 @@ func NewDatabase(username, password, database, address,
 	}
 
 	jww.INFO.Println("Database backend initialized successfully!")
-	return Storage(di), db.Close, nil
+	return database(di), db.Close, nil
 }
