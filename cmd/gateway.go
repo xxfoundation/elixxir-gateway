@@ -137,7 +137,12 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DbPort,
 	)
 	if err != nil {
-		jww.WARN.Printf("Could not initialize database")
+		eMsg := "Could not initialize database"
+		if params.DevMode {
+			jww.WARN.Printf(eMsg)
+		} else {
+			jww.FATAL.Panicf(eMsg)
+		}
 	}
 	i := &Instance{
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
