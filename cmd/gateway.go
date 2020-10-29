@@ -137,7 +137,9 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DbPort,
 	)
 	if err != nil {
-		eMsg := "Could not initialize database"
+		eMsg := fmt.Sprintf("Could not initialize database: "+
+			"psql://%s@%s:%s/%s", params.DbUsername,
+			params.DbAddress, params.DbPort, params.DbName)
 		if params.DevMode {
 			jww.WARN.Printf(eMsg)
 		} else {
