@@ -27,11 +27,11 @@ import (
 	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/states"
-	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
+	"gitlab.com/xx_network/primitives/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -137,7 +137,14 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DbPort,
 	)
 	if err != nil {
-		jww.WARN.Printf("Could not initialize database")
+		eMsg := fmt.Sprintf("Could not initialize database: "+
+			"psql://%s@%s:%s/%s", params.DbUsername,
+			params.DbAddress, params.DbPort, params.DbName)
+		if params.DevMode {
+			jww.WARN.Printf(eMsg)
+		} else {
+			jww.FATAL.Panicf(eMsg)
+		}
 	}
 	i := &Instance{
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),

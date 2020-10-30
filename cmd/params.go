@@ -41,6 +41,8 @@ type Params struct {
 
 	knownRoundsPath  string
 	lastUpdateIdPath string
+
+	DevMode bool
 }
 
 func InitParams(vip *viper.Viper) Params {
@@ -140,5 +142,6 @@ func InitParams(vip *viper.Viper) Params {
 		DbAddress:             addr,
 		DbPort:                port,
 		lastUpdateIdPath:      lastUpdateIdPath,
+		DevMode:               viper.GetBool("devMode"),
 	}
 }
