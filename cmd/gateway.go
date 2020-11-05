@@ -27,11 +27,11 @@ import (
 	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/elixxir/primitives/states"
-	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
+	"gitlab.com/xx_network/primitives/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -145,25 +145,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		// earliest tracked network round
 		BloomFilters: filters,
 	}, nil
-}
-
-type Params struct {
-	NodeAddress string
-	Port        int
-	Address     string
-	CertPath    string
-	KeyPath     string
-
-	ServerCertPath        string
-	IDFPath               string
-	PermissioningCertPath string
-
-	rateLimitParams *rateLimiting.MapParams
-	gossipFlags     gossip.ManagerFlags
-	MessageTimeout  time.Duration
-
-	knownRoundsPath  string
-	lastUpdateIdPath string
 }
 
 // NewGatewayInstance initializes a gateway Handler interface

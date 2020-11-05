@@ -40,6 +40,8 @@ type Params struct {
 	MessageTimeout  time.Duration
 
 	knownRoundsPath string
+	lastUpdateIdPath string
+
 }
 
 func InitParams(vip *viper.Viper) Params {
