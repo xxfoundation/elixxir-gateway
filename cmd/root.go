@@ -18,8 +18,8 @@ import (
 	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/utils"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -38,7 +38,7 @@ const (
 var (
 	cfgFile, idfPath, logPath string
 	certPath, keyPath, serverCertPath,
-	permissioningCertPath, bloomFilterTrackerPath string
+	permissioningCertPath string
 	logLevel       uint // 0 = info, 1 = debug, >1 = trace
 	messageTimeout time.Duration
 	gwPort         int
@@ -68,18 +68,6 @@ var rootCmd = &cobra.Command{
 		// Build gateway implementation object
 		gateway := NewGatewayInstance(params)
 
-		////
-		//if utils.FileExists(bloomFilterTrackerPath) {
-		//	nextClearance, err := utils.ReadFile(bloomFilterTrackerPath)
-		//	if err != nil {
-		//		// fixme: panic or set to next week
-		//	}
-		//	err = LastBloomFilterClearance.UnmarshalText(nextClearance)
-		//
-		//} else {
-		//	LastBloomFilterClearance = time.Now()
-		//}
-
 		// start gateway network interactions
 		for {
 			err := gateway.InitNetwork()
@@ -102,28 +90,10 @@ var rootCmd = &cobra.Command{
 			jww.FATAL.Panicf(err.Error())
 		}
 
-		// add precannedIDs
-		for i := uint64(0); i < 41; i++ {
-			u := new(id.ID)
-			binary.BigEndian.PutUint64(u[:], i)
-			u.SetType(id.User)
-			h := sha256.New()
-			h.Reset()
-			h.Write([]byte(strconv.Itoa(int(4000 + i))))
-			baseKey := gateway.NetInf.GetCmixGroup().NewIntFromBytes(h.Sum(nil))
-			jww.INFO.Printf("Added precan transmisssion key: %v",
-				baseKey.Bytes())
-			cgKey := cmix.GenerateClientGatewayKey(baseKey)
-			// Insert client information to database
-			newClient := &storage.Client{
-				Id:  u.Marshal(),
-				Key: cgKey,
-			}
-
-			err := gateway.storage.InsertClient(newClient)
-			if err != nil {
-				jww.ERROR.Printf("Unable to insert precanned client: %+v", err)
-			}
+		if params.DevMode {
+			jww.WARN.Printf("Starting in developer mode (devMode)" +
+				" -- this will break on betanet or mainnet...")
+			addPrecannedIDs(gateway)
 		}
 
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
@@ -135,6 +105,33 @@ var rootCmd = &cobra.Command{
 		// Wait forever
 		select {}
 	},
+}
+
+func addPrecannedIDs(gateway *Instance) {
+	// add precannedIDs
+	for i := uint64(0); i < 41; i++ {
+		u := new(id.ID)
+		binary.BigEndian.PutUint64(u[:], i)
+		u.SetType(id.User)
+		h := sha256.New()
+		h.Reset()
+		h.Write([]byte(strconv.Itoa(int(4000 + i))))
+		baseKey := gateway.NetInf.GetCmixGroup().NewIntFromBytes(h.Sum(nil))
+		jww.INFO.Printf("Added precan transmisssion key: %v",
+			baseKey.Bytes())
+		cgKey := cmix.GenerateClientGatewayKey(baseKey)
+		// Insert client information to database
+		newClient := &storage.Client{
+			Id:  u.Marshal(),
+			Key: cgKey,
+		}
+
+		err := gateway.storage.InsertClient(newClient)
+		if err != nil {
+			jww.ERROR.Printf("Unable to insert precanned client: %+v", err)
+		}
+	}
+	jww.INFO.Printf("Added precanned users")
 }
 
 // Execute adds all child commands to the root command and sets flags
@@ -266,6 +263,14 @@ func init() {
 		"Amount of rounds to keep track of in kr")
 	err = viper.BindPFlag("kr", rootCmd.Flags().Lookup("kr"))
 	handleBindingError(err, "Known_Rounds")
+
+	// DevMode enables developer mode, which allows you to run without
+	// a database and with unsafe "precanned" users
+	rootCmd.Flags().BoolP("devMode", "", false,
+		"Run in development/testing mode. Do not use on beta or main "+
+			"nets")
+	viper.BindPFlag("devMode", rootCmd.Flags().Lookup("devMode"))
+	rootCmd.Flags().MarkHidden("devMode")
 
 }
 

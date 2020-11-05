@@ -141,8 +141,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		PartialNDF:       gw.NetInf.GetPartialNdf().GetPb(),
 		Updates:          updates,
 		LastTrackedRound: uint64(0), // FIXME: This should be the
-		KnownRounds:      kr,
 		// earliest tracked network round
+		KnownRounds:  kr,
 		BloomFilters: filters,
 	}, nil
 }
@@ -156,7 +156,14 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DbPort,
 	)
 	if err != nil {
-		jww.WARN.Printf("Could not initialize database")
+		eMsg := fmt.Sprintf("Could not initialize database: "+
+			"psql://%s@%s:%s/%s", params.DbUsername,
+			params.DbAddress, params.DbPort, params.DbName)
+		if params.DevMode {
+			jww.WARN.Printf(eMsg)
+		} else {
+			jww.FATAL.Panicf(eMsg)
+		}
 	}
 	i := &Instance{
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
