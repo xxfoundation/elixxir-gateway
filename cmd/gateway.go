@@ -35,6 +35,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -84,6 +85,8 @@ type Instance struct {
 
 	curentRound    id.Round
 	hasCurentRound bool
+
+	bloomFilterGossip sync.Mutex
 }
 
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
@@ -98,13 +101,15 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		return &pb.GatewayPollResponse{}, errors.Errorf(
 			"Poll() clientRequest is empty")
 	}
-	if clientRequest.ClientID == nil {
+
+	// Check if the clientID is populated and valid
+	clientId, err := id.Unmarshal(clientRequest.ClientID)
+	if clientRequest.ClientID == nil || err != nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
 			"Poll() clientRequest.ClientID required")
 	}
 
 	//lastKnownRound := gw.NetInf.GetLastRoundID()
-
 	// Get the range of updates from the network instance
 	updates := gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
 
@@ -117,6 +122,19 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	}
 
+	// These errors are suppressed, as DB errors shouldn't go to client
+	//  and if there is trouble getting filters returned, nil filters
+	//  are returned to the client
+	clientFilters, err := gw.storage.GetBloomFilters(clientId, id.Round(clientRequest.LastRound))
+	if err != nil {
+		jww.WARN.Printf("Could not get filters for %s when polling: %v", clientId, err)
+	}
+
+	var filters [][]byte
+	for _, f := range clientFilters {
+		filters = append(filters, f.Filter)
+	}
+
 	jww.TRACE.Printf("KnownRounds: %v", kr)
 
 	return &pb.GatewayPollResponse{
@@ -124,7 +142,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		Updates:          updates,
 		LastTrackedRound: uint64(0), // FIXME: This should be the
 		// earliest tracked network round
-		KnownRounds: kr,
+		KnownRounds:  kr,
+		BloomFilters: filters,
 	}, nil
 }
 
@@ -507,8 +526,8 @@ func (gw *Instance) InitNetwork() error {
 		gatewayId.SetType(id.Gateway)
 		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler,
 			gwCert, gwKey, gossip.DefaultManagerFlags())
-		gw.InitGossip()
-
+		gw.InitRateLimitGossip()
+		gw.InitBloomGossip()
 		// Initialize hosts for reverse-authentication
 		// This may be necessary to verify the NDF if it gets updated while
 		// the network is up
@@ -938,10 +957,12 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	numReal := 0
 	// At this point, the returned batch and its fields should be non-nil
 	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
-	for _, msg := range msgs {
+	recipients := make([]*id.ID, len(msgs))
+	for i, msg := range msgs {
 		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipientID()
+		recipients[i] = userId
 
 		if !userId.Cmp(&dummyUser) {
 			jww.DEBUG.Printf("Message Received for: %s, %s, %s",
@@ -959,6 +980,19 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		jww.ERROR.Printf("Inserting new mixed messages failed in "+
 			"ProcessCompletedBatch: %+v", err)
 	}
+
+	// Update filters in our storage system
+	err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
+	if err != nil {
+		jww.ERROR.Printf("Unable to update local bloom filters: %+v", err)
+	}
+
+	// Gossip recipients included in the completed batch to other gateways
+	err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
+	if err != nil {
+		jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
+	}
+
 	jww.INFO.Printf("Round received, %d real messages "+
 		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
 

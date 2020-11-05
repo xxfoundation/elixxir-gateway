@@ -195,7 +195,7 @@ func buildTestNodeImpl() *node.Implementation {
 
 //Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
-	gatewayInstance.InitGossip()
+	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
 
 	p := large.NewIntFromString(prime, 16)
@@ -301,7 +301,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 
-	gw.InitGossip()
+	gw.InitRateLimitGossip()
 	defer gw.KillRateLimiter()
 
 	data := format.NewMessage(grp2.GetP().ByteLen())
@@ -915,20 +915,26 @@ func TestInstance_Poll(t *testing.T) {
 
 	gw := NewGatewayInstance(params)
 	gw.InitNetwork()
+
 	clientId := id.NewIdFromBytes([]byte("test"), t)
 
 	clientReq := &pb.GatewayPoll{
 		Partial:    nil,
 		LastUpdate: 0,
 		ClientID:   clientId.Bytes(),
+		FirstRound: 0,
+		LastRound:  0,
 	}
-
+	var err error
 	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
-	var err error
 	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers)
+
+	// TODO: Remove this when jake fixes the database please [Insert deity]
+	// Setup a database based on a map impl
+	//storage.GatewayDB, _, _ = storage.NewDatabase("", "", "", "", "")
 
 	_, err = gw.Poll(clientReq)
 	if err != nil {
