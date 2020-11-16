@@ -11,7 +11,7 @@ package storage
 
 import (
 	"github.com/pkg/errors"
-	jww "gitlab.com/elixxir/gateway/vendor/github.com/spf13/jwalterweatherman"
+	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"time"
 )

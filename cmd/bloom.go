@@ -9,9 +9,9 @@ package cmd
 import (
 	"encoding/binary"
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/gateway/storage"
-	jww "gitlab.com/elixxir/gateway/vendor/github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"strings"
 )
