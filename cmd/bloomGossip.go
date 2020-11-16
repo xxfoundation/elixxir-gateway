@@ -12,6 +12,7 @@ package cmd
 import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/xx_network/comms/connect"
@@ -73,6 +74,8 @@ func (gw *Instance) GossipBloom(recipientIDs []*id.ID, roundId id.Round) error {
 // gateway gossiping a message is responsible for the round
 // it has gossiped about.
 func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instance) error {
+	jww.DEBUG.Printf("Verifying gossip message from %+v", origin)
+
 	// Parse the payload message
 	payloadMsg := &pb.Recipients{}
 	err := proto.Unmarshal(msg.Payload, payloadMsg)
@@ -100,7 +103,7 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 	if topology.GetNodeLocation(senderIdCopy) < 0 {
 		return errors.New("Origin gateway is not in round it's gossiping about")
 	}
-
+	jww.DEBUG.Printf("Verified gossip message from %+v", origin)
 	return nil
 
 }

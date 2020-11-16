@@ -11,6 +11,7 @@ package storage
 
 import (
 	"github.com/pkg/errors"
+	jww "gitlab.com/elixxir/gateway/vendor/github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"time"
 )
@@ -233,6 +234,8 @@ func (m *MapImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error) {
 // Inserts the given BloomFilter into database if it does not exist
 // Or updates the BloomFilter in the database if the BloomFilter already exists
 func (m *MapImpl) UpsertBloomFilter(filter *BloomFilter) error {
+	jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
+
 	// Generate key for EpochId and RecipientId maps
 	epochId := filter.EpochId
 	recipientId, err := id.Unmarshal(filter.RecipientId)

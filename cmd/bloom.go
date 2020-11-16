@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/gateway/storage"
+	jww "gitlab.com/elixxir/gateway/vendor/github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"strings"
 )
@@ -55,6 +56,8 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 	//if err != nil {
 	//	return errors.Errorf("Unable to get latest epoch: %s", err)
 	//}
+
+	jww.DEBUG.Printf("Adding bloom filter for client [%v] on round  %d", recipientId, roundId)
 
 	// Get the filters for the associated client
 	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)

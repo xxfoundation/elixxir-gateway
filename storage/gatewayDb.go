@@ -11,6 +11,7 @@ package storage
 import (
 	"bytes"
 	"github.com/jinzhu/gorm"
+	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"time"
 )
@@ -118,15 +119,20 @@ func (d *DatabaseImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 // Returns a BloomFilter from database with the given clientId
 // Or an error if a matching BloomFilter does not exist
 func (d *DatabaseImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error) {
+	jww.DEBUG.Printf("Getting filters for client [%v]", recipientId)
+
 	results := make([]*BloomFilter, 0)
 	err := d.db.Find(&results,
 		&BloomFilter{RecipientId: recipientId.Marshal()}).Error
+	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
+
 	return results, err
 }
 
 // Inserts the given BloomFilter into database if it does not exist
 // Or updates the BloomFilter in the database if the BloomFilter already exists
 func (d *DatabaseImpl) UpsertBloomFilter(filter *BloomFilter) error {
+	jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
 	// Build a transaction to prevent race conditions
 	return d.db.Transaction(func(tx *gorm.DB) error {
 		// Initialize variable for returning existing value from the database
