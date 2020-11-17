@@ -123,6 +123,8 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	var errs []string
 	var wg sync.WaitGroup
 
+	roundID := id.Round(payloadMsg.RoundID)
+
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
 		wg.Add(1)
@@ -134,7 +136,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, id.Round(payloadMsg.RoundID))
+			err = gw.UpsertFilter(recipientId, roundID)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -143,6 +145,12 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	}
 	wg.Wait()
+
+	//denote the reception in known rounds
+	gw.knownRound.Check(roundID)
+	if err := gw.SaveKnownRounds(); err != nil {
+		jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
+	}
 
 	// Parse through the errors returned from the worker pool
 	var errReturn error

@@ -330,13 +330,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.curentRound = id.Round(update.ID)
 				gw.hasCurentRound = true
 			}
-
-			if roundState == states.COMPLETED || roundState == states.FAILED {
-				gw.knownRound.Check(id.Round(update.ID))
-				if err := gw.SaveKnownRounds(); err != nil {
-					jww.ERROR.Print(err)
-				}
-			}
 		}
 	}
 
