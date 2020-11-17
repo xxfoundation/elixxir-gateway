@@ -113,6 +113,8 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	gw.bloomFilterGossip.Lock()
 
+
+
 	// Unmarshal the Recipients data
 	payloadMsg := &pb.Recipients{}
 	err := proto.Unmarshal(msg.Payload, payloadMsg)
@@ -124,6 +126,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	var wg sync.WaitGroup
 
 	roundID := id.Round(payloadMsg.RoundID)
+	jww.INFO.Printf("Gossip received for round %d", roundID)
 
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
