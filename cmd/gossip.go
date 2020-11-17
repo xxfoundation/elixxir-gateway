@@ -34,7 +34,7 @@ func (gw *Instance) StartPeersThread() {
 		}
 		bloomProtocol, exists := gw.Comms.Manager.Get(BloomFilterGossip)
 		if !exists {
-			jww.WARN.Printf("Unable to get gossip rateLimitProtocol!")
+			jww.WARN.Printf("Unable to get gossip BloomFilter!")
 			return
 		}
 		for {

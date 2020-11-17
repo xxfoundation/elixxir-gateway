@@ -240,6 +240,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 func TestInstance_StartPeersThread(t *testing.T) {
 
 	gatewayInstance.InitRateLimitGossip()
+	gatewayInstance.InitBloomGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
 
