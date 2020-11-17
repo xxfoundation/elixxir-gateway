@@ -36,12 +36,13 @@ const (
 
 // Flags to import from command line or config file
 var (
-	cfgFile, idfPath, logPath                                string
-	certPath, keyPath, serverCertPath, permissioningCertPath string
-	logLevel                                                 uint // 0 = info, 1 = debug, >1 = trace
-	messageTimeout                                           time.Duration
-	gwPort                                                   int
-	validConfig                                              bool
+	cfgFile, idfPath, logPath string
+	certPath, keyPath, serverCertPath,
+	permissioningCertPath string
+	logLevel       uint // 0 = info, 1 = debug, >1 = trace
+	messageTimeout time.Duration
+	gwPort         int
+	validConfig    bool
 
 	kr int
 
