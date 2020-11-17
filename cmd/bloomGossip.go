@@ -34,7 +34,7 @@ func (gw *Instance) InitBloomGossip() {
 
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
-func (gw *Instance) GossipBloom(recipientIDs []*id.ID, roundId id.Round) error {
+func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Round) error {
 	var err error
 
 	// Build the message
@@ -44,7 +44,7 @@ func (gw *Instance) GossipBloom(recipientIDs []*id.ID, roundId id.Round) error {
 	}
 
 	// Add the GossipMsg payload
-	gossipMsg.Payload, err = buildGossipPayloadBloom(recipientIDs, roundId)
+	gossipMsg.Payload, err = buildGossipPayloadBloom(recipients, roundId)
 	if err != nil {
 		return errors.Errorf("Unable to build gossip payload: %+v", err)
 	}
@@ -154,18 +154,12 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
-func buildGossipPayloadBloom(recipientIDs []*id.ID, roundId id.Round) ([]byte, error) {
-	// Flatten out the new recipients, removing duplicates
-	recipientMap := make(map[*id.ID]struct{})
-	for _, recipient := range recipientIDs {
-		recipientMap[recipient] = struct{}{}
-	}
-
+func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Round) ([]byte, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
 	i := 0
 	recipients := make([][]byte, len(recipientIDs))
-	for key := range recipientMap {
+	for key := range recipientIDs {
 		recipients[i] = key.Bytes()
 		i++
 	}

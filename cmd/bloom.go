@@ -23,12 +23,12 @@ const bloomFilterSize = 71888 // In Bits
 const bloomFilterHashes = 8
 
 // Upserts filters of passed in recipients, using the round ID
-func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
+func (gw *Instance) UpsertFilters(recipients map[id.ID]interface{}, roundId id.Round) error {
 	var errReturn error
 	var errs []string
 
-	for _, recipient := range recipients {
-		err := gw.UpsertFilter(recipient, roundId)
+	for recipient := range recipients {
+		err := gw.UpsertFilter(&recipient, roundId)
 		if err != nil {
 			errs = append(errs, err.Error())
 		}
