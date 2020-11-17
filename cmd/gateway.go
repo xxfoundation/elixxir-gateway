@@ -126,6 +126,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client
 	clientFilters, err := gw.storage.GetBloomFilters(clientId, id.Round(clientRequest.LastRound))
+	jww.INFO.Printf("Adding %d client filters for %s", len(clientFilters), clientId)
 	if err != nil {
 		jww.WARN.Printf("Could not get filters for %s when polling: %v", clientId, err)
 	}
@@ -962,7 +963,6 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipientID()
-
 
 		if !userId.Cmp(&dummyUser) {
 			recipients[*userId] = nil
