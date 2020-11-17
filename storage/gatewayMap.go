@@ -254,10 +254,10 @@ func (m *MapImpl) UpsertBloomFilter(filter *BloomFilter) error {
 
 	// Initialize inner maps if they do not already exist
 	if m.bloomFilters.RecipientId[*recipientId] == nil {
-		m.bloomFilters.RecipientId[*recipientId] = map[uint64]*BloomFilter{}
+		m.bloomFilters.RecipientId[*recipientId] = make(map[uint64]*BloomFilter)
 	}
 	if m.bloomFilters.EpochId[epochId] == nil {
-		m.bloomFilters.EpochId[epochId] = map[id.ID]*BloomFilter{}
+		m.bloomFilters.EpochId[epochId] = make(map[id.ID]*BloomFilter)
 	}
 
 	// Insert into maps
