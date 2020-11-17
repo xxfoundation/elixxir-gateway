@@ -217,7 +217,7 @@ func (m *MapImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error) {
 		members += member.String() + ", "
 	}
 
-	jww.INFO.Printf("Dump everyone in filter map: %#v", members)
+	jww.INFO.Printf("Dump everyone on get in filter map: %#v", members)
 	filterCount := len(m.bloomFilters.RecipientId[*recipientId])
 
 	// Return an error if no BloomFilters were found
@@ -269,7 +269,7 @@ func (m *MapImpl) UpsertBloomFilter(filter *BloomFilter) error {
 		members += member.String() + ", "
 	}
 
-	jww.INFO.Printf("Dump everyone in filter map: %#v", members)
+	jww.INFO.Printf("Dump everyone on upsert in filter map: %#v", members)
 
 	return nil
 }
