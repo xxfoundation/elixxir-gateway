@@ -266,6 +266,8 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	// Send the add gateway signal
 	gatewayInstance.addGateway <- testSignal
 
+	time.Sleep(10*time.Millisecond)
+
 	// Test the add gateway signals
 	// by attempting to remove the added gateway
 	for i := 0; i < 5; i++ {
