@@ -26,9 +26,10 @@ const errorDelimiter = "; "
 
 // Initialize fields required for the gossip protocol specialized to bloom filters
 func (gw *Instance) InitBloomGossip() {
-
+	flags := gossip.DefaultProtocolFlags()
+	flags.FanOut = 3
 	// Register gossip protocol for bloom filters
-	gw.Comms.Manager.NewGossip(BloomFilterGossip, gossip.DefaultProtocolFlags(),
+	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
 }
 
