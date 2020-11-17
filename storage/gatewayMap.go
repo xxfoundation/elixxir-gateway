@@ -212,6 +212,12 @@ func (m *MapImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error) {
 	m.bloomFilters.RLock()
 	defer m.bloomFilters.RUnlock()
 
+	members := ""
+	for member := range m.bloomFilters.RecipientId{
+		members += member.String() + ", "
+	}
+
+	jww.INFO.Printf("Dump everyone in filter map: %#v", members)
 	filterCount := len(m.bloomFilters.RecipientId[*recipientId])
 
 	// Return an error if no BloomFilters were found
@@ -257,6 +263,13 @@ func (m *MapImpl) UpsertBloomFilter(filter *BloomFilter) error {
 	// Insert into maps
 	m.bloomFilters.RecipientId[*recipientId][filter.EpochId] = filter
 	m.bloomFilters.EpochId[filter.EpochId][*recipientId] = filter
+
+	members := ""
+	for member := range m.bloomFilters.RecipientId{
+		members += member.String() + ", "
+	}
+
+	jww.INFO.Printf("Dump everyone in filter map: %#v", members)
 
 	return nil
 }
