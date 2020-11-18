@@ -45,6 +45,7 @@ func (gw *Instance) StartPeersThread() {
 				jww.WARN.Printf("Unable to unmarshal gossip peer: %+v", err)
 				continue
 			}
+			jww.INFO.Printf("Added %s to gossip peers list", gwId)
 			err = rateLimitProtocol.AddGossipPeer(gwId)
 			if err != nil {
 				jww.WARN.Printf("Unable to add rate limit gossip peer: %+v", err)
@@ -59,6 +60,7 @@ func (gw *Instance) StartPeersThread() {
 			select {
 			// TODO: Add kill case?
 			case removeId := <-gw.removeGateway:
+				jww.INFO.Printf("Removed %s to gossip peers list", removeId)
 				err := rateLimitProtocol.RemoveGossipPeer(removeId)
 				if err != nil {
 					jww.WARN.Printf("Unable to remove rate limit gossip peer: %+v", err)
@@ -73,6 +75,7 @@ func (gw *Instance) StartPeersThread() {
 					jww.WARN.Printf("Unable to unmarshal gossip peer: %+v", err)
 					continue
 				}
+				jww.INFO.Printf("Added %s to gossip peers list", gwId)
 				err = rateLimitProtocol.AddGossipPeer(gwId)
 				if err != nil {
 					jww.WARN.Printf("Unable to add rate limit gossip peer: %+v", err)
