@@ -345,6 +345,11 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		gw.hasCurentRound = false
 		gw.ProcessCompletedBatch(newInfo.Slots, gw.curentRound)
 	}
+
+	if err := gw.NetInf.UpdateGatewayConnections(); err!=nil{
+		jww.ERROR.Printf("Failed to update gateway connections: %+v",
+			err)
+	}
 	return nil
 }
 
