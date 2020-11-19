@@ -466,7 +466,12 @@ func (gw *Instance) InitNetwork() error {
 
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			err = gw.setupIDF(serverResponse.Id)
+			ndf, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
+			if err !=nil{
+				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
+				return err
+			}
+			err = gw.setupIDF(serverResponse.Id, ndf)
 			nodeId = serverResponse.Id
 			if err != nil {
 				jww.WARN.Printf("failed to update node information: %+v", err)
@@ -552,10 +557,7 @@ func (gw *Instance) InitNetwork() error {
 }
 
 // Helper that updates parses the NDF in order to create our IDF
-func (gw *Instance) setupIDF(nodeId []byte) (err error) {
-
-	// Get the ndf from our network instance
-	ourNdf := gw.NetInf.GetPartialNdf().Get()
+func (gw *Instance) setupIDF(nodeId []byte, ourNdf *ndf.NetworkDefinition) (err error) {
 
 	// Determine the index of this gateway
 	for i, node := range ourNdf.Nodes {
