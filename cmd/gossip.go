@@ -39,7 +39,7 @@ func (gw *Instance) StartPeersThread() {
 		}
 
 		//add all previously present gateways
-		for _, gateway := range gw.NetInf.GetFullNdf().Get().Gateways{
+		/*for _, gateway := range gw.NetInf.GetFullNdf().Get().Gateways{
 			gwId, err := id.Unmarshal(gateway.ID)
 			if err != nil {
 				jww.WARN.Printf("Unable to unmarshal gossip peer: %+v", err)
@@ -54,7 +54,7 @@ func (gw *Instance) StartPeersThread() {
 			if err != nil {
 				jww.WARN.Printf("Unable to add bloom gossip peer: %+v", err)
 			}
-		}
+		}*/
 
 		for {
 			select {

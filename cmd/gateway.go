@@ -292,6 +292,12 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		}
 	}
 
+	jww.INFO.Printf("Updating gateway connections")
+	if err := gw.NetInf.UpdateGatewayConnections(); err!=nil{
+		jww.ERROR.Printf("Failed to update gateway connections: %+v",
+			err)
+	}
+
 	if newInfo.Updates != nil {
 
 		for _, update := range newInfo.Updates {
@@ -346,10 +352,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		gw.ProcessCompletedBatch(newInfo.Slots, gw.curentRound)
 	}
 
-	if err := gw.NetInf.UpdateGatewayConnections(); err!=nil{
-		jww.ERROR.Printf("Failed to update gateway connections: %+v",
-			err)
-	}
 	return nil
 }
 
