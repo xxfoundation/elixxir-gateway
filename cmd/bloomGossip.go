@@ -36,6 +36,8 @@ func (gw *Instance) InitBloomGossip() {
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
 func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Round) error {
+
+	jww.INFO.Printf("GossipBloom: %v", roundId)
 	var err error
 
 	// Build the message
@@ -61,12 +63,14 @@ func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Rou
 	if !ok {
 		return errors.Errorf("Unable to get gossip protocol.")
 	}
-	_, errs := gossipProtocol.Gossip(gossipMsg)
+	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
 	// Return any errors up the stack
 	if len(errs) != 0 {
 		return errors.Errorf("Could not send to peers: %v", errs)
 	}
+
+	jww.INFO.Printf("Gossipped to %d peers", numPeers)
 
 	return nil
 }
@@ -112,8 +116,6 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 // Receive function for Gossip messages regarding bloom filters
 func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	gw.bloomFilterGossip.Lock()
-
-
 
 	// Unmarshal the Recipients data
 	payloadMsg := &pb.Recipients{}
@@ -172,6 +174,7 @@ func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Roun
 	i := 0
 	recipients := make([][]byte, len(recipientIDs))
 	for key := range recipientIDs {
+		jww.INFO.Printf("buildGossip Rec: %v", key)
 		recipients[i] = key.Bytes()
 		i++
 	}
