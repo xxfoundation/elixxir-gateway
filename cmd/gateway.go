@@ -45,6 +45,7 @@ var dummyUser = id.DummyUser
 const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
+	gwChanLen	   = 1000
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -524,6 +525,11 @@ func (gw *Instance) InitNetwork() error {
 			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
 			continue
 		}
+
+		gw.addGateway = make(chan network.NodeGateway, gwChanLen)
+		gw.removeGateway = make(chan *id.ID, gwChanLen)
+		gw.NetInf.SetAddGatewayChan(gw.addGateway)
+		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
 		// Update the network instance
 		jww.DEBUG.Printf("Updating instance")

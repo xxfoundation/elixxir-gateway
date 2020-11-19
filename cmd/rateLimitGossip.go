@@ -23,12 +23,6 @@ import (
 
 // Initialize fields required for the gossip protocol specialized to rate limiting
 func (gw *Instance) InitRateLimitGossip() {
-	// Register channels for gateway add/remove events
-	chanLen := 10
-	gw.addGateway = make(chan network.NodeGateway, chanLen)
-	gw.removeGateway = make(chan *id.ID, chanLen)
-	gw.NetInf.SetAddGatewayChan(gw.addGateway)
-	gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
 	// Initialize leaky bucket
 	gw.rateLimitQuit = make(chan struct{}, 1)
