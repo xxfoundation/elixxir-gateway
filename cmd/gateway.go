@@ -194,7 +194,7 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 		GatewayPort:    uint32(gwPort),
 		GatewayVersion: currentVersion,
 	}
-
+	jww.DEBUG.Printf("Polling Server: %+v", pollMsg)
 	resp, err := conn.SendPoll(pollee, pollMsg)
 	return resp, err
 }
@@ -220,6 +220,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF) (
 // UpdateInstance reads a ServerPollResponse object and updates the instance
 // state accordingly.
 func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
+	jww.DEBUG.Printf("Server poll response: %+v", newInfo)
 	// Update the NDFs, and update the round info, which is currently
 	// recorded but not used for anything. (maybe we should print state
 	// of each round?)
@@ -239,7 +240,9 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		for _, update := range newInfo.Updates {
 			err := gw.NetInf.RoundUpdate(update)
 			if err != nil {
-				return err
+				// do not return on round update failure, that will cause the
+				// gateway to cease to process further updates, just warn
+				jww.WARN.Printf("failed to insert round update: %s", err)
 			}
 		}
 	}
@@ -720,7 +723,9 @@ func (gw *Instance) Start() {
 					err)
 				continue
 			}
-			gw.UpdateInstance(msg)
+			if err = gw.UpdateInstance(msg); err != nil {
+				jww.WARN.Printf("Failed to update instance: %+v", err)
+			}
 		}
 	}()
 }
