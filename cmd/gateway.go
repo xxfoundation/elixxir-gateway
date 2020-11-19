@@ -464,33 +464,6 @@ func (gw *Instance) InitNetwork() error {
 			}
 		}
 
-		jww.DEBUG.Printf("Creating instance!")
-		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
-			serverResponse.FullNDF,
-			serverResponse.PartialNDF, gw.storage)
-		if err != nil {
-			jww.ERROR.Printf("Unable to create network"+
-				" instance: %v", err)
-			continue
-		}
-
-		// Add permissioning as a host
-		params := connect.GetDefaultHostParams()
-		params.MaxRetries = 0
-		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
-		if err != nil {
-			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
-			continue
-		}
-
-		// Update the network instance
-		jww.DEBUG.Printf("Updating instance")
-		err = gw.UpdateInstance(serverResponse)
-		if err != nil {
-			jww.ERROR.Printf("Update instance error: %v", err)
-			continue
-		}
-
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
 			err = gw.setupIDF(serverResponse.Id)
@@ -527,6 +500,34 @@ func (gw *Instance) InitNetwork() error {
 		gatewayId.SetType(id.Gateway)
 		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler,
 			gwCert, gwKey, gossip.DefaultManagerFlags())
+
+		jww.DEBUG.Printf("Creating instance!")
+		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
+			serverResponse.FullNDF,
+			serverResponse.PartialNDF, gw.storage)
+		if err != nil {
+			jww.ERROR.Printf("Unable to create network"+
+				" instance: %v", err)
+			continue
+		}
+
+		// Add permissioning as a host
+		params := connect.GetDefaultHostParams()
+		params.MaxRetries = 0
+		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
+		if err != nil {
+			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
+			continue
+		}
+
+		// Update the network instance
+		jww.DEBUG.Printf("Updating instance")
+		err = gw.UpdateInstance(serverResponse)
+		if err != nil {
+			jww.ERROR.Printf("Update instance error: %v", err)
+			continue
+		}
+
 		gw.InitRateLimitGossip()
 		gw.InitBloomGossip()
 		// Initialize hosts for reverse-authentication
