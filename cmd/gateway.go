@@ -708,7 +708,7 @@ func (gw *Instance) Start() {
 	// Now that we're set up, run a thread that constantly
 	// polls for updates
 	go func() {
-		lastUpdate := uint64(time.Now().Unix())
+		lastUpdate := uint64(0)
 		ticker := time.NewTicker(PollPeriod)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
@@ -716,12 +716,14 @@ func (gw *Instance) Start() {
 				gw.NetInf.GetFullNdf(),
 				gw.NetInf.GetPartialNdf(),
 				lastUpdate)
-			lastUpdate = uint64(time.Now().Unix())
 			if err != nil {
 				jww.WARN.Printf(
 					"Failed to Poll: %v",
 					err)
 				continue
+			}
+			if len(msg.Updates) > 0 {
+				lastUpdate = msg.Updates[len(msg.Updates)-1].UpdateID
 			}
 			if err = gw.UpdateInstance(msg); err != nil {
 				jww.WARN.Printf("Failed to update instance: %+v", err)
