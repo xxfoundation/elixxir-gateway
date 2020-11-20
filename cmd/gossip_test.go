@@ -238,7 +238,8 @@ func TestInstance_GossipVerify(t *testing.T) {
 
 // Happy path
 func TestInstance_StartPeersThread(t *testing.T) {
-
+	gatewayInstance.addGateway = make(chan network.NodeGateway, gwChanLen)
+	gatewayInstance.removeGateway = make(chan *id.ID, gwChanLen)
 	gatewayInstance.InitRateLimitGossip()
 	gatewayInstance.InitBloomGossip()
 	defer gatewayInstance.KillRateLimiter()
@@ -267,7 +268,6 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	// Send the add gateway signal
 	gatewayInstance.addGateway <- testSignal
 
-	time.Sleep(10*time.Millisecond)
 
 	// Test the add gateway signals
 	// by attempting to remove the added gateway
