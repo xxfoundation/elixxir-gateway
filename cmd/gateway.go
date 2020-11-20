@@ -522,6 +522,7 @@ func (gw *Instance) InitNetwork() error {
 		// Add permissioning as a host
 		params := connect.GetDefaultHostParams()
 		params.MaxRetries = 0
+		params.AuthEnabled = false
 		_, err = gw.Comms.AddHost(&id.Permissioning, gw.NetInf.GetPermissioningAddress(),
 			permissioningCert, params)
 		if err != nil {
