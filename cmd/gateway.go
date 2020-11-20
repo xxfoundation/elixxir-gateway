@@ -967,10 +967,13 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	}
 
 	// Gossip recipients included in the completed batch to other gateways
-	err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
-	if err != nil {
-		jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
-	}
+	// in a new thread
+	go func(){
+		err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
+		if err != nil {
+			jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
+		}
+	}()
 
 	jww.INFO.Printf("Round received, %d real messages "+
 		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
