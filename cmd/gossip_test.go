@@ -240,6 +240,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 func TestInstance_StartPeersThread(t *testing.T) {
 
 	gatewayInstance.InitRateLimitGossip()
+	gatewayInstance.InitBloomGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
 
@@ -265,6 +266,8 @@ func TestInstance_StartPeersThread(t *testing.T) {
 
 	// Send the add gateway signal
 	gatewayInstance.addGateway <- testSignal
+
+	time.Sleep(10*time.Millisecond)
 
 	// Test the add gateway signals
 	// by attempting to remove the added gateway

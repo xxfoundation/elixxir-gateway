@@ -36,6 +36,8 @@ func (gw *Instance) InitBloomGossip() {
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
 func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Round) error {
+
+	jww.INFO.Printf("GossipBloom: %v", roundId)
 	var err error
 
 	// Build the message
@@ -61,12 +63,14 @@ func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Rou
 	if !ok {
 		return errors.Errorf("Unable to get gossip protocol.")
 	}
-	_, errs := gossipProtocol.Gossip(gossipMsg)
+	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
 	// Return any errors up the stack
 	if len(errs) != 0 {
 		return errors.Errorf("Could not send to peers: %v", errs)
 	}
+
+	jww.INFO.Printf("Gossipped to %d peers", numPeers)
 
 	return nil
 }
@@ -123,6 +127,9 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	var errs []string
 	var wg sync.WaitGroup
 
+	roundID := id.Round(payloadMsg.RoundID)
+	jww.INFO.Printf("Gossip received for round %d", roundID)
+
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
 		wg.Add(1)
@@ -134,7 +141,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, id.Round(payloadMsg.RoundID))
+			err = gw.UpsertFilter(recipientId, roundID)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -143,6 +150,12 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	}
 	wg.Wait()
+
+	//denote the reception in known rounds
+	gw.knownRound.Check(roundID)
+	if err := gw.SaveKnownRounds(); err != nil {
+		jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
+	}
 
 	// Parse through the errors returned from the worker pool
 	var errReturn error
@@ -161,6 +174,7 @@ func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Roun
 	i := 0
 	recipients := make([][]byte, len(recipientIDs))
 	for key := range recipientIDs {
+		jww.INFO.Printf("buildGossip Rec: %v", key)
 		recipients[i] = key.Bytes()
 		i++
 	}

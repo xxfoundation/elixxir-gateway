@@ -61,16 +61,17 @@ func (s *Storage) GetBloomFilters(recipientId *id.ID, latestRound id.Round) ([]*
 	}
 
 	// Get the latest epoch for determining how current the filters are
-	latestEpoch, err := s.GetLatestEpoch()
+	/*latestEpoch, err := s.GetLatestEpoch()
 	if err != nil {
 		return nil, err
-	}
+	}*/
+	//latestEpoch := 0
 
 	for _, filter := range bloomFilters {
 		clientFilter := &ClientBloomFilter{
 			Filter: filter.Filter,
 		}
-
+		/*
 		// Determine relevant rounds for the ClientBloomFilter
 		if filter.EpochId == latestEpoch.Id {
 			// If the BloomFilter is current, use the current round
@@ -90,7 +91,7 @@ func (s *Storage) GetBloomFilters(recipientId *id.ID, latestRound id.Round) ([]*
 			clientFilter.FirstRound = id.Round(epoch.RoundId)
 			// (Epoch n).LastRound = (Epoch n + 1).FirstRound - 1
 			clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
-		}
+		}*/
 
 		result = append(result, clientFilter)
 	}

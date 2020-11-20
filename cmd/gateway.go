@@ -45,6 +45,7 @@ var dummyUser = id.DummyUser
 const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
+	gwChanLen	   = 1000
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -294,6 +295,12 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		}
 	}
 
+	jww.INFO.Printf("Updating gateway connections")
+	if err := gw.NetInf.UpdateGatewayConnections(); err!=nil{
+		jww.ERROR.Printf("Failed to update gateway connections: %+v",
+			err)
+	}
+
 	if newInfo.Updates != nil {
 
 		for _, update := range newInfo.Updates {
@@ -332,13 +339,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.curentRound = id.Round(update.ID)
 				gw.hasCurentRound = true
 			}
-
-			if roundState == states.COMPLETED || roundState == states.FAILED {
-				gw.knownRound.Check(id.Round(update.ID))
-				if err := gw.SaveKnownRounds(); err != nil {
-					jww.ERROR.Print(err)
-				}
-			}
 		}
 	}
 
@@ -354,6 +354,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		gw.hasCurentRound = false
 		gw.ProcessCompletedBatch(newInfo.Slots, gw.curentRound)
 	}
+
 	return nil
 }
 
@@ -466,36 +467,14 @@ func (gw *Instance) InitNetwork() error {
 			}
 		}
 
-		jww.DEBUG.Printf("Creating instance!")
-		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
-			serverResponse.FullNDF,
-			serverResponse.PartialNDF, gw.storage)
-		if err != nil {
-			jww.ERROR.Printf("Unable to create network"+
-				" instance: %v", err)
-			continue
-		}
-
-		// Add permissioning as a host
-		params := connect.GetDefaultHostParams()
-		params.MaxRetries = 0
-		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
-		if err != nil {
-			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
-			continue
-		}
-
-		// Update the network instance
-		jww.DEBUG.Printf("Updating instance")
-		err = gw.UpdateInstance(serverResponse)
-		if err != nil {
-			jww.ERROR.Printf("Update instance error: %v", err)
-			continue
-		}
-
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			err = gw.setupIDF(serverResponse.Id)
+			ndf, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
+			if err !=nil{
+				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
+				return err
+			}
+			err = gw.setupIDF(serverResponse.Id, ndf)
 			nodeId = serverResponse.Id
 			if err != nil {
 				jww.WARN.Printf("failed to update node information: %+v", err)
@@ -529,6 +508,39 @@ func (gw *Instance) InitNetwork() error {
 		gatewayId.SetType(id.Gateway)
 		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler,
 			gwCert, gwKey, gossip.DefaultManagerFlags())
+
+		jww.DEBUG.Printf("Creating instance!")
+		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
+			serverResponse.FullNDF,
+			serverResponse.PartialNDF, gw.storage)
+		if err != nil {
+			jww.ERROR.Printf("Unable to create network"+
+				" instance: %v", err)
+			continue
+		}
+
+		// Add permissioning as a host
+		params := connect.GetDefaultHostParams()
+		params.MaxRetries = 0
+		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
+		if err != nil {
+			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
+			continue
+		}
+
+		gw.addGateway = make(chan network.NodeGateway, gwChanLen)
+		gw.removeGateway = make(chan *id.ID, gwChanLen)
+		gw.NetInf.SetAddGatewayChan(gw.addGateway)
+		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
+
+		// Update the network instance
+		jww.DEBUG.Printf("Updating instance")
+		err = gw.UpdateInstance(serverResponse)
+		if err != nil {
+			jww.ERROR.Printf("Update instance error: %v", err)
+			continue
+		}
+
 		gw.InitRateLimitGossip()
 		gw.InitBloomGossip()
 		// Initialize hosts for reverse-authentication
@@ -559,10 +571,7 @@ func (gw *Instance) InitNetwork() error {
 }
 
 // Helper that updates parses the NDF in order to create our IDF
-func (gw *Instance) setupIDF(nodeId []byte) (err error) {
-
-	// Get the ndf from our network instance
-	ourNdf := gw.NetInf.GetPartialNdf().Get()
+func (gw *Instance) setupIDF(nodeId []byte, ourNdf *ndf.NetworkDefinition) (err error) {
 
 	// Determine the index of this gateway
 	for i, node := range ourNdf.Nodes {

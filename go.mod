@@ -18,11 +18,12 @@ require (
 	github.com/spf13/viper v1.6.3
 	gitlab.com/elixxir/bloomfilter v0.0.0-20200930191214-10e9ac31b228
 	gitlab.com/elixxir/comms v0.0.4-0.20201117173036-2da45a4eb327
-	gitlab.com/elixxir/crypto v0.0.5-0.20201110193609-6b5e881867b4
+	gitlab.com/elixxir/crypto v0.0.5-0.20201118204646-9b23991834c6
 	gitlab.com/elixxir/primitives v0.0.3-0.20201116174806-97f190989704
-	gitlab.com/xx_network/comms v0.0.4-0.20201110022115-4a6171cad07d
+	gitlab.com/xx_network/comms v0.0.4-0.20201119231004-a67d08045535
 	gitlab.com/xx_network/crypto v0.0.4
 	gitlab.com/xx_network/primitives v0.0.3-0.20201116234927-44e42fc91e7c
+	gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1 // indirect
 	gopkg.in/ini.v1 v1.55.0 // indirect
 )
 
