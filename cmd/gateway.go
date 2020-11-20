@@ -344,7 +344,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 	// Send a new batch to the server when it asks for one
 	if newInfo.BatchRequest != nil {
-		gw.SendBatchWhenReady(newInfo.BatchRequest)
+		gw.SendBatch(newInfo.BatchRequest)
 	}
 	// Process a batch that has been completed by this server
 	if newInfo.Slots != nil {
@@ -725,8 +725,6 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 
 // PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
-	// Fixme: work needs to be done to populate database with precanned values
-	//  so that precanned users aren't rejected when sending messages
 	// Construct Client ID for database lookup
 	clientID, err := id.Unmarshal(msg.Message.SenderID)
 	if err != nil {
@@ -770,11 +768,6 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	if !gw.UnmixedBuffer.IsRoundLeader(thisRound) {
 		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("Could not find round. " +
 			"Please try a different gateway.")
-	}
-
-	if gw.UnmixedBuffer.IsRoundFull(thisRound) {
-		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("This round is full and " +
-			"will not accept any new messages. Please try a different round.")
 	}
 
 	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
@@ -891,10 +884,9 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 }
 
-// SendBatchWhenReady polls for the servers RoundBufferInfo object, checks
-// if there are at least minRoundCnt rounds ready, and sends whenever there
-// are minMsgCnt messages available in the message queue
-func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
+// SendBatch polls sends whatever messages are in the batch assoceated with the
+// requested round to the server
+func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 
 	batchSize := uint64(roundInfo.BatchSize)
 	if batchSize == 0 {
@@ -902,32 +894,7 @@ func (gw *Instance) SendBatchWhenReady(roundInfo *pb.RoundInfo) {
 		return
 	}
 
-	// minMsgCnt should be no less than 33% of the BatchSize
-	// Note: this is security sensitive.. be careful modifying it
-	minMsgCnt := uint64(roundInfo.BatchSize / 3)
-	if minMsgCnt == 0 {
-		minMsgCnt = 1
-	}
-
-	// FIXME: HACK HACK HACK -- disable the minMsgCnt
-	// We're unable to use this right now because we are moving to
-	// multi-team setups and adding a time out to rounds. So it is
-	// likely we will loop forever and/or drop a lot of rounds due to
-	// not receiving messages quickly enough for a certain round.
-	// Will revisit if we add the ability to re-encrypt messages for
-	// a different round or another mechanism becomes available.
-	minMsgCnt = 0
-
-	batch := gw.UnmixedBuffer.GetRoundMessages(minMsgCnt, id.Round(roundInfo.ID))
-	for batch == nil {
-		jww.INFO.Printf(
-			"Server is ready, but only have %d messages to send, "+
-				"need %d! Waiting 1 seconds!",
-			gw.UnmixedBuffer.LenUnmixed(id.Round(roundInfo.ID)),
-			minMsgCnt)
-		time.Sleep(1 * time.Second)
-		batch = gw.UnmixedBuffer.GetRoundMessages(minMsgCnt, id.Round(roundInfo.ID))
-	}
+	batch := gw.UnmixedBuffer.PopRound(id.Round(roundInfo.ID))
 
 	batch.Round = roundInfo
 

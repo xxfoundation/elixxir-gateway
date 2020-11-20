@@ -18,7 +18,7 @@ type UnmixedMessageBuffer interface {
 	AddUnmixedMessage(msg *pb.Slot, round id.Round) error
 
 	// GetRoundMessages returns the batch associated with the roundID
-	GetRoundMessages(minMsgCnt uint64, rndId id.Round) *pb.Batch
+	PopRound(rndId id.Round) *pb.Batch
 
 	// LenUnmixed return the number of messages within the requested round
 	LenUnmixed(rndId id.Round) int

@@ -24,7 +24,7 @@ type UnmixedMessagesMap struct {
 type SendRound struct {
 	batch       *pb.Batch
 	maxElements uint32
-	sent        bool
+	sent 		bool
 }
 
 // NewUnmixedMessagesMap initialize a UnmixedMessageBuffer interface.
@@ -47,8 +47,12 @@ func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)
 		return errors.New("cannot add message to unknown round")
 	}
 
-	if retrievedBatch.sent {
+	if retrievedBatch.sent{
 		return errors.New("Cannot add message to already sent batch")
+	}
+
+	if len(retrievedBatch.batch.Slots)==int(retrievedBatch.maxElements) {
+		return errors.New("Cannot add message to full batch")
 	}
 
 	// If the batch for this round was already created, add another message
@@ -57,7 +61,7 @@ func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)
 }
 
 // GetRoundMessages returns the batch associated with the roundID
-func (umb *UnmixedMessagesMap) GetRoundMessages(minMsgCnt uint64, roundId id.Round) *pb.Batch {
+func (umb *UnmixedMessagesMap) PopRound(roundId id.Round) *pb.Batch {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
@@ -69,13 +73,10 @@ func (umb *UnmixedMessagesMap) GetRoundMessages(minMsgCnt uint64, roundId id.Rou
 	retrievedBatch.sent = true
 
 	// Handle batches too small to send
-	if uint64(len(retrievedBatch.batch.Slots)) < minMsgCnt {
-		return nil
-	} else if len(retrievedBatch.batch.Slots) == 0 {
-		return &pb.Batch{}
-	}
+	batch := retrievedBatch.batch
+	retrievedBatch.batch = nil
 
-	return retrievedBatch.batch
+	return batch
 }
 
 // LenUnmixed return the number of messages within the requested round
