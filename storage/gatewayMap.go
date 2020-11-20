@@ -55,6 +55,7 @@ func (m *MapImpl) InsertClient(client *Client) error {
 	return nil
 }
 
+// mapimpl call for upserting clients
 func (m *MapImpl) UpsertClient(client *Client) error {
 	cid, err := id.Unmarshal(client.Id)
 	if err != nil {

@@ -30,6 +30,7 @@ func (d *DatabaseImpl) InsertClient(client *Client) error {
 	return d.db.Create(client).Error
 }
 
+// Upsert client into the database - replace key field if it differs so interrupted reg doesn't fail
 func (d *DatabaseImpl) UpsertClient(client *Client) error {
 	// Make a copy of the provided client
 	newClient := *client
