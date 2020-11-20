@@ -71,6 +71,8 @@ func (s *Storage) GetBloomFilters(recipientId *id.ID, latestRound id.Round) ([]*
 		clientFilter := &ClientBloomFilter{
 			Filter: filter.Filter,
 		}
+		clientFilter.FirstRound = id.Round(0)
+		clientFilter.LastRound = latestRound
 		/*
 		// Determine relevant rounds for the ClientBloomFilter
 		if filter.EpochId == latestEpoch.Id {
