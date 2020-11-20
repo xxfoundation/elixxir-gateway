@@ -141,11 +141,10 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	jww.TRACE.Printf("KnownRounds: %v", kr)
 
 	var ndf *pb.NDF
-	isSame := gw.NetInf.GetFullNdf().CompareHash(clientRequest.Partial.Hash)
+	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
 	if !isSame {
-		ndf = gw.NetInf.GetFullNdf().GetPb()
+		ndf = gw.NetInf.GetPartialNdf().GetPb()
 	}
-
 
 	return &pb.GatewayPollResponse{
 		PartialNDF:      ndf,
