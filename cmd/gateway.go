@@ -45,7 +45,7 @@ var dummyUser = id.DummyUser
 const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
-	gwChanLen	   = 1000
+	gwChanLen      = 1000
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -87,7 +87,7 @@ type Instance struct {
 	curentRound    id.Round
 	hasCurentRound bool
 
-	address string
+	address           string
 	bloomFilterGossip sync.Mutex
 }
 
@@ -295,8 +295,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		}
 	}
 
-	jww.INFO.Printf("Updating gateway connections")
-	if err := gw.NetInf.UpdateGatewayConnections(); err!=nil{
+	if err := gw.NetInf.UpdateGatewayConnections(); err != nil {
 		jww.ERROR.Printf("Failed to update gateway connections: %+v",
 			err)
 	}
@@ -470,7 +469,7 @@ func (gw *Instance) InitNetwork() error {
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
 			ndf, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
-			if err !=nil{
+			if err != nil {
 				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
 				return err
 			}

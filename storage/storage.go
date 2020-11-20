@@ -74,26 +74,26 @@ func (s *Storage) GetBloomFilters(recipientId *id.ID, latestRound id.Round) ([]*
 		clientFilter.FirstRound = id.Round(0)
 		clientFilter.LastRound = latestRound
 		/*
-		// Determine relevant rounds for the ClientBloomFilter
-		if filter.EpochId == latestEpoch.Id {
-			// If the BloomFilter is current, use the current round
-			clientFilter.FirstRound = id.Round(latestEpoch.RoundId)
-			clientFilter.LastRound = latestRound
-		} else {
-			// If the BloomFilter is not current, infer the LastRound from the next Epoch
-			epoch, err := s.GetEpoch(filter.EpochId)
-			if err != nil {
-				return nil, err
-			}
-			nextEpoch, err := s.GetEpoch(filter.EpochId + 1)
-			if err != nil {
-				return nil, err
-			}
+			// Determine relevant rounds for the ClientBloomFilter
+			if filter.EpochId == latestEpoch.Id {
+				// If the BloomFilter is current, use the current round
+				clientFilter.FirstRound = id.Round(latestEpoch.RoundId)
+				clientFilter.LastRound = latestRound
+			} else {
+				// If the BloomFilter is not current, infer the LastRound from the next Epoch
+				epoch, err := s.GetEpoch(filter.EpochId)
+				if err != nil {
+					return nil, err
+				}
+				nextEpoch, err := s.GetEpoch(filter.EpochId + 1)
+				if err != nil {
+					return nil, err
+				}
 
-			clientFilter.FirstRound = id.Round(epoch.RoundId)
-			// (Epoch n).LastRound = (Epoch n + 1).FirstRound - 1
-			clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
-		}*/
+				clientFilter.FirstRound = id.Round(epoch.RoundId)
+				// (Epoch n).LastRound = (Epoch n + 1).FirstRound - 1
+				clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
+			}*/
 
 		result = append(result, clientFilter)
 	}

@@ -268,7 +268,6 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	// Send the add gateway signal
 	gatewayInstance.addGateway <- testSignal
 
-
 	// Test the add gateway signals
 	// by attempting to remove the added gateway
 	for i := 0; i < 5; i++ {
@@ -513,13 +512,13 @@ func TestInstance_GossipBloom(t *testing.T) {
 
 	// Insert the first five IDs as known clients
 	i := 0
-	for client := range clients{
+	for client := range clients {
 		mockClient := &storage.Client{
 			Id: client.Bytes(),
 		}
 		gw.storage.InsertClient(mockClient)
 		i++
-		if i==5{
+		if i == 5 {
 			break
 		}
 	}
@@ -532,7 +531,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	i = 0
-	for clientId  := range clients {
+	for clientId := range clients {
 		// Check that the first five IDs are known clients, and thus
 		// in the user bloom filter
 		filters, err := gw.storage.GetBloomFilters(&clientId, id.Round(rndId))
