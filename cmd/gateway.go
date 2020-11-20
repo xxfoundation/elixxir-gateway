@@ -140,8 +140,15 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	jww.TRACE.Printf("KnownRounds: %v", kr)
 
+	var ndf *pb.NDF
+	isSame := gw.NetInf.GetFullNdf().CompareHash(clientRequest.Partial.Hash)
+	if !isSame {
+		ndf = gw.NetInf.GetFullNdf().GetPb()
+	}
+
+
 	return &pb.GatewayPollResponse{
-		PartialNDF:       gw.NetInf.GetPartialNdf().GetPb(),
+		PartialNDF:      ndf,
 		Updates:          updates,
 		LastTrackedRound: uint64(0), // FIXME: This should be the
 		// earliest tracked network round
