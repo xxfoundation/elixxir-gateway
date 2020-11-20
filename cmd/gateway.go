@@ -87,6 +87,7 @@ type Instance struct {
 	curentRound    id.Round
 	hasCurentRound bool
 
+	address string
 	bloomFilterGossip sync.Mutex
 }
 
@@ -224,8 +225,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 
 // PollServer sends a poll message to the server and returns a response.
 func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
-	partialNdf *network.SecuredNdf, lastUpdate uint64) (
+	partialNdf *network.SecuredNdf, lastUpdate uint64, addr string) (
 	*pb.ServerPollResponse, error) {
+	jww.TRACE.Printf("Address being sent to server: [%v]", addr)
 
 	var ndfHash, partialNdfHash *pb.NDFHash
 	ndfHash = &pb.NDFHash{
@@ -248,7 +250,7 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 		Partial:        partialNdfHash,
 		LastUpdate:     lastUpdate,
 		Error:          "",
-		GatewayPort:    uint32(gwPort),
+		GatewayAddress: addr,
 		GatewayVersion: currentVersion,
 	}
 
@@ -443,7 +445,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Poll Server for the NDFs, then use it to create the
 		// network instance and begin polling for server updates
-		serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
+		serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0, gw.address)
 		if err != nil {
 			eMsg := err.Error()
 			// Catch recoverable error
@@ -544,10 +546,16 @@ func (gw *Instance) InitNetwork() error {
 		// Initialize hosts for reverse-authentication
 		// This may be necessary to verify the NDF if it gets updated while
 		// the network is up
-		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
+		_, err := gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
 		if err != nil {
 			return errors.Errorf("Couldn't add permissioning host: %v", err)
 		}
+
+		gw.Params.Address, err = CheckPermConn(gw.Params.Address, gw.Params.Port, gw.Comms)
+		if err != nil {
+			return errors.Errorf("Couldn't complete CheckPermConn: %v", err)
+		}
+		gw.address = fmt.Sprintf("%s:%d", gw.Params.Address, &gw.Params.Port)
 
 		// newNdf := gw.NetInf.GetPartialNdf().Get()
 
@@ -1022,7 +1030,8 @@ func (gw *Instance) Start() {
 				gw.ServerHost,
 				gw.NetInf.GetFullNdf(),
 				gw.NetInf.GetPartialNdf(),
-				gw.lastUpdate)
+				gw.lastUpdate,
+				gw.address)
 			if err != nil {
 				jww.WARN.Printf(
 					"Failed to Poll: %v",
