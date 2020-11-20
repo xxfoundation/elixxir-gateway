@@ -897,7 +897,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 
 	batch.Round = roundInfo
 
-	jww.INFO.Printf("Sending batch with %d messages...", len(batch.Slots))
+	jww.INFO.Printf("Sending batch for round %d with %d messages...", roundInfo.ID, len(batch.Slots))
 
 	numNodes := len(roundInfo.GetTopology())
 
