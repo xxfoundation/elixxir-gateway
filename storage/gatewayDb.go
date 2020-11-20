@@ -29,6 +29,30 @@ func (d *DatabaseImpl) InsertClient(client *Client) error {
 	return d.db.Create(client).Error
 }
 
+func (d *DatabaseImpl) UpsertClient(client *Client) error {
+	// Make a copy of the provided client
+	newClient := *client
+
+	// Build a transaction to prevent race conditions
+	return d.db.Transaction(func(tx *gorm.DB) error {
+		// Attempt to insert the client into the database,
+		// or if it already exists, replace client with the database value
+		err := tx.FirstOrCreate(client, &Client{Id: client.Id}).Error
+		if err != nil {
+			return err
+		}
+
+		// If the provided client has a different Key than the database value,
+		// overwrite the database value with the provided client
+		if !bytes.Equal(client.Key, newClient.Key) {
+			return tx.Save(&newClient).Error
+		}
+
+		// Commit
+		return nil
+	})
+}
+
 // Returns a Round from database with the given id
 // Or an error if a matching Round does not exist
 func (d *DatabaseImpl) GetRound(id id.Round) (*Round, error) {
