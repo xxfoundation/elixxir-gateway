@@ -12,6 +12,7 @@ package cmd
 import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/xx_network/comms/connect"
@@ -25,15 +26,18 @@ const errorDelimiter = "; "
 
 // Initialize fields required for the gossip protocol specialized to bloom filters
 func (gw *Instance) InitBloomGossip() {
-
+	flags := gossip.DefaultProtocolFlags()
+	flags.FanOut = 3
 	// Register gossip protocol for bloom filters
-	gw.Comms.Manager.NewGossip(BloomFilterGossip, gossip.DefaultProtocolFlags(),
+	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
 }
 
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
-func (gw *Instance) GossipBloom(recipientIDs []*id.ID, roundId id.Round) error {
+func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Round) error {
+
+	jww.INFO.Printf("GossipBloom: %v", roundId)
 	var err error
 
 	// Build the message
@@ -43,7 +47,7 @@ func (gw *Instance) GossipBloom(recipientIDs []*id.ID, roundId id.Round) error {
 	}
 
 	// Add the GossipMsg payload
-	gossipMsg.Payload, err = buildGossipPayloadBloom(recipientIDs, roundId)
+	gossipMsg.Payload, err = buildGossipPayloadBloom(recipients, roundId)
 	if err != nil {
 		return errors.Errorf("Unable to build gossip payload: %+v", err)
 	}
@@ -59,12 +63,14 @@ func (gw *Instance) GossipBloom(recipientIDs []*id.ID, roundId id.Round) error {
 	if !ok {
 		return errors.Errorf("Unable to get gossip protocol.")
 	}
-	_, errs := gossipProtocol.Gossip(gossipMsg)
+	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
 	// Return any errors up the stack
 	if len(errs) != 0 {
 		return errors.Errorf("Could not send to peers: %v", errs)
 	}
+
+	jww.INFO.Printf("Gossipped to %d peers", numPeers)
 
 	return nil
 }
@@ -73,6 +79,8 @@ func (gw *Instance) GossipBloom(recipientIDs []*id.ID, roundId id.Round) error {
 // gateway gossiping a message is responsible for the round
 // it has gossiped about.
 func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instance) error {
+	jww.DEBUG.Printf("Verifying gossip message from %+v", origin)
+
 	// Parse the payload message
 	payloadMsg := &pb.Recipients{}
 	err := proto.Unmarshal(msg.Payload, payloadMsg)
@@ -100,7 +108,7 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 	if topology.GetNodeLocation(senderIdCopy) < 0 {
 		return errors.New("Origin gateway is not in round it's gossiping about")
 	}
-
+	jww.DEBUG.Printf("Verified gossip message from %+v", origin)
 	return nil
 
 }
@@ -119,6 +127,9 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	var errs []string
 	var wg sync.WaitGroup
 
+	roundID := id.Round(payloadMsg.RoundID)
+	jww.INFO.Printf("Gossip received for round %d", roundID)
+
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
 		wg.Add(1)
@@ -130,7 +141,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, id.Round(payloadMsg.RoundID))
+			err = gw.UpsertFilter(recipientId, roundID)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -139,6 +150,12 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	}
 	wg.Wait()
+
+	//denote the reception in known rounds
+	gw.knownRound.Check(roundID)
+	if err := gw.SaveKnownRounds(); err != nil {
+		jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
+	}
 
 	// Parse through the errors returned from the worker pool
 	var errReturn error
@@ -151,18 +168,13 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
-func buildGossipPayloadBloom(recipientIDs []*id.ID, roundId id.Round) ([]byte, error) {
-	// Flatten out the new recipients, removing duplicates
-	recipientMap := make(map[*id.ID]struct{})
-	for _, recipient := range recipientIDs {
-		recipientMap[recipient] = struct{}{}
-	}
-
+func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Round) ([]byte, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
 	i := 0
 	recipients := make([][]byte, len(recipientIDs))
-	for key := range recipientMap {
+	for key := range recipientIDs {
+		jww.INFO.Printf("buildGossip Rec: %v", key)
 		recipients[i] = key.Bytes()
 		i++
 	}

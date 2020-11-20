@@ -9,6 +9,7 @@ package cmd
 import (
 	"encoding/binary"
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	bloom "gitlab.com/elixxir/bloomfilter"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
@@ -22,12 +23,12 @@ const bloomFilterSize = 71888 // In Bits
 const bloomFilterHashes = 8
 
 // Upserts filters of passed in recipients, using the round ID
-func (gw *Instance) UpsertFilters(recipients []*id.ID, roundId id.Round) error {
+func (gw *Instance) UpsertFilters(recipients map[id.ID]interface{}, roundId id.Round) error {
 	var errReturn error
 	var errs []string
 
-	for _, recipient := range recipients {
-		err := gw.UpsertFilter(recipient, roundId)
+	for recipient := range recipients {
+		err := gw.UpsertFilter(&recipient, roundId)
 		if err != nil {
 			errs = append(errs, err.Error())
 		}
@@ -55,6 +56,8 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 	//if err != nil {
 	//	return errors.Errorf("Unable to get latest epoch: %s", err)
 	//}
+
+	jww.DEBUG.Printf("Adding bloom filter for client [%v] on round  %d", recipientId, roundId)
 
 	// Get the filters for the associated client
 	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)

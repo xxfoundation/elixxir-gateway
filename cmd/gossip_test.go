@@ -238,8 +238,10 @@ func TestInstance_GossipVerify(t *testing.T) {
 
 // Happy path
 func TestInstance_StartPeersThread(t *testing.T) {
-
+	gatewayInstance.addGateway = make(chan network.NodeGateway, gwChanLen)
+	gatewayInstance.removeGateway = make(chan *id.ID, gwChanLen)
 	gatewayInstance.InitRateLimitGossip()
+	gatewayInstance.InitBloomGossip()
 	defer gatewayInstance.KillRateLimiter()
 	var err error
 
@@ -265,6 +267,7 @@ func TestInstance_StartPeersThread(t *testing.T) {
 
 	// Send the add gateway signal
 	gatewayInstance.addGateway <- testSignal
+
 
 	// Test the add gateway signals
 	// by attempting to remove the added gateway
@@ -502,18 +505,23 @@ func TestInstance_GossipBloom(t *testing.T) {
 		t.Errorf("Could not place mock round: %v", err)
 	}
 
-	var clients []*id.ID
+	clients := make(map[id.ID]interface{})
 	for i := uint64(0); i < 10; i++ {
 		tempId := id.NewIdFromUInt(i, id.User, t)
-		clients = append(clients, tempId)
+		clients[*tempId] = nil
 	}
 
 	// Insert the first five IDs as known clients
-	for i := 0; i < 5; i++ {
+	i := 0
+	for client := range clients{
 		mockClient := &storage.Client{
-			Id: clients[i].Bytes(),
+			Id: client.Bytes(),
 		}
 		gw.storage.InsertClient(mockClient)
+		i++
+		if i==5{
+			break
+		}
 	}
 
 	// Send the gossip
@@ -523,14 +531,15 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second)
 
-	for i, clientId := range clients {
+	i = 0
+	for clientId  := range clients {
 		// Check that the first five IDs are known clients, and thus
 		// in the user bloom filter
-		filters, err := gw.storage.GetBloomFilters(clientId, id.Round(rndId))
+		filters, err := gw.storage.GetBloomFilters(&clientId, id.Round(rndId))
 		if err != nil || filters == nil {
 			t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId)
 		}
-
+		i++
 	}
 }
 

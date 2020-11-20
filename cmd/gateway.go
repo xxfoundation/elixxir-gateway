@@ -45,6 +45,7 @@ var dummyUser = id.DummyUser
 const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
+	gwChanLen	   = 1000
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -86,6 +87,7 @@ type Instance struct {
 	curentRound    id.Round
 	hasCurentRound bool
 
+	address string
 	bloomFilterGossip sync.Mutex
 }
 
@@ -126,6 +128,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client
 	clientFilters, err := gw.storage.GetBloomFilters(clientId, id.Round(clientRequest.LastRound))
+	jww.INFO.Printf("Adding %d client filters for %s", len(clientFilters), clientId)
 	if err != nil {
 		jww.WARN.Printf("Could not get filters for %s when polling: %v", clientId, err)
 	}
@@ -222,8 +225,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 
 // PollServer sends a poll message to the server and returns a response.
 func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
-	partialNdf *network.SecuredNdf, lastUpdate uint64) (
+	partialNdf *network.SecuredNdf, lastUpdate uint64, addr string) (
 	*pb.ServerPollResponse, error) {
+	jww.TRACE.Printf("Address being sent to server: [%v]", addr)
 
 	var ndfHash, partialNdfHash *pb.NDFHash
 	ndfHash = &pb.NDFHash{
@@ -246,7 +250,7 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 		Partial:        partialNdfHash,
 		LastUpdate:     lastUpdate,
 		Error:          "",
-		GatewayPort:    uint32(gwPort),
+		GatewayAddress: addr,
 		GatewayVersion: currentVersion,
 	}
 
@@ -291,6 +295,12 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		}
 	}
 
+	jww.INFO.Printf("Updating gateway connections")
+	if err := gw.NetInf.UpdateGatewayConnections(); err!=nil{
+		jww.ERROR.Printf("Failed to update gateway connections: %+v",
+			err)
+	}
+
 	if newInfo.Updates != nil {
 
 		for _, update := range newInfo.Updates {
@@ -329,13 +339,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.curentRound = id.Round(update.ID)
 				gw.hasCurentRound = true
 			}
-
-			if roundState == states.COMPLETED || roundState == states.FAILED {
-				gw.knownRound.Check(id.Round(update.ID))
-				if err := gw.SaveKnownRounds(); err != nil {
-					jww.ERROR.Print(err)
-				}
-			}
 		}
 	}
 
@@ -351,6 +354,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		gw.hasCurentRound = false
 		gw.ProcessCompletedBatch(newInfo.Slots, gw.curentRound)
 	}
+
 	return nil
 }
 
@@ -441,7 +445,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Poll Server for the NDFs, then use it to create the
 		// network instance and begin polling for server updates
-		serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0)
+		serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0, gw.address)
 		if err != nil {
 			eMsg := err.Error()
 			// Catch recoverable error
@@ -463,36 +467,14 @@ func (gw *Instance) InitNetwork() error {
 			}
 		}
 
-		jww.DEBUG.Printf("Creating instance!")
-		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
-			serverResponse.FullNDF,
-			serverResponse.PartialNDF, gw.storage)
-		if err != nil {
-			jww.ERROR.Printf("Unable to create network"+
-				" instance: %v", err)
-			continue
-		}
-
-		// Add permissioning as a host
-		params := connect.GetDefaultHostParams()
-		params.MaxRetries = 0
-		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
-		if err != nil {
-			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
-			continue
-		}
-
-		// Update the network instance
-		jww.DEBUG.Printf("Updating instance")
-		err = gw.UpdateInstance(serverResponse)
-		if err != nil {
-			jww.ERROR.Printf("Update instance error: %v", err)
-			continue
-		}
-
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			err = gw.setupIDF(serverResponse.Id)
+			ndf, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
+			if err !=nil{
+				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
+				return err
+			}
+			err = gw.setupIDF(serverResponse.Id, ndf)
 			nodeId = serverResponse.Id
 			if err != nil {
 				jww.WARN.Printf("failed to update node information: %+v", err)
@@ -526,15 +508,54 @@ func (gw *Instance) InitNetwork() error {
 		gatewayId.SetType(id.Gateway)
 		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler,
 			gwCert, gwKey, gossip.DefaultManagerFlags())
+
+		jww.DEBUG.Printf("Creating instance!")
+		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
+			serverResponse.FullNDF,
+			serverResponse.PartialNDF, gw.storage)
+		if err != nil {
+			jww.ERROR.Printf("Unable to create network"+
+				" instance: %v", err)
+			continue
+		}
+
+		// Add permissioning as a host
+		params := connect.GetDefaultHostParams()
+		params.MaxRetries = 0
+		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
+		if err != nil {
+			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
+			continue
+		}
+
+		gw.addGateway = make(chan network.NodeGateway, gwChanLen)
+		gw.removeGateway = make(chan *id.ID, gwChanLen)
+		gw.NetInf.SetAddGatewayChan(gw.addGateway)
+		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
+
+		// Update the network instance
+		jww.DEBUG.Printf("Updating instance")
+		err = gw.UpdateInstance(serverResponse)
+		if err != nil {
+			jww.ERROR.Printf("Update instance error: %v", err)
+			continue
+		}
+
 		gw.InitRateLimitGossip()
 		gw.InitBloomGossip()
 		// Initialize hosts for reverse-authentication
 		// This may be necessary to verify the NDF if it gets updated while
 		// the network is up
-		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
+		_, err := gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
 		if err != nil {
 			return errors.Errorf("Couldn't add permissioning host: %v", err)
 		}
+
+		gw.Params.Address, err = CheckPermConn(gw.Params.Address, gw.Params.Port, gw.Comms)
+		if err != nil {
+			return errors.Errorf("Couldn't complete CheckPermConn: %v", err)
+		}
+		gw.address = fmt.Sprintf("%s:%d", gw.Params.Address, &gw.Params.Port)
 
 		// newNdf := gw.NetInf.GetPartialNdf().Get()
 
@@ -550,10 +571,7 @@ func (gw *Instance) InitNetwork() error {
 }
 
 // Helper that updates parses the NDF in order to create our IDF
-func (gw *Instance) setupIDF(nodeId []byte) (err error) {
-
-	// Get the ndf from our network instance
-	ourNdf := gw.NetInf.GetPartialNdf().Get()
+func (gw *Instance) setupIDF(nodeId []byte, ourNdf *ndf.NetworkDefinition) (err error) {
 
 	// Determine the index of this gateway
 	for i, node := range ourNdf.Nodes {
@@ -957,14 +975,15 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	numReal := 0
 	// At this point, the returned batch and its fields should be non-nil
 	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
-	recipients := make([]*id.ID, len(msgs))
-	for i, msg := range msgs {
+	recipients := make(map[id.ID]interface{})
+	for _, msg := range msgs {
 		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialmsg.SetPayloadB(msg.PayloadB)
 		userId := serialmsg.GetRecipientID()
-		recipients[i] = userId
 
 		if !userId.Cmp(&dummyUser) {
+			recipients[*userId] = nil
+
 			jww.DEBUG.Printf("Message Received for: %s, %s, %s",
 				userId.String(), msg.GetPayloadA(), msg.GetPayloadB())
 
@@ -1011,7 +1030,8 @@ func (gw *Instance) Start() {
 				gw.ServerHost,
 				gw.NetInf.GetFullNdf(),
 				gw.NetInf.GetPartialNdf(),
-				gw.lastUpdate)
+				gw.lastUpdate,
+				gw.address)
 			if err != nil {
 				jww.WARN.Printf(
 					"Failed to Poll: %v",
