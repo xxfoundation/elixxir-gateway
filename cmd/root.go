@@ -126,7 +126,7 @@ func addPrecannedIDs(gateway *Instance) {
 			Key: cgKey,
 		}
 
-		err := gateway.storage.InsertClient(newClient)
+		err := gateway.storage.UpsertClient(newClient)
 		if err != nil {
 			jww.ERROR.Printf("Unable to insert precanned client: %+v", err)
 		}
