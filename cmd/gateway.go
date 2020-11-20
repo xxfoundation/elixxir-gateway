@@ -522,10 +522,10 @@ func (gw *Instance) InitNetwork() error {
 		// Add permissioning as a host
 		params := connect.GetDefaultHostParams()
 		params.MaxRetries = 0
-		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert, params)
+		_, err = gw.Comms.AddHost(&id.Permissioning, gw.NetInf.GetPermissioningAddress(),
+			permissioningCert, params)
 		if err != nil {
-			jww.ERROR.Printf("Couldn't add permissioning host to comms: %v", err)
-			continue
+			return errors.Errorf("Couldn't add permissioning host to comms: %v", err)
 		}
 
 		gw.addGateway = make(chan network.NodeGateway, gwChanLen)
@@ -543,15 +543,6 @@ func (gw *Instance) InitNetwork() error {
 
 		gw.InitRateLimitGossip()
 		gw.InitBloomGossip()
-		// Initialize hosts for reverse-authentication
-		// This may be necessary to verify the NDF if it gets updated while
-		// the network is up
-		_, err := gw.Comms.AddHost(&id.Permissioning,
-			gw.NetInf.GetPermissioningAddress(),
-			permissioningCert, params)
-		if err != nil {
-			return errors.Errorf("Couldn't add permissioning host: %v", err)
-		}
 
 		gw.Params.Address, err = CheckPermConn(gw.Params.Address, gw.Params.Port, gw.Comms)
 		if err != nil {
