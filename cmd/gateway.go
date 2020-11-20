@@ -548,7 +548,7 @@ func (gw *Instance) InitNetwork() error {
 		if err != nil {
 			return errors.Errorf("Couldn't complete CheckPermConn: %v", err)
 		}
-		gw.address = fmt.Sprintf("%s:%d", gw.Params.Address, &gw.Params.Port)
+		gw.address = fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
 
 		// newNdf := gw.NetInf.GetPartialNdf().Get()
 
