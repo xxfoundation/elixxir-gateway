@@ -836,7 +836,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 		Key: resp.ClientGatewayKey,
 	}
 
-	err = gw.storage.InsertClient(newClient)
+	err = gw.storage.UpsertClient(newClient)
 	if err != nil {
 		return resp, nil
 	}

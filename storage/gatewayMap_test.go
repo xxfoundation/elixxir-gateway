@@ -16,7 +16,7 @@ import (
 )
 
 // Hidden function for one-time unit testing database implementation
-// func TestDatabaseImpl(t *testing.T) {
+//func TestDatabaseImpl(t *testing.T) {
 //
 //	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
 //	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
@@ -35,7 +35,10 @@ import (
 //	testRound3 := uint64(12)
 //
 //	testClient := id.NewIdFromBytes(testClientId, t)
-//	testRecip := id.NewIdFromBytes(testBytes, t)
+//
+//	testClientId2 := []byte("testclient2")
+//	testClient2 := id.NewIdFromBytes(testClientId2, t)
+//	// testRecip := id.NewIdFromBytes(testBytes, t)
 //	testRoundId := id.Round(testRound)
 //	testRoundId3 := id.Round(testRound3)
 //	testEpoch, err := db.InsertEpoch(testRoundId)
@@ -69,6 +72,25 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
+//
+//	err = db.UpsertClient(&Client{
+//		Id:      testClient2.Marshal(),
+//		Key:     []byte("keystring1"),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	err = db.UpsertClient(&Client{
+//		Id:      testClient2.Marshal(),
+//		Key:     []byte("keystring2"),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
 //	err = db.UpsertRound(&Round{
 //		Id:       testRound,
 //		UpdateId: 50,
@@ -135,11 +157,11 @@ import (
 //	if count != 2 {
 //		t.Errorf("Unexpected count! Got %d", count)
 //	}
-//	err = db.InsertMixedMessage(&MixedMessage{
+//	err = db.InsertMixedMessages([]*MixedMessage{{
 //		RoundId:         testRound,
 //		RecipientId:     testClient.Marshal(),
 //		MessageContents: []byte("Test24"),
-//	})
+//	},},)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -169,7 +191,7 @@ import (
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", rounds[1])
-//	messages, err := db.GetMixedMessages(testClient, testRoundId)
+//	messages, err := db.getMixedMessages(testClient, testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -187,7 +209,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-// }
+//}
 
 // Happy path
 func TestNewMixedMessage(t *testing.T) {
@@ -899,5 +921,25 @@ func TestMapImpl_GetLatestEpoch_NoEpochsInMapError(t *testing.T) {
 	_, err := m.GetLatestEpoch()
 	if err == nil {
 		t.Errorf("Expected error when epoch map is empty.")
+	}
+}
+
+func TestMapImpl_UpsertClient(t *testing.T) {
+	testKey := id.NewIdFromString("testKey1", id.User, t)
+	testClient := &Client{Id: testKey.Marshal(), Key: []byte("testkey1")}
+	m := &MapImpl{
+		clients: make(map[id.ID]*Client),
+	}
+
+	err := m.UpsertClient(testClient)
+	if err != nil || m.clients[*testKey] == nil {
+		t.Errorf("Failed to insert client: %v", err)
+	}
+
+	testClient.Key = []byte("testkey2")
+
+	err = m.UpsertClient(testClient)
+	if err != nil || !bytes.Equal(m.clients[*testKey].Key, []byte("testkey2")) {
+		t.Errorf("Failed to upsert client: %v", err)
 	}
 }

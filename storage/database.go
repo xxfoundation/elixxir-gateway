@@ -22,6 +22,7 @@ import (
 type database interface {
 	GetClient(id *id.ID) (*Client, error)
 	InsertClient(client *Client) error
+	UpsertClient(client *Client) error
 
 	GetRound(id id.Round) (*Round, error)
 	GetRounds(ids []id.Round) ([]*Round, error)
