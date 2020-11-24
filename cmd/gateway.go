@@ -332,7 +332,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			topology := ds.NewCircuit(idList)
 
 			// Chek if our node is the entry point fo the circuit
-			if topology.IsFirstNode(gw.ServerHost.GetId()) {
+			if states.Round(update.State) == states.PRECOMPUTING &&
+				topology.IsFirstNode(gw.ServerHost.GetId()) {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
 			}
 
@@ -769,20 +770,14 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 		}, err
 	}
 
-	// Check if we manage this round
-	if !gw.UnmixedBuffer.IsRoundLeader(thisRound) {
-		return &pb.GatewaySlotResponse{Accepted: false}, errors.Errorf("Could not find round. " +
-			"Please try a different gateway.")
-	}
-
 	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
 				"Please try a different round.")
 	}
 
-	jww.DEBUG.Printf("Putting message from user %v in outgoing queue...",
-		msg.Message.GetSenderID())
+	jww.DEBUG.Printf("Putting message from user %v in outgoing queue " +
+		"for round %d...", msg.Message.GetSenderID(), thisRound)
 
 	return &pb.GatewaySlotResponse{
 		Accepted: true,

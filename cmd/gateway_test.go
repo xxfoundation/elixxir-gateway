@@ -578,7 +578,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
-	rndId := uint64(1)
+	rndId := uint64(2)
 
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
 	slotMsg := &pb.GatewaySlot{
@@ -683,7 +683,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 func TestInstance_PutMessage_FullRound(t *testing.T) {
 	// Business logic to set up test
 	var msg pb.Slot
-	rndId := uint64(1)
+	rndId := uint64(3)
 	batchSize := 4
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
 	slotMsg := &pb.GatewaySlot{
@@ -725,7 +725,7 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 func TestInstance_PutMessage_NonLeader(t *testing.T) {
 	// Business logic to set up test
 	var msg pb.Slot
-	rndId := uint64(1)
+	rndId := uint64(4)
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
@@ -758,7 +758,7 @@ func TestInstance_PutMessage_NonLeader(t *testing.T) {
 func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
-	rndId := uint64(1)
+	rndId := uint64(5)
 	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,

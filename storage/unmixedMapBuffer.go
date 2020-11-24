@@ -9,6 +9,7 @@ package storage
 
 import (
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/xx_network/primitives/id"
 	"sync"
@@ -18,7 +19,7 @@ import (
 // yet to been submitted to the network for mixing.
 type UnmixedMessagesMap struct {
 	messages map[id.Round]*SendRound
-	mux      sync.Mutex
+	mux      sync.RWMutex
 }
 
 type SendRound struct {
@@ -57,6 +58,7 @@ func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)
 
 	// If the batch for this round was already created, add another message
 	retrievedBatch.batch.Slots = append(retrievedBatch.batch.Slots, msg)
+	umb.messages[roundId] = retrievedBatch
 	return nil
 }
 
@@ -75,12 +77,14 @@ func (umb *UnmixedMessagesMap) PopRound(roundId id.Round) *pb.Batch {
 	// Handle batches too small to send
 	batch := retrievedBatch.batch
 	retrievedBatch.batch = nil
-
+	umb.messages[roundId] = retrievedBatch
 	return batch
 }
 
 // LenUnmixed return the number of messages within the requested round
 func (umb *UnmixedMessagesMap) LenUnmixed(rndId id.Round) int {
+	umb.mux.RLock()
+	defer umb.mux.RUnlock()
 	b, ok := umb.messages[rndId]
 	if !ok {
 		return 0
@@ -90,8 +94,8 @@ func (umb *UnmixedMessagesMap) LenUnmixed(rndId id.Round) int {
 }
 
 func (umb *UnmixedMessagesMap) IsRoundFull(roundId id.Round) bool {
-	umb.mux.Lock()
-	defer umb.mux.Unlock()
+	umb.mux.RLock()
+	defer umb.mux.RUnlock()
 	slots := umb.messages[roundId].batch.GetSlots()
 	return len(slots) == int(umb.messages[roundId].maxElements)
 }
@@ -102,6 +106,11 @@ func (umb *UnmixedMessagesMap) SetAsRoundLeader(roundId id.Round, batchsize uint
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
+	if _, ok := umb.messages[roundId]; ok{
+		jww.FATAL.Panicf("Can set as round leader for extant round %d",
+			roundId)
+	}
+	jww.INFO.Printf("Adding round buffer for round %d", roundId)
 	umb.messages[roundId] = &SendRound{
 		batch:       &pb.Batch{},
 		maxElements: batchsize,
@@ -111,8 +120,8 @@ func (umb *UnmixedMessagesMap) SetAsRoundLeader(roundId id.Round, batchsize uint
 // IsRoundLeader returns true if object mapped to this round has
 // been previously set
 func (umb *UnmixedMessagesMap) IsRoundLeader(roundId id.Round) bool {
-	umb.mux.Lock()
-	defer umb.mux.Unlock()
+	umb.mux.RLock()
+	defer umb.mux.RUnlock()
 
 	_, ok := umb.messages[roundId]
 	return ok
