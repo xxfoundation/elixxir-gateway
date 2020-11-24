@@ -55,6 +55,21 @@ func (m *MapImpl) InsertClient(client *Client) error {
 	return nil
 }
 
+// mapimpl call for upserting clients
+func (m *MapImpl) UpsertClient(client *Client) error {
+	cid, err := id.Unmarshal(client.Id)
+	if err != nil {
+		return err
+	}
+	if _, ok := m.clients[*cid]; ok {
+		copy(m.clients[*cid].Filters, client.Filters)
+		copy(m.clients[*cid].Key, client.Key)
+	} else {
+		m.clients[*cid] = client
+	}
+	return nil
+}
+
 // Returns a Round from database with the given id
 // Or an error if a matching Round does not exist
 func (m *MapImpl) GetRound(id id.Round) (*Round, error) {
