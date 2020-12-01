@@ -147,7 +147,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	return &pb.GatewayPollResponse{
-		PartialNDF:      ndf,
+		PartialNDF:       ndf,
 		Updates:          updates,
 		LastTrackedRound: uint64(0), // FIXME: This should be the
 		// earliest tracked network round
@@ -776,7 +776,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 				"Please try a different round.")
 	}
 
-	jww.DEBUG.Printf("Putting message from user %v in outgoing queue " +
+	jww.DEBUG.Printf("Putting message from user %v in outgoing queue "+
 		"for round %d...", msg.Message.GetSenderID(), thisRound)
 
 	return &pb.GatewaySlotResponse{
@@ -969,7 +969,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
-	go func(){
+	go func() {
 		err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
 		if err != nil {
 			jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
