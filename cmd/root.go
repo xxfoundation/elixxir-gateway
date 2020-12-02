@@ -102,6 +102,7 @@ var rootCmd = &cobra.Command{
 
 		// Begin gateway persistent components
 		if enableGossip{
+			jww.INFO.Println("Gossip is enabled")
 			gateway.StartPeersThread()
 		}
 
@@ -256,8 +257,10 @@ func init() {
 	// GOSSIP MANAGER FLAGS
 	rootCmd.Flags().BoolVar(&enableGossip, "enableGossip", false,
 		"Feature flag for in progress gossip functionality")
-	err = viper.BindPFlag("bufferExpiration", rootCmd.Flags().Lookup("bufferExpiration"))
-	handleBindingError(err, "Rate_Limiting_BufferExpiration")
+	err = viper.BindPFlag("enableGossip", rootCmd.Flags().Lookup("enableGossip"))
+	handleBindingError(err, "Enable_Gossip")
+
+
 	rootCmd.Flags().DurationVar(&bufferExpiration, "bufferExpiration", 300*time.Second,
 		"How long a message record should last in the buffer")
 	err = viper.BindPFlag("bufferExpiration", rootCmd.Flags().Lookup("bufferExpiration"))
