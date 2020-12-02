@@ -548,8 +548,11 @@ func (gw *Instance) InitNetwork() error {
 			continue
 		}
 
-		gw.InitRateLimitGossip()
-		gw.InitBloomGossip()
+		if enableGossip{
+			gw.InitRateLimitGossip()
+			gw.InitBloomGossip()
+		}
+
 
 		gw.Params.Address, err = CheckPermConn(gw.Params.Address, gw.Params.Port, gw.Comms)
 		if err != nil {
@@ -920,10 +923,12 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
 
-	// Gossip senders included in the batch to other gateways
-	err = gw.GossipBatch(batch)
-	if err != nil {
-		jww.WARN.Printf("Unable to gossip batch information: %+v", err)
+	if enableGossip{
+		// Gossip senders included in the batch to other gateways
+		err = gw.GossipBatch(batch)
+		if err != nil {
+			jww.WARN.Printf("Unable to gossip batch information: %+v", err)
+		}
 	}
 }
 
@@ -969,12 +974,14 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
-	go func(){
-		err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
-		if err != nil {
-			jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
-		}
-	}()
+	if enableGossip{
+		go func(){
+			err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
+			if err != nil {
+				jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
+			}
+		}()
+	}
 
 	jww.INFO.Printf("Round received, %d real messages "+
 		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
