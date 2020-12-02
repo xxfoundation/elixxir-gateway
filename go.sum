@@ -219,6 +219,8 @@ gitlab.com/elixxir/comms v0.0.4-0.20201124200043-8031463a4843 h1:KYcfQnnmc1oBAod
 gitlab.com/elixxir/comms v0.0.4-0.20201124200043-8031463a4843/go.mod h1:dRTzI+YApY9QZ2+eP9+0n5+KzxziZY24SyW31O4QWgM=
 gitlab.com/elixxir/comms v0.0.4-0.20201130214906-f87936e31f0f h1:jr0W5cQ/ksrpWBdYhSljZreN/iPcZKh2PdChg5ncGTw=
 gitlab.com/elixxir/comms v0.0.4-0.20201130214906-f87936e31f0f/go.mod h1:FSMAk0auPoWCeroK6kuFQQtMYl65e+CYHRuTHfqVNIk=
+gitlab.com/elixxir/comms v0.0.4-0.20201202184930-e4d6c8f7a9b6 h1:0r5ljYdMMs6X5//aB4NxGhqJBbfFjq7NO4Et8aabMLU=
+gitlab.com/elixxir/comms v0.0.4-0.20201202184930-e4d6c8f7a9b6/go.mod h1:0di6DdgmVPUEgK545N7ZzpXYo+5O5x5lDS3mAzrUb2o=
 gitlab.com/elixxir/crypto v0.0.0-20200804182833-984246dea2c4 h1:28ftZDeYEko7xptCZzeFWS1Iam95dj46TWFVVlKmw6A=
 gitlab.com/elixxir/crypto v0.0.0-20200804182833-984246dea2c4/go.mod h1:ucm9SFKJo+K0N2GwRRpaNr+tKXMIOVWzmyUD0SbOu2c=
 gitlab.com/elixxir/crypto v0.0.3 h1:znCt/x2bL4y8czTPaaFkwzdgSgW3BJc/1+dxyf1jqVw=
@@ -245,6 +247,9 @@ gitlab.com/xx_network/comms v0.0.4-0.20201119231004-a67d08045535 h1:3KoNUndePTAU
 gitlab.com/xx_network/comms v0.0.4-0.20201119231004-a67d08045535/go.mod h1:YViGbRj7FjJYoaO4NpALGEd9dK/l8uUT000FEBbUTL8=
 gitlab.com/xx_network/comms v0.0.4-0.20201130190834-365ddae56e7b h1:QAVpPy+aS6bSPs6BYcHGu+TGv/r8oPoNMLSlj4Ems6U=
 gitlab.com/xx_network/comms v0.0.4-0.20201130190834-365ddae56e7b/go.mod h1:YViGbRj7FjJYoaO4NpALGEd9dK/l8uUT000FEBbUTL8=
+gitlab.com/xx_network/comms v0.0.4-0.20201202184223-c22375bd1e6d/go.mod h1:YViGbRj7FjJYoaO4NpALGEd9dK/l8uUT000FEBbUTL8=
+gitlab.com/xx_network/comms v0.0.4-0.20201202185034-73f7778df8fe h1:hGP9NmUEYFYSsorhGWghPeBiJ1JlyStuu30i4KSmkGI=
+gitlab.com/xx_network/comms v0.0.4-0.20201202185034-73f7778df8fe/go.mod h1:YViGbRj7FjJYoaO4NpALGEd9dK/l8uUT000FEBbUTL8=
 gitlab.com/xx_network/crypto v0.0.3/go.mod h1:DF2HYvvCw9wkBybXcXAgQMzX+MiGbFPjwt3t17VRqRE=
 gitlab.com/xx_network/crypto v0.0.4 h1:lpKOL5mTJ2awWMfgBy30oD/UvJVrWZzUimSHlOdZZxo=
 gitlab.com/xx_network/crypto v0.0.4/go.mod h1:+lcQEy+Th4eswFgQDwT0EXKp4AXrlubxalwQFH5O0Mk=
