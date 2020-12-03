@@ -52,6 +52,8 @@ var (
 	// For rate limiting
 	capacity, leakedTokens                   uint32
 	leakDuration, pollDuration, bucketMaxAge time.Duration
+
+	enableGossip bool
 )
 
 // RootCmd represents the base command when called without any sub-commands
@@ -99,7 +101,11 @@ var rootCmd = &cobra.Command{
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
 
 		// Begin gateway persistent components
-		gateway.StartPeersThread()
+		if enableGossip{
+			jww.INFO.Println("Gossip is enabled")
+			gateway.StartPeersThread()
+		}
+
 		gateway.Start()
 
 		// Wait forever
@@ -249,6 +255,12 @@ func init() {
 	handleBindingError(err, "Rate_Limiting_BucketMaxAge")
 
 	// GOSSIP MANAGER FLAGS
+	rootCmd.Flags().BoolVar(&enableGossip, "enableGossip", false,
+		"Feature flag for in progress gossip functionality")
+	err = viper.BindPFlag("enableGossip", rootCmd.Flags().Lookup("enableGossip"))
+	handleBindingError(err, "Enable_Gossip")
+
+
 	rootCmd.Flags().DurationVar(&bufferExpiration, "bufferExpiration", 300*time.Second,
 		"How long a message record should last in the buffer")
 	err = viper.BindPFlag("bufferExpiration", rootCmd.Flags().Lookup("bufferExpiration"))
