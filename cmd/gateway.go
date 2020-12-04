@@ -548,7 +548,7 @@ func (gw *Instance) InitNetwork() error {
 			continue
 		}
 
-		if enableGossip{
+		if gw.Params.EnableGossip{
 			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
@@ -923,7 +923,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
 
-	if enableGossip{
+	if gw.Params.EnableGossip{
 		// Gossip senders included in the batch to other gateways
 		err = gw.GossipBatch(batch)
 		if err != nil {
@@ -974,7 +974,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
-	if enableGossip{
+	if gw.Params.EnableGossip{
 		go func(){
 			err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
 			if err != nil {

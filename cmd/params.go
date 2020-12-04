@@ -43,6 +43,7 @@ type Params struct {
 	lastUpdateIdPath string
 
 	DevMode bool
+	EnableGossip bool
 }
 
 func InitParams(vip *viper.Viper) Params {
