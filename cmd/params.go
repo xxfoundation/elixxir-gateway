@@ -144,5 +144,6 @@ func InitParams(vip *viper.Viper) Params {
 		DbPort:                port,
 		lastUpdateIdPath:      lastUpdateIdPath,
 		DevMode:               viper.GetBool("devMode"),
+		EnableGossip:		   viper.GetBool("enableGossip"),
 	}
 }

@@ -765,13 +765,16 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 	if err != nil {
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
-	err = gw.FilterMessage(senderId)
-	if err != nil {
-		jww.INFO.Printf("Rate limiting check failed on send message from "+
-			"%v", msg.Message.GetSenderID())
-		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, err
+
+	if gw.Params.EnableGossip{
+		err = gw.FilterMessage(senderId)
+		if err != nil {
+			jww.INFO.Printf("Rate limiting check failed on send message from "+
+				"%v", msg.Message.GetSenderID())
+			return &pb.GatewaySlotResponse{
+				Accepted: false,
+			}, err
+		}
 	}
 
 	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
