@@ -540,19 +540,20 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
+		if gw.Params.EnableGossip{
+			gw.InitRateLimitGossip()
+			gw.InitBloomGossip()
+		}
+
 		// Update the network instance
+		// this must be below the enabling of the gossip above becasue it uses
+		// compoents they initialize
 		jww.DEBUG.Printf("Updating instance")
 		err = gw.UpdateInstance(serverResponse)
 		if err != nil {
 			jww.ERROR.Printf("Update instance error: %v", err)
 			continue
 		}
-
-		if gw.Params.EnableGossip{
-			gw.InitRateLimitGossip()
-			gw.InitBloomGossip()
-		}
-
 
 		gw.Params.Address, err = CheckPermConn(gw.Params.Address, gw.Params.Port, gw.Comms)
 		if err != nil {
