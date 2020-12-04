@@ -325,7 +325,9 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
-				return err
+				// do not return on round update failure, that will cause the
+				// gateway to cease to process further updates, just warn
+				jww.WARN.Printf("failed to insert round update: %s", err)
 			}
 
 			// Convert the ID list to a circuit
