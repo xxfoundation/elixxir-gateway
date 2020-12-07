@@ -972,15 +972,16 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 			"ProcessCompletedBatch: %+v", err)
 	}
 
-	// Update filters in our storage system
-	err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
-	if err != nil {
-		jww.ERROR.Printf("Unable to update local bloom filters: %+v", err)
-	}
-
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
 	if gw.Params.EnableGossip{
+		// Update filters in our storage system
+		err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
+		if err != nil {
+			jww.ERROR.Printf("Unable to update local bloom filters: %+v", err)
+		}
+
+
 		go func(){
 			err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
 			if err != nil {
