@@ -570,14 +570,14 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
-		if gw.Params.EnableGossip{
+		if gw.Params.EnableGossip {
 			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
 
 		// Update the network instance
-		// this must be below the enabling of the gossip above becasue it uses
-		// compoents they initialize
+		// This must be below the enabling of the gossip above because it uses
+		// components they initialize
 		jww.DEBUG.Printf("Updating instance")
 		err = gw.UpdateInstance(serverResponse)
 		if err != nil {
@@ -631,7 +631,7 @@ func (gw *Instance) setupIDF(nodeId []byte, ourNdf *ndf.NetworkDefinition) (err 
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
 func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
-	// Error check for a invalidly crafted message
+	// Error check for an invalidly crafted message
 	if req == nil || req.ClientID == nil || req.RoundID == 0 {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse message! " +
 			"Please try again with a properly crafted message!")
@@ -796,7 +796,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	if gw.Params.EnableGossip{
+	if gw.Params.EnableGossip {
 		err = gw.FilterMessage(senderId)
 		if err != nil {
 			jww.INFO.Printf("Rate limiting check failed on send message from "+
@@ -828,7 +828,7 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 	// Digest the message for the MAC generation
 	gatewaySlotDigest := network.GenerateSlotDigest(msg)
 
-	// Hash the clientGatewayKey and the the slot's salt
+	// Hash the clientGatewayKey and then the slot's salt
 	h, _ := hash.NewCMixHash()
 	h.Write(cl.Key)
 	h.Write(msg.Message.Salt)
@@ -957,7 +957,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
 
-	if gw.Params.EnableGossip{
+	if gw.Params.EnableGossip {
 		// Gossip senders included in the batch to other gateways
 		err = gw.GossipBatch(batch)
 		if err != nil {
@@ -1002,15 +1002,14 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
-	if gw.Params.EnableGossip{
+	if gw.Params.EnableGossip {
 		// Update filters in our storage system
 		err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
 		if err != nil {
 			jww.ERROR.Printf("Unable to update local bloom filters: %+v", err)
 		}
 
-
-		go func(){
+		go func() {
 			err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
 			if err != nil {
 				jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
