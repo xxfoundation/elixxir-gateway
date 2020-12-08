@@ -9,6 +9,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"github.com/golang/protobuf/proto"
@@ -310,6 +311,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	if newInfo.Updates != nil {
 
 		for _, update := range newInfo.Updates {
+			jww.DEBUG.Printf("Processing Round Update: %s",
+				SprintRoundInfo(update))
 			if update.UpdateID > gw.lastUpdate {
 				gw.lastUpdate = update.UpdateID
 
@@ -357,14 +360,31 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	// Process a batch that has been completed by this server
 	if newInfo.Slots != nil {
-		if !gw.hasCurrentRound {
-			jww.FATAL.Panicf("No round known about, cannot process slots")
-		}
+		// FIXME: Round ID should be sent with the newInfo.Slots object.
+		// if !gw.hasCurrentRound {
+		// 	jww.FATAL.Panicf("No round known about, cannot process slots")
+		// }
 		gw.hasCurrentRound = false
 		gw.ProcessCompletedBatch(newInfo.Slots, gw.currentRound)
 	}
 
 	return nil
+}
+
+// SprintRoundInfo prints the interesting parts of the round info object.
+func SprintRoundInfo(ri *pb.RoundInfo) string {
+	states := []string{"NOT_STARTED", "Waiting", "Precomp", "Standby",
+		"Realtime", "Completed", "Error", "Crash"}
+	topology := "v"
+	for i := 0; i < len(ri.Topology); i++ {
+		topology += "->" + base64.StdEncoding.EncodeToString(
+			ri.Topology[i])
+	}
+	riStr := fmt.Sprintf("ID: %d, UpdateID: %d, State: %s, BatchSize: %d,"+
+		"Topology: %s, RQTimeout: %d, Errors: %v",
+		ri.ID, ri.UpdateID, states[ri.State], ri.BatchSize, topology,
+		ri.ResourceQueueTimeoutMillis, ri.Errors)
+	return riStr
 }
 
 // InitNetwork initializes the network on this gateway instance
