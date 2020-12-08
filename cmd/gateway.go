@@ -9,6 +9,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"github.com/golang/protobuf/proto"
@@ -147,7 +148,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	return &pb.GatewayPollResponse{
-		PartialNDF:      ndf,
+		PartialNDF:       ndf,
 		Updates:          updates,
 		LastTrackedRound: uint64(0), // FIXME: This should be the
 		// earliest tracked network round
@@ -309,6 +310,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	if newInfo.Updates != nil {
 
 		for _, update := range newInfo.Updates {
+			jww.DEBUG.Printf("Processing Round Update: %s",
+				SprintRoundInfo(update))
 			if update.UpdateID > gw.lastUpdate {
 				gw.lastUpdate = update.UpdateID
 
@@ -356,14 +359,31 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 	// Process a batch that has been completed by this server
 	if newInfo.Slots != nil {
-		if !gw.hasCurentRound {
-			jww.FATAL.Panicf("No round known about, cannot process slots")
-		}
+		// FIXME: Round ID should be sent with the newInfo.Slots object.
+		// if !gw.hasCurentRound {
+		// 	jww.FATAL.Panicf("No round known about, cannot process slots")
+		// }
 		gw.hasCurentRound = false
 		gw.ProcessCompletedBatch(newInfo.Slots, gw.curentRound)
 	}
 
 	return nil
+}
+
+// SprintRoundInfo prints the interesting parts of the round info object.
+func SprintRoundInfo(ri *pb.RoundInfo) string {
+	states := []string{"NOT_STARTED", "Waiting", "Precomp", "Standby",
+		"Realtime", "Completed", "Error", "Crash"}
+	topology := "v"
+	for i := 0; i < len(ri.Topology); i++ {
+		topology += "->" + base64.StdEncoding.EncodeToString(
+			ri.Topology[i])
+	}
+	riStr := fmt.Sprintf("ID: %d, UpdateID: %d, State: %s, BatchSize: %d,"+
+		"Topology: %s, RQTimeout: %d, Errors: %v",
+		ri.ID, ri.UpdateID, states[ri.State], ri.BatchSize, topology,
+		ri.ResourceQueueTimeoutMillis, ri.Errors)
+	return riStr
 }
 
 // InitNetwork initializes the network on this gateway instance
@@ -542,7 +562,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
-		if gw.Params.EnableGossip{
+		if gw.Params.EnableGossip {
 			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
@@ -768,7 +788,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	if gw.Params.EnableGossip{
+	if gw.Params.EnableGossip {
 		err = gw.FilterMessage(senderId)
 		if err != nil {
 			jww.INFO.Printf("Rate limiting check failed on send message from "+
@@ -785,7 +805,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 				"Please try a different round.")
 	}
 
-	jww.DEBUG.Printf("Putting message from user %v in outgoing queue " +
+	jww.DEBUG.Printf("Putting message from user %v in outgoing queue "+
 		"for round %d...", msg.Message.GetSenderID(), thisRound)
 
 	return &pb.GatewaySlotResponse{
@@ -929,7 +949,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
 
-	if gw.Params.EnableGossip{
+	if gw.Params.EnableGossip {
 		// Gossip senders included in the batch to other gateways
 		err = gw.GossipBatch(batch)
 		if err != nil {
@@ -974,15 +994,14 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
-	if gw.Params.EnableGossip{
+	if gw.Params.EnableGossip {
 		// Update filters in our storage system
 		err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
 		if err != nil {
 			jww.ERROR.Printf("Unable to update local bloom filters: %+v", err)
 		}
 
-
-		go func(){
+		go func() {
 			err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
 			if err != nil {
 				jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
