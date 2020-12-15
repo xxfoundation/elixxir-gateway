@@ -33,6 +33,7 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/utils"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -85,9 +86,6 @@ type Instance struct {
 
 	lastUpdate uint64
 
-	curentRound    id.Round
-	hasCurentRound bool
-
 	address           string
 	bloomFilterGossip sync.Mutex
 }
@@ -112,7 +110,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() clientRequest.ClientID required")
 	}
 
-	//lastKnownRound := gw.NetInf.GetLastRoundID()
+	// lastKnownRound := gw.NetInf.GetLastRoundID()
 	// Get the range of updates from the network instance
 	updates := gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
 
@@ -141,14 +139,14 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	jww.TRACE.Printf("KnownRounds: %v", kr)
 
-	var ndf *pb.NDF
+	var netDef *pb.NDF
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
 	if !isSame {
-		ndf = gw.NetInf.GetPartialNdf().GetPb()
+		netDef = gw.NetInf.GetPartialNdf().GetPb()
 	}
 
 	return &pb.GatewayPollResponse{
-		PartialNDF:       ndf,
+		PartialNDF:       netDef,
 		Updates:          updates,
 		LastTrackedRound: uint64(0), // FIXME: This should be the
 		// earliest tracked network round
@@ -182,7 +180,7 @@ func NewGatewayInstance(params Params) *Instance {
 		knownRound:    knownRounds.NewKnownRound(knownRoundsSize),
 	}
 
-	//There is no round 0
+	// There is no round 0
 	i.knownRound.Check(0)
 	jww.DEBUG.Printf("Initial KnownRound State: %+v", i.knownRound)
 	msh, _ := i.knownRound.Marshal()
@@ -341,15 +339,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				topology.IsFirstNode(gw.ServerHost.GetId()) {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
 			}
-
-			roundState := states.Round(update.State)
-
-			if topology.GetNodeLocation(gw.ServerHost.GetId()) != -1 &&
-				(roundState == states.COMPLETED ||
-					roundState == states.FAILED) {
-				gw.curentRound = id.Round(update.ID)
-				gw.hasCurentRound = true
-			}
 		}
 	}
 
@@ -358,13 +347,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		gw.SendBatch(newInfo.BatchRequest)
 	}
 	// Process a batch that has been completed by this server
-	if newInfo.Slots != nil {
-		// FIXME: Round ID should be sent with the newInfo.Slots object.
-		// if !gw.hasCurentRound {
-		// 	jww.FATAL.Panicf("No round known about, cannot process slots")
-		// }
-		gw.hasCurentRound = false
-		gw.ProcessCompletedBatch(newInfo.Slots, gw.curentRound)
+	if newInfo.Batch != nil {
+		gw.ProcessCompletedBatch(newInfo.Batch.Slots, id.Round(newInfo.Batch.RoundID))
 	}
 
 	return nil
@@ -392,29 +376,29 @@ func SprintRoundInfo(ri *pb.RoundInfo) string {
 // Additionally, to clean up the network object (especially in tests), call
 // Shutdown() on the network object.
 func (gw *Instance) InitNetwork() error {
-	address := fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
+	address := net.JoinHostPort(gw.Params.Address, strconv.Itoa(gw.Params.Port))
 	var err error
 	var gwCert, gwKey, nodeCert, permissioningCert []byte
 
 	// Read our cert from file
 	gwCert, err = utils.ReadFile(gw.Params.CertPath)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Failed to read certificate at %s: %+v",
-			gw.Params.CertPath, err))
+		return errors.Errorf("Failed to read certificate at %s: %+v",
+			gw.Params.CertPath, err)
 	}
 
 	// Read our private key from file
 	gwKey, err = utils.ReadFile(gw.Params.KeyPath)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Failed to read gwKey at %s: %+v",
-			gw.Params.KeyPath, err))
+		return errors.Errorf("Failed to read gwKey at %s: %+v",
+			gw.Params.KeyPath, err)
 	}
 
 	// Read our node's cert from file
 	nodeCert, err = utils.ReadFile(gw.Params.ServerCertPath)
 	if err != nil {
-		return errors.New(fmt.Sprintf(
-			"Failed to read server gwCert at %s: %+v", gw.Params.ServerCertPath, err))
+		return errors.Errorf("Failed to read server gwCert at %s: %+v",
+			gw.Params.ServerCertPath, err)
 	}
 
 	// Read the permissioning server's cert from
@@ -461,6 +445,33 @@ func (gw *Instance) InitNetwork() error {
 			err)
 	}
 
+	// Get permissioning address from server
+	permissioningAddr, err := gw.Comms.SendGetPermissioningAddress(gw.ServerHost)
+	if err != nil {
+		return errors.Errorf("Failed to get permissioning address from "+
+			"server: %+v", err)
+	}
+
+	// Add permissioning host
+	permissioningParams := connect.GetDefaultHostParams()
+	permissioningParams.MaxRetries = 0
+	permissioningParams.AuthEnabled = false
+	_, err = gw.Comms.AddHost(&id.Permissioning, permissioningAddr,
+		permissioningCert, permissioningParams)
+	if err != nil {
+		return errors.Errorf("Failed to add permissioning host: %+v", err)
+	}
+
+	// Get gateway's host from permissioning
+	gw.Params.Address, err = CheckPermConn(gw.Params.Address, gw.Params.Port, gw.Comms)
+	if err != nil {
+		return errors.Errorf("Couldn't complete CheckPermConn: %v", err)
+	}
+
+	// Combine the discovered gateway host with the provided port
+	gw.address = net.JoinHostPort(gw.Params.Address, strconv.Itoa(gw.Params.Port))
+	address = gw.address
+
 	// Begin polling server for NDF
 	jww.INFO.Printf("Beginning polling NDF...")
 	var nodeId []byte
@@ -497,12 +508,12 @@ func (gw *Instance) InitNetwork() error {
 
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			ndf, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
+			netDef, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
 			if err != nil {
 				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
 				return err
 			}
-			err = gw.setupIDF(serverResponse.Id, ndf)
+			err = gw.setupIDF(serverResponse.Id, netDef)
 			nodeId = serverResponse.Id
 			if err != nil {
 				jww.WARN.Printf("failed to update node information: %+v", err)
@@ -551,8 +562,8 @@ func (gw *Instance) InitNetwork() error {
 		params := connect.GetDefaultHostParams()
 		params.MaxRetries = 0
 		params.AuthEnabled = false
-		_, err = gw.Comms.AddHost(&id.Permissioning, gw.NetInf.GetPermissioningAddress(),
-			permissioningCert, params)
+		_, err = gw.Comms.AddHost(&id.Permissioning, permissioningAddr, permissioningCert,
+			params)
 		if err != nil {
 			return errors.Errorf("Couldn't add permissioning host to comms: %v", err)
 		}
@@ -568,8 +579,8 @@ func (gw *Instance) InitNetwork() error {
 		}
 
 		// Update the network instance
-		// this must be below the enabling of the gossip above becasue it uses
-		// compoents they initialize
+		// This must be below the enabling of the gossip above because it uses
+		// components they initialize
 		jww.DEBUG.Printf("Updating instance")
 		err = gw.UpdateInstance(serverResponse)
 		if err != nil {
@@ -623,7 +634,7 @@ func (gw *Instance) setupIDF(nodeId []byte, ourNdf *ndf.NetworkDefinition) (err 
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
 func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
-	// Error check for a invalidly crafted message
+	// Error check for an invalidly crafted message
 	if req == nil || req.ClientID == nil || req.RoundID == 0 {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse message! " +
 			"Please try again with a properly crafted message!")
@@ -765,7 +776,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 		}, errors.Errorf("Could not parse message: Unrecognized ID")
 	}
 
-	//Retrieve the client from the database
+	// Retrieve the client from the database
 	cl, err := gw.storage.GetClient(clientID)
 	if err != nil {
 		return &pb.GatewaySlotResponse{
@@ -773,7 +784,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.Gatew
 		}, errors.New("Did not recognize ID. Have you registered successfully?")
 	}
 
-	//Generate the MAC and check against the message's MAC
+	// Generate the MAC and check against the message's MAC
 	clientMac := generateClientMac(cl, msg)
 	if !bytes.Equal(clientMac, msg.MAC) {
 		return &pb.GatewaySlotResponse{
@@ -820,7 +831,7 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 	// Digest the message for the MAC generation
 	gatewaySlotDigest := network.GenerateSlotDigest(msg)
 
-	// Hash the clientGatewayKey and the the slot's salt
+	// Hash the clientGatewayKey and then the slot's salt
 	h, _ := hash.NewCMixHash()
 	h.Write(cl.Key)
 	h.Write(msg.Message.Salt)
@@ -913,7 +924,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 }
 
-// SendBatch polls sends whatever messages are in the batch assoceated with the
+// SendBatch polls sends whatever messages are in the batch associated with the
 // requested round to the server
 func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 
@@ -969,9 +980,9 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
 	recipients := make(map[id.ID]interface{})
 	for _, msg := range msgs {
-		serialmsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-		serialmsg.SetPayloadB(msg.PayloadB)
-		userId := serialmsg.GetRecipientID()
+		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
+		serialMsg.SetPayloadB(msg.PayloadB)
+		userId := serialMsg.GetRecipientID()
 
 		if !userId.Cmp(&dummyUser) {
 			recipients[*userId] = nil
@@ -1020,7 +1031,7 @@ func (gw *Instance) Start() {
 	// Now that we're set up, run a thread that constantly
 	// polls for updates
 	go func() {
-		//fix-me: this last update needs to be persistant across resets
+		// fixme: this last update needs to be persistent across resets
 		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,

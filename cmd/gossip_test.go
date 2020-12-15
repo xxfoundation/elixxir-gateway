@@ -20,13 +20,14 @@ import (
 	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
+	"gitlab.com/xx_network/comms/signature"
 	"gitlab.com/xx_network/crypto/large"
-	"gitlab.com/xx_network/crypto/signature"
 	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/crypto/tls"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -394,7 +395,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 		Slots: make([]*pb.Slot, 10),
 	}
 	for i := 0; i < len(batch.Slots); i++ {
-		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
+		senderId := id.NewIdFromString(strconv.Itoa(i), id.User, t)
 		batch.Slots[i] = &pb.Slot{SenderID: senderId.Marshal()}
 	}
 
@@ -403,6 +404,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
 
 	// Verify the gossip was received
 	testSenderId := id.NewIdFromString("0", id.User, t)
