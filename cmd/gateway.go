@@ -562,7 +562,7 @@ func (gw *Instance) InitNetwork() error {
 		params := connect.GetDefaultHostParams()
 		params.MaxRetries = 0
 		params.AuthEnabled = false
-		_, err = gw.Comms.AddHost(&id.Permissioning, "", permissioningCert,
+		_, err = gw.Comms.AddHost(&id.Permissioning, permissioningAddr, permissioningCert,
 			params)
 		if err != nil {
 			return errors.Errorf("Couldn't add permissioning host to comms: %v", err)
