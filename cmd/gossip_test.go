@@ -27,6 +27,7 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -394,7 +395,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 		Slots: make([]*pb.Slot, 10),
 	}
 	for i := 0; i < len(batch.Slots); i++ {
-		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
+		senderId := id.NewIdFromString(strconv.Itoa(i), id.User, t)
 		batch.Slots[i] = &pb.Slot{SenderID: senderId.Marshal()}
 	}
 
@@ -403,6 +404,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
 
 	// Verify the gossip was received
 	testSenderId := id.NewIdFromString("0", id.User, t)
