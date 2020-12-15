@@ -86,9 +86,6 @@ type Instance struct {
 
 	lastUpdate uint64
 
-	currentRound    id.Round
-	hasCurrentRound bool
-
 	address           string
 	bloomFilterGossip sync.Mutex
 }
@@ -342,15 +339,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				topology.IsFirstNode(gw.ServerHost.GetId()) {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
 			}
-
-			roundState := states.Round(update.State)
-
-			if topology.GetNodeLocation(gw.ServerHost.GetId()) != -1 &&
-				(roundState == states.COMPLETED ||
-					roundState == states.FAILED) {
-				gw.currentRound = id.Round(update.ID)
-				gw.hasCurrentRound = true
-			}
 		}
 	}
 
@@ -359,13 +347,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		gw.SendBatch(newInfo.BatchRequest)
 	}
 	// Process a batch that has been completed by this server
-	if newInfo.Slots != nil {
-		// FIXME: Round ID should be sent with the newInfo.Slots object.
-		// if !gw.hasCurrentRound {
-		// 	jww.FATAL.Panicf("No round known about, cannot process slots")
-		// }
-		gw.hasCurrentRound = false
-		gw.ProcessCompletedBatch(newInfo.Slots, gw.currentRound)
+	if newInfo.Batch != nil {
+		gw.ProcessCompletedBatch(newInfo.Batch.Slots, id.Round(newInfo.Batch.RoundID))
 	}
 
 	return nil
