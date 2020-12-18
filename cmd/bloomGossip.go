@@ -15,11 +15,14 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
+	"gitlab.com/elixxir/comms/network/dataStructures"
+	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"strings"
 	"sync"
+	"time"
 )
 
 const errorDelimiter = "; "
@@ -85,32 +88,42 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 	payloadMsg := &pb.Recipients{}
 	err := proto.Unmarshal(msg.Payload, payloadMsg)
 	if err != nil {
-		return errors.Errorf("Could not unmarshal message into expected format: %s", err)
+		return errors.Errorf("Could not unmarshal message into expected "+
+			"format: %s", err)
 	}
 
+	// Create channel to receive round info when it is available
+	eventChan := make(chan dataStructures.EventReturn, 1)
+	instance.GetRoundEvents().AddRoundEventChan(id.Round(payloadMsg.RoundID),
+		eventChan, 60*time.Second, states.COMPLETED, states.FAILED)
+
 	// Check if we recognize the round
-	ri, err := instance.GetRound(id.Round(payloadMsg.RoundID))
-	if err != nil {
-		return errors.Errorf("Did not recognize round sent out by gossip message: %s", err)
+	event := <-eventChan
+	if event.TimedOut {
+		return errors.New("Failed to lookup round sent out by gossip message.")
+	} else if states.Round(event.RoundInfo.State) == states.FAILED {
+		return errors.New("Round sent out by gossip message failed.")
 	}
+
+	ri := event.RoundInfo
 
 	// Parse the round topology
 	idList, err := id.NewIDListFromBytes(ri.Topology)
 	if err != nil {
-		return errors.Errorf("Could not read topology from gossip message: %s", err)
+		return errors.Errorf("Could not read topology from gossip message: %s",
+			err)
 	}
 	topology := connect.NewCircuit(idList)
 
-	// Check if the sender is in the round
-	//  we have trackerd
+	// Check if the sender is in the round that we have tracked
 	senderIdCopy := origin.DeepCopy()
 	senderIdCopy.SetType(id.Node)
 	if topology.GetNodeLocation(senderIdCopy) < 0 {
 		return errors.New("Origin gateway is not in round it's gossiping about")
 	}
 	jww.DEBUG.Printf("Verified gossip message from %+v", origin)
-	return nil
 
+	return nil
 }
 
 // Receive function for Gossip messages regarding bloom filters
