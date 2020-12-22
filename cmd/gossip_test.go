@@ -18,6 +18,7 @@ import (
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/rateLimiting"
+	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/comms/signature"
@@ -229,6 +230,12 @@ func TestInstance_GossipVerify(t *testing.T) {
 	}
 	gossipMsg.Signature, err = buildGossipSignature(gossipMsg, gw.Comms.GetPrivateKey())
 
+	go func() {
+		time.Sleep(time.Millisecond)
+		ri.State = uint32(states.COMPLETED)
+		gw.NetInf.GetRoundEvents().TriggerRoundEvent(ri)
+	}()
+
 	// Test the gossipVerify function
 	err = gw.gossipVerify(gossipMsg, nil)
 	if err != nil {
@@ -404,7 +411,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(1 * time.Millisecond)
 
 	// Verify the gossip was received
 	testSenderId := id.NewIdFromString("0", id.User, t)
@@ -526,11 +533,16 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 
 	// Send the gossip
+	go func() {
+		time.Sleep(250 * time.Millisecond)
+		ri.State = uint32(states.COMPLETED)
+		gw.NetInf.GetRoundEvents().TriggerRoundEvent(ri)
+	}()
 	err = gw.GossipBloom(clients, id.Round(rndId))
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	i = 0
 	for clientId := range clients {
@@ -538,7 +550,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		// in the user bloom filter
 		filters, err := gw.storage.GetBloomFilters(&clientId, id.Round(rndId))
 		if err != nil || filters == nil {
-			t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId)
+			t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId.String())
 		}
 		i++
 	}
