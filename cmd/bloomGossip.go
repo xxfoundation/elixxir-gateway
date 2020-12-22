@@ -100,9 +100,9 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 	// Check if we recognize the round
 	event := <-eventChan
 	if event.TimedOut {
-		return errors.New("Failed to lookup round sent out by gossip message.")
+		return errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
 	} else if states.Round(event.RoundInfo.State) == states.FAILED {
-		return errors.New("Round sent out by gossip message failed.")
+		return errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
 	}
 
 	ri := event.RoundInfo
