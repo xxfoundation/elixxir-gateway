@@ -112,12 +112,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	// lastKnownRound := gw.NetInf.GetLastRoundID()
 	// Get the range of updates from the network instance
-	if clientRequest == nil {
-		errStr := fmt.Sprintf(
-			"ClientRequest unset, cannot call GetRoundUpdates")
-		jww.WARN.Printf(errStr)
-		return &pb.GatewayPollResponse{}, errors.New(errStr)
-	}
 	updates := gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
 
 	kr, err := gw.knownRound.Marshal()

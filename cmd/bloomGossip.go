@@ -93,19 +93,27 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 	}
 
 	// Create channel to receive round info when it is available
-	eventChan := make(chan dataStructures.EventReturn, 1)
-	instance.GetRoundEvents().AddRoundEventChan(id.Round(payloadMsg.RoundID),
-		eventChan, 60*time.Second, states.COMPLETED, states.FAILED)
+	r := id.Round(payloadMsg.RoundID)
+	var ri *pb.RoundInfo
+	ri, err = instance.GetRound(r)
+	//if we cant find the round, wait unill we have an update
+	//fixme: there is a potential race codnition if the round comes in after the
+	//above call and before the below
+	if err != nil {
+		eventChan := make(chan dataStructures.EventReturn, 1)
+		instance.GetRoundEvents().AddRoundEventChan(r,
+			eventChan, 60*time.Second, states.COMPLETED, states.FAILED)
 
-	// Check if we recognize the round
-	event := <-eventChan
-	if event.TimedOut {
-		return errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
-	} else if states.Round(event.RoundInfo.State) == states.FAILED {
-		return errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
+		// Check if we recognize the round
+		event := <-eventChan
+		if event.TimedOut {
+			return errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
+		} else if states.Round(event.RoundInfo.State) == states.FAILED {
+			return errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
+		}
+
+		ri = event.RoundInfo
 	}
-
-	ri := event.RoundInfo
 
 	// Parse the round topology
 	idList, err := id.NewIDListFromBytes(ri.Topology)
