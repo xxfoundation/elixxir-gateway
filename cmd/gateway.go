@@ -103,6 +103,10 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() clientRequest is empty")
 	}
 
+	if gw.NetInf == nil {
+		return &pb.GatewayPollResponse{}, errors.New(ndf.NO_NDF)
+	}
+
 	// Check if the clientID is populated and valid
 	clientId, err := id.Unmarshal(clientRequest.ClientID)
 	if clientRequest.ClientID == nil || err != nil {
@@ -935,6 +939,10 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	}
 
 	batch := gw.UnmixedBuffer.PopRound(id.Round(roundInfo.ID))
+
+	if batch == nil {
+		jww.FATAL.Panicf("Batch for %v not found!", roundInfo.ID)
+	}
 
 	batch.Round = roundInfo
 
