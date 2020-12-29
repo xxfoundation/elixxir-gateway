@@ -41,6 +41,10 @@ logLevel: 1
 # Path where log file will be saved. (default "./gateway-logs/gateway.log")
 log: "/opt/xxnetwork/gateway-logs/gateway.log"
 
+# If set, this address (host and port required) will be used for the gateway's
+# public IP address instead of the automatically determined address. Optional.
+addressOverride: ""
+
 # Port for Gateway to listen on. Gateway must be the only listener on this port.
 # Required field.
 port: 22840
