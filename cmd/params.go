@@ -12,8 +12,8 @@ package cmd
 import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/xx_network/comms/gossip"
+	"gitlab.com/xx_network/primitives/rateLimiting"
 	"net"
 	"time"
 )

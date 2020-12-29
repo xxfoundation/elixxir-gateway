@@ -15,10 +15,10 @@ import (
 	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/primitives/rateLimiting"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/rateLimiting"
 )
 
 // Initialize fields required for the gossip protocol specialized to rate limiting
