@@ -42,7 +42,7 @@ type Params struct {
 	knownRoundsPath  string
 	lastUpdateIdPath string
 
-	DevMode bool
+	DevMode      bool
 	EnableGossip bool
 }
 
@@ -61,7 +61,7 @@ func InitParams(vip *viper.Viper) Params {
 
 	idfPath = viper.GetString("idfPath")
 	keyPath = viper.GetString("keyPath")
-	listeningAddress := viper.GetString("listeningAddress")
+	addressOverride := viper.GetString("addressOverride")
 	messageTimeout = viper.GetDuration("messageTimeout")
 	nodeAddress := viper.GetString("nodeAddress")
 	if nodeAddress == "" {
@@ -83,7 +83,7 @@ func InitParams(vip *viper.Viper) Params {
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
 	jww.INFO.Printf("Gateway port: %d", gwPort)
-	jww.INFO.Printf("Gateway listen IP address: %s", listeningAddress)
+	jww.INFO.Printf("Gateway address override: %s", addressOverride)
 	jww.INFO.Printf("Gateway node: %s", nodeAddress)
 
 	// If the values aren't default, repopulate flag values with customized values
@@ -126,7 +126,7 @@ func InitParams(vip *viper.Viper) Params {
 
 	return Params{
 		Port:                  gwPort,
-		Address:               listeningAddress,
+		Address:               addressOverride,
 		NodeAddress:           nodeAddress,
 		CertPath:              certPath,
 		KeyPath:               keyPath,
@@ -144,6 +144,6 @@ func InitParams(vip *viper.Viper) Params {
 		DbPort:                port,
 		lastUpdateIdPath:      lastUpdateIdPath,
 		DevMode:               viper.GetBool("devMode"),
-		EnableGossip:		   viper.GetBool("enableGossip"),
+		EnableGossip:          viper.GetBool("enableGossip"),
 	}
 }
