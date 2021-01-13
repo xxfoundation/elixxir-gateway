@@ -41,7 +41,6 @@ func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Rou
 
 	jww.INFO.Printf("GossipBloom: %v", roundId)
 	var err error
-	var numRecipients int
 
 	// Retrieve gossip protocol
 	gossipProtocol, ok := gw.Comms.Manager.Get(BloomFilterGossip)
