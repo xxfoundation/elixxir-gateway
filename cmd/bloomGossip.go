@@ -56,13 +56,9 @@ func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Rou
 	}
 
 	// Add the GossipMsg payload
-	gossipMsg.Payload, numRecipients, err = buildGossipPayloadBloom(recipients, roundId)
+	gossipMsg.Payload, err = buildGossipPayloadBloom(recipients, roundId)
 	if err != nil {
 		return errors.Errorf("Unable to build gossip payload: %+v", err)
-	}
-
-	if numRecipients < 20 {
-		gossipProtocol.SetSmallGossip()
 	}
 
 	// Add the GossipMsg signature
@@ -195,7 +191,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
-func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Round) ([]byte, int, error) {
+func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Round) ([]byte, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
 	numElements := 0
@@ -214,6 +210,6 @@ func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Roun
 
 	payload, err := proto.Marshal(payloadMsg)
 
-	return payload, numElements, err
+	return payload, err
 
 }
