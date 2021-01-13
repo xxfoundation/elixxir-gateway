@@ -20,7 +20,7 @@ require (
 	gitlab.com/elixxir/comms v0.0.4-0.20210106001934-9bb3731ad8be
 	gitlab.com/elixxir/crypto v0.0.7-0.20210106001826-bf1cc50f1a2c
 	gitlab.com/elixxir/primitives v0.0.3-0.20210106001742-69578b457afa
-	gitlab.com/xx_network/comms v0.0.4-0.20210106001723-9e94893d0208
+	gitlab.com/xx_network/comms v0.0.4-0.20210113004537-7fd952378b8b
 	gitlab.com/xx_network/crypto v0.0.5-0.20210106001644-a7c339164e03
 	gitlab.com/xx_network/primitives v0.0.4-0.20201229212313-fe33d9809f27
 	gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1 // indirect

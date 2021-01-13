@@ -30,7 +30,6 @@ const errorDelimiter = "; "
 // Initialize fields required for the gossip protocol specialized to bloom filters
 func (gw *Instance) InitBloomGossip() {
 	flags := gossip.DefaultProtocolFlags()
-	flags.FanOut = 3
 	// Register gossip protocol for bloom filters
 	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
@@ -42,6 +41,13 @@ func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Rou
 
 	jww.INFO.Printf("GossipBloom: %v", roundId)
 	var err error
+	var numRecipients int
+
+	// Retrieve gossip protocol
+	gossipProtocol, ok := gw.Comms.Manager.Get(BloomFilterGossip)
+	if !ok {
+		return errors.Errorf("Unable to get gossip protocol.")
+	}
 
 	// Build the message
 	gossipMsg := &gossip.GossipMsg{
@@ -50,9 +56,13 @@ func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Rou
 	}
 
 	// Add the GossipMsg payload
-	gossipMsg.Payload, err = buildGossipPayloadBloom(recipients, roundId)
+	gossipMsg.Payload, numRecipients, err = buildGossipPayloadBloom(recipients, roundId)
 	if err != nil {
 		return errors.Errorf("Unable to build gossip payload: %+v", err)
+	}
+
+	if numRecipients < 20 {
+		gossipProtocol.SetSmallGossip()
 	}
 
 	// Add the GossipMsg signature
@@ -62,10 +72,6 @@ func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Rou
 	}
 
 	// Gossip the message
-	gossipProtocol, ok := gw.Comms.Manager.Get(BloomFilterGossip)
-	if !ok {
-		return errors.Errorf("Unable to get gossip protocol.")
-	}
 	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
 	// Return any errors up the stack
@@ -189,15 +195,15 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
-func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Round) ([]byte, error) {
+func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Round) ([]byte, int, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
-	i := 0
+	numElements := 0
 	recipients := make([][]byte, len(recipientIDs))
 	for key := range recipientIDs {
 		jww.INFO.Printf("buildGossip Rec: %v", key)
-		recipients[i] = key.Bytes()
-		i++
+		recipients[numElements] = key.Bytes()
+		numElements++
 	}
 
 	// Build the message payload and return
@@ -205,6 +211,9 @@ func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Roun
 		RecipientIds: recipients,
 		RoundID:      uint64(roundId),
 	}
-	return proto.Marshal(payloadMsg)
+
+	payload, err := proto.Marshal(payloadMsg)
+
+	return payload, numElements, err
 
 }
