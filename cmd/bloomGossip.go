@@ -207,8 +207,5 @@ func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Roun
 		RoundID:      uint64(roundId),
 	}
 
-	payload, err := proto.Marshal(payloadMsg)
-
-	return payload, err
-
+	return proto.Marshal(payloadMsg)
 }
