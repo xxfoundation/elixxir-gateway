@@ -11,10 +11,32 @@ package storage
 
 import (
 	"github.com/pkg/errors"
-	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
-	"time"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 )
+
+// Inserts the given State into Database if it does not exist
+// Or updates the Database State if its value does not match the given State
+func (m *MapImpl) UpsertState(state *State) error {
+	m.Lock()
+	defer m.Unlock()
+
+	m.states[state.Key] = state.Value
+	return nil
+}
+
+// Returns a State's value from Database with the given key
+// Or an error if a matching State does not exist
+func (m *MapImpl) GetStateValue(key string) (string, error) {
+	m.Lock()
+	defer m.Unlock()
+
+	if val, ok := m.states[key]; ok {
+		return val, nil
+	} else {
+		return "", errors.Errorf("Unable to locate state for key %s", key)
+	}
+}
 
 // Returns a Client from database with the given id
 // Or an error if a matching Client does not exist
@@ -221,145 +243,69 @@ func (m *MapImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 	return nil
 }
 
-// Returns a BloomFilter from database with the given clientId
-// Or an error if a matching BloomFilter does not exist
-func (m *MapImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error) {
-	m.bloomFilters.RLock()
-	defer m.bloomFilters.RUnlock()
-
-	members := ""
-	for member := range m.bloomFilters.RecipientId {
-		members += member.String() + ", "
-	}
-
-	jww.INFO.Printf("Dump everyone on get in filter map: %#v", members)
-	filterCount := len(m.bloomFilters.RecipientId[*recipientId])
-	jww.INFO.Printf("Dump filter count for %s: %d", recipientId, filterCount)
-
-	// Return an error if no BloomFilters were found
-	if filterCount == 0 {
-		return nil, errors.Errorf("Could not find any BloomFilters with the "+
-			"client ID %v in map.", recipientId)
-	}
-
-	// Copy all matching bloom filters into slice
-	bloomFilters := make([]*BloomFilter, filterCount)
-	var i int
-	for _, filter := range m.bloomFilters.RecipientId[*recipientId] {
-		bloomFilters[i] = filter
-		i++
-	}
-
-	return bloomFilters, nil
+// Returns BloomFilter from database with the given recipientId
+// and an Epoch between startEpoch and endEpoch (inclusive)
+// Or an error if no matching BloomFilter exist
+func (m *MapImpl) GetBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint64) ([]*BloomFilter, error) {
+	// TODO: Function needs rewritten given new query
+	//m.bloomFilters.RLock()
+	//defer m.bloomFilters.RUnlock()
+	//
+	//members := ""
+	//for member := range m.bloomFilters.RecipientId {
+	//	members += member.String() + ", "
+	//}
+	//
+	//jww.INFO.Printf("Dump everyone on get in filter map: %#v", members)
+	//filterCount := len(m.bloomFilters.RecipientId[*recipientId])
+	//jww.INFO.Printf("Dump filter count for %s: %d", recipientId, filterCount)
+	//
+	//// Return an error if no BloomFilters were found
+	//if filterCount == 0 {
+	//	return nil, errors.Errorf("Could not find any BloomFilters with the "+
+	//		"client ID %v in map.", recipientId)
+	//}
+	//
+	//// Copy all matching bloom filters into slice
+	//bloomFilters := make([]*BloomFilter, filterCount)
+	//var i int
+	//for _, filter := range m.bloomFilters.RecipientId[*recipientId] {
+	//	bloomFilters[i] = filter
+	//	i++
+	//}
+	//
+	return nil, nil
 }
 
 // Inserts the given BloomFilter into database if it does not exist
 // Or updates the BloomFilter in the database if the BloomFilter already exists
-func (m *MapImpl) UpsertBloomFilter(filter *BloomFilter) error {
-	jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
-
-	// Generate key for EpochId and RecipientId maps
-	epochId := filter.EpochId
-	recipientId, err := id.Unmarshal(filter.RecipientId)
-	if err != nil {
-		return err
-	}
-
-	m.bloomFilters.Lock()
-	defer m.bloomFilters.Unlock()
-
-	// Initialize inner maps if they do not already exist
-	if m.bloomFilters.RecipientId[*recipientId] == nil {
-		m.bloomFilters.RecipientId[*recipientId] = make(map[uint64]*BloomFilter)
-	}
-	if m.bloomFilters.EpochId[epochId] == nil {
-		m.bloomFilters.EpochId[epochId] = make(map[id.ID]*BloomFilter)
-	}
-
-	// Insert into maps
-	m.bloomFilters.RecipientId[*recipientId][filter.EpochId] = filter
-	m.bloomFilters.EpochId[filter.EpochId][*recipientId] = filter
-
-	members := ""
-	for member := range m.bloomFilters.RecipientId {
-		members += member.String() + ", "
-	}
-
-	jww.INFO.Printf("Dump everyone on upsert in filter map: %#v", members)
+func (m *MapImpl) upsertBloomFilter(filter *BloomFilter) error {
+	// TODO: Function needs rewritten
+	//jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
+	//
+	//// Generate key for  RecipientId map
+	//recipientId, err := id.Unmarshal(filter.RecipientId)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//m.bloomFilters.Lock()
+	//defer m.bloomFilters.Unlock()
+	//
+	//// Initialize inner slices if they do not already exist
+	//if m.bloomFilters.RecipientId[*recipientId] == nil {
+	//	m.bloomFilters.RecipientId[*recipientId] = make([]*BloomFilter, 0)
+	//}
+	//
+	//// Insert into maps
+	//m.bloomFilters.RecipientId[*recipientId] = append(m.bloomFilters.RecipientId[*recipientId], filter)
+	//
+	//members := ""
+	//for member := range m.bloomFilters.RecipientId {
+	//	members += member.String() + ", "
+	//}
+	//
+	//jww.INFO.Printf("Dump everyone on upsert in filter map: %#v", members)
 
 	return nil
-}
-
-// Deletes all BloomFilter with the given epochId from database
-// Returns an error if a matching BloomFilter does not exist
-func (m *MapImpl) DeleteBloomFilterByEpoch(epochId uint64) error {
-	m.bloomFilters.Lock()
-	defer m.bloomFilters.Unlock()
-
-	// Return an error if not bloom filters exist with the given epoch ID
-	if _, exists := m.bloomFilters.EpochId[epochId]; !exists {
-		return errors.Errorf("Failed to delete BloomFilter. None exists for "+
-			"epoch ID %d", epochId)
-	}
-
-	// Delete filters from RecipientId map
-	for recipientId := range m.bloomFilters.EpochId[epochId] {
-		delete(m.bloomFilters.RecipientId[recipientId], epochId)
-	}
-
-	// Delete filters from EpochId map
-	delete(m.bloomFilters.EpochId, epochId)
-
-	return nil
-}
-
-// Returns an Epoch from the database with the given id
-// Or an error if a matching Epoch does not exist
-func (m *MapImpl) GetEpoch(id uint64) (*Epoch, error) {
-	m.epochs.RLock()
-	defer m.epochs.RUnlock()
-
-	// Return an error if no epoch with the given ID exists
-	if m.epochs.M[id] == nil {
-		return nil, errors.Errorf("Could not find any Epochs with the ID %d "+
-			"in the map.", id)
-	}
-
-	// Return the found epoch
-	return m.epochs.M[id], nil
-}
-
-// Returns the newest Epoch in the database
-func (m *MapImpl) GetLatestEpoch() (*Epoch, error) {
-	m.epochs.RLock()
-	defer m.epochs.RUnlock()
-
-	// Return an error if no epochs are in the map
-	if result := m.epochs.M[m.epochs.IdTrack-1]; len(m.epochs.M) == 0 || result == nil {
-		return nil, errors.Errorf("Could not get latest epoch, map is empty.")
-	} else {
-		// Return the epoch with the newest ID
-		return result, nil
-	}
-}
-
-// Inserts an Epoch with the given roundId into the database
-// Returns the newly-created Epoch from the database
-func (m *MapImpl) InsertEpoch(roundId id.Round) (*Epoch, error) {
-	m.epochs.Lock()
-	defer m.epochs.Unlock()
-
-	epoch := &Epoch{
-		Id:          m.epochs.IdTrack,
-		RoundId:     uint64(roundId),
-		DateCreated: time.Now(),
-	}
-
-	// Save the epoch to map
-	m.epochs.M[epoch.Id] = epoch
-
-	// Increment ID for next epoch
-	m.epochs.IdTrack++
-
-	return epoch, nil
 }

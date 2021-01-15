@@ -118,7 +118,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.UpsertBloomFilter(&BloomFilter{
+//	err = db.upsertBloomFilter(&BloomFilter{
 //		RecipientId:    testClient.Marshal(),
 //		Filter:      testBytes,
 //		EpochId: 1,
@@ -127,7 +127,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.UpsertBloomFilter(&BloomFilter{
+//	err = db.upsertBloomFilter(&BloomFilter{
 //		RecipientId:    testClient.Marshal(),
 //		Filter:      testBytes2,
 //		EpochId: testEpoch.Id,
@@ -197,7 +197,7 @@ import (
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", messages)
-//	filters, err := db.getBloomFilters(testClient)
+//	filters, err := db.GetBloomFilters(testClient)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -681,13 +681,13 @@ func TestMapImpl_GetBloomFilters(t *testing.T) {
 		},
 	}
 
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
+	_ = m.upsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
+	_ = m.upsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
+	_ = m.upsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
+	_ = m.upsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
+	_ = m.upsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
 
-	bloomFilters, err := m.getBloomFilters(testClientID)
+	bloomFilters, err := m.GetBloomFilters(testClientID)
 	if err != nil {
 		t.Errorf("Unexpected error retrieving bloom filters: %v", err)
 	}
@@ -705,10 +705,10 @@ func TestMapImpl_GetBloomFilters_NoFiltersError(t *testing.T) {
 			EpochId:     map[uint64]map[id.ID]*BloomFilter{},
 		},
 	}
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
+	_ = m.upsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
+	_ = m.upsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
 
-	bloomFilters, err := m.getBloomFilters(testClientID)
+	bloomFilters, err := m.GetBloomFilters(testClientID)
 	if err == nil {
 		t.Errorf("Expected an error when bloom filters is not in map.")
 	}
@@ -733,7 +733,7 @@ func TestMapImpl_UpsertBloomFilter(t *testing.T) {
 		},
 	}
 
-	err := m.UpsertBloomFilter(testBloomFilter)
+	err := m.upsertBloomFilter(testBloomFilter)
 	if err != nil || m.bloomFilters.RecipientId[testRecipientId][testEpochId] == nil ||
 		m.bloomFilters.EpochId[testEpochId][testRecipientId] == nil {
 		t.Errorf("Failed to insert BloomFilter: %v", err)
@@ -763,7 +763,7 @@ func TestMapImpl_DeleteBloomFilterByEpoch(t *testing.T) {
 
 	// Insert the messages
 	for _, val := range vals {
-		_ = m.UpsertBloomFilter(&BloomFilter{
+		_ = m.upsertBloomFilter(&BloomFilter{
 			RecipientId: val.recipientId.Marshal(),
 			EpochId:     val.epochId,
 		})
@@ -819,7 +819,7 @@ func TestMapImpl_DeleteBloomFilterByEpoch_NoFilterError(t *testing.T) {
 
 	// Insert the messages
 	for _, val := range vals {
-		_ = m.UpsertBloomFilter(&BloomFilter{
+		_ = m.upsertBloomFilter(&BloomFilter{
 			RecipientId: val.recipientId.Marshal(),
 			EpochId:     val.epochId,
 		})

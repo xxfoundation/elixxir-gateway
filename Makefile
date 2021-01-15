@@ -20,7 +20,7 @@ build:
 
 update_release:
 	GOFLAGS="" go get gitlab.com/elixxir/primitives@release
-	GOFLAGS="" go get gitlab.com/xx_network/primitives@release
+	GOFLAGS="" go get gitlab.com/xx_network/primitives@agile/EphemeralReception
 	GOFLAGS="" go get gitlab.com/elixxir/crypto@release
 	GOFLAGS="" go get gitlab.com/xx_network/crypto@release
 	GOFLAGS="" go get gitlab.com/elixxir/comms@release

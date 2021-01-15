@@ -14,12 +14,16 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"sync"
 	"time"
 )
 
 // Interface declaration for storage methods
 type database interface {
+	UpsertState(state *State) error
+	GetStateValue(key string) (string, error)
+
 	GetClient(id *id.ID) (*Client, error)
 	InsertClient(client *Client) error
 	UpsertClient(client *Client) error
@@ -33,13 +37,8 @@ type database interface {
 	InsertMixedMessages(msgs []*MixedMessage) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
-	GetEpoch(id uint64) (*Epoch, error)
-	GetLatestEpoch() (*Epoch, error)
-	InsertEpoch(roundId id.Round) (*Epoch, error)
-
-	getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error)
-	UpsertBloomFilter(filter *BloomFilter) error
-	DeleteBloomFilterByEpoch(epochId uint64) error
+	GetBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint64) ([]*BloomFilter, error)
+	upsertBloomFilter(filter *BloomFilter) error
 }
 
 // Struct implementing the database Interface with an underlying DB
@@ -49,11 +48,11 @@ type DatabaseImpl struct {
 
 // Struct implementing the database Interface with an underlying Map
 type MapImpl struct {
+	states        map[string]string
 	clients       map[id.ID]*Client
 	rounds        map[id.Round]*Round
 	mixedMessages MixedMessageMap
 	bloomFilters  BloomFilterMap
-	epochs        EpochMap
 	sync.RWMutex
 }
 
@@ -68,21 +67,22 @@ type MixedMessageMap struct {
 	sync.RWMutex
 }
 
-// BloomFilterMap contains a list of BloomFilter sorted in two maps so that they
-// can key on RecipientId and EpochId.
+// BloomFilterMap contains a list of BloomFilter sorted in a map that can key on RecipientId.
 type BloomFilterMap struct {
-	RecipientId map[id.ID]map[uint64]*BloomFilter
-	EpochId     map[uint64]map[id.ID]*BloomFilter
+	RecipientId map[id.ID][]*BloomFilter
 	sync.RWMutex
 }
 
-// EpochMap contains a map of Epoch keyed on their ID. Also tracks incrementing
-// of new IDs, and the latest Epoch in the map.
-type EpochMap struct {
-	M       map[uint64]*Epoch
-	IdTrack uint64
-	sync.RWMutex
+// Key-Value store used for persisting Gateway State information
+type State struct {
+	Key   string `gorm:"primary_key"`
+	Value string `gorm:"NOT NULL"`
 }
+
+// Enumerates Keys in the State table
+const (
+	PeriodKey = "Period"
+)
 
 // Represents a Client and its associated keys
 type Client struct {
@@ -101,26 +101,13 @@ type Round struct {
 	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
 }
 
-// Represents an Epoch that is associated with each BloomFilter
-// Used to determine a time period during which a set of Filters were created
-type Epoch struct {
-	Id          uint64    `gorm:"primary_key;AUTO_INCREMENT:true"`
-	RoundId     uint64    `gorm:"NOT NULL"` // Explicitly not a FK, a Round may be deleted
-	DateCreated time.Time `gorm:"NOT NULL"`
-
-	BloomFilters []BloomFilter `gorm:"foreignkey:EpochId;association_foreignkey:Id"`
-}
-
 // Represents a Client's BloomFilter
 type BloomFilter struct {
-	RecipientId []byte `gorm:"primary_key;"`
-	EpochId     uint64 `gorm:"primary_key;type:bigint REFERENCES epochs(Id)"`
+	Epoch       uint64 `gorm:"primary_key"`
+	RecipientId uint64 `gorm:"primary_key"`
+	FirstRound  uint64 `gorm:"NOT NULL"`
+	LastRound   uint64 `gorm:"NOT NULL"`
 	Filter      []byte `gorm:"NOT NULL"`
-}
-
-// Used to force correct pluralization of Epoch table name
-func (Epoch) TableName() string {
-	return "epochs"
 }
 
 // Represents a MixedMessage and its contents
@@ -192,12 +179,7 @@ func newDatabase(username, password, dbName, address,
 				IdTrack:      0,
 			},
 			bloomFilters: BloomFilterMap{
-				RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-				EpochId:     map[uint64]map[id.ID]*BloomFilter{},
-			},
-			epochs: EpochMap{
-				M:       map[uint64]*Epoch{},
-				IdTrack: 0,
+				RecipientId: map[id.ID][]*BloomFilter{},
 			},
 		}
 
@@ -217,8 +199,7 @@ func newDatabase(username, password, dbName, address,
 
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
-	models := []interface{}{&Client{}, &Round{}, &MixedMessage{},
-		&Epoch{}, &BloomFilter{}}
+	models := []interface{}{&Client{}, &Round{}, &MixedMessage{}, &BloomFilter{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model).Error
 		if err != nil {

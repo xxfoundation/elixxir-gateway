@@ -73,7 +73,7 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 		//newUserFilter.EpochId = epoch.Id
 
 		// Upsert the filter to storage
-		return gw.storage.UpsertBloomFilter(newUserFilter)
+		return gw.storage.upsertBloomFilter(newUserFilter)
 	}
 
 	// Pull the most recent filter
@@ -101,7 +101,7 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 
 	// fixme: Likely to change due to DB restructure
 	// Place filter back into database
-	err = gw.storage.UpsertBloomFilter(&storage.BloomFilter{
+	err = gw.storage.upsertBloomFilter(&storage.BloomFilter{
 		RecipientId: recipientId.Bytes(),
 		Filter:      marshaledFilter,
 		// todo: uncomment when epoch implementation is complete

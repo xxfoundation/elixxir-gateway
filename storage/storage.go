@@ -11,6 +11,7 @@ package storage
 
 import (
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 )
 
 // API for the storage layer
@@ -19,19 +20,43 @@ type Storage struct {
 	database
 }
 
-// Return-type object for non-database representation of a BloomFilter
-type ClientBloomFilter struct {
-	Filter     []byte
-	FirstRound id.Round
-	LastRound  id.Round
-}
-
 // Create a new Storage object wrapping a database interface
 // Returns a Storage object, close function, and error
 func NewStorage(username, password, dbName, address, port string) (*Storage, func() error, error) {
 	db, closeFunc, err := newDatabase(username, password, dbName, address, port)
 	storage := &Storage{db}
 	return storage, closeFunc, err
+}
+
+// Determines whether a new BloomFilter should be created or an existing BloomFilter
+// should be updated based on the given parameters, then performs the Upsert operation
+func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byte, roundId id.Round, epoch uint64) error {
+
+	// Get BloomFilter for only the given epoch
+	filters, err := s.GetBloomFilters(recipientId, epoch, epoch)
+	if err != nil {
+		return err
+	}
+
+	var validFilter *BloomFilter
+	if len(filters) == 0 {
+		// If a BloomFilter doesn't exist for the given epoch, create a new one
+		validFilter = &BloomFilter{
+			RecipientId: recipientId.UInt64(),
+			Epoch:       epoch,
+			FirstRound:  uint64(roundId),
+			LastRound:   uint64(roundId),
+			Filter:      filterBytes,
+		}
+	} else {
+		// If a BloomFilter exists for the given epoch, update it
+		validFilter = filters[0]
+		validFilter.LastRound = uint64(roundId)
+		// TODO validFilter.Filter |= filterBytes
+	}
+
+	// Commit the new/updated BloomFilter
+	return s.upsertBloomFilter(validFilter)
 }
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId
@@ -47,56 +72,4 @@ func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs [
 	// If the gateway has messages, return messages relevant to the given recipientId and roundId
 	msgs, err = s.getMixedMessages(recipientId, roundId)
 	return
-}
-
-// Returns all of the ClientBloomFilter from Storage relevant to the given clientId
-// latestRound is the most recent round in the network, used to populate fields of ClientBloomFilter
-func (s *Storage) GetBloomFilters(recipientId *id.ID, latestRound id.Round) ([]*ClientBloomFilter, error) {
-	result := make([]*ClientBloomFilter, 0)
-
-	// Get all BloomFilter from Storage for the given recipientId
-	bloomFilters, err := s.getBloomFilters(recipientId)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get the latest epoch for determining how current the filters are
-	/*latestEpoch, err := s.GetLatestEpoch()
-	if err != nil {
-		return nil, err
-	}*/
-	//latestEpoch := 0
-
-	for _, filter := range bloomFilters {
-		clientFilter := &ClientBloomFilter{
-			Filter: filter.Filter,
-		}
-		clientFilter.FirstRound = id.Round(0)
-		clientFilter.LastRound = latestRound
-		/*
-			// Determine relevant rounds for the ClientBloomFilter
-			if filter.EpochId == latestEpoch.Id {
-				// If the BloomFilter is current, use the current round
-				clientFilter.FirstRound = id.Round(latestEpoch.RoundId)
-				clientFilter.LastRound = latestRound
-			} else {
-				// If the BloomFilter is not current, infer the LastRound from the next Epoch
-				epoch, err := s.GetEpoch(filter.EpochId)
-				if err != nil {
-					return nil, err
-				}
-				nextEpoch, err := s.GetEpoch(filter.EpochId + 1)
-				if err != nil {
-					return nil, err
-				}
-
-				clientFilter.FirstRound = id.Round(epoch.RoundId)
-				// (Epoch n).LastRound = (Epoch n + 1).FirstRound - 1
-				clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
-			}*/
-
-		result = append(result, clientFilter)
-	}
-
-	return result, nil
 }
