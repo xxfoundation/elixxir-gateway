@@ -12,6 +12,16 @@ import (
 	"testing"
 )
 
+// Insert path
+func TestStorage_HandleBloomFilter_Insert(t *testing.T) {
+	// TODO: requires mapimpl
+}
+
+// Update path
+func TestStorage_HandleBloomFilter_Update(t *testing.T) {
+	// TODO: requires mapimpl
+}
+
 // Happy path
 func TestStorage_GetMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()
