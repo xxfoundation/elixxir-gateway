@@ -200,7 +200,7 @@ func newDatabase(username, password, dbName, address,
 
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
-	models := []interface{}{&Client{}, &Round{}, &MixedMessage{}, &BloomFilter{}}
+	models := []interface{}{&Client{}, &Round{}, &MixedMessage{}, &BloomFilter{}, State{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model).Error
 		if err != nil {
