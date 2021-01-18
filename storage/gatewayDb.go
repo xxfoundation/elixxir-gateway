@@ -14,6 +14,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"strconv"
 )
 
 // Inserts the given State into Database if it does not exist
@@ -181,12 +182,11 @@ func (d *DatabaseImpl) GetBloomFilters(recipientId *ephemeral.Id, startEpoch, en
 	jww.DEBUG.Printf("Getting filters for client [%v]", recipientId)
 
 	results := make([]*BloomFilter, 0)
-	// TODO New query
-	//err := d.db.Find(&results,
-	//	&BloomFilter{RecipientId: recipientId.Marshal()}).Error
+	err := d.db.Find(&results, &BloomFilter{RecipientId: strconv.FormatUint(recipientId.UInt64(), 10)}).
+		Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Error
 	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
 
-	return results, nil
+	return results, err
 }
 
 // Inserts the given BloomFilter into database if it does not exist
@@ -200,17 +200,26 @@ func (d *DatabaseImpl) upsertBloomFilter(filter *BloomFilter) error {
 
 		// Attempt to insert filter into the database,
 		// or if it already exists, replace filter with the database value
-		err := tx.FirstOrCreate(oldFilter, &BloomFilter{RecipientId: filter.RecipientId}).Error
+		err := tx.FirstOrCreate(oldFilter, &BloomFilter{
+			Epoch:       filter.Epoch,
+			RecipientId: filter.RecipientId,
+		}).Error
 		if err != nil {
 			return err
 		}
 
 		// If filter is already present in the database, overwrite it with newFilter
-		if !bytes.Equal(oldFilter.Filter, filter.Filter) {
+		if !bytes.Equal(oldFilter.Filter, filter.Filter) || filter.LastRound != oldFilter.LastRound {
 			return tx.Save(filter).Error
 		}
 
 		// Commit
 		return nil
 	})
+}
+
+// Deletes all BloomFilter with Epoch <= the given epoch
+// Returns an error if no matching BloomFilter exist
+func (d *DatabaseImpl) DeleteFiltersBeforeEpoch(epoch uint64) error {
+	return d.db.Delete(BloomFilter{}, "epoch <= ?", epoch).Error
 }

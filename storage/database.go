@@ -39,6 +39,7 @@ type database interface {
 
 	GetBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint64) ([]*BloomFilter, error)
 	upsertBloomFilter(filter *BloomFilter) error
+	DeleteFiltersBeforeEpoch(epoch uint64) error
 }
 
 // Struct implementing the database Interface with an underlying DB
@@ -104,7 +105,7 @@ type Round struct {
 // Represents a Client's BloomFilter
 type BloomFilter struct {
 	Epoch       uint64 `gorm:"primary_key"`
-	RecipientId uint64 `gorm:"primary_key"`
+	RecipientId string `gorm:"primary_key"`
 	FirstRound  uint64 `gorm:"NOT NULL"`
 	LastRound   uint64 `gorm:"NOT NULL"`
 	Filter      []byte `gorm:"NOT NULL"`

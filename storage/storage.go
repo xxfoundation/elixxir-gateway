@@ -10,8 +10,10 @@
 package storage
 
 import (
+	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"strconv"
 )
 
 // API for the storage layer
@@ -42,7 +44,7 @@ func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byt
 	if len(filters) == 0 {
 		// If a BloomFilter doesn't exist for the given epoch, create a new one
 		validFilter = &BloomFilter{
-			RecipientId: recipientId.UInt64(),
+			RecipientId: strconv.FormatUint(recipientId.UInt64(), 10),
 			Epoch:       epoch,
 			FirstRound:  uint64(roundId),
 			LastRound:   uint64(roundId),
@@ -52,11 +54,26 @@ func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byt
 		// If a BloomFilter exists for the given epoch, update it
 		validFilter = filters[0]
 		validFilter.LastRound = uint64(roundId)
-		// TODO validFilter.Filter |= filterBytes
+		validFilter.Filter = Or(validFilter.Filter, filterBytes)
 	}
 
 	// Commit the new/updated BloomFilter
 	return s.upsertBloomFilter(validFilter)
+}
+
+// Helper function for HandleBloomFilter
+// Returns the bitwise OR of two byte slices
+func Or(l1, l2 []byte) []byte {
+	if len(l1) != len(l2) {
+		jww.ERROR.Printf("Unable to perform bitwise OR: Slice lens invalid.")
+		return nil
+	}
+
+	result := make([]byte, len(l1))
+	for i := range l1 {
+		result[i] = l1[i] | l2[i]
+	}
+	return result
 }
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId

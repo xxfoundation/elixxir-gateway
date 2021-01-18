@@ -309,3 +309,10 @@ func (m *MapImpl) upsertBloomFilter(filter *BloomFilter) error {
 
 	return nil
 }
+
+// Deletes all BloomFilter with Epoch <= the given epoch
+// Returns an error if no matching BloomFilter exist
+func (m *MapImpl) DeleteFiltersBeforeEpoch(epoch uint64) error {
+	// TODO Write and test
+	return nil
+}
