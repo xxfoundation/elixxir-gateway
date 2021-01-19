@@ -27,6 +27,11 @@ func TestOr(t *testing.T) {
 	// TODO
 }
 
+//
+func TestClientBloomFilter_Combine(t *testing.T) {
+	// TODO
+}
+
 // Happy path
 func TestStorage_GetMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()

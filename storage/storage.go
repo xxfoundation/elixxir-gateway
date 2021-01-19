@@ -45,9 +45,24 @@ func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byt
 	return s.upsertClientBloomFilter(validFilter)
 }
 
+// Returns a slice of MixedMessage from database with matching recipientId and roundId
+// Also returns a boolean for whether the gateway contains other messages for the given Round
+func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
+	// Determine whether this gateway has any messages for the given roundId
+	count, err := s.countMixedMessagesByRound(roundId)
+	isValidGateway = count > 0
+	if err != nil || !isValidGateway {
+		return
+	}
+
+	// If the gateway has messages, return messages relevant to the given recipientId and roundId
+	msgs, err = s.getMixedMessages(recipientId, roundId)
+	return
+}
+
 // Helper function for HandleBloomFilter
 // Returns the bitwise OR of two byte slices
-func Or(l1, l2 []byte) []byte {
+func or(l1, l2 []byte) []byte {
 	if l1 == nil {
 		return l2
 	} else if l2 == nil {
@@ -64,17 +79,30 @@ func Or(l1, l2 []byte) []byte {
 	return result
 }
 
-// Returns a slice of MixedMessage from database with matching recipientId and roundId
-// Also returns a boolean for whether the gateway contains other messages for the given Round
-func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
-	// Determine whether this gateway has any messages for the given roundId
-	count, err := s.countMixedMessagesByRound(roundId)
-	isValidGateway = count > 0
-	if err != nil || !isValidGateway {
-		return
+// Combine with and update this filter using oldFilter
+func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
+	// Initialize FirstRound variable if needed
+	if oldFilter.FirstRound == uint64(0) {
+		oldFilter.FirstRound = f.FirstRound
 	}
 
-	// If the gateway has messages, return messages relevant to the given recipientId and roundId
-	msgs, err = s.getMixedMessages(recipientId, roundId)
-	return
+	// Store variables before modifications
+	currentRound := f.FirstRound
+	oldLastRound := oldFilter.FirstRound + uint64(oldFilter.RoundRange)
+	newLastRound := currentRound + uint64(f.RoundRange)
+
+	// Get earliest FirstRound Value
+	if f.FirstRound > oldFilter.FirstRound {
+		f.FirstRound = oldFilter.FirstRound
+	}
+
+	// Get latest LastRound value, and calculate the maximum RoundRange
+	if oldLastRound > newLastRound {
+		f.RoundRange = uint32(oldLastRound - f.FirstRound)
+	} else {
+		f.RoundRange = uint32(newLastRound - f.FirstRound)
+	}
+
+	// Combine the filters
+	f.Filter = or(f.Filter, oldFilter.Filter)
 }

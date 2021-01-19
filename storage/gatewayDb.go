@@ -208,32 +208,10 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 			return err
 		}
 
-		// Initialize FirstRound variable if needed
-		if oldFilter.FirstRound == uint64(0) {
-			oldFilter.FirstRound = filter.FirstRound
-		}
+		// Combine oldFilter with filter
+		filter.combine(oldFilter)
 
-		// Store variables before modifications
-		currentRound := filter.FirstRound
-		oldLastRound := oldFilter.FirstRound + uint64(oldFilter.RoundRange)
-		newLastRound := currentRound + uint64(filter.RoundRange)
-
-		// Get earliest FirstRound Value
-		if filter.FirstRound > oldFilter.FirstRound {
-			filter.FirstRound = oldFilter.FirstRound
-		}
-
-		// Get latest LastRound value, and calculate the maximum RoundRange
-		if oldLastRound > newLastRound {
-			filter.RoundRange = uint32(oldLastRound - filter.FirstRound)
-		} else {
-			filter.RoundRange = uint32(newLastRound - filter.FirstRound)
-		}
-
-		// Combine the filters
-		filter.Filter = Or(filter.Filter, oldFilter.Filter)
-
-		// Commit the updated filter
+		// Commit to the database
 		return tx.Save(filter).Error
 	})
 }
