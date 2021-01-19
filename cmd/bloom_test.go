@@ -35,7 +35,7 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 	testClientId := id.NewIdFromString("0", id.User, t)
 
 	// Pull a bloom filter from the database on the client ID BEFORE INSERTION
-	retrievedFilters, err := gw.storage.GetBloomFilters(testClientId, rndId)
+	retrievedFilters, err := gw.storage.GetClientBloomFilters(testClientId, rndId)
 
 	// Check that this filter is nil
 	if err == nil || retrievedFilters != nil {
@@ -49,7 +49,7 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 	}
 
 	// Pull a bloom filter from the database on the client ID AFTER INSERTION
-	retrievedFilters, err = gw.storage.GetBloomFilters(testClientId, rndId)
+	retrievedFilters, err = gw.storage.GetClientBloomFilters(testClientId, rndId)
 	if err != nil {
 		t.Errorf("Could not get filters from storage: %s", err)
 	}
@@ -74,7 +74,7 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 	}
 
 	// Pull a bloom filter from the database on the client ID AFTER INSERTION
-	retrievedFilters, err = gw.storage.GetBloomFilters(testClientId, rndId)
+	retrievedFilters, err = gw.storage.GetClientBloomFilters(testClientId, rndId)
 	if err != nil {
 		t.Errorf("Could not get filters from storage: %s", err)
 	}
@@ -102,7 +102,7 @@ func TestInstance_UpsertFilters(t *testing.T) {
 	testClientId := id.NewIdFromString("0", id.User, t)
 
 	// Check that the databases are empty of filters
-	retrievedFilter, err := gw.storage.GetBloomFilters(testClientId, rndId)
+	retrievedFilter, err := gw.storage.GetClientBloomFilters(testClientId, rndId)
 	// Check that this filter is nil
 	if err == nil || retrievedFilter != nil {
 		t.Errorf("Should not get test client from storage prior to insertion.")
@@ -117,7 +117,7 @@ func TestInstance_UpsertFilters(t *testing.T) {
 	}
 
 	// Check that a bloom filter has been created
-	retrievedFilter, err = gw.storage.GetBloomFilters(testClientId, rndId)
+	retrievedFilter, err = gw.storage.GetClientBloomFilters(testClientId, rndId)
 	if retrievedFilter == nil || len(retrievedFilter) != 1 {
 		t.Errorf("Retrieved ehphemeral filter was not expected. Should be non-nil an dlength of 1")
 	}

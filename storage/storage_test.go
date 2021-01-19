@@ -22,6 +22,11 @@ func TestStorage_HandleBloomFilter_Update(t *testing.T) {
 	// TODO: requires mapimpl
 }
 
+//
+func TestOr(t *testing.T) {
+	// TODO
+}
+
 // Happy path
 func TestStorage_GetMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()

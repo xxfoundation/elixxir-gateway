@@ -14,7 +14,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
-	"strconv"
 )
 
 // Inserts the given State into Database if it does not exist
@@ -175,32 +174,33 @@ func (d *DatabaseImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 	return d.db.Where("round_id = ?", uint64(roundId)).Delete(MixedMessage{}).Error
 }
 
-// Returns BloomFilter from database with the given recipientId
+// Returns ClientBloomFilter from database with the given recipientId
 // and an Epoch between startEpoch and endEpoch (inclusive)
-// Or an error if no matching BloomFilter exist
-func (d *DatabaseImpl) GetBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint64) ([]*BloomFilter, error) {
+// Or an error if no matching ClientBloomFilter exist
+func (d *DatabaseImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
 	jww.DEBUG.Printf("Getting filters for client [%v]", recipientId)
 
-	results := make([]*BloomFilter, 0)
-	err := d.db.Find(&results, &BloomFilter{RecipientId: strconv.FormatUint(recipientId.UInt64(), 10)}).
+	results := make([]*ClientBloomFilter, 0)
+	err := d.db.Find(&results, &ClientBloomFilter{RecipientId: recipientId.Int64()}).
 		Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Error
 	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
 
 	return results, err
 }
 
-// Inserts the given BloomFilter into database if it does not exist
-// Or updates the BloomFilter in the database if the BloomFilter already exists
-func (d *DatabaseImpl) upsertBloomFilter(filter *BloomFilter) error {
+// Inserts the given ClientBloomFilter into database if it does not exist
+// Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
+func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
+
 	// Build a transaction to prevent race conditions
 	return d.db.Transaction(func(tx *gorm.DB) error {
 		// Initialize variable for returning existing value from the database
-		oldFilter := &BloomFilter{}
+		oldFilter := &ClientBloomFilter{}
 
 		// Attempt to insert filter into the database,
-		// or if it already exists, replace filter with the database value
-		err := tx.FirstOrCreate(oldFilter, &BloomFilter{
+		// or if it already exists, replace oldFilter with the database value
+		err := tx.FirstOrCreate(oldFilter, &ClientBloomFilter{
 			Epoch:       filter.Epoch,
 			RecipientId: filter.RecipientId,
 		}).Error
@@ -208,18 +208,38 @@ func (d *DatabaseImpl) upsertBloomFilter(filter *BloomFilter) error {
 			return err
 		}
 
-		// If filter is already present in the database, overwrite it with newFilter
-		if !bytes.Equal(oldFilter.Filter, filter.Filter) || filter.LastRound != oldFilter.LastRound {
-			return tx.Save(filter).Error
+		// Initialize FirstRound variable if needed
+		if oldFilter.FirstRound == uint64(0) {
+			oldFilter.FirstRound = filter.FirstRound
 		}
 
-		// Commit
-		return nil
+		// Store variables before modifications
+		currentRound := filter.FirstRound
+		oldLastRound := oldFilter.FirstRound + uint64(oldFilter.RoundRange)
+		newLastRound := currentRound + uint64(filter.RoundRange)
+
+		// Get earliest FirstRound Value
+		if filter.FirstRound > oldFilter.FirstRound {
+			filter.FirstRound = oldFilter.FirstRound
+		}
+
+		// Get latest LastRound value, and calculate the maximum RoundRange
+		if oldLastRound > newLastRound {
+			filter.RoundRange = uint32(oldLastRound - filter.FirstRound)
+		} else {
+			filter.RoundRange = uint32(newLastRound - filter.FirstRound)
+		}
+
+		// Combine the filters
+		filter.Filter = Or(filter.Filter, oldFilter.Filter)
+
+		// Commit the updated filter
+		return tx.Save(filter).Error
 	})
 }
 
-// Deletes all BloomFilter with Epoch <= the given epoch
-// Returns an error if no matching BloomFilter exist
-func (d *DatabaseImpl) DeleteFiltersBeforeEpoch(epoch uint64) error {
-	return d.db.Delete(BloomFilter{}, "epoch <= ?", epoch).Error
+// Deletes all ClientBloomFilter with Epoch <= the given epoch
+// Returns an error if no matching ClientBloomFilter exist
+func (d *DatabaseImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
+	return d.db.Delete(ClientBloomFilter{}, "epoch <= ?", epoch).Error
 }

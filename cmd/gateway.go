@@ -130,7 +130,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client
-	clientFilters, err := gw.storage.GetBloomFilters(clientId, id.Round(clientRequest.LastRound))
+	clientFilters, err := gw.storage.GetClientBloomFilters(clientId, id.Round(clientRequest.LastRound))
 	jww.INFO.Printf("Adding %d client filters for %s", len(clientFilters), clientId)
 	if err != nil {
 		jww.WARN.Printf("Could not get filters for %s when polling: %v", clientId, err)

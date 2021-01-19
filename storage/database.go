@@ -37,9 +37,9 @@ type database interface {
 	InsertMixedMessages(msgs []*MixedMessage) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
-	GetBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint64) ([]*BloomFilter, error)
-	upsertBloomFilter(filter *BloomFilter) error
-	DeleteFiltersBeforeEpoch(epoch uint64) error
+	GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
+	upsertClientBloomFilter(filter *ClientBloomFilter) error
+	DeleteClientFiltersBeforeEpoch(epoch uint32) error
 }
 
 // Struct implementing the database Interface with an underlying DB
@@ -68,9 +68,9 @@ type MixedMessageMap struct {
 	sync.RWMutex
 }
 
-// BloomFilterMap contains a list of BloomFilter sorted in a map that can key on RecipientId.
+// BloomFilterMap contains a list of ClientBloomFilter sorted in a map that can key on RecipientId.
 type BloomFilterMap struct {
-	RecipientId map[id.ID][]*BloomFilter
+	RecipientId map[id.ID][]*ClientBloomFilter
 	sync.RWMutex
 }
 
@@ -90,7 +90,7 @@ type Client struct {
 	Id  []byte `gorm:"primary_key"`
 	Key []byte `gorm:"NOT NULL"`
 
-	Filters []BloomFilter `gorm:"foreignkey:ClientId;association_foreignkey:Id"`
+	Filters []ClientBloomFilter `gorm:"foreignkey:ClientId;association_foreignkey:Id"`
 }
 
 // Represents a Round and its associated information
@@ -102,12 +102,12 @@ type Round struct {
 	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
 }
 
-// Represents a Client's BloomFilter
-type BloomFilter struct {
-	Epoch       uint64 `gorm:"primary_key"`
-	RecipientId string `gorm:"primary_key"`
+// Represents a ClientBloomFilter
+type ClientBloomFilter struct {
+	Epoch       uint32 `gorm:"primary_key"`
+	RecipientId int64  `gorm:"primary_key"`
 	FirstRound  uint64 `gorm:"NOT NULL"`
-	LastRound   uint64 `gorm:"NOT NULL"`
+	RoundRange  uint32 `gorm:"NOT NULL"`
 	Filter      []byte `gorm:"NOT NULL"`
 }
 
@@ -180,7 +180,7 @@ func newDatabase(username, password, dbName, address,
 				IdTrack:      0,
 			},
 			bloomFilters: BloomFilterMap{
-				RecipientId: map[id.ID][]*BloomFilter{},
+				RecipientId: map[id.ID][]*ClientBloomFilter{},
 			},
 		}
 
@@ -200,7 +200,7 @@ func newDatabase(username, password, dbName, address,
 
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
-	models := []interface{}{&Client{}, &Round{}, &MixedMessage{}, &BloomFilter{}, State{}}
+	models := []interface{}{&Client{}, &Round{}, &MixedMessage{}, &ClientBloomFilter{}, State{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model).Error
 		if err != nil {

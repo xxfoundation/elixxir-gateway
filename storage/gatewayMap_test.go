@@ -98,7 +98,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.upsertBloomFilter(&BloomFilter{
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
 //		RecipientId:    "1",
 //		Filter:      testBytes2,
 //		Epoch: 1,
@@ -107,7 +107,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.upsertBloomFilter(&BloomFilter{
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
 //		RecipientId:    "1",
 //		Filter:      testBytes,
 //		Epoch: 1,
@@ -116,7 +116,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.upsertBloomFilter(&BloomFilter{
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
 //		RecipientId:    "1",
 //		Filter:      testBytes,
 //		Epoch: 1,
@@ -126,7 +126,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.upsertBloomFilter(&BloomFilter{
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
 //		RecipientId:    strconv.FormatUint(testEphem.UInt64(), 10),
 //		Filter:      testBytes2,
 //		Epoch: 2,
@@ -135,7 +135,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.upsertBloomFilter(&BloomFilter{
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
 //		RecipientId:    "3",
 //		Filter:      testBytes2,
 //		Epoch: 3,
@@ -144,7 +144,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.upsertBloomFilter(&BloomFilter{
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
 //		RecipientId: strconv.FormatUint(testEphem.UInt64(), 10),
 //		Filter:      testBytes2,
 //		Epoch:       4,
@@ -214,14 +214,14 @@ import (
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", messages)
-//	filters, err := db.GetBloomFilters(&testEphem, 1, 5)
+//	filters, err := db.GetClientBloomFilters(&testEphem, 1, 5)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", filters)
 //
-//	err = db.DeleteFiltersBeforeEpoch(3)
+//	err = db.DeleteClientFiltersBeforeEpoch(3)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -694,18 +694,18 @@ func TestMapImpl_GetBloomFilters(t *testing.T) {
 	//testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
 	//m := &MapImpl{
 	//	bloomFilters: BloomFilterMap{
-	//		RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-	//		EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+	//		RecipientId: map[id.ID]map[uint64]*ClientBloomFilter{},
+	//		EpochId:     map[uint64]map[id.ID]*ClientBloomFilter{},
 	//	},
 	//}
 	//
-	//_ = m.upsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
+	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
+	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
+	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
+	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
+	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
 	//
-	//bloomFilters, err := m.GetBloomFilters(testClientID)
+	//bloomFilters, err := m.GetClientBloomFilters(testClientID)
 	//if err != nil {
 	//	t.Errorf("Unexpected error retrieving bloom filters: %v", err)
 	//}
@@ -720,14 +720,14 @@ func TestMapImpl_GetBloomFilters_NoFiltersError(t *testing.T) {
 	//testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
 	//m := &MapImpl{
 	//	bloomFilters: BloomFilterMap{
-	//		RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-	//		EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+	//		RecipientId: map[id.ID]map[uint64]*ClientBloomFilter{},
+	//		EpochId:     map[uint64]map[id.ID]*ClientBloomFilter{},
 	//	},
 	//}
-	//_ = m.upsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
+	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
+	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
 	//
-	//bloomFilters, err := m.GetBloomFilters(testClientID)
+	//bloomFilters, err := m.GetClientBloomFilters(testClientID)
 	//if err == nil {
 	//	t.Errorf("Expected an error when bloom filters is not in map.")
 	//}
@@ -742,21 +742,21 @@ func TestMapImpl_UpsertBloomFilter(t *testing.T) {
 	// TODO: Fix test
 	//testRecipientId := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
 	//testEpochId := rand.Uint64()
-	//testBloomFilter := &BloomFilter{
+	//testBloomFilter := &ClientBloomFilter{
 	//	RecipientId: testRecipientId.(),
 	//	EpochId:     testEpochId,
 	//}
 	//m := &MapImpl{
 	//	bloomFilters: BloomFilterMap{
-	//		RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-	//		EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+	//		RecipientId: map[id.ID]map[uint64]*ClientBloomFilter{},
+	//		EpochId:     map[uint64]map[id.ID]*ClientBloomFilter{},
 	//	},
 	//}
 	//
-	//err := m.upsertBloomFilter(testBloomFilter)
+	//err := m.upsertClientBloomFilter(testBloomFilter)
 	//if err != nil || m.bloomFilters.RecipientId[testRecipientId][testEpochId] == nil ||
 	//	m.bloomFilters.EpochId[testEpochId][testRecipientId] == nil {
-	//	t.Errorf("Failed to insert BloomFilter: %v", err)
+	//	t.Errorf("Failed to insert ClientBloomFilter: %v", err)
 	//}
 }
 

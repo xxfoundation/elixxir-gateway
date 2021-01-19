@@ -13,7 +13,6 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
-	"strconv"
 )
 
 // API for the storage layer
@@ -30,50 +29,38 @@ func NewStorage(username, password, dbName, address, port string) (*Storage, fun
 	return storage, closeFunc, err
 }
 
-// Determines whether a new BloomFilter should be created or an existing BloomFilter
-// should be updated based on the given parameters, then performs the Upsert operation
-func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byte, roundId id.Round, epoch uint64) error {
+// Builds a ClientBloomFilter with the given parameters, then stores it
+func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byte, roundId id.Round, epoch uint32) error {
 
-	// Get BloomFilter for only the given epoch
-	filters, err := s.GetBloomFilters(recipientId, epoch, epoch)
-	if err != nil {
-		return err
+	// Build a newly-initialized ClientBloomFilter to be stored
+	validFilter := &ClientBloomFilter{
+		RecipientId: recipientId.Int64(),
+		Epoch:       epoch,
+		FirstRound:  uint64(roundId),
+		RoundRange:  0,
+		Filter:      filterBytes,
 	}
 
-	var validFilter *BloomFilter
-	if len(filters) == 0 {
-		// If a BloomFilter doesn't exist for the given epoch, create a new one
-		validFilter = &BloomFilter{
-			RecipientId: strconv.FormatUint(recipientId.UInt64(), 10),
-			Epoch:       epoch,
-			FirstRound:  uint64(roundId),
-			LastRound:   uint64(roundId),
-			Filter:      filterBytes,
-		}
-	} else {
-		// If a BloomFilter exists for the given epoch, update it
-		validFilter = filters[0]
-		validFilter.LastRound = uint64(roundId)
-		validFilter.Filter = Or(validFilter.Filter, filterBytes)
-	}
-
-	// Commit the new/updated BloomFilter
-	return s.upsertBloomFilter(validFilter)
+	// Commit the new/updated ClientBloomFilter
+	return s.upsertClientBloomFilter(validFilter)
 }
 
 // Helper function for HandleBloomFilter
 // Returns the bitwise OR of two byte slices
 func Or(l1, l2 []byte) []byte {
-	if len(l1) != len(l2) {
+	if l1 == nil {
+		return l2
+	} else if l2 == nil {
+		return l1
+	} else if len(l1) != len(l2) {
 		jww.ERROR.Printf("Unable to perform bitwise OR: Slice lens invalid.")
-		return nil
+		return l1
 	}
 
-	result := make([]byte, len(l1))
 	for i := range l1 {
-		result[i] = l1[i] | l2[i]
+		l1[i] = l1[i] | l2[i]
 	}
-	return result
+	return l1
 }
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId

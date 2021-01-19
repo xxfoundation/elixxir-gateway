@@ -22,12 +22,12 @@ require (
 	github.com/ugorji/go v1.1.4 // indirect
 	github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77 // indirect
 	gitlab.com/elixxir/bloomfilter v0.0.0-20200930191214-10e9ac31b228
-	gitlab.com/elixxir/comms v0.0.4-0.20210112234945-18c36b2d908f
-	gitlab.com/elixxir/crypto v0.0.7-0.20210113224347-cc4926b30fba
+	gitlab.com/elixxir/comms v0.0.4-0.20210115185903-5dba75967ad3
+	gitlab.com/elixxir/crypto v0.0.7-0.20210115231025-5d9b0dbc6985
 	gitlab.com/elixxir/primitives v0.0.3-0.20210107183456-9cf6fe2de1e5
-	gitlab.com/xx_network/comms v0.0.4-0.20210113224303-de23f378ff37
+	gitlab.com/xx_network/comms v0.0.4-0.20210115175102-ad5814bff11c
 	gitlab.com/xx_network/crypto v0.0.5-0.20210107183440-804e0f8b7d22
-	gitlab.com/xx_network/primitives v0.0.4-0.20210114224837-aca04ed86491
+	gitlab.com/xx_network/primitives v0.0.4-0.20210119194006-38b7b8fc933e
 	gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1 // indirect
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad // indirect
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect

@@ -60,7 +60,7 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 	jww.DEBUG.Printf("Adding bloom filter for client [%v] on round  %d", recipientId, roundId)
 
 	// Get the filters for the associated client
-	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
+	filters, err := gw.storage.GetClientBloomFilters(recipientId, roundId)
 	if err != nil || filters == nil {
 		// Generate a new filter
 		newUserFilter, err := generateNewFilter(recipientId, roundId)
@@ -101,7 +101,7 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 
 	// fixme: Likely to change due to DB restructure
 	// Place filter back into database
-	err = gw.storage.upsertBloomFilter(&storage.BloomFilter{
+	err = gw.storage.upsertBloomFilter(&storage.ClientBloomFilter{
 		RecipientId: recipientId.Bytes(),
 		Filter:      marshaledFilter,
 		// todo: uncomment when epoch implementation is complete
@@ -116,11 +116,11 @@ func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
 }
 
 // Helper function which generates a bloom filter with the round hashed into it
-func generateNewFilter(recipientId *id.ID, roundId id.Round) (*storage.BloomFilter, error) {
+func generateNewFilter(recipientId *id.ID, roundId id.Round) (*storage.ClientBloomFilter, error) {
 	// Initialize a new bloom filter
 	newBloom, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
-		return &storage.BloomFilter{},
+		return &storage.ClientBloomFilter{},
 			errors.Errorf("Unable to generate new bloom filter: %s", err)
 	}
 
@@ -132,11 +132,11 @@ func generateNewFilter(recipientId *id.ID, roundId id.Round) (*storage.BloomFilt
 	// Marshal the new bloom filter
 	marshaledBloom, err := newBloom.MarshalBinary()
 	if err != nil {
-		return &storage.BloomFilter{},
+		return &storage.ClientBloomFilter{},
 			errors.Errorf("Unable to marshal new bloom filter: %s", err)
 	}
 
-	return &storage.BloomFilter{
+	return &storage.ClientBloomFilter{
 		RecipientId: recipientId.Bytes(),
 		Filter:      marshaledBloom,
 	}, nil

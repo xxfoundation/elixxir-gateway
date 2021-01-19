@@ -243,10 +243,10 @@ func (m *MapImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 	return nil
 }
 
-// Returns BloomFilter from database with the given recipientId
+// Returns ClientBloomFilter from database with the given recipientId
 // and an Epoch between startEpoch and endEpoch (inclusive)
-// Or an error if no matching BloomFilter exist
-func (m *MapImpl) GetBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint64) ([]*BloomFilter, error) {
+// Or an error if no matching ClientBloomFilter exist
+func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
 	// TODO: Function needs rewritten given new query
 	//m.bloomFilters.RLock()
 	//defer m.bloomFilters.RUnlock()
@@ -267,7 +267,7 @@ func (m *MapImpl) GetBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoc
 	//}
 	//
 	//// Copy all matching bloom filters into slice
-	//bloomFilters := make([]*BloomFilter, filterCount)
+	//bloomFilters := make([]*ClientBloomFilter, filterCount)
 	//var i int
 	//for _, filter := range m.bloomFilters.RecipientId[*recipientId] {
 	//	bloomFilters[i] = filter
@@ -277,9 +277,9 @@ func (m *MapImpl) GetBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoc
 	return nil, nil
 }
 
-// Inserts the given BloomFilter into database if it does not exist
-// Or updates the BloomFilter in the database if the BloomFilter already exists
-func (m *MapImpl) upsertBloomFilter(filter *BloomFilter) error {
+// Inserts the given ClientBloomFilter into database if it does not exist
+// Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
+func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	// TODO: Function needs rewritten
 	//jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
 	//
@@ -294,7 +294,7 @@ func (m *MapImpl) upsertBloomFilter(filter *BloomFilter) error {
 	//
 	//// Initialize inner slices if they do not already exist
 	//if m.bloomFilters.RecipientId[*recipientId] == nil {
-	//	m.bloomFilters.RecipientId[*recipientId] = make([]*BloomFilter, 0)
+	//	m.bloomFilters.RecipientId[*recipientId] = make([]*ClientBloomFilter, 0)
 	//}
 	//
 	//// Insert into maps
@@ -310,9 +310,9 @@ func (m *MapImpl) upsertBloomFilter(filter *BloomFilter) error {
 	return nil
 }
 
-// Deletes all BloomFilter with Epoch <= the given epoch
-// Returns an error if no matching BloomFilter exist
-func (m *MapImpl) DeleteFiltersBeforeEpoch(epoch uint64) error {
+// Deletes all ClientBloomFilter with Epoch <= the given epoch
+// Returns an error if no matching ClientBloomFilter exist
+func (m *MapImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
 	// TODO Write and test
 	return nil
 }
