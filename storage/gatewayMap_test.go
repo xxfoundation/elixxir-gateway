@@ -26,7 +26,7 @@ import (
 //		return
 //	}
 //
-//	testBytes := []byte("test")
+//	testBytes := []byte("tests")
 //	testBytes2 := []byte("words")
 //	testClientId := []byte("client")
 //	testRound := uint64(10)
@@ -99,8 +99,9 @@ import (
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    "1",
+//		RecipientId:    1,
 //		Filter:      testBytes2,
+//		FirstRound: 5,
 //		Epoch: 1,
 //	})
 //	if err != nil {
@@ -108,46 +109,50 @@ import (
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    "1",
+//		RecipientId:    1,
 //		Filter:      testBytes,
 //		Epoch: 1,
+//		FirstRound: 10,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    "1",
+//		RecipientId:    1,
 //		Filter:      testBytes,
 //		Epoch: 1,
-//		LastRound: 500,
+//		FirstRound: 7,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    strconv.FormatUint(testEphem.UInt64(), 10),
+//		RecipientId:    1,
 //		Filter:      testBytes2,
-//		Epoch: 2,
+//		Epoch: 1,
+//		FirstRound: 1,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    "3",
+//		RecipientId:    1,
 //		Filter:      testBytes2,
 //		Epoch: 3,
+//		FirstRound: 15,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId: strconv.FormatUint(testEphem.UInt64(), 10),
-//		Filter:      testBytes2,
-//		Epoch:       4,
+//		RecipientId:    1,
+//		Filter:      []byte("birds"),
+//		Epoch: 3,
+//		FirstRound: 20,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())

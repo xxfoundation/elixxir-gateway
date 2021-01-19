@@ -57,10 +57,11 @@ func Or(l1, l2 []byte) []byte {
 		return l1
 	}
 
+	result := make([]byte, len(l1))
 	for i := range l1 {
-		l1[i] = l1[i] | l2[i]
+		result[i] = l1[i] | l2[i]
 	}
-	return l1
+	return result
 }
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId
