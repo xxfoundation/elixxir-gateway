@@ -70,8 +70,13 @@ type MixedMessageMap struct {
 
 // BloomFilterMap contains a list of ClientBloomFilter sorted in a map that can key on RecipientId.
 type BloomFilterMap struct {
-	RecipientId map[id.ID][]*ClientBloomFilter
+	RecipientId map[int64]*ClientBloomFilterList
 	sync.RWMutex
+}
+
+type ClientBloomFilterList struct {
+	list  []*ClientBloomFilter
+	start uint32
 }
 
 // Key-Value store used for persisting Gateway State information
@@ -180,7 +185,7 @@ func newDatabase(username, password, dbName, address,
 				IdTrack:      0,
 			},
 			bloomFilters: BloomFilterMap{
-				RecipientId: map[id.ID][]*ClientBloomFilter{},
+				RecipientId: map[int64]*ClientBloomFilterList{},
 			},
 		}
 

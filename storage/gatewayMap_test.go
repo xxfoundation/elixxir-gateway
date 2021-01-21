@@ -10,12 +10,15 @@ package storage
 import (
 	"bytes"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"math/rand"
+	"reflect"
 	"testing"
+	"time"
 )
 
 // Hidden function for one-time unit testing database implementation
-//func TestDatabaseImpl(t *testing.T) {
+// func TestDatabaseImpl(t *testing.T) {
 //
 //	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
 //	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
@@ -231,7 +234,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//}
+// }
 
 // Happy path
 func TestNewMixedMessage(t *testing.T) {
@@ -694,75 +697,306 @@ func TestMapImpl_DeleteMixedMessageByRound(t *testing.T) {
 }
 
 // Happy path.
-func TestMapImpl_GetBloomFilters(t *testing.T) {
-	// TODO: Fix test
-	//testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
-	//m := &MapImpl{
-	//	bloomFilters: BloomFilterMap{
-	//		RecipientId: map[id.ID]map[uint64]*ClientBloomFilter{},
-	//		EpochId:     map[uint64]map[id.ID]*ClientBloomFilter{},
-	//	},
-	//}
-	//
-	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	//
-	//bloomFilters, err := m.GetClientBloomFilters(testClientID)
-	//if err != nil {
-	//	t.Errorf("Unexpected error retrieving bloom filters: %v", err)
-	//}
-	//if len(bloomFilters) != 3 {
-	//	t.Errorf("Received unexpected number of bloom filters: %v", bloomFilters)
-	//}
+func TestMapImpl_GetClientBloomFilters(t *testing.T) {
+	// Build list of bloom filters to add
+	ephemeralID, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, uint64(time.Now().Unix()))
+	if err != nil {
+		t.Fatalf("Failed to get ephermeral ID: %+v", err)
+	}
+	rid := ephemeralID.Int64()
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 50},
+		{RecipientId: rid, Epoch: 100},
+		{RecipientId: rid, Epoch: 150},
+		{RecipientId: rid, Epoch: 160},
+		{RecipientId: rid, Epoch: 199},
+		{RecipientId: rid, Epoch: 200},
+		{RecipientId: rid, Epoch: 201},
+		{RecipientId: rid, Epoch: 401},
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	testVals := []struct {
+		expected   []*ClientBloomFilter
+		start, end uint32
+	}{
+		{filters[1:6], 100, 200},
+		{filters[1:7], 75, 300},
+		{filters[0:1], 25, 50},
+		{filters[7:], 400, 600},
+		{filters, 25, 600},
+	}
+
+	for i, val := range testVals {
+		bloomFilters, err := m.GetClientBloomFilters(&ephemeralID, val.start, val.end)
+		if err != nil {
+			t.Errorf("Unexpected error retrieving bloom filters (%d): %v", i, err)
+		}
+		if !reflect.DeepEqual(val.expected, bloomFilters) {
+			t.Errorf("Received unexpected bloom filter list (%d)."+
+				"\nexpected: %+v\nreceived: %+v", i, val.expected, bloomFilters)
+		}
+	}
 }
 
 // Error Path: No matching bloom filters exist in the map.
-func TestMapImpl_GetBloomFilters_NoFiltersError(t *testing.T) {
-	// TODO: Fix test
-	//testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
-	//m := &MapImpl{
-	//	bloomFilters: BloomFilterMap{
-	//		RecipientId: map[id.ID]map[uint64]*ClientBloomFilter{},
-	//		EpochId:     map[uint64]map[id.ID]*ClientBloomFilter{},
-	//	},
-	//}
-	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	//_ = m.upsertClientBloomFilter(&ClientBloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	//
-	//bloomFilters, err := m.GetClientBloomFilters(testClientID)
-	//if err == nil {
-	//	t.Errorf("Expected an error when bloom filters is not in map.")
-	//}
-	//if bloomFilters != nil {
-	//	t.Errorf("Expected nil bloom filters returned. Received: %v",
-	//		bloomFilters)
-	//}
+func TestMapImpl_GetClientBloomFilters_NoFiltersError(t *testing.T) {
+	// Build list of bloom filters to add
+	ephemeralID, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, uint64(time.Now().Unix()))
+	if err != nil {
+		t.Fatalf("Failed to get ephermeral ID: %+v", err)
+	}
+	rid := ephemeralID.Int64()
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 100},
+		{RecipientId: rid, Epoch: 150},
+		{RecipientId: rid, Epoch: 160},
+		{RecipientId: rid, Epoch: 199},
+		{RecipientId: rid, Epoch: 200},
+		{RecipientId: rid, Epoch: 201},
+		{RecipientId: rid, Epoch: 401},
+		{RecipientId: rid, Epoch: 50},
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	testVals := []struct {
+		start, end uint32
+	}{
+		{10, 20},
+		{402, 500},
+		{110, 120},
+	}
+
+	for i, val := range testVals {
+		bloomFilters, err := m.GetClientBloomFilters(&ephemeralID, val.start, val.end)
+		if err == nil {
+			t.Errorf("Expected an error when bloom filters is not in map (%d).", i)
+		}
+		if bloomFilters != nil {
+			t.Errorf("Expected nil bloom filters returned (%d). Received: %v",
+				i, bloomFilters)
+		}
+	}
+
+	// Test with an ID not in the map
+	bloomFilters, err := m.GetClientBloomFilters(&ephemeral.Id{}, 0, 1)
+	if err == nil {
+		t.Error("Expected an error when bloom filters is not in map.")
+	}
+	if bloomFilters != nil {
+		t.Errorf("Expected nil bloom filters returned. Received: %v", bloomFilters)
+	}
 }
 
 // Happy path.
-func TestMapImpl_UpsertBloomFilter(t *testing.T) {
-	// TODO: Fix test
-	//testRecipientId := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
-	//testEpochId := rand.Uint64()
-	//testBloomFilter := &ClientBloomFilter{
-	//	RecipientId: testRecipientId.(),
-	//	EpochId:     testEpochId,
-	//}
-	//m := &MapImpl{
-	//	bloomFilters: BloomFilterMap{
-	//		RecipientId: map[id.ID]map[uint64]*ClientBloomFilter{},
-	//		EpochId:     map[uint64]map[id.ID]*ClientBloomFilter{},
-	//	},
-	//}
-	//
-	//err := m.upsertClientBloomFilter(testBloomFilter)
-	//if err != nil || m.bloomFilters.RecipientId[testRecipientId][testEpochId] == nil ||
-	//	m.bloomFilters.EpochId[testEpochId][testRecipientId] == nil {
-	//	t.Errorf("Failed to insert ClientBloomFilter: %v", err)
-	//}
+func TestMapImpl_upsertClientBloomFilter(t *testing.T) {
+	// Build list of bloom filters to add
+	rid := rand.Int63()
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 100},
+		{RecipientId: rid, Epoch: 150},
+		{RecipientId: rid, Epoch: 160},
+		{RecipientId: rid, Epoch: 199},
+		{RecipientId: rid, Epoch: 200},
+		{RecipientId: rid, Epoch: 201},
+		{RecipientId: rid, Epoch: 401},
+		{RecipientId: rid, Epoch: 401},
+		{RecipientId: rid, Epoch: 50},
+	}
+
+	// Build expected bloom filter list
+	expectedList := &ClientBloomFilterList{
+		list:  make([]*ClientBloomFilter, 451),
+		start: 50,
+	}
+	for _, bf := range filters {
+		expectedList.list[bf.Epoch-expectedList.start] = bf
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	// Upsert test bloom filters and check for errors
+	for i, bf := range filters {
+		err := m.upsertClientBloomFilter(bf)
+		if err != nil || m.bloomFilters.RecipientId[rid].list[bf.Epoch-m.bloomFilters.RecipientId[rid].start] == nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	if !reflect.DeepEqual(expectedList, m.bloomFilters.RecipientId[rid]) {
+		t.Errorf("Created list does not match expected."+
+			"\nexpected: %+v\nreceived: %+v",
+			expectedList, m.bloomFilters.RecipientId[rid])
+	}
+}
+
+// Happy path.
+func TestMapImpl_DeleteClientFiltersBeforeEpoch(t *testing.T) {
+	rid := []int64{rand.Int63(), rand.Int63(), rand.Int63(), rand.Int63()}
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid[0], Epoch: 50},
+		{RecipientId: rid[0], Epoch: 100},
+		{RecipientId: rid[0], Epoch: 150},
+		{RecipientId: rid[0], Epoch: 160},
+		{RecipientId: rid[0], Epoch: 199},
+		{RecipientId: rid[0], Epoch: 200},
+		{RecipientId: rid[0], Epoch: 201},
+		{RecipientId: rid[0], Epoch: 401},
+		{RecipientId: rid[1], Epoch: 161},
+		{RecipientId: rid[1], Epoch: 200},
+		{RecipientId: rid[1], Epoch: 250},
+		{RecipientId: rid[2], Epoch: 0},
+		{RecipientId: rid[2], Epoch: 110},
+		{RecipientId: rid[2], Epoch: 115},
+		{RecipientId: rid[2], Epoch: 160},
+		{RecipientId: rid[3], Epoch: 1},
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	// Upsert test bloom filters
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Fatalf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	err := m.DeleteClientFiltersBeforeEpoch(160)
+	if err != nil {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() produced an error: %+v", err)
+	}
+
+	// Get list of filters for the first ID
+	var mapFilters []*ClientBloomFilter
+	for _, bf := range m.bloomFilters.RecipientId[rid[0]].list {
+		if bf != nil {
+			mapFilters = append(mapFilters, bf)
+		}
+	}
+
+	if !reflect.DeepEqual(filters[4:8], mapFilters) {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the expected "+
+			"bloom filters for ID %d.\nexpected: %+v\nreceived: %+v",
+			rid[0], filters[4:8], mapFilters)
+	}
+
+	// Get list of filters for the second ID
+	mapFilters = []*ClientBloomFilter{}
+	for _, bf := range m.bloomFilters.RecipientId[rid[1]].list {
+		if bf != nil {
+			mapFilters = append(mapFilters, bf)
+		}
+	}
+
+	if !reflect.DeepEqual(filters[8:11], mapFilters) {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the expected "+
+			"bloom filters for ID %d.\nexpected: %+v\nreceived: %+v",
+			rid[1], filters[8:11], mapFilters)
+	}
+
+	// Get list of filters for the third ID
+	mapFilters = []*ClientBloomFilter{}
+	for _, bf := range m.bloomFilters.RecipientId[rid[2]].list {
+		if bf != nil {
+			mapFilters = append(mapFilters, bf)
+		}
+	}
+
+	if !reflect.DeepEqual([]*ClientBloomFilter{}, mapFilters) {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the expected "+
+			"bloom filters for ID %d.\nexpected: %+v\nreceived: %+v",
+			rid[2], []*ClientBloomFilter{}, mapFilters)
+	}
+
+	if m.bloomFilters.RecipientId[rid[3]] != nil {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the list for ID "+
+			"%d when all stores epochs occured before the given epoch.\nlist: %+v",
+			rid[2], m.bloomFilters.RecipientId[rid[3]])
+	}
+}
+
+// Error path: no bloom filters with epochs before the given one exist.
+func TestMapImpl_DeleteClientFiltersBeforeEpoch_NoFiltersError(t *testing.T) {
+	rid := rand.Int63()
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 50},
+		{RecipientId: rid, Epoch: 100},
+		{RecipientId: rid, Epoch: 150},
+		{RecipientId: rid, Epoch: 160},
+		{RecipientId: rid, Epoch: 199},
+		{RecipientId: rid, Epoch: 200},
+		{RecipientId: rid, Epoch: 201},
+		{RecipientId: rid, Epoch: 250},
+		{RecipientId: rid, Epoch: 401},
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	// Upsert test bloom filters
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Fatalf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	err := m.DeleteClientFiltersBeforeEpoch(5)
+	if err == nil {
+		t.Error("DeleteClientFiltersBeforeEpoch() did not produced an error when no " +
+			"filters should have been deleted.")
+	}
+
+	// Get list of filters for the first ID
+	var mapFilters []*ClientBloomFilter
+	for _, bf := range m.bloomFilters.RecipientId[rid].list {
+		if bf != nil {
+			mapFilters = append(mapFilters, bf)
+		}
+	}
+
+	if !reflect.DeepEqual(filters, mapFilters) {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the expected "+
+			"bloom filters for ID %d.\nexpected: %+v\nreceived: %+v",
+			rid, filters, mapFilters)
+	}
 }
 
 func TestMapImpl_UpsertClient(t *testing.T) {
