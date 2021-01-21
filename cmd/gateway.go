@@ -256,14 +256,8 @@ func NewGatewayInstance(params Params) *Instance {
 
 func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl := gateway.NewImplementation()
-	impl.Functions.CheckMessages = func(userID *id.ID, messageID, ipaddress string) (i []string, b error) {
-		return instance.CheckMessages(userID, messageID, ipaddress)
-	}
 	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation, ipaddress string) (confirmation *pb.RegistrationConfirmation, e error) {
 		return instance.ConfirmNonce(message, ipaddress)
-	}
-	impl.Functions.GetMessage = func(userID *id.ID, msgID, ipaddress string) (slot *pb.Slot, b error) {
-		return instance.GetMessage(userID, msgID, ipaddress)
 	}
 	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipaddress string) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message, ipaddress)
@@ -705,7 +699,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	}
 
 	// Parse the requested clientID within the message for the database request
-	userId, err := id.Unmarshal(req.ClientID)
+	userId, err := ephemeral.Marshal(req.ClientID)
 	if err != nil {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
 	}
@@ -741,7 +735,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			PayloadB: payloadB,
 		}
 		jww.DEBUG.Printf("Message Retrieved: %s, %s, %s",
-			userId.String(), payloadA, payloadB)
+			userId.Int64(), payloadA, payloadB)
 
 		slots = append(slots, data)
 	}
@@ -752,33 +746,6 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 		Messages: slots,
 	}, nil
 
-}
-
-// Returns message contents for MessageID, or a null/randomized message
-// if that ID does not exist of the same size as a regular message
-func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
-	// Fixme: populate function with requestMessage logic when comms is ready to be refactored
-	return &pb.Slot{}, nil
-}
-
-// Return any MessageIDs in the globals for this User
-// FIXME: Remove this function
-func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string) ([]string, error) {
-	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
-		userID, msgID)
-
-	msgs, _, err := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
-	if err != nil {
-		return nil, errors.Errorf("Could not look up message ids")
-	}
-
-	// Parse the message ids returned and send back to sender
-	var msgIds []string
-	for _, msg := range msgs {
-		data := strconv.FormatUint(msg.Id, 10)
-		msgIds = append(msgIds, data)
-	}
-	return msgIds, nil
 }
 
 // RequestHistoricalRounds retrieves all rounds requested within the HistoricalRounds
