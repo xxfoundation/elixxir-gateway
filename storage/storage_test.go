@@ -8,6 +8,7 @@ package storage
 
 import (
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"math/rand"
 	"testing"
 )
@@ -36,23 +37,27 @@ func TestClientBloomFilter_Combine(t *testing.T) {
 func TestStorage_GetMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
+	testRecipientID := &ephemeral.Id{1, 2, 3}
 	testMixedMessage := &MixedMessage{
 		Id:          testMsgID,
 		RoundId:     uint64(testRoundID),
-		RecipientId: testRecipientID.Marshal(),
+		RecipientId: testRecipientID.Int64(),
 	}
 	storage := &Storage{
 		&MapImpl{
 			mixedMessages: MixedMessageMap{
-				RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{testRoundID: {testRecipientID: {testMsgID: testMixedMessage}}},
-				RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{testRecipientID: {testRoundID: {testMsgID: testMixedMessage}}},
+				RoundId: map[id.Round]map[int64]map[uint64]*MixedMessage{
+					testRoundID: {testRecipientID.Int64(): {testMsgID: testMixedMessage}},
+				},
+				RecipientId: map[int64]map[id.Round]map[uint64]*MixedMessage{
+					testRecipientID.Int64(): {testRoundID: {testMsgID: testMixedMessage}},
+				},
 				RoundIdCount: map[id.Round]uint64{testRoundID: 1},
 			},
 		},
 	}
 
-	msgs, isValidGateway, err := storage.GetMixedMessages(&testRecipientID, testRoundID)
+	msgs, isValidGateway, err := storage.GetMixedMessages(testRecipientID, testRoundID)
 	if len(msgs) != 1 {
 		t.Errorf("Retrieved unexpected number of messages: %d", len(msgs))
 	}
@@ -67,13 +72,13 @@ func TestStorage_GetMixedMessages(t *testing.T) {
 // Invalid gateway path
 func TestStorage_GetMixedMessagesInvalidGw(t *testing.T) {
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
+	testRecipientID := &ephemeral.Id{1, 2, 3}
 
 	storage := &Storage{
 		&MapImpl{
 			mixedMessages: MixedMessageMap{
-				RoundId:     map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
-				RecipientId: map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+				RoundId:     map[id.Round]map[int64]map[uint64]*MixedMessage{},
+				RecipientId: map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			},
 		},
 	}
