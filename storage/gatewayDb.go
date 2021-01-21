@@ -149,10 +149,10 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, erro
 // Returns a slice of MixedMessages from database
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (d *DatabaseImpl) getMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error) {
+func (d *DatabaseImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
 	results := make([]*MixedMessage, 0)
 	err := d.db.Find(&results,
-		&MixedMessage{RecipientId: recipientId.Marshal(),
+		&MixedMessage{RecipientId: recipientId.Int64(),
 			RoundId: uint64(roundId)}).Error
 	return results, err
 }

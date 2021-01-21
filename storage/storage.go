@@ -62,6 +62,7 @@ func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs [
 
 // Helper function for HandleBloomFilter
 // Returns the bitwise OR of two byte slices
+// TODO: Test
 func or(l1, l2 []byte) []byte {
 	if l1 == nil {
 		return l2
@@ -80,6 +81,7 @@ func or(l1, l2 []byte) []byte {
 }
 
 // Combine with and update this filter using oldFilter
+// TODO: Test
 func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	// Initialize FirstRound variable if needed
 	if oldFilter.FirstRound == uint64(0) {
@@ -87,9 +89,8 @@ func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	}
 
 	// Store variables before modifications
-	currentRound := f.FirstRound
 	oldLastRound := oldFilter.FirstRound + uint64(oldFilter.RoundRange)
-	newLastRound := currentRound + uint64(f.RoundRange)
+	newLastRound := f.FirstRound + uint64(f.RoundRange)
 
 	// Get earliest FirstRound Value
 	if f.FirstRound > oldFilter.FirstRound {

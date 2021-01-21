@@ -33,7 +33,7 @@ type database interface {
 	UpsertRound(round *Round) error
 
 	countMixedMessagesByRound(roundId id.Round) (uint64, error)
-	getMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error)
+	getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessages(msgs []*MixedMessage) error
 	DeleteMixedMessageByRound(roundId id.Round) error
 
@@ -61,8 +61,8 @@ type MapImpl struct {
 // they can key on RoundId and RecipientId. All messages are stored by their
 // unique ID.
 type MixedMessageMap struct {
-	RoundId      map[id.Round]map[id.ID]map[uint64]*MixedMessage
-	RecipientId  map[id.ID]map[id.Round]map[uint64]*MixedMessage
+	RoundId      map[id.Round]map[int64]map[uint64]*MixedMessage
+	RecipientId  map[int64]map[id.Round]map[uint64]*MixedMessage
 	RoundIdCount map[id.Round]uint64
 	IdTrack      uint64
 	sync.RWMutex
@@ -94,8 +94,6 @@ const (
 type Client struct {
 	Id  []byte `gorm:"primary_key"`
 	Key []byte `gorm:"NOT NULL"`
-
-	Filters []ClientBloomFilter `gorm:"foreignkey:ClientId;association_foreignkey:Id"`
 }
 
 // Represents a Round and its associated information
@@ -120,16 +118,16 @@ type ClientBloomFilter struct {
 type MixedMessage struct {
 	Id              uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
 	RoundId         uint64 `gorm:"INDEX;NOT NULL"`
-	RecipientId     []byte `gorm:"INDEX;NOT NULL"`
+	RecipientId     int64  `gorm:"INDEX;NOT NULL"`
 	MessageContents []byte `gorm:"NOT NULL"`
 }
 
 // Creates a new MixedMessage object with the given attributes
 // NOTE: Do not modify the MixedMessage.Id attribute.
-func NewMixedMessage(roundId id.Round, recipientId *id.ID, messageContentsA, messageContentsB []byte) *MixedMessage {
+func NewMixedMessage(roundId id.Round, recipientId *ephemeral.Id, messageContentsA, messageContentsB []byte) *MixedMessage {
 	return &MixedMessage{
 		RoundId:         uint64(roundId),
-		RecipientId:     recipientId.Marshal(),
+		RecipientId:     recipientId.Int64(),
 		MessageContents: append(messageContentsA, messageContentsB...),
 	}
 }
@@ -179,8 +177,8 @@ func newDatabase(username, password, dbName, address,
 			rounds:  map[id.Round]*Round{},
 
 			mixedMessages: MixedMessageMap{
-				RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
-				RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+				RoundId:      map[id.Round]map[int64]map[uint64]*MixedMessage{},
+				RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 				RoundIdCount: map[id.Round]uint64{},
 				IdTrack:      0,
 			},

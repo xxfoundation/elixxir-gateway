@@ -86,7 +86,6 @@ func (m *MapImpl) UpsertClient(client *Client) error {
 		return err
 	}
 	if _, ok := m.clients[*cid]; ok {
-		copy(m.clients[*cid].Filters, client.Filters)
 		copy(m.clients[*cid].Key, client.Key)
 	} else {
 		m.clients[*cid] = client
@@ -155,11 +154,11 @@ func (m *MapImpl) countMixedMessagesByRound(roundId id.Round) (uint64, error) {
 // Returns a slice of MixedMessages from database
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (m *MapImpl) getMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error) {
+func (m *MapImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
 	m.mixedMessages.RLock()
 	defer m.mixedMessages.RUnlock()
 
-	msgCount := len(m.mixedMessages.RecipientId[*recipientId][roundId])
+	msgCount := len(m.mixedMessages.RecipientId[recipientId.Int64()][roundId])
 
 	// Return an error if no matching messages are in the map
 	if msgCount == 0 {
@@ -170,7 +169,7 @@ func (m *MapImpl) getMixedMessages(recipientId *id.ID, roundId id.Round) ([]*Mix
 	// Build list of matching messages
 	msgs := make([]*MixedMessage, msgCount)
 	var i int
-	for _, msg := range m.mixedMessages.RecipientId[*recipientId][roundId] {
+	for _, msg := range m.mixedMessages.RecipientId[recipientId.Int64()][roundId] {
 		msgs[i] = msg
 		i++
 	}
@@ -187,27 +186,23 @@ func (m *MapImpl) InsertMixedMessages(msgs []*MixedMessage) error {
 	for _, msg := range msgs {
 		// Generate  map keys
 		roundId := id.Round(msg.RoundId)
-		recipientId, err := id.Unmarshal(msg.RecipientId)
-		if err != nil {
-			return err
-		}
 
 		// Initialize inner maps if they do not already exist
 		if m.mixedMessages.RoundId[roundId] == nil {
-			m.mixedMessages.RoundId[roundId] = map[id.ID]map[uint64]*MixedMessage{}
+			m.mixedMessages.RoundId[roundId] = map[int64]map[uint64]*MixedMessage{}
 		}
-		if m.mixedMessages.RoundId[roundId][*recipientId] == nil {
-			m.mixedMessages.RoundId[roundId][*recipientId] = map[uint64]*MixedMessage{}
+		if m.mixedMessages.RoundId[roundId][msg.RecipientId] == nil {
+			m.mixedMessages.RoundId[roundId][msg.RecipientId] = map[uint64]*MixedMessage{}
 		}
-		if m.mixedMessages.RecipientId[*recipientId] == nil {
-			m.mixedMessages.RecipientId[*recipientId] = map[id.Round]map[uint64]*MixedMessage{}
+		if m.mixedMessages.RecipientId[msg.RecipientId] == nil {
+			m.mixedMessages.RecipientId[msg.RecipientId] = map[id.Round]map[uint64]*MixedMessage{}
 		}
-		if m.mixedMessages.RecipientId[*recipientId][roundId] == nil {
-			m.mixedMessages.RecipientId[*recipientId][roundId] = map[uint64]*MixedMessage{}
+		if m.mixedMessages.RecipientId[msg.RecipientId][roundId] == nil {
+			m.mixedMessages.RecipientId[msg.RecipientId][roundId] = map[uint64]*MixedMessage{}
 		}
 
 		// Return an error if the message already exists
-		if m.mixedMessages.RoundId[roundId][*recipientId][m.mixedMessages.IdTrack] != nil {
+		if m.mixedMessages.RoundId[roundId][msg.RecipientId][m.mixedMessages.IdTrack] != nil {
 			return errors.Errorf("Message with ID %d already exists in the map.", m.mixedMessages.IdTrack)
 		}
 
@@ -215,8 +210,8 @@ func (m *MapImpl) InsertMixedMessages(msgs []*MixedMessage) error {
 		m.mixedMessages.IdTrack++
 
 		// Insert into maps
-		m.mixedMessages.RoundId[roundId][*recipientId][msg.Id] = msg
-		m.mixedMessages.RecipientId[*recipientId][roundId][msg.Id] = msg
+		m.mixedMessages.RoundId[roundId][msg.RecipientId][msg.Id] = msg
+		m.mixedMessages.RecipientId[msg.RecipientId][roundId][msg.Id] = msg
 
 		// Update the count of the number of mixed messages in map
 		m.mixedMessages.RoundIdCount[roundId]++

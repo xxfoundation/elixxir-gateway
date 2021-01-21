@@ -67,6 +67,10 @@ var rootCmd = &cobra.Command{
 
 		// Build gateway implementation object
 		gateway := NewGatewayInstance(params)
+		err := gateway.SetPeriod()
+		if err != nil {
+			jww.FATAL.Panicf("Unable to set gateway period: %+v", err)
+		}
 
 		// start gateway network interactions
 		for {
@@ -99,7 +103,7 @@ var rootCmd = &cobra.Command{
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
 
 		// Begin gateway persistent components
-		if params.EnableGossip{
+		if params.EnableGossip {
 			jww.INFO.Println("Gossip is enabled")
 			gateway.StartPeersThread()
 		}
@@ -253,11 +257,10 @@ func init() {
 	handleBindingError(err, "Rate_Limiting_BucketMaxAge")
 
 	// GOSSIP MANAGER FLAGS
-	rootCmd.Flags().BoolP( "enableGossip", "", false,
+	rootCmd.Flags().BoolP("enableGossip", "", false,
 		"Feature flag for in progress gossip functionality")
 	err = viper.BindPFlag("enableGossip", rootCmd.Flags().Lookup("enableGossip"))
 	handleBindingError(err, "Enable_Gossip")
-
 
 	rootCmd.Flags().DurationVar(&bufferExpiration, "bufferExpiration", 300*time.Second,
 		"How long a message record should last in the buffer")

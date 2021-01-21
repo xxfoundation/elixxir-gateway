@@ -20,6 +20,7 @@ import (
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +38,7 @@ func (gw *Instance) InitBloomGossip() {
 
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
-func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Round) error {
+func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round) error {
 
 	jww.INFO.Printf("GossipBloom: %v", roundId)
 	var err error
@@ -157,13 +158,20 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 		wg.Add(1)
 		go func(localRecipient []byte) {
 			// Marshal the id
-			recipientId, err := id.Unmarshal(localRecipient)
+			recipientId, err := ephemeral.Marshal(localRecipient)
 			if err != nil {
 				errs = append(errs, err.Error())
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, roundID)
+			round, err := gw.NetInf.GetRound(roundID)
+			if err != nil {
+				errs = append(errs, err.Error())
+				return
+			}
+
+			epoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
+			err = gw.UpsertFilter(recipientId, roundID, epoch)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -190,14 +198,14 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
-func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Round) ([]byte, error) {
+func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId id.Round) ([]byte, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
 	numElements := 0
 	recipients := make([][]byte, len(recipientIDs))
 	for key := range recipientIDs {
-		jww.INFO.Printf("buildGossip Rec: %v", key)
-		recipients[numElements] = key.Bytes()
+		jww.DEBUG.Printf("buildGossip Rec: %v", key)
+		recipients[numElements] = key[:]
 		numElements++
 	}
 
