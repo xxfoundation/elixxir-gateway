@@ -15,6 +15,8 @@ import (
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 )
 
+const initialClientBloomFilterListSize = 100
+
 // Inserts the given State into Database if it does not exist
 // Or updates the Database State if its value does not match the given State
 func (m *MapImpl) UpsertState(state *State) error {
@@ -247,65 +249,81 @@ func (m *MapImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 // and an Epoch between startEpoch and endEpoch (inclusive)
 // Or an error if no matching ClientBloomFilter exist
 func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
-	// TODO: Function needs rewritten given new query
-	//m.bloomFilters.RLock()
-	//defer m.bloomFilters.RUnlock()
-	//
-	//members := ""
-	//for member := range m.bloomFilters.RecipientId {
-	//	members += member.String() + ", "
-	//}
-	//
-	//jww.INFO.Printf("Dump everyone on get in filter map: %#v", members)
-	//filterCount := len(m.bloomFilters.RecipientId[*recipientId])
-	//jww.INFO.Printf("Dump filter count for %s: %d", recipientId, filterCount)
-	//
-	//// Return an error if no BloomFilters were found
-	//if filterCount == 0 {
-	//	return nil, errors.Errorf("Could not find any BloomFilters with the "+
-	//		"client ID %v in map.", recipientId)
-	//}
-	//
-	//// Copy all matching bloom filters into slice
-	//bloomFilters := make([]*ClientBloomFilter, filterCount)
-	//var i int
-	//for _, filter := range m.bloomFilters.RecipientId[*recipientId] {
-	//	bloomFilters[i] = filter
-	//	i++
-	//}
-	//
-	return nil, nil
+	m.bloomFilters.RLock()
+	defer m.bloomFilters.RUnlock()
+
+	// Copy all matching bloom filters into slice
+	list, exists := m.bloomFilters.RecipientId[recipientId.Int64()]
+
+	// Return an error if the start or end epoch are out of range of the list or
+	// if no epochs exist for the given ID.
+	if !exists || startEpoch > list.lastEpoch() || endEpoch < list.start {
+		return nil, errors.Errorf("Could not find any BloomFilters with the "+
+			"client ID %v in map.", recipientId)
+	}
+
+	// Calculate the index for the startEpoch
+	startIndex := list.getIndex(startEpoch)
+	if startIndex < 0 {
+		startIndex = 0
+	}
+
+	// Calculate the index for the endEpoch
+	endIndex := list.getIndex(endEpoch)
+	if endIndex > len(list.list) {
+		endIndex = len(list.list) - 1
+	}
+
+	// Build list of existing filters between the range
+	var bloomFilters []*ClientBloomFilter
+	for _, bf := range list.list[startIndex : endIndex+1] {
+		if bf != nil {
+			bloomFilters = append(bloomFilters, bf)
+		}
+	}
+
+	// Return an error if no BloomFilters were found
+	if len(bloomFilters) == 0 {
+		return nil, errors.Errorf("Could not find any ClientBloomFilter with "+
+			"the client ID %v in map.", recipientId)
+	}
+
+	return bloomFilters, nil
 }
 
 // Inserts the given ClientBloomFilter into database if it does not exist
 // Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
 func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
-	// TODO: Function needs rewritten
-	//jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
-	//
-	//// Generate key for  RecipientId map
-	//recipientId, err := id.Unmarshal(filter.RecipientId)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//m.bloomFilters.Lock()
-	//defer m.bloomFilters.Unlock()
-	//
-	//// Initialize inner slices if they do not already exist
-	//if m.bloomFilters.RecipientId[*recipientId] == nil {
-	//	m.bloomFilters.RecipientId[*recipientId] = make([]*ClientBloomFilter, 0)
-	//}
-	//
-	//// Insert into maps
-	//m.bloomFilters.RecipientId[*recipientId] = append(m.bloomFilters.RecipientId[*recipientId], filter)
-	//
-	//members := ""
-	//for member := range m.bloomFilters.RecipientId {
-	//	members += member.String() + ", "
-	//}
-	//
-	//jww.INFO.Printf("Dump everyone on upsert in filter map: %#v", members)
+	m.bloomFilters.Lock()
+	defer m.bloomFilters.Unlock()
+
+	// Initialize list if it does not exist
+	list := m.bloomFilters.RecipientId[filter.RecipientId]
+	if list == nil {
+		m.bloomFilters.RecipientId[filter.RecipientId] = &ClientBloomFilterList{
+			list:  make([]*ClientBloomFilter, initialClientBloomFilterListSize),
+			start: filter.Epoch,
+		}
+		list = m.bloomFilters.RecipientId[filter.RecipientId]
+	}
+
+	// Expand the list if it is not large enough
+	index := list.getIndex(filter.Epoch)
+	if index >= len(list.list) {
+		list.changeSize(index+initialClientBloomFilterListSize, 0, 0)
+	} else if index < 0 {
+		list.changeSize(len(list.list)-index, int(list.start-filter.Epoch), 0)
+		list.start = filter.Epoch
+		index = list.getIndex(filter.Epoch)
+	}
+
+	// Update the filter with the new one if one already exists in the list
+	if oldFilter := list.list[index]; oldFilter != nil {
+		filter.combine(oldFilter)
+	}
+
+	// Insert the filter into the list
+	list.list[index] = filter
 
 	return nil
 }
@@ -313,6 +331,54 @@ func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 // Deletes all ClientBloomFilter with Epoch <= the given epoch
 // Returns an error if no matching ClientBloomFilter exist
 func (m *MapImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
-	// TODO Write and test
+	m.bloomFilters.Lock()
+	defer m.bloomFilters.Unlock()
+
+	bfCount := 0
+
+	for rid, list := range m.bloomFilters.RecipientId {
+		// If the epoch occurred before the first filter, skip the list
+		if list.start > epoch {
+			continue
+		} else {
+			bfCount++
+		}
+
+		// If the epoch occurred after the last filter, then delete the list
+		if epoch > list.lastEpoch() {
+			delete(m.bloomFilters.RecipientId, rid)
+			continue
+		}
+
+		// Delete epochs that occurred before
+		list.changeSize(len(list.list)-int(epoch-list.start), 0, list.getIndex(epoch+1))
+		list.start = epoch + 1
+	}
+
+	if bfCount == 0 {
+		return errors.Errorf("Could not find any bloom filters that occurred "+
+			"before epoch %d.", epoch)
+	}
+
 	return nil
+}
+
+// changeSize expands or shrinks the list. copyIndex specifies the location
+// where to place the data in the modified array. cutIndex specifies the start
+// location of data to be copied.
+func (bfl *ClientBloomFilterList) changeSize(size, copyIndex, cutIndex int) {
+	newList := make([]*ClientBloomFilter, size)
+	copy(newList[copyIndex:], bfl.list[cutIndex:])
+	bfl.list = newList
+}
+
+// lastEpoch returns the epoch of the last item in the list regardless if it is
+// nil or not.
+func (bfl *ClientBloomFilterList) lastEpoch() uint32 {
+	return bfl.start + uint32(len(bfl.list))
+}
+
+// getIndex returns the index in the array of the epoch.
+func (bfl *ClientBloomFilterList) getIndex(epoch uint32) int {
+	return int(epoch) - int(bfl.start)
 }

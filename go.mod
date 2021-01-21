@@ -24,12 +24,11 @@ require (
 	gitlab.com/elixxir/bloomfilter v0.0.0-20200930191214-10e9ac31b228
 	gitlab.com/elixxir/comms v0.0.4-0.20210115185903-5dba75967ad3
 	gitlab.com/elixxir/crypto v0.0.7-0.20210115231025-5d9b0dbc6985
-	gitlab.com/elixxir/primitives v0.0.3-0.20210107183456-9cf6fe2de1e5
+	gitlab.com/elixxir/primitives v0.0.3-0.20210115234332-ea62d7ec1b4b
 	gitlab.com/xx_network/comms v0.0.4-0.20210115175102-ad5814bff11c
 	gitlab.com/xx_network/crypto v0.0.5-0.20210107183440-804e0f8b7d22
 	gitlab.com/xx_network/primitives v0.0.4-0.20210119194006-38b7b8fc933e
 	gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1 // indirect
-	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad // indirect
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
 	golang.org/x/sys v0.0.0-20210105210732-16f7687f5001 // indirect
 	google.golang.org/genproto v0.0.0-20210105202744-fe13368bc0e1 // indirect
