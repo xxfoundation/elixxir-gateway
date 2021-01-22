@@ -191,7 +191,7 @@ func (d *DatabaseImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpo
 // Inserts the given ClientBloomFilter into database if it does not exist
 // Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
 func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
-	jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
+	jww.DEBUG.Printf("Upserting filter for client %v at epoch %d", filter.RecipientId, filter.Epoch)
 
 	// Build a transaction to prevent race conditions
 	return d.db.Transaction(func(tx *gorm.DB) error {

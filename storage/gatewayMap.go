@@ -11,6 +11,7 @@ package storage
 
 import (
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 )
@@ -291,6 +292,7 @@ func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, e
 func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	m.bloomFilters.Lock()
 	defer m.bloomFilters.Unlock()
+	jww.DEBUG.Printf("Upserting filter for client %v at epoch %d", filter.RecipientId, filter.Epoch)
 
 	// Initialize list if it does not exist
 	list := m.bloomFilters.RecipientId[filter.RecipientId]

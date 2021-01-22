@@ -701,7 +701,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	// Parse the requested clientID within the message for the database request
 	userId, err := ephemeral.Marshal(req.ClientID)
 	if err != nil {
-		return &pb.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
+		return &pb.GetMessagesResponse{}, errors.Errorf("Could not parse requested user ID: %+v", err)
 	}
 
 	// Parse the roundID within the message
@@ -734,7 +734,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			PayloadA: payloadA,
 			PayloadB: payloadB,
 		}
-		jww.DEBUG.Printf("Message Retrieved: %s, %s, %s",
+		jww.DEBUG.Printf("Message Retrieved: %d, %s, %s",
 			userId.Int64(), payloadA, payloadB)
 
 		slots = append(slots, data)

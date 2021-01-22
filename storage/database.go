@@ -175,6 +175,7 @@ func newDatabase(username, password, dbName, address,
 		mapImpl := &MapImpl{
 			clients: map[id.ID]*Client{},
 			rounds:  map[id.Round]*Round{},
+			states:  map[string]string{},
 
 			mixedMessages: MixedMessageMap{
 				RoundId:      map[id.Round]map[int64]map[uint64]*MixedMessage{},
