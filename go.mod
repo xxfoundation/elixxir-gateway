@@ -17,8 +17,8 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.6.3
 	gitlab.com/elixxir/bloomfilter v0.0.0-20200930191214-10e9ac31b228
-	gitlab.com/elixxir/comms v0.0.4-0.20210125230155-62276bc9cde9
-	gitlab.com/elixxir/crypto v0.0.7-0.20210125230043-4f616fbe8f24
+	gitlab.com/elixxir/comms v0.0.4-0.20210125231706-c782d1f645ea
+	gitlab.com/elixxir/crypto v0.0.7-0.20210125231257-b52a556be893
 	gitlab.com/elixxir/primitives v0.0.3-0.20210125225949-9469ce6b08fc
 	gitlab.com/xx_network/comms v0.0.4-0.20210121204701-7a1eb0542424
 	gitlab.com/xx_network/crypto v0.0.5-0.20210121204626-b251b926e4f7
