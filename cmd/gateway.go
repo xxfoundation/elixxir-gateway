@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/golang/protobuf/proto"
+	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
@@ -30,6 +31,7 @@ import (
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
@@ -41,13 +43,15 @@ import (
 	"time"
 )
 
-var dummyUser = id.DummyUser
+// Zeroed identity fingerprint identifies dummy messages
+var dummyIdFp = make([]byte, format.IdentityFPLen)
 
 // Errors to suppress
 const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
 	gwChanLen      = 1000
+	period         = int64(1800000000000) // 30 minutes in nanoseconds
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -85,6 +89,7 @@ type Instance struct {
 	removeGateway chan *id.ID
 
 	lastUpdate uint64
+	period     int64 // Defines length of validity for ClientBloomFilter
 
 	address           string
 	bloomFilterGossip sync.Mutex
@@ -92,6 +97,49 @@ type Instance struct {
 
 func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
 	panic("implement me")
+}
+
+// Set the gw.period attribute
+// NOTE: Saves the constant to storage if it does not exist
+//       or reads an existing value from storage and sets accordingly
+//       It's not great but it's structured this way as a business requirement
+func (gw *Instance) SetPeriod() error {
+	// Get an existing Period value from storage
+	periodStr, err := gw.storage.GetStateValue(storage.PeriodKey)
+	if err != nil &&
+		!strings.Contains(err.Error(), gorm.ErrRecordNotFound.Error()) &&
+		!strings.Contains(err.Error(), "Unable to locate state for key") {
+		// If the error is unrelated to record not in storage, return it
+		return err
+	}
+
+	if len(periodStr) > 0 {
+		// If period already stored, use that value
+		gw.period, err = strconv.ParseInt(periodStr, 10, 64)
+	} else {
+		// If period not already stored, use periodConst
+		gw.period = period
+		err = gw.storage.UpsertState(&storage.State{
+			Key:   storage.PeriodKey,
+			Value: strconv.FormatInt(period, 10),
+		})
+	}
+	return err
+}
+
+// Determines the Epoch value of the given timestamp with the given period
+func GetEpoch(ts int64, period int64) uint32 {
+	if period == 0 {
+		jww.FATAL.Panicf("GetEpoch: Divide by zero")
+	} else if ts < 0 || period < 0 {
+		jww.FATAL.Panicf("GetEpoch: Negative input")
+	}
+	return uint32(ts / period)
+}
+
+// Determines the timestamp value of the given epoch
+func GetEpochTimestamp(epoch uint32, period int64) int64 {
+	return period * int64(epoch)
 }
 
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
@@ -108,40 +156,54 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	// Check if the clientID is populated and valid
-	clientId, err := id.Unmarshal(clientRequest.ClientID)
-	if clientRequest.ClientID == nil || err != nil {
+	receptionId, err := ephemeral.Marshal(clientRequest.GetReceptionID())
+	if err != nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"Poll() clientRequest.ClientID required")
+			"Poll() - Valid ReceptionID required: %+v", err)
 	}
 
-	// lastKnownRound := gw.NetInf.GetLastRoundID()
 	// Get the range of updates from the network instance
 	updates := gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
 
 	kr, err := gw.knownRound.Marshal()
 	if err != nil {
 		errStr := fmt.Sprintf("couldn't get known rounds for client "+
-			"[%v]'s request: %v", clientRequest.ClientID, err)
+			"%d's request: %v", receptionId.Int64(), err)
 		jww.WARN.Printf(errStr)
 		return &pb.GatewayPollResponse{}, errors.New(errStr)
-
 	}
+
+	// Determine Client epoch range
+	startEpoch := GetEpoch(time.Unix(0, clientRequest.StartTimestamp).UnixNano(), gw.period)
+	endEpoch := GetEpoch(time.Unix(0, clientRequest.EndTimestamp).UnixNano(), gw.period)
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client
-	clientFilters, err := gw.storage.GetBloomFilters(clientId, id.Round(clientRequest.LastRound))
-	jww.INFO.Printf("Adding %d client filters for %s", len(clientFilters), clientId)
+	clientFilters, err := gw.storage.GetClientBloomFilters(
+		receptionId, startEpoch, endEpoch)
+	jww.INFO.Printf("Adding %d client filters for %d", len(clientFilters), receptionId.Int64())
 	if err != nil {
-		jww.WARN.Printf("Could not get filters for %s when polling: %v", clientId, err)
+		jww.WARN.Printf("Could not get filters in range %d - %d for %d when polling: %v", startEpoch, endEpoch, receptionId.Int64(), err)
 	}
 
-	var filters [][]byte
+	// Build ClientBlooms metadata
+	filtersMsg := &pb.ClientBlooms{
+		Period:  gw.period,
+		Filters: make([]*pb.ClientBloom, endEpoch-startEpoch),
+	}
+	if len(clientFilters) > 0 {
+		filtersMsg.FirstTimestamp = GetEpochTimestamp(clientFilters[0].Epoch, gw.period)
+	}
+
+	// Build ClientBloomFilter list for client
 	for _, f := range clientFilters {
-		filters = append(filters, f.Filter)
+		filtersMsg.Filters[f.Epoch-startEpoch] = &pb.ClientBloom{
+			Filter:     f.Filter,
+			FirstRound: f.FirstRound,
+			RoundRange: f.RoundRange,
+		}
 	}
-
-	jww.TRACE.Printf("KnownRounds: %v", kr)
 
 	var netDef *pb.NDF
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
@@ -150,12 +212,10 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	return &pb.GatewayPollResponse{
-		PartialNDF:       netDef,
-		Updates:          updates,
-		LastTrackedRound: uint64(0), // FIXME: This should be the
-		// earliest tracked network round
-		KnownRounds:  kr,
-		BloomFilters: filters,
+		PartialNDF:  netDef,
+		Updates:     updates,
+		KnownRounds: kr,
+		Filters:     filtersMsg,
 	}, nil
 }
 
@@ -196,14 +256,8 @@ func NewGatewayInstance(params Params) *Instance {
 
 func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl := gateway.NewImplementation()
-	impl.Functions.CheckMessages = func(userID *id.ID, messageID, ipaddress string) (i []string, b error) {
-		return instance.CheckMessages(userID, messageID, ipaddress)
-	}
 	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation, ipaddress string) (confirmation *pb.RegistrationConfirmation, e error) {
 		return instance.ConfirmNonce(message, ipaddress)
-	}
-	impl.Functions.GetMessage = func(userID *id.ID, msgID, ipaddress string) (slot *pb.Slot, b error) {
-		return instance.GetMessage(userID, msgID, ipaddress)
 	}
 	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipaddress string) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message, ipaddress)
@@ -645,9 +699,9 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	}
 
 	// Parse the requested clientID within the message for the database request
-	userId, err := id.Unmarshal(req.ClientID)
+	userId, err := ephemeral.Marshal(req.ClientID)
 	if err != nil {
-		return &pb.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
+		return &pb.GetMessagesResponse{}, errors.Errorf("Could not parse requested user ID: %+v", err)
 	}
 
 	// Parse the roundID within the message
@@ -680,8 +734,8 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			PayloadA: payloadA,
 			PayloadB: payloadB,
 		}
-		jww.DEBUG.Printf("Message Retrieved: %s, %s, %s",
-			userId.String(), payloadA, payloadB)
+		jww.DEBUG.Printf("Message Retrieved: %d, %s, %s",
+			userId.Int64(), payloadA, payloadB)
 
 		slots = append(slots, data)
 	}
@@ -692,33 +746,6 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 		Messages: slots,
 	}, nil
 
-}
-
-// Returns message contents for MessageID, or a null/randomized message
-// if that ID does not exist of the same size as a regular message
-func (gw *Instance) GetMessage(userID *id.ID, msgID string, ipAddress string) (*pb.Slot, error) {
-	// Fixme: populate function with requestMessage logic when comms is ready to be refactored
-	return &pb.Slot{}, nil
-}
-
-// Return any MessageIDs in the globals for this User
-// FIXME: Remove this function
-func (gw *Instance) CheckMessages(userID *id.ID, msgID string, ipAddress string) ([]string, error) {
-	jww.DEBUG.Printf("Getting message IDs for %q after %s from buffer...",
-		userID, msgID)
-
-	msgs, _, err := gw.storage.GetMixedMessages(userID, gw.NetInf.GetLastRoundID())
-	if err != nil {
-		return nil, errors.Errorf("Could not look up message ids")
-	}
-
-	// Parse the message ids returned and send back to sender
-	var msgIds []string
-	for _, msg := range msgs {
-		data := strconv.FormatUint(msg.Id, 10)
-		msgIds = append(msgIds, data)
-	}
-	return msgIds, nil
 }
 
 // RequestHistoricalRounds retrieves all rounds requested within the HistoricalRounds
@@ -886,7 +913,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
 // GenJunkMsg generates a junk message using the gateway's client key
 func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 
-	baseKey := grp.NewIntFromBytes((dummyUser)[:])
+	baseKey := grp.NewIntFromBytes(id.DummyUser[:])
 
 	var baseKeys []*cyclic.Int
 
@@ -909,7 +936,12 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
-	msg.SetRecipientID(&dummyUser)
+	ephId, err := ephemeral.GetId(&id.DummyUser, 64, uint64(time.Now().UnixNano()))
+	if err != nil {
+		jww.FATAL.Panicf("Could not get ID: %+v", err)
+	}
+	msg.SetEphemeralRID(ephId[:])
+	msg.SetIdentityFP(dummyIdFp)
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
 
@@ -923,7 +955,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
 		Salt:     salt,
-		SenderID: (dummyUser)[:],
+		SenderID: ephId[:],
 		KMACs:    KMACs,
 	}
 }
@@ -986,20 +1018,27 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	numReal := 0
 	// At this point, the returned batch and its fields should be non-nil
 	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
-	recipients := make(map[id.ID]interface{})
+	recipients := make(map[ephemeral.Id]interface{})
 	for _, msg := range msgs {
 		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-		serialMsg.SetPayloadB(msg.PayloadB)
-		userId := serialMsg.GetRecipientID()
 
-		if !userId.Cmp(&dummyUser) {
-			recipients[*userId] = nil
+		// If IdentityFP is not zeroed, the message is not a dummy
+		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
+			serialMsg.SetPayloadB(msg.PayloadB)
+			recipIdBytes := serialMsg.GetEphemeralRID()
+			recipientId, err := ephemeral.Marshal(recipIdBytes)
+			if err != nil {
+				jww.ERROR.Printf("Unable to marshal ID: %+v", err)
+				continue
+			}
 
-			jww.DEBUG.Printf("Message Received for: %s, %s, %s",
-				userId.String(), msg.GetPayloadA(), msg.GetPayloadB())
+			recipients[*recipientId] = nil
+
+			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
+				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
 
 			// Create new message and add it to the list for insertion
-			msgsToInsert[numReal] = storage.NewMixedMessage(roundID, userId, msg.PayloadA, msg.PayloadB)
+			msgsToInsert[numReal] = storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
 			numReal++
 		}
 	}

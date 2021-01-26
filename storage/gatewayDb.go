@@ -13,8 +13,41 @@ import (
 	"github.com/jinzhu/gorm"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
-	"time"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 )
+
+// Inserts the given State into Database if it does not exist
+// Or updates the Database State if its value does not match the given State
+func (d *DatabaseImpl) UpsertState(state *State) error {
+	// Build a transaction to prevent race conditions
+	return d.db.Transaction(func(tx *gorm.DB) error {
+		// Make a copy of the provided state
+		newState := *state
+
+		// Attempt to insert state into the Database,
+		// or if it already exists, replace state with the Database value
+		err := tx.FirstOrCreate(state, &State{Key: state.Key}).Error
+		if err != nil {
+			return err
+		}
+
+		// If state is already present in the Database, overwrite it with newState
+		if newState.Value != state.Value {
+			return tx.Save(newState).Error
+		}
+
+		// Commit
+		return nil
+	})
+}
+
+// Returns a State's value from Database with the given key
+// Or an error if a matching State does not exist
+func (d *DatabaseImpl) GetStateValue(key string) (string, error) {
+	result := &State{Key: key}
+	err := d.db.Take(result).Error
+	return result.Value, err
+}
 
 // Returns a Client from database with the given id
 // Or an error if a matching Client does not exist
@@ -116,10 +149,10 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, erro
 // Returns a slice of MixedMessages from database
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (d *DatabaseImpl) getMixedMessages(recipientId *id.ID, roundId id.Round) ([]*MixedMessage, error) {
+func (d *DatabaseImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
 	results := make([]*MixedMessage, 0)
 	err := d.db.Find(&results,
-		&MixedMessage{RecipientId: recipientId.Marshal(),
+		&MixedMessage{RecipientId: recipientId.Int64(),
 			RoundId: uint64(roundId)}).Error
 	return results, err
 }
@@ -141,73 +174,50 @@ func (d *DatabaseImpl) DeleteMixedMessageByRound(roundId id.Round) error {
 	return d.db.Where("round_id = ?", uint64(roundId)).Delete(MixedMessage{}).Error
 }
 
-// Returns a BloomFilter from database with the given clientId
-// Or an error if a matching BloomFilter does not exist
-func (d *DatabaseImpl) getBloomFilters(recipientId *id.ID) ([]*BloomFilter, error) {
+// Returns ClientBloomFilter from database with the given recipientId
+// and an Epoch between startEpoch and endEpoch (inclusive)
+// Or an error if no matching ClientBloomFilter exist
+func (d *DatabaseImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
 	jww.DEBUG.Printf("Getting filters for client [%v]", recipientId)
 
-	results := make([]*BloomFilter, 0)
-	err := d.db.Find(&results,
-		&BloomFilter{RecipientId: recipientId.Marshal()}).Error
+	results := make([]*ClientBloomFilter, 0)
+	err := d.db.Find(&results, &ClientBloomFilter{RecipientId: recipientId.Int64()}).
+		Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Error
 	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
 
 	return results, err
 }
 
-// Inserts the given BloomFilter into database if it does not exist
-// Or updates the BloomFilter in the database if the BloomFilter already exists
-func (d *DatabaseImpl) UpsertBloomFilter(filter *BloomFilter) error {
-	jww.DEBUG.Printf("Upserting filter for client [%v]: %v", filter.RecipientId, filter)
+// Inserts the given ClientBloomFilter into database if it does not exist
+// Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
+func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
+	jww.DEBUG.Printf("Upserting filter for client %v at epoch %d", filter.RecipientId, filter.Epoch)
+
 	// Build a transaction to prevent race conditions
 	return d.db.Transaction(func(tx *gorm.DB) error {
 		// Initialize variable for returning existing value from the database
-		oldFilter := &BloomFilter{}
+		oldFilter := &ClientBloomFilter{}
 
 		// Attempt to insert filter into the database,
-		// or if it already exists, replace filter with the database value
-		err := tx.FirstOrCreate(oldFilter, &BloomFilter{RecipientId: filter.RecipientId, EpochId: filter.EpochId}).Error
+		// or if it already exists, replace oldFilter with the database value
+		err := tx.FirstOrCreate(oldFilter, &ClientBloomFilter{
+			Epoch:       filter.Epoch,
+			RecipientId: filter.RecipientId,
+		}).Error
 		if err != nil {
 			return err
 		}
 
-		// If filter is already present in the database, overwrite it with newFilter
-		if !bytes.Equal(oldFilter.Filter, filter.Filter) {
-			return tx.Save(filter).Error
-		}
+		// Combine oldFilter with filter
+		filter.combine(oldFilter)
 
-		// Commit
-		return nil
+		// Commit to the database
+		return tx.Save(filter).Error
 	})
 }
 
-// Deletes all BloomFilter with the given epochId from database
-// Returns an error if a matching BloomFilter does not exist
-func (d *DatabaseImpl) DeleteBloomFilterByEpoch(epochId uint64) error {
-	return d.db.Delete(BloomFilter{}, "epoch_id = ?", epochId).Error
-}
-
-// Returns an Epoch from the database with the given id
-// Or an error if a matching Epoch does not exist
-func (d *DatabaseImpl) GetEpoch(id uint64) (*Epoch, error) {
-	result := &Epoch{}
-	err := d.db.Take(&result, "id = ?", id).Error
-	return result, err
-}
-
-// Returns the newest Epoch in the database
-func (d *DatabaseImpl) GetLatestEpoch() (*Epoch, error) {
-	result := &Epoch{}
-	err := d.db.Last(&result).Error
-	return result, err
-}
-
-// Inserts an Epoch with the given roundId into the database
-// Returns the newly-created Epoch from the database
-func (d *DatabaseImpl) InsertEpoch(roundId id.Round) (*Epoch, error) {
-	epoch := &Epoch{
-		RoundId:     uint64(roundId),
-		DateCreated: time.Now(),
-	}
-	err := d.db.Create(epoch).Error
-	return epoch, err
+// Deletes all ClientBloomFilter with Epoch <= the given epoch
+// Returns an error if no matching ClientBloomFilter exist
+func (d *DatabaseImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
+	return d.db.Delete(ClientBloomFilter{}, "epoch <= ?", epoch).Error
 }

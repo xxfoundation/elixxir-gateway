@@ -26,6 +26,7 @@ import (
 	"gitlab.com/xx_network/crypto/large"
 	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
@@ -141,7 +142,12 @@ func TestMain(m *testing.M) {
 	payloadA[0] = 1
 	msg.SetPayloadA(payloadA)
 
-	msg.SetRecipientID(id.NewIdFromUInt(1, id.User, m))
+	testEphId, err := ephemeral.GetId(id.NewIdFromUInt(1, id.User, m), 64, uint64(time.Now().UnixNano()))
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
+
+	msg.SetEphemeralRID(testEphId[:])
 
 	mockMessage = &pb.Slot{
 		Index:    42,
@@ -353,20 +359,25 @@ func TestInstance_RequestMessages(t *testing.T) {
 	numMessages := 5
 	expectedRound := id.Round(1)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	testEphId, err := ephemeral.GetId(recipientID, 64, uint64(time.Now().UnixNano()))
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
+
 	payload := "test"
 	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
+		messages[i] = storage.NewMixedMessage(expectedRound, &testEphId, messageContents, messageContents)
 	}
-	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	err = gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
 
 	// Craft the request message and send
 	requestMessage := &pb.GetMessages{
-		ClientID: recipientID.Bytes(),
+		ClientID: testEphId[:],
 		RoundID:  uint64(1),
 	}
 
@@ -407,13 +418,17 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	numMessages := 5
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	testEphId, err := ephemeral.GetId(recipientID, 64, uint64(time.Now().UnixNano()))
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
 	payload := "test"
 	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
+		messages[i] = storage.NewMixedMessage(expectedRound, &testEphId, messageContents, messageContents)
 	}
-	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	err = gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -444,13 +459,17 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	numMessages := 5
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	testEphId, err := ephemeral.GetId(recipientID, 64, uint64(time.Now().UnixNano()))
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
 	payload := "test"
 	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
+		messages[i] = storage.NewMixedMessage(expectedRound, &testEphId, messageContents, messageContents)
 	}
-	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	err = gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -481,13 +500,17 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	numMessages := 5
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	testEphId, err := ephemeral.GetId(recipientID, 64, uint64(time.Now().UnixNano()))
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
 	payload := "test"
 	messages := make([]*storage.MixedMessage, numMessages)
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		messages[i] = storage.NewMixedMessage(expectedRound, recipientID, messageContents, messageContents)
+		messages[i] = storage.NewMixedMessage(expectedRound, &testEphId, messageContents, messageContents)
 	}
-	err := gatewayInstance.storage.InsertMixedMessages(messages)
+	err = gatewayInstance.storage.InsertMixedMessages(messages)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -960,9 +983,9 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 
 	// Pass in a nil client ID
 	clientReq := &pb.GatewayPoll{
-		Partial:    nil,
-		LastUpdate: 0,
-		ClientID:   nil,
+		Partial:     nil,
+		LastUpdate:  0,
+		ReceptionID: nil,
 	}
 
 	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
@@ -1165,6 +1188,77 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 		t.Errorf("Failed to save/load lastUpdate correctly."+
 			"\n\texpected: %d\n\treceived: %d",
 			expectedLastUpdate, gw.lastUpdate)
+	}
+}
+
+// Happy path
+// Can't test panic paths, obviously
+func TestGetEpoch(t *testing.T) {
+	ts := int64(300000)
+	period := int64(5000)
+	expected := uint32(60)
+	result := GetEpoch(ts, period)
+	if result != expected {
+		t.Errorf("Invalid GetEpoch result: Got %d Expected %d", result, expected)
+	}
+}
+
+// Various happy paths
+func TestGetEpochTimestamp(t *testing.T) {
+	epoch := uint32(60)
+	period := int64(5000)
+	expected := int64(300000)
+	result := GetEpochTimestamp(epoch, period)
+	if result != expected {
+		t.Errorf("Invalid GetEpochTimestamp result: Got %d Expected %d", result, expected)
+	}
+
+	period = 0
+	expected = 0
+	result = GetEpochTimestamp(epoch, period)
+	if result != expected {
+		t.Errorf("Invalid GetEpochTimestamp result: Got %d Expected %d", result, expected)
+	}
+
+	period = -5000
+	expected = -300000
+	result = GetEpochTimestamp(epoch, period)
+	if result != expected {
+		t.Errorf("Invalid GetEpochTimestamp result: Got %d Expected %d", result, expected)
+	}
+}
+
+// Happy path
+func TestInstance_SetPeriod(t *testing.T) {
+	gw := NewGatewayInstance(Params{})
+	err := gw.SetPeriod()
+	if err != nil {
+		t.Errorf("Unable to set period: %+v", err)
+	}
+	if gw.period != period {
+		t.Errorf("Period set incorrectly, got %d", gw.period)
+	}
+}
+
+// Handle existing period in storage path
+func TestInstance_SetPeriodExisting(t *testing.T) {
+	gw := NewGatewayInstance(Params{})
+	expected := int64(50)
+
+	err := gw.storage.UpsertState(&storage.State{
+		Key:   storage.PeriodKey,
+		Value: strconv.FormatInt(expected, 10),
+	})
+	if err != nil {
+		t.Errorf("Unable to pre-set period: %+v", err)
+	}
+
+	err = gw.SetPeriod()
+	if err != nil {
+		t.Errorf("Unable to set period: %+v", err)
+	}
+	if gw.period != expected {
+		t.Errorf("Period set incorrectly, got %d", gw.period)
 	}
 }
 
