@@ -36,9 +36,11 @@ func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byt
 	validFilter := &ClientBloomFilter{
 		RecipientId: recipientId.Int64(),
 		Epoch:       epoch,
-		FirstRound:  uint64(roundId),
-		RoundRange:  0,
-		Filter:      filterBytes,
+		// FirstRound is input as CurrentRound for later calculation
+		FirstRound: uint64(roundId),
+		// RoundRange is empty for now as it can't be calculated yet
+		RoundRange: 0,
+		Filter:     filterBytes,
 	}
 
 	// Commit the new/updated ClientBloomFilter
@@ -63,24 +65,26 @@ func (s *Storage) GetMixedMessages(recipientId *ephemeral.Id, roundId id.Round) 
 // Helper function for HandleBloomFilter
 // Returns the bitwise OR of two byte slices
 // TODO: Test
-func or(l1, l2 []byte) []byte {
-	if l1 == nil {
-		return l2
-	} else if l2 == nil {
-		return l1
-	} else if len(l1) != len(l2) {
+func or(existingBuffer, additionalBuffer []byte) []byte {
+	if existingBuffer == nil {
+		return additionalBuffer
+	} else if additionalBuffer == nil {
+		return existingBuffer
+	} else if len(existingBuffer) != len(additionalBuffer) {
 		jww.ERROR.Printf("Unable to perform bitwise OR: Slice lens invalid.")
-		return l1
+		return existingBuffer
 	}
 
-	result := make([]byte, len(l1))
-	for i := range l1 {
-		result[i] = l1[i] | l2[i]
+	result := make([]byte, len(existingBuffer))
+	for i := range existingBuffer {
+		result[i] = existingBuffer[i] | additionalBuffer[i]
 	}
 	return result
 }
 
 // Combine with and update this filter using oldFilter
+// Used in upsertFilter functionality in order to ensure atomicity
+// Kept in business logic layer because functionality is shared
 // TODO: Test
 func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	// Initialize FirstRound variable if needed
@@ -105,5 +109,5 @@ func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	}
 
 	// Combine the filters
-	f.Filter = or(f.Filter, oldFilter.Filter)
+	f.Filter = or(oldFilter.Filter, f.Filter)
 }

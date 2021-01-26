@@ -152,9 +152,14 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	roundID := id.Round(payloadMsg.RoundID)
 	jww.INFO.Printf("Gossip received for round %d", roundID)
+	round, err := gw.NetInf.GetRound(roundID)
+	if err != nil {
+		return err
+	}
+
+	epoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
 
 	// Go through each of the recipients
-	jww.ERROR.Printf("TEST: %v", payloadMsg.RecipientIds)
 	for _, recipient := range payloadMsg.RecipientIds {
 		wg.Add(1)
 		go func(localRecipient []byte) {
@@ -165,13 +170,6 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			round, err := gw.NetInf.GetRound(roundID)
-			if err != nil {
-				errs = append(errs, err.Error())
-				return
-			}
-
-			epoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
 			err = gw.UpsertFilter(recipientId, roundID, epoch)
 			if err != nil {
 				errs = append(errs, err.Error())

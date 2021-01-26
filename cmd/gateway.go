@@ -129,10 +129,10 @@ func (gw *Instance) SetPeriod() error {
 // Determines the Epoch value of the given timestamp with the given period
 // TODO: Test
 func GetEpoch(ts int64, period int64) uint32 {
-	if period > 0 {
-		return uint32(ts / period)
+	if period == 0 {
+		jww.FATAL.Panicf("GetEpoch: Divide by zero")
 	}
-	return 0
+	return uint32(ts / period)
 }
 
 // Determines the timestamp value of the given epoch
@@ -167,7 +167,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	kr, err := gw.knownRound.Marshal()
 	if err != nil {
 		errStr := fmt.Sprintf("couldn't get known rounds for client "+
-			"[%v]'s request: %v", clientRequest.ReceptionID, err)
+			"%d's request: %v", receptionId.Int64(), err)
 		jww.WARN.Printf(errStr)
 		return &pb.GatewayPollResponse{}, errors.New(errStr)
 	}
@@ -181,9 +181,9 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//  are returned to the client
 	clientFilters, err := gw.storage.GetClientBloomFilters(
 		receptionId, startEpoch, endEpoch)
-	jww.INFO.Printf("Adding %d client filters for %s", len(clientFilters), receptionId)
+	jww.INFO.Printf("Adding %d client filters for %d", len(clientFilters), receptionId.Int64())
 	if err != nil {
-		jww.WARN.Printf("Could not get filters for %s when polling: %v", receptionId, err)
+		jww.WARN.Printf("Could not get filters in range %d - %d for %d when polling: %v", startEpoch, endEpoch, receptionId.Int64(), err)
 	}
 
 	// Build ClientBlooms metadata
@@ -211,11 +211,10 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	return &pb.GatewayPollResponse{
-		PartialNDF:       netDef,
-		Updates:          updates,
-		LastTrackedRound: uint64(0), // FIXME: This should be the earliest tracked network round
-		KnownRounds:      kr,
-		Filters:          filtersMsg,
+		PartialNDF:  netDef,
+		Updates:     updates,
+		KnownRounds: kr,
+		Filters:     filtersMsg,
 	}, nil
 }
 
@@ -1021,16 +1020,17 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	recipients := make(map[ephemeral.Id]interface{})
 	for _, msg := range msgs {
 		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-		serialMsg.SetPayloadB(msg.PayloadB)
-		recipIdBytes := serialMsg.GetEphemeralRID()
-		recipientId, err := ephemeral.Marshal(recipIdBytes)
-		if err != nil {
-			jww.ERROR.Printf("Unable to marshal ID: %+v", err)
-			continue
-		}
 
 		// If IdentityFP is not zeroed, the message is not a dummy
 		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
+			serialMsg.SetPayloadB(msg.PayloadB)
+			recipIdBytes := serialMsg.GetEphemeralRID()
+			recipientId, err := ephemeral.Marshal(recipIdBytes)
+			if err != nil {
+				jww.ERROR.Printf("Unable to marshal ID: %+v", err)
+				continue
+			}
+
 			recipients[*recipientId] = nil
 
 			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
