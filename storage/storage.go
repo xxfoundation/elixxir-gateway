@@ -64,7 +64,6 @@ func (s *Storage) GetMixedMessages(recipientId *ephemeral.Id, roundId id.Round) 
 
 // Helper function for HandleBloomFilter
 // Returns the bitwise OR of two byte slices
-// TODO: Test
 func or(existingBuffer, additionalBuffer []byte) []byte {
 	if existingBuffer == nil {
 		return additionalBuffer
@@ -85,7 +84,6 @@ func or(existingBuffer, additionalBuffer []byte) []byte {
 // Combine with and update this filter using oldFilter
 // Used in upsertFilter functionality in order to ensure atomicity
 // Kept in business logic layer because functionality is shared
-// TODO: Test
 func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	// Initialize FirstRound variable if needed
 	if oldFilter.FirstRound == uint64(0) {

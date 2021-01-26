@@ -51,6 +51,7 @@ const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
 	gwChanLen      = 1000
+	period         = int64(1800000000000) // 30 minutes in nanoseconds
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -99,10 +100,10 @@ func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomRe
 }
 
 // Set the gw.period attribute
-// TODO: Test
+// NOTE: Saves the constant to storage if it does not exist
+//       or reads an existing value from storage and sets accordingly
+//       It's not great but it's structured this way as a business requirement
 func (gw *Instance) SetPeriod() error {
-	periodConst := int64(1800000000000) // 30 minutes in nanoseconds
-
 	// Get an existing Period value from storage
 	periodStr, err := gw.storage.GetStateValue(storage.PeriodKey)
 	if err != nil &&
@@ -117,26 +118,26 @@ func (gw *Instance) SetPeriod() error {
 		gw.period, err = strconv.ParseInt(periodStr, 10, 64)
 	} else {
 		// If period not already stored, use periodConst
-		gw.period = periodConst
+		gw.period = period
 		err = gw.storage.UpsertState(&storage.State{
 			Key:   storage.PeriodKey,
-			Value: strconv.FormatInt(periodConst, 10),
+			Value: strconv.FormatInt(period, 10),
 		})
 	}
 	return err
 }
 
 // Determines the Epoch value of the given timestamp with the given period
-// TODO: Test
 func GetEpoch(ts int64, period int64) uint32 {
 	if period == 0 {
 		jww.FATAL.Panicf("GetEpoch: Divide by zero")
+	} else if ts < 0 || period < 0 {
+		jww.FATAL.Panicf("GetEpoch: Negative input")
 	}
 	return uint32(ts / period)
 }
 
 // Determines the timestamp value of the given epoch
-// TODO: Test
 func GetEpochTimestamp(epoch uint32, period int64) int64 {
 	return period * int64(epoch)
 }

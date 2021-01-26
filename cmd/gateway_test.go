@@ -1191,6 +1191,77 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 	}
 }
 
+// Happy path
+// Can't test panic paths, obviously
+func TestGetEpoch(t *testing.T) {
+	ts := int64(300000)
+	period := int64(5000)
+	expected := uint32(60)
+	result := GetEpoch(ts, period)
+	if result != expected {
+		t.Errorf("Invalid GetEpoch result: Got %d Expected %d", result, expected)
+	}
+}
+
+// Various happy paths
+func TestGetEpochTimestamp(t *testing.T) {
+	epoch := uint32(60)
+	period := int64(5000)
+	expected := int64(300000)
+	result := GetEpochTimestamp(epoch, period)
+	if result != expected {
+		t.Errorf("Invalid GetEpochTimestamp result: Got %d Expected %d", result, expected)
+	}
+
+	period = 0
+	expected = 0
+	result = GetEpochTimestamp(epoch, period)
+	if result != expected {
+		t.Errorf("Invalid GetEpochTimestamp result: Got %d Expected %d", result, expected)
+	}
+
+	period = -5000
+	expected = -300000
+	result = GetEpochTimestamp(epoch, period)
+	if result != expected {
+		t.Errorf("Invalid GetEpochTimestamp result: Got %d Expected %d", result, expected)
+	}
+}
+
+// Happy path
+func TestInstance_SetPeriod(t *testing.T) {
+	gw := NewGatewayInstance(Params{})
+	err := gw.SetPeriod()
+	if err != nil {
+		t.Errorf("Unable to set period: %+v", err)
+	}
+	if gw.period != period {
+		t.Errorf("Period set incorrectly, got %d", gw.period)
+	}
+}
+
+// Handle existing period in storage path
+func TestInstance_SetPeriodExisting(t *testing.T) {
+	gw := NewGatewayInstance(Params{})
+	expected := int64(50)
+
+	err := gw.storage.UpsertState(&storage.State{
+		Key:   storage.PeriodKey,
+		Value: strconv.FormatInt(expected, 10),
+	})
+	if err != nil {
+		t.Errorf("Unable to pre-set period: %+v", err)
+	}
+
+	err = gw.SetPeriod()
+	if err != nil {
+		t.Errorf("Unable to set period: %+v", err)
+	}
+	if gw.period != expected {
+		t.Errorf("Period set incorrectly, got %d", gw.period)
+	}
+}
+
 // TestUpdateInstance tests that the instance updates itself appropriately
 // FIXME: This test cannot test the Ndf functionality, since we don't have
 //        signable ndf function that would enforce correctness, so not useful
