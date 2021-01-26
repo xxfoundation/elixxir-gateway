@@ -450,6 +450,10 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 
 	gw := NewGatewayInstance(params)
+	err := gw.SetPeriod()
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
@@ -459,7 +463,6 @@ func TestInstance_GossipBloom(t *testing.T) {
 
 	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
 
-	var err error
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
 	if err != nil {
 		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
