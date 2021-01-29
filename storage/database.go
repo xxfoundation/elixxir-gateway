@@ -26,7 +26,6 @@ type database interface {
 	GetStateValue(key string) (string, error)
 
 	GetClient(id *id.ID) (*Client, error)
-	InsertClient(client *Client) error
 	UpsertClient(client *Client) error
 
 	GetRound(id id.Round) (*Round, error)

@@ -58,30 +58,7 @@ func (m *MapImpl) GetClient(id *id.ID) (*Client, error) {
 	return client, nil
 }
 
-// Inserts the given Client into database
-// Returns an error if a Client with a matching Id already exists
-func (m *MapImpl) InsertClient(client *Client) error {
-	// Convert Client's ID to an ID object
-	clientID, err := id.Unmarshal(client.Id)
-	if err != nil {
-		return err
-	}
-
-	m.Lock()
-	defer m.Unlock()
-
-	// Return an error if a Client with the ID already exists in the map
-	if m.clients[*clientID] != nil {
-		return errors.Errorf("Could not insert Client. Client with ID %v "+
-			"already exists in map.", clientID)
-	}
-
-	m.clients[*clientID] = client
-
-	return nil
-}
-
-// mapimpl call for upserting clients
+// Upsert client into the database - replace key field if it differs so interrupted reg doesn't fail
 func (m *MapImpl) UpsertClient(client *Client) error {
 	cid, err := id.Unmarshal(client.Id)
 	if err != nil {

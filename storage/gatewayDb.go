@@ -58,12 +58,6 @@ func (d *DatabaseImpl) GetClient(id *id.ID) (*Client, error) {
 	return result, err
 }
 
-// Inserts the given Client into database
-// Returns an error if a Client with a matching Id already exists
-func (d *DatabaseImpl) InsertClient(client *Client) error {
-	return d.db.Create(client).Error
-}
-
 // Upsert client into the database - replace key field if it differs so interrupted reg doesn't fail
 func (d *DatabaseImpl) UpsertClient(client *Client) error {
 	// Make a copy of the provided client
@@ -116,24 +110,24 @@ func (d *DatabaseImpl) GetRounds(ids []id.Round) ([]*Round, error) {
 // Inserts the given Round into database if it does not exist
 // Or updates the given Round if the provided Round UpdateId is greater
 func (d *DatabaseImpl) UpsertRound(round *Round) error {
-	// Make a copy of the provided round
-	newRound := *round
-
 	// Build a transaction to prevent race conditions
 	return d.db.Transaction(func(tx *gorm.DB) error {
+		oldRound := &Round{
+			LastUpdated: time.Now(),
+		}
 
 		// Attempt to insert the round into the database,
 		// or if it already exists, replace round with the database value
-		err := tx.FirstOrCreate(round, &Round{Id: round.Id}).Error
+		err := tx.Where(&Round{Id: round.Id}).FirstOrCreate(oldRound).Error
 		if err != nil {
 			return err
 		}
 
 		// If the provided round has a greater UpdateId than the database value,
 		// overwrite the database value with the provided round
-		if round.UpdateId < newRound.UpdateId {
-			newRound.LastUpdated = time.Now()
-			return tx.Save(&newRound).Error
+		if oldRound.UpdateId < round.UpdateId {
+			round.LastUpdated = time.Now()
+			return tx.Save(&round).Error
 		}
 
 		// Commit
@@ -181,7 +175,7 @@ func (d *DatabaseImpl) deleteMixedMessages(ts time.Time) error {
 func (d *DatabaseImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
 	jww.DEBUG.Printf("Getting filters for client [%v]", recipientId)
 
-	results := make([]*ClientBloomFilter, 0)
+	var results []*ClientBloomFilter
 	err := d.db.Find(&results, &ClientBloomFilter{RecipientId: recipientId.Int64()}).
 		Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Error
 	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
@@ -197,14 +191,16 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 	// Build a transaction to prevent race conditions
 	return d.db.Transaction(func(tx *gorm.DB) error {
 		// Initialize variable for returning existing value from the database
-		oldFilter := &ClientBloomFilter{}
+		oldFilter := &ClientBloomFilter{
+			Filter: make([]byte, len(filter.Filter)),
+		}
 
 		// Attempt to insert filter into the database,
 		// or if it already exists, replace oldFilter with the database value
-		err := tx.FirstOrCreate(oldFilter, &ClientBloomFilter{
+		err := tx.Where(&ClientBloomFilter{
 			Epoch:       filter.Epoch,
 			RecipientId: filter.RecipientId,
-		}).Error
+		}).FirstOrCreate(oldFilter).Error
 		if err != nil {
 			return err
 		}
