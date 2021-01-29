@@ -30,6 +30,8 @@ require (
 	google.golang.org/genproto v0.0.0-20210105202744-fe13368bc0e1 // indirect
 	google.golang.org/grpc v1.34.0 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
+	gorm.io/driver/postgres v1.0.7
+	gorm.io/gorm v1.20.12
 )
 
 replace google.golang.org/grpc => github.com/grpc/grpc-go v1.27.1

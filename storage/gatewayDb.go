@@ -10,10 +10,10 @@ package storage
 
 import (
 	"bytes"
-	"github.com/jinzhu/gorm"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"gorm.io/gorm"
 )
 
 // Inserts the given State into Database if it does not exist
@@ -141,9 +141,9 @@ func (d *DatabaseImpl) UpsertRound(round *Round) error {
 
 // Count the number of MixedMessage in the database for the given roundId
 func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, error) {
-	var count uint64
+	var count int64
 	err := d.db.Model(&MixedMessage{}).Where("round_id = ?", uint64(roundId)).Count(&count).Error
-	return count, err
+	return uint64(count), err
 }
 
 // Returns a slice of MixedMessages from database

@@ -23,10 +23,10 @@ type Storage struct {
 
 // Create a new Storage object wrapping a database interface
 // Returns a Storage object, close function, and error
-func NewStorage(username, password, dbName, address, port string) (*Storage, func() error, error) {
-	db, closeFunc, err := newDatabase(username, password, dbName, address, port)
+func NewStorage(username, password, dbName, address, port string) (*Storage, error) {
+	db, err := newDatabase(username, password, dbName, address, port)
 	storage := &Storage{db}
-	return storage, closeFunc, err
+	return storage, err
 }
 
 // Builds a ClientBloomFilter with the given parameters, then stores it
