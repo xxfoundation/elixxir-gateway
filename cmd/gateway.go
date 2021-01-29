@@ -1019,7 +1019,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	// At this point, the returned batch and its fields should be non-nil
 	round, err := gw.NetInf.GetRound(roundID)
 	if err != nil {
-		jww.ERROR.Printf("ProcessCompleted - Unable to get round:", err)
+		jww.ERROR.Printf("ProcessCompleted - Unable to get round: %+v", err)
 		return
 	}
 

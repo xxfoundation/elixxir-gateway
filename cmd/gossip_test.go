@@ -528,7 +528,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		mockClient := &storage.Client{
 			Id: client.Bytes(),
 		}
-		err := gw.storage.InsertClient(mockClient)
+		err := gw.storage.UpsertClient(mockClient)
 		if err != nil {
 			t.Errorf("%+v", err)
 		}

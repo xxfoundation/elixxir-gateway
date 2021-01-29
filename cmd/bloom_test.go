@@ -61,7 +61,7 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 	}
 
 	// Insert a client already
-	err = gw.storage.InsertClient(&storage.Client{
+	err = gw.storage.UpsertClient(&storage.Client{
 		Id: testClientId.Marshal(),
 	})
 	if err != nil {
