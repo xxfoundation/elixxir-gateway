@@ -221,7 +221,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
-	newDatabase, _, err := storage.NewStorage(params.DbUsername,
+	newDatabase, err := storage.NewStorage(params.DbUsername,
 		params.DbPassword,
 		params.DbName,
 		params.DbAddress,
@@ -1017,8 +1017,21 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 	numReal := 0
 	// At this point, the returned batch and its fields should be non-nil
-	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
+	round, err := gw.NetInf.GetRound(roundID)
+	if err != nil {
+		jww.ERROR.Printf("ProcessCompleted - Unable to get round:", err)
+		return
+	}
+
+	// Build a ClientRound object around the client messages
+	clientRound := &storage.ClientRound{
+		Id:        uint64(roundID),
+		Timestamp: time.Unix(0, int64(round.Timestamps[states.REALTIME])),
+	}
+	msgsToInsert := make([]storage.MixedMessage, len(msgs))
 	recipients := make(map[ephemeral.Id]interface{})
+
+	// Process the messages into the ClientRound object
 	for _, msg := range msgs {
 		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 
@@ -1038,13 +1051,14 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
 
 			// Create new message and add it to the list for insertion
-			msgsToInsert[numReal] = storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
+			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
 			numReal++
 		}
 	}
 
 	// Perform the message insertion into Storage
-	err := gw.storage.InsertMixedMessages(msgsToInsert[:numReal])
+	clientRound.Messages = msgsToInsert[:numReal]
+	err = gw.storage.InsertMixedMessages(clientRound)
 	if err != nil {
 		jww.ERROR.Printf("Inserting new mixed messages failed in "+
 			"ProcessCompletedBatch: %+v", err)

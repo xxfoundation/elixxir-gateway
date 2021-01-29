@@ -13,6 +13,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"time"
 )
 
 // API for the storage layer
@@ -27,6 +28,17 @@ func NewStorage(username, password, dbName, address, port string) (*Storage, err
 	db, err := newDatabase(username, password, dbName, address, port)
 	storage := &Storage{db}
 	return storage, err
+}
+
+// Clears certain data from Storage older than the given timestamp
+// This includes Round and MixedMessage information
+func (s *Storage) ClearOldStorage(ts time.Time) error {
+	err := s.deleteRound(ts)
+	if err != nil {
+		return err
+	}
+
+	return s.deleteMixedMessages(ts)
 }
 
 // Builds a ClientBloomFilter with the given parameters, then stores it

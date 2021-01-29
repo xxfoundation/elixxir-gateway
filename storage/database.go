@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"sync"
+	"time"
 )
 
 // Interface declaration for storage methods
@@ -31,11 +32,12 @@ type database interface {
 	GetRound(id id.Round) (*Round, error)
 	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
+	deleteRound(ts time.Time) error
 
 	countMixedMessagesByRound(roundId id.Round) (uint64, error)
 	getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error)
-	InsertMixedMessages(msgs []*MixedMessage) error
-	DeleteMixedMessageByRound(roundId id.Round) error
+	InsertMixedMessages(cr *ClientRound) error
+	deleteMixedMessages(ts time.Time) error
 
 	GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error
@@ -96,13 +98,20 @@ type Client struct {
 	Key []byte `gorm:"not null"`
 }
 
-// Represents a Round and its associated information
+// Represents the Round information that is relevant to Gateways
 type Round struct {
-	Id       uint64 `gorm:"primaryKey;autoIncrement:false"`
-	UpdateId uint64 `gorm:"unique"`
-	InfoBlob []byte
+	Id          uint64 `gorm:"primaryKey;autoIncrement:false"`
+	UpdateId    uint64 `gorm:"unique;not null"`
+	InfoBlob    []byte
+	LastUpdated time.Time `gorm:"index;not null"` // Timestamp of most recent Update
+}
 
-	Messages []MixedMessage `gorm:"foreignKey:RoundId"`
+// Represents the Round information that is relevant to Clients
+type ClientRound struct {
+	Id        uint64    `gorm:"primaryKey;autoIncrement:false"`
+	Timestamp time.Time `gorm:"index;not null"` // Round Realtime timestamp
+
+	Messages []MixedMessage `gorm:"foreignKey:RoundId;constraint:OnDelete:CASCADE"`
 }
 
 // Represents a ClientBloomFilter
@@ -195,7 +204,8 @@ func newDatabase(username, password, dbName, address,
 
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
-	models := []interface{}{&Client{}, &Round{}, &MixedMessage{}, &ClientBloomFilter{}, State{}}
+	models := []interface{}{&Client{}, &Round{}, &ClientRound{},
+		&MixedMessage{}, &ClientBloomFilter{}, State{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model)
 		if err != nil {
