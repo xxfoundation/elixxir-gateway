@@ -42,8 +42,8 @@ func CheckPermConn(addr string, port int, comms checkPermConnComm) (string, erro
 		}
 		return addr, nil
 	} else {
-		if strings.Contains(r.CallerAddr,":"){
-			r.CallerAddr = strings.Split(r.CallerAddr,":")[0]
+		if strings.Contains(r.CallerAddr, ":") {
+			r.CallerAddr = strings.Split(r.CallerAddr, ":")[0]
 		}
 		jww.INFO.Printf("Detected IP/port is available: %t\n The IP permissioning detected"+
 			" from your request to it is \"%s\"\n", r.GetCallerAvailable(), r.CallerAddr)

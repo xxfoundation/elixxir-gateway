@@ -986,10 +986,10 @@ func TestInstance_Poll(t *testing.T) {
 func TestInstance_Poll_NilCheck(t *testing.T) {
 	//Build the gateway instance
 	params := Params{
-		NodeAddress:     NODE_ADDRESS,
-		ServerCertPath:  testkeys.GetNodeCertPath(),
-		CertPath:        testkeys.GetGatewayCertPath(),
-		MessageTimeout:  10 * time.Minute,
+		NodeAddress:    NODE_ADDRESS,
+		ServerCertPath: testkeys.GetNodeCertPath(),
+		CertPath:       testkeys.GetGatewayCertPath(),
+		MessageTimeout: 10 * time.Minute,
 	}
 
 	gw := NewGatewayInstance(params)
@@ -1060,8 +1060,6 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 	// Build the gateway instance
 	params := Params{}
-
-
 
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)

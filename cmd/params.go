@@ -104,7 +104,6 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
-
 	// Obtain database connection info
 	rawAddr := viper.GetString("dbAddress")
 	var addr, port string
