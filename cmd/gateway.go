@@ -161,7 +161,7 @@ func GetEpoch(ts int64, period int64) uint32 {
 	} else if ts < 0 || period < 0 {
 		jww.FATAL.Panicf("GetEpoch: Negative input")
 	}
-	return uint32(ts / period)ts
+	return uint32(ts / period)
 }
 
 // Determines the timestamp value of the given epoch
