@@ -225,21 +225,22 @@ func (m *MapImpl) deleteMixedMessages(ts time.Time) error {
 	m.Lock()
 	defer m.Unlock()
 	for cr, _ := range m.clientRounds {
-		if m.clientRounds[cr].Timestamp.Unix() < ts.Unix() {
-			roundId := id.Round(cr)
-			// Delete all messages from the RecipientId map
-			for recipientId := range m.mixedMessages.RoundId[roundId] {
+		if m.clientRounds[cr].Timestamp.Before(ts) {
+			for _, msg := range m.clientRounds[cr].Messages {
+				roundId := id.Round(msg.RoundId)
+				// Delete all messages from the RecipientId map
+				for recipientId := range m.mixedMessages.RoundId[roundId] {
+					delete(m.mixedMessages.RecipientId[recipientId], roundId)
+				}
 
-				delete(m.mixedMessages.RecipientId[recipientId], roundId)
+				// Update the count of the number of mixed messages in map
+				delete(m.mixedMessages.RoundIdCount, roundId)
+
+				// Delete all messages from the RoundId map
+				delete(m.mixedMessages.RoundId, roundId)
+
+				delete(m.clientRounds, cr)
 			}
-
-			// Update the count of the number of mixed messages in map
-			delete(m.mixedMessages.RoundIdCount, roundId)
-
-			// Delete all messages from the RoundId map
-			delete(m.mixedMessages.RoundId, roundId)
-
-			delete(m.clientRounds, cr)
 		}
 	}
 
