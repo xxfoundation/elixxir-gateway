@@ -98,6 +98,34 @@ func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomRe
 	panic("implement me")
 }
 
+// Periodically clears out old messages, rounds and bloom filters
+func (gw *Instance) ClearOldStorage() error {
+	ticker := time.NewTicker(gw.Params.DeletePeriod)
+	keepAlive := gw.Params.KeepAlive
+	for true {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			threshold := now.Add(-keepAlive)
+			// Clear out old rounds and messages
+			err := gw.storage.ClearOldStorage(threshold)
+			if err != nil {
+				return errors.Errorf("Could not clear old storage: %v", err)
+			}
+
+			// Clear out filters by epoch
+			timestamp := time.Unix(0, threshold.UnixNano()).UnixNano()
+			epoch := GetEpoch(timestamp, gw.period)
+			err = gw.storage.DeleteClientFiltersBeforeEpoch(epoch)
+			if err != nil {
+				return errors.Errorf("Could not clear bloom filters: %v", err)
+			}
+
+		}
+	}
+	return nil
+}
+
 // Set the gw.period attribute
 // NOTE: Saves the constant to storage if it does not exist
 //       or reads an existing value from storage and sets accordingly
@@ -133,7 +161,7 @@ func GetEpoch(ts int64, period int64) uint32 {
 	} else if ts < 0 || period < 0 {
 		jww.FATAL.Panicf("GetEpoch: Negative input")
 	}
-	return uint32(ts / period)
+	return uint32(ts / period)ts
 }
 
 // Determines the timestamp value of the given epoch
@@ -660,6 +688,8 @@ func (gw *Instance) InitNetwork() error {
 		// 	return errors.Errorf("Unable to add notifications host: %+v", err)
 		// }
 	}
+
+	go gw.ClearOldStorage()
 
 	return nil
 }
