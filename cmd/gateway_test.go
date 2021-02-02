@@ -1023,17 +1023,8 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 
 // Tests happy path of Instance.SaveKnownRounds and Instance.LoadKnownRounds.
 func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
-	//todo: fix this test for storage (look at setPeriod)
 	// Build the gateway instance
-	params := Params{knownRoundsPath: "testKR.json"}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
+	params := Params{}
 
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
@@ -1068,17 +1059,9 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 // Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
 func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 	// Build the gateway instance
-	//todo: fix this test for storage (look at setPeriod)
-
 	params := Params{}
 
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
+
 
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
@@ -1100,17 +1083,8 @@ func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 // Tests happy path of Instance.SaveLastUpdateID and Instance.LoadLastUpdateID.
 func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 	// Build the gateway instance
-	//todo: fix this test for storage (look at setPeriod)
 
-	params := Params{lastUpdateIdPath: "lastUpdateID.txt"}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.lastUpdateIdPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
+	params := Params{}
 
 	// Create new gateway instance and modify lastUpdate
 	gw := NewGatewayInstance(params)
@@ -1133,14 +1107,6 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 		t.Errorf("Failed to save/load lastUpdate correctly."+
 			"\n\texpected: %d\n\treceived: %d",
 			expectedLastUpdate, gw.lastUpdate)
-	}
-
-	// Write the same number to file with extra whitespace
-	err = utils.WriteFile(gw.Params.lastUpdateIdPath,
-		[]byte("\r\n  "+strconv.Itoa(int(expectedLastUpdate))+"\n\n\n"),
-		utils.FilePerms, utils.DirPerms)
-	if err != nil {
-		t.Fatalf("Failed to write file: %v", err)
 	}
 
 	err = gw.LoadLastUpdateID()

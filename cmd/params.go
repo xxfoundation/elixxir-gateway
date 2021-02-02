@@ -39,9 +39,6 @@ type Params struct {
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
 
-	knownRoundsPath  string
-	lastUpdateIdPath string
-
 	DevMode      bool
 	EnableGossip bool
 }
