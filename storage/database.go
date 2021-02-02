@@ -53,6 +53,7 @@ type MapImpl struct {
 	states        map[string]string
 	clients       map[id.ID]*Client
 	rounds        map[id.Round]*Round
+	clientRounds  map[uint64]*ClientRound
 	mixedMessages MixedMessageMap
 	bloomFilters  BloomFilterMap
 	sync.RWMutex
@@ -89,6 +90,8 @@ type State struct {
 // Enumerates Keys in the State table
 const (
 	PeriodKey = "Period"
+	LastUpdateKey = "LastUpdateId"
+	KnownRoundsKey = "KnownRounds"
 )
 
 // Represents a Client and its associated keys
@@ -196,6 +199,7 @@ func newDatabase(username, password, dbName, address,
 			bloomFilters: BloomFilterMap{
 				RecipientId: map[int64]*ClientBloomFilterList{},
 			},
+			clientRounds: map[uint64]*ClientRound{},
 		}
 
 		return database(mapImpl), nil

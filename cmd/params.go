@@ -39,9 +39,6 @@ type Params struct {
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
 
-	knownRoundsPath  string
-	lastUpdateIdPath string
-
 	DevMode      bool
 	EnableGossip bool
 
@@ -110,12 +107,6 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
-	viper.SetDefault("knownRoundsPath", knownRoundsDefaultPath)
-	krPath := viper.GetString("knownRoundsPath")
-
-	viper.SetDefault("lastUpdateIdPath", lastUpdateIdDefaultPath)
-	lastUpdateIdPath := viper.GetString("lastUpdateIdPath")
-
 	// Time to keep messages, rounds and filters in storage
 	viper.SetDefault("keepAlive", keepAliveDefault)
 	keepAlive := viper.GetDuration("keepAlive")
@@ -147,13 +138,11 @@ func InitParams(vip *viper.Viper) Params {
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
 		MessageTimeout:        messageTimeout,
-		knownRoundsPath:       krPath,
 		DbName:                viper.GetString("dbName"),
 		DbUsername:            viper.GetString("dbUsername"),
 		DbPassword:            viper.GetString("dbPassword"),
 		DbAddress:             addr,
 		DbPort:                port,
-		lastUpdateIdPath:      lastUpdateIdPath,
 		DevMode:               viper.GetBool("devMode"),
 		EnableGossip:          viper.GetBool("enableGossip"),
 		KeepAlive:             keepAlive,
