@@ -85,6 +85,18 @@ knownRoundsPath: "/opt/xxnetwork/gateway-logs/knownRounds.json"
 # Defaults to "/opt/xxnetwork/gateway-logs/lastUpdateID.txt", if not set.
 lastUpdateIdPath: "/opt/xxnetwork/gateway-logs/lastUpdateID.txt"
 
+# How long messages, rounds and bloom filters remain in storage 
+# before being cleaned from storage. 
+# Valid time units are "h"
+# Defaults to 1 week (168 hours) if not set
+keepAlive: "168h"
+
+# How often the periodic storage tracker checks for items older 
+# than the keep alive value in storage.
+# Valid time units are "s", "m", "h". 
+# Defaults to 5 minutes if not set
+deletePeriod: "5m"
+
 # Database connection information
 dbUsername: "cmix"
 dbPassword: ""

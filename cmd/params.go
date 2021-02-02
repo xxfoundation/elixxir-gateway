@@ -44,6 +44,9 @@ type Params struct {
 
 	DevMode      bool
 	EnableGossip bool
+
+	KeepAlive    time.Duration
+	DeletePeriod time.Duration
 }
 
 func InitParams(vip *viper.Viper) Params {
@@ -113,6 +116,14 @@ func InitParams(vip *viper.Viper) Params {
 	viper.SetDefault("lastUpdateIdPath", lastUpdateIdDefaultPath)
 	lastUpdateIdPath := viper.GetString("lastUpdateIdPath")
 
+	// Time to keep messages, rounds and filters in storage
+	viper.SetDefault("keepAlive", keepAliveDefault)
+	keepAlive := viper.GetDuration("keepAlive")
+
+	// Time to periodically check for old objects in storage
+	viper.SetDefault("DeletePeriod", deletePeriodDefault)
+	deletePeriod := viper.GetDuration("deletePeriod")
+
 	// Obtain database connection info
 	rawAddr := viper.GetString("dbAddress")
 	var addr, port string
@@ -145,5 +156,7 @@ func InitParams(vip *viper.Viper) Params {
 		lastUpdateIdPath:      lastUpdateIdPath,
 		DevMode:               viper.GetBool("devMode"),
 		EnableGossip:          viper.GetBool("enableGossip"),
+		KeepAlive:             keepAlive,
+		DeletePeriod:          deletePeriod,
 	}
 }

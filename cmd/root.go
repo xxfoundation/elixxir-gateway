@@ -32,6 +32,14 @@ const (
 
 	// Default path for saving/loading the last checked UpdateID.
 	lastUpdateIdDefaultPath = "/opt/xxnetwork/gateway-logs/lastUpdateID.txt"
+
+	// Default time period for keeping messages, rounds and bloom filters
+	// alive in storage. Anything in storage older gets deleted
+	keepAliveDefault = 24 * 7 * time.Hour
+
+	// Default time period for checking storage for stored items older
+	// than the keepAlive value
+	deletePeriodDefault = 5 * time.Minute
 )
 
 // Flags to import from command line or config file
