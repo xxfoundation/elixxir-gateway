@@ -107,11 +107,6 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
-	viper.SetDefault("knownRoundsPath", knownRoundsDefaultPath)
-	krPath := viper.GetString("knownRoundsPath")
-
-	viper.SetDefault("lastUpdateIdPath", lastUpdateIdDefaultPath)
-	lastUpdateIdPath := viper.GetString("lastUpdateIdPath")
 
 	// Obtain database connection info
 	rawAddr := viper.GetString("dbAddress")
@@ -136,13 +131,11 @@ func InitParams(vip *viper.Viper) Params {
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
 		MessageTimeout:        messageTimeout,
-		knownRoundsPath:       krPath,
 		DbName:                viper.GetString("dbName"),
 		DbUsername:            viper.GetString("dbUsername"),
 		DbPassword:            viper.GetString("dbPassword"),
 		DbAddress:             addr,
 		DbPort:                port,
-		lastUpdateIdPath:      lastUpdateIdPath,
 		DevMode:               viper.GetBool("devMode"),
 		EnableGossip:          viper.GetBool("enableGossip"),
 	}

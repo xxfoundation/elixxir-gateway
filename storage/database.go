@@ -89,6 +89,8 @@ type State struct {
 // Enumerates Keys in the State table
 const (
 	PeriodKey = "Period"
+	LastUpdateKey = "LastUpdateId"
+	KnownRoundsKey = "KnownRounds"
 )
 
 // Represents a Client and its associated keys

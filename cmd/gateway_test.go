@@ -950,7 +950,6 @@ func TestInstance_Poll(t *testing.T) {
 		ServerCertPath:  testkeys.GetNodeCertPath(),
 		CertPath:        testkeys.GetGatewayCertPath(),
 		MessageTimeout:  10 * time.Minute,
-		knownRoundsPath: "",
 	}
 
 	gw := NewGatewayInstance(params)
@@ -991,7 +990,6 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 		ServerCertPath:  testkeys.GetNodeCertPath(),
 		CertPath:        testkeys.GetGatewayCertPath(),
 		MessageTimeout:  10 * time.Minute,
-		knownRoundsPath: "",
 	}
 
 	gw := NewGatewayInstance(params)
@@ -1025,6 +1023,7 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 
 // Tests happy path of Instance.SaveKnownRounds and Instance.LoadKnownRounds.
 func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
+	//todo: fix this test for storage (look at setPeriod)
 	// Build the gateway instance
 	params := Params{knownRoundsPath: "testKR.json"}
 
@@ -1066,65 +1065,12 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	}
 }
 
-// Tests that Instance.SaveKnownRounds and Instance.LoadKnownRounds return
-// errors for an invalid path.
-func TestInstance_SaveKnownRounds_LoadKnownRounds_FileError(t *testing.T) {
-	// Build the gateway instance
-	params := Params{knownRoundsPath: "~a/testKR.json"}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
-
-	// Create new gateway instance and modify knownRounds
-	gw := NewGatewayInstance(params)
-	_ = gw.InitNetwork()
-
-	if gw.SaveKnownRounds() == nil {
-		t.Error("SaveKnownRounds() did not produce an error on invalid path.")
-	}
-
-	err := gw.LoadKnownRounds()
-	if err == nil {
-		t.Error("LoadKnownRounds() did not produce an error on invalid path.")
-	}
-	if os.IsNotExist(err) {
-		t.Errorf("LoadKnownRounds() produced an error for a file that does not "+
-			"exist.\n\texpected: %v\n\trecieved: %v", nil, err)
-	}
-}
-
-// Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
-func TestInstance_LoadKnownRounds_NoFile(t *testing.T) {
-	// Build the gateway instance
-	params := Params{knownRoundsPath: "testKR.json"}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
-
-	// Create new gateway instance and modify knownRounds
-	gw := NewGatewayInstance(params)
-
-	err := gw.LoadKnownRounds()
-	if err != nil {
-		t.Errorf("LoadKnownRounds() returned an error for a file that does "+
-			"not exist: %v", err)
-	}
-}
-
 // Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
 func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 	// Build the gateway instance
-	params := Params{knownRoundsPath: "testKR.json"}
+	//todo: fix this test for storage (look at setPeriod)
+
+	params := Params{}
 
 	// Delete the test file at the end
 	defer func() {
@@ -1154,6 +1100,8 @@ func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 // Tests happy path of Instance.SaveLastUpdateID and Instance.LoadLastUpdateID.
 func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 	// Build the gateway instance
+	//todo: fix this test for storage (look at setPeriod)
+
 	params := Params{lastUpdateIdPath: "lastUpdateID.txt"}
 
 	// Delete the test file at the end
