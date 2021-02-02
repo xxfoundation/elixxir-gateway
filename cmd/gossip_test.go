@@ -28,7 +28,6 @@ import (
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -99,16 +98,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
-		knownRoundsPath:       "kr.json",
 	}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
 
 	params.rateLimitParams = &rateLimiting.MapParams{
 		Capacity:     capacity,
@@ -117,14 +107,6 @@ func TestInstance_GossipVerify(t *testing.T) {
 		PollDuration: pollDuration,
 		BucketMaxAge: bucketMaxAge,
 	}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
 
 	gw := NewGatewayInstance(params)
 	p := large.NewIntFromString(prime, 16)
@@ -316,16 +298,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
-		knownRoundsPath:       "kr.json",
 	}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
 
 	params.rateLimitParams = &rateLimiting.MapParams{
 		Capacity:     capacity,
@@ -430,16 +403,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
-		knownRoundsPath:       "kr.json",
 	}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
 
 	params.rateLimitParams = &rateLimiting.MapParams{
 		Capacity:     capacity,

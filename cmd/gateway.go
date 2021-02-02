@@ -36,7 +36,6 @@ import (
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,7 +106,7 @@ func (gw *Instance) SetPeriod() error {
 	// Get an existing Period value from storage
 	periodStr, err := gw.storage.GetStateValue(storage.PeriodKey)
 	if err != nil &&
-		!strings.Contains(err.Error(), gorm.ErrRecordNotFound.Error()) &&
+		!errors.Is(err, gorm.ErrRecordNotFound) &&
 		!strings.Contains(err.Error(), "Unable to locate state for key") {
 		// If the error is unrelated to record not in storage, return it
 		return err
@@ -1146,33 +1145,32 @@ func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error)
 
 // SaveKnownRounds saves the KnownRounds to a file.
 func (gw *Instance) SaveKnownRounds() error {
-	path := gw.Params.knownRoundsPath
+	// Serialize knownRounds
 	data, err := gw.knownRound.Marshal()
 	if err != nil {
 		return errors.Errorf("Failed to marshal KnownRounds: %v", err)
 	}
 
-	err = utils.WriteFile(path, data, utils.FilePerms, utils.DirPerms)
-	if err != nil {
-		return errors.Errorf("Failed to save KnownRounds to file: %v", err)
-	}
+	// Store knownRounds data
+	return gw.storage.UpsertState(&storage.State{
+		Key:   storage.KnownRoundsKey,
+		Value: string(data),
+	})
 
-	return nil
 }
 
-// LoadKnownRounds loads the KnownRounds from file into the Instance, if the
-// file exists. Returns nil on successful loading or if the file does not exist.
-// Returns an error if the file cannot be accessed or the data cannot be
-// unmarshaled.
+// LoadKnownRounds loads the KnownRounds from storage into the Instance, if a
+// stored value exists.
 func (gw *Instance) LoadKnownRounds() error {
-	data, err := utils.ReadFile(gw.Params.knownRoundsPath)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return errors.Errorf("Failed to read KnownRounds from file: %v", err)
+
+	// Get an existing knownRounds value from storage
+	data, err := gw.storage.GetStateValue(storage.KnownRoundsKey)
+	if err != nil {
+		return err
 	}
 
-	err = gw.knownRound.Unmarshal(data)
+	// Parse the data and store in the instance
+	err = gw.knownRound.Unmarshal([]byte(data))
 	if err != nil {
 		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
 	}
@@ -1180,33 +1178,28 @@ func (gw *Instance) LoadKnownRounds() error {
 	return nil
 }
 
-// SaveLastUpdateID saves the Instance.lastUpdate to a file.
+// SaveLastUpdateID saves the Instance.lastUpdate value to storage
 func (gw *Instance) SaveLastUpdateID() error {
-	path := gw.Params.lastUpdateIdPath
-	data := []byte(strconv.FormatUint(gw.lastUpdate, 10))
+	data := strconv.FormatUint(gw.lastUpdate, 10)
 
-	err := utils.WriteFile(path, data, utils.FilePerms, utils.DirPerms)
-	if err != nil {
-		return errors.Errorf("Failed to save lastUpdate to file: %v", err)
-	}
+	return gw.storage.UpsertState(&storage.State{
+		Key:   storage.LastUpdateKey,
+		Value: data,
+	})
 
-	return nil
 }
 
-// LoadLastUpdateID loads the Instance.lastUpdate from file into the Instance,
-// if the file exists. Returns nil on successful loading or if the file does not
-// exist. Returns an error if the file cannot be accessed or the data cannot be
-// parsed.
+// LoadLastUpdateID loads the Instance.lastUpdate from storage into the Instance,
+// if the key exists.
 func (gw *Instance) LoadLastUpdateID() error {
-	data, err := utils.ReadFile(gw.Params.lastUpdateIdPath)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return errors.Errorf("Failed to read lastUpdate from file: %v", err)
+	// Get an existing lastUpdate value from storage
+	data, err := gw.storage.GetStateValue(storage.LastUpdateKey)
+	if err != nil {
+		return err
 	}
 
-	dataStr := strings.TrimSpace(string(data))
-
+	// Parse the last update
+	dataStr := strings.TrimSpace(data)
 	lastUpdate, err := strconv.ParseUint(dataStr, 10, 64)
 	if err != nil {
 		return errors.Errorf("Failed to parse lastUpdate from file: %v", err)
