@@ -18,12 +18,12 @@ import (
 )
 
 // Hidden function for one-time unit testing database implementation
-// func TestDatabaseImpl(t *testing.T) {
+//func TestDatabaseImpl(t *testing.T) {
 //
 //	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
 //	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
 //
-//	db, _, err := newDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
+//	db, err := newDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -40,22 +40,13 @@ import (
 //	testEphem, err := ephemeral.GetId(testClient, 64, uint64(time.Now().UnixNano()))
 //	if err != nil {
 //		t.Errorf(err.Error())
+//		return
 //	}
 //
 //	testClientId2 := []byte("testclient2")
 //	testClient2 := id.NewIdFromBytes(testClientId2, t)
-//	testRecip := id.NewIdFromBytes(testBytes, t)
 //	testRoundId := id.Round(testRound)
 //	testRoundId3 := id.Round(testRound3)
-//	err = db.InsertClient(&Client{
-//		Id:      testClient.Marshal(),
-//		Key:     testBytes,
-//	})
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
-//
 //	err = db.UpsertClient(&Client{
 //		Id:      testClient2.Marshal(),
 //		Key:     []byte("keystring1"),
@@ -84,7 +75,7 @@ import (
 //		return
 //	}
 //	err = db.UpsertRound(&Round{
-//		Id:       testRound2,
+//		Id:       testRound3,
 //		UpdateId: 51,
 //		InfoBlob: testBytes,
 //	})
@@ -95,15 +86,15 @@ import (
 //	err = db.UpsertRound(&Round{
 //		Id:       testRound3,
 //		UpdateId: 52,
-//		InfoBlob: testBytes,
+//		InfoBlob: testBytes2,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    1,
-//		Filter:      testBytes2,
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes,
 //		FirstRound: 5,
 //		Epoch: 1,
 //	})
@@ -112,7 +103,7 @@ import (
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    1,
+//		RecipientId:    testEphem.Int64(),
 //		Filter:      testBytes,
 //		Epoch: 1,
 //		FirstRound: 10,
@@ -122,7 +113,7 @@ import (
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    1,
+//		RecipientId:    testEphem.Int64(),
 //		Filter:      testBytes,
 //		Epoch: 1,
 //		FirstRound: 7,
@@ -132,7 +123,7 @@ import (
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    1,
+//		RecipientId:    testEphem.Int64(),
 //		Filter:      testBytes2,
 //		Epoch: 1,
 //		FirstRound: 1,
@@ -142,7 +133,7 @@ import (
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    1,
+//		RecipientId:    testEphem.Int64(),
 //		Filter:      testBytes2,
 //		Epoch: 3,
 //		FirstRound: 15,
@@ -152,8 +143,8 @@ import (
 //		return
 //	}
 //	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-//		RecipientId:    1,
-//		Filter:      []byte("birds"),
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      []byte("00000"),
 //		Epoch: 3,
 //		FirstRound: 20,
 //	})
@@ -161,44 +152,54 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertMixedMessages([]*MixedMessage{{
-//		RoundId:         testRound,
-//		RecipientId:     testClient.Marshal(),
-//		MessageContents: testBytes,
-//	}, {
-//		RoundId:         testRound,
-//		RecipientId:     testClient.Marshal(),
-//		MessageContents: testBytes,
-//	}, {
-//		RoundId:         testRound + 1,
-//		RecipientId:     testClient.Marshal(),
-//		MessageContents: testBytes,
-//	}})
+//	err = db.InsertMixedMessages(&ClientRound{
+//		Id:        testRound,
+//		Timestamp: time.Now(),
+//		Messages: []MixedMessage{{
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes,
+//		}, {
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes,
+//		}, {
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes2,
+//		}},
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
 //	count, err := db.countMixedMessagesByRound(testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	if count != 2 {
+//	if count != 3 {
 //		t.Errorf("Unexpected count! Got %d", count)
 //	}
-//	err = db.InsertMixedMessages([]*MixedMessage{{
-//		RoundId:         testRound,
-//		RecipientId:     testClient.Marshal(),
-//		MessageContents: []byte("Test24"),
-//	},},)
+//	err = db.InsertMixedMessages(&ClientRound{
+//		Id:        testRound2,
+//		Timestamp: time.Now(),
+//		Messages: []MixedMessage{{
+//			RoundId:         testRound2,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: []byte("jinkies scoob"),
+//		}}})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.deleteMixedMessages(time.Now().Add(1 * time.Hour))
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //
-//	err = db.DeleteMixedMessageByRound(testRoundId)
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
-//
-//	client, err := db.GetClient(testClient)
+//	client, err := db.GetClient(testClient2)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -216,7 +217,7 @@ import (
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", rounds[1])
-//	messages, err := db.getMixedMessages(testClient, testRoundId)
+//	messages, err := db.getMixedMessages(&testEphem, testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -234,7 +235,7 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
-// }
+//}
 
 // Happy path
 func TestNewMixedMessage(t *testing.T) {
@@ -304,46 +305,6 @@ func TestMapImpl_GetClient_NoClientError(t *testing.T) {
 	client, err := m.GetClient(testKey)
 	if err == nil || client != nil {
 		t.Errorf("No error returned when client does not exist.")
-	}
-}
-
-// Happy path
-func TestMapImpl_InsertClient(t *testing.T) {
-	testKey := id.NewIdFromString("testKey1", id.User, t)
-	testClient := &Client{Id: testKey.Marshal()}
-	m := &MapImpl{
-		clients: make(map[id.ID]*Client),
-	}
-
-	err := m.InsertClient(testClient)
-	if err != nil || m.clients[*testKey] == nil {
-		t.Errorf("Failed to insert client: %v", err)
-	}
-}
-
-// Error Path: Client already exists in map.
-func TestMapImpl_InsertClient_ClientAlreadyExistsError(t *testing.T) {
-	testKey := *id.NewIdFromString("testKey1", id.User, t)
-	testClient := &Client{Id: testKey.Marshal()}
-	m := &MapImpl{
-		clients: map[id.ID]*Client{testKey: testClient},
-	}
-
-	err := m.InsertClient(testClient)
-	if err == nil {
-		t.Errorf("Did not error when attempting to insert a client that " +
-			"already exists.")
-	}
-}
-
-// Error Path: Client has an invalid ID.
-func TestMapImpl_InsertClient_InvalidIdError(t *testing.T) {
-	testClient := &Client{Id: []byte{1, 2, 3}}
-	m := &MapImpl{}
-
-	err := m.InsertClient(testClient)
-	if err == nil {
-		t.Errorf("Did not error when provided client with invalid ID.")
 	}
 }
 
@@ -456,22 +417,26 @@ func TestMapImpl_countMixedMessagesByRound(t *testing.T) {
 			RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			RoundIdCount: map[id.Round]uint64{},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
 	// Add more messages with different recipient and round IDs.
-	_ = m.InsertMixedMessages([]*MixedMessage{{
-		Id:          rand.Uint64(),
-		RoundId:     testRoundID,
-		RecipientId: rand.Int63(),
-	}, {
-		Id:          rand.Uint64(),
-		RoundId:     testRoundID,
-		RecipientId: rand.Int63(),
-	}, {
-		Id:          rand.Uint64(),
-		RoundId:     testRoundID,
-		RecipientId: rand.Int63(),
-	}})
+	_ = m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages: []MixedMessage{{
+			Id:          rand.Uint64(),
+			RoundId:     testRoundID,
+			RecipientId: rand.Int63(),
+		}, {
+			Id:          rand.Uint64(),
+			RoundId:     testRoundID,
+			RecipientId: rand.Int63(),
+		}, {
+			Id:          rand.Uint64(),
+			RoundId:     testRoundID,
+			RecipientId: rand.Int63(),
+		}}})
 
 	count, err := m.countMixedMessagesByRound(id.Round(testRoundID))
 	if err != nil {
@@ -504,6 +469,7 @@ func TestMapImpl_getMixedMessages(t *testing.T) {
 			},
 			RoundIdCount: map[id.Round]uint64{testRoundID: 1},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
 	// Get list of 1 item
@@ -521,14 +487,14 @@ func TestMapImpl_getMixedMessages(t *testing.T) {
 		RoundId:     uint64(testRoundID),
 		RecipientId: testRecipientID.Int64(),
 	}
-	_ = m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	_ = m.InsertMixedMessages(&ClientRound{Id: 420, Timestamp: time.Now(), Messages: []MixedMessage{*testMixedMessage}})
 
 	testMixedMessage = &MixedMessage{
 		Id:          rand.Uint64(),
 		RoundId:     uint64(testRoundID),
 		RecipientId: testRecipientID.Int64(),
 	}
-	_ = m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	_ = m.InsertMixedMessages(&ClientRound{Id: 420, Timestamp: time.Now(), Messages: []MixedMessage{*testMixedMessage}})
 
 	// Get list of 3 items
 	mixedMsgs, err = m.getMixedMessages(testRecipientID, testRoundID)
@@ -545,13 +511,13 @@ func TestMapImpl_getMixedMessages(t *testing.T) {
 		RoundId:     rand.Uint64(),
 		RecipientId: rand.Int63(),
 	}
-	_ = m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	_ = m.InsertMixedMessages(&ClientRound{Id: 420, Timestamp: time.Now(), Messages: []MixedMessage{*testMixedMessage}})
 	testMixedMessage = &MixedMessage{
 		Id:          rand.Uint64(),
 		RoundId:     rand.Uint64(),
 		RecipientId: rand.Int63(),
 	}
-	_ = m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	_ = m.InsertMixedMessages(&ClientRound{Id: 420, Timestamp: time.Now(), Messages: []MixedMessage{*testMixedMessage}})
 
 	// Get list of 3 items
 	mixedMsgs, err = m.getMixedMessages(testRecipientID, testRoundID)
@@ -574,17 +540,21 @@ func TestMapImpl_getMixedMessages_NoMessageError(t *testing.T) {
 			RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			RoundIdCount: map[id.Round]uint64{},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
-	_ = m.InsertMixedMessages([]*MixedMessage{
-		{
-			RoundId:     rand.Uint64(),
-			RecipientId: rand.Int63(),
-		}, {
-			RoundId:     rand.Uint64(),
-			RecipientId: rand.Int63(),
-		},
-	})
+	_ = m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages: []MixedMessage{
+			{
+				RoundId:     rand.Uint64(),
+				RecipientId: rand.Int63(),
+			}, {
+				RoundId:     rand.Uint64(),
+				RecipientId: rand.Int63(),
+			},
+		}})
 
 	// Attempt to get message that is not in map
 	mixedMsgs, err := m.getMixedMessages(testRecipientID, testRoundID)
@@ -610,9 +580,13 @@ func TestMapImpl_InsertMixedMessages(t *testing.T) {
 			RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			RoundIdCount: map[id.Round]uint64{},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
-	err := m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	err := m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages:  []MixedMessage{*testMixedMessage}})
 	if err != nil || m.mixedMessages.RecipientId[recipientId.Int64()][roundID] == nil ||
 		m.mixedMessages.RoundId[roundID][recipientId.Int64()] == nil {
 		t.Errorf("Failed to insert MixedMessage: %v", err)
@@ -641,9 +615,13 @@ func TestMapImpl_InsertMixedMessages_MessageAlreadyExistsError(t *testing.T) {
 			},
 			RoundIdCount: map[id.Round]uint64{roundId: 1},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
-	err := m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	err := m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages:  []MixedMessage{*testMixedMessage}})
 	if err == nil {
 		t.Errorf("Did not error when attempting to insert a mixedMessage that " +
 			"already exists.")
@@ -651,7 +629,7 @@ func TestMapImpl_InsertMixedMessages_MessageAlreadyExistsError(t *testing.T) {
 }
 
 // Happy path
-func TestMapImpl_DeleteMixedMessageByRound(t *testing.T) {
+func TestMapImpl_deleteMixedMessages(t *testing.T) {
 	testRoundId := id.Round(100)
 	testRoundId2 := id.Round(2)
 	testRecipientId := &ephemeral.Id{1, 2, 3}
@@ -661,27 +639,36 @@ func TestMapImpl_DeleteMixedMessageByRound(t *testing.T) {
 			RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			RoundIdCount: map[id.Round]uint64{},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
 	// Insert message not to be deleted
-	_ = m.InsertMixedMessages([]*MixedMessage{{
-		RoundId:     uint64(testRoundId2),
-		RecipientId: testRecipientId.Int64(),
-	}})
+	_ = m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages: []MixedMessage{{
+			RoundId:     uint64(testRoundId2),
+			RecipientId: testRecipientId.Int64(),
+		}}})
+	time.Sleep(time.Second)
 
 	// Insert two messages to be deleted
-	_ = m.InsertMixedMessages([]*MixedMessage{
-		{
-			RoundId:     uint64(testRoundId),
-			RecipientId: testRecipientId.Int64(),
-		}, {
-			RoundId:     uint64(testRoundId),
-			RecipientId: testRecipientId.Int64(),
-		},
-	})
+	_ = m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages: []MixedMessage{
+			{
+				RoundId:     uint64(testRoundId),
+				RecipientId: testRecipientId.Int64(),
+			}, {
+				RoundId:     uint64(testRoundId),
+				RecipientId: testRecipientId.Int64(),
+			},
+		}})
 
 	// Delete the two messages
-	err := m.DeleteMixedMessageByRound(testRoundId)
+
+	err := m.deleteMixedMessages(time.Now())
 	if err != nil {
 		t.Errorf("Unable to delete mixed messages by round: %+v", err)
 	}

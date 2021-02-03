@@ -10,11 +10,12 @@ package storage
 
 import (
 	"fmt"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"sync"
 	"time"
 )
@@ -25,17 +26,17 @@ type database interface {
 	GetStateValue(key string) (string, error)
 
 	GetClient(id *id.ID) (*Client, error)
-	InsertClient(client *Client) error
 	UpsertClient(client *Client) error
 
 	GetRound(id id.Round) (*Round, error)
 	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
+	deleteRound(ts time.Time) error
 
 	countMixedMessagesByRound(roundId id.Round) (uint64, error)
 	getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error)
-	InsertMixedMessages(msgs []*MixedMessage) error
-	DeleteMixedMessageByRound(roundId id.Round) error
+	InsertMixedMessages(cr *ClientRound) error
+	deleteMixedMessages(ts time.Time) error
 
 	GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error
@@ -52,6 +53,7 @@ type MapImpl struct {
 	states        map[string]string
 	clients       map[id.ID]*Client
 	rounds        map[id.Round]*Round
+	clientRounds  map[uint64]*ClientRound
 	mixedMessages MixedMessageMap
 	bloomFilters  BloomFilterMap
 	sync.RWMutex
@@ -81,45 +83,54 @@ type ClientBloomFilterList struct {
 
 // Key-Value store used for persisting Gateway State information
 type State struct {
-	Key   string `gorm:"primary_key"`
-	Value string `gorm:"NOT NULL"`
+	Key   string `gorm:"primaryKey"`
+	Value string `gorm:"not null"`
 }
 
 // Enumerates Keys in the State table
 const (
 	PeriodKey = "Period"
+	LastUpdateKey = "LastUpdateId"
+	KnownRoundsKey = "KnownRounds"
 )
 
 // Represents a Client and its associated keys
 type Client struct {
-	Id  []byte `gorm:"primary_key"`
-	Key []byte `gorm:"NOT NULL"`
+	Id  []byte `gorm:"primaryKey"`
+	Key []byte `gorm:"not null"`
 }
 
-// Represents a Round and its associated information
+// Represents the Round information that is relevant to Gateways
 type Round struct {
-	Id       uint64 `gorm:"primary_key;AUTO_INCREMENT:false"`
-	UpdateId uint64 `gorm:"UNIQUE"`
-	InfoBlob []byte
+	Id          uint64 `gorm:"primaryKey;autoIncrement:false"`
+	UpdateId    uint64 `gorm:"unique;not null"`
+	InfoBlob    []byte
+	LastUpdated time.Time `gorm:"index;not null"` // Timestamp of most recent Update
+}
 
-	Messages []MixedMessage `gorm:"foreignkey:RoundId;association_foreignkey:Id"`
+// Represents the Round information that is relevant to Clients
+type ClientRound struct {
+	Id        uint64    `gorm:"primaryKey;autoIncrement:false"`
+	Timestamp time.Time `gorm:"index;not null"` // Round Realtime timestamp
+
+	Messages []MixedMessage `gorm:"foreignKey:RoundId;constraint:OnDelete:CASCADE"`
 }
 
 // Represents a ClientBloomFilter
 type ClientBloomFilter struct {
-	Epoch       uint32 `gorm:"primary_key"`
-	RecipientId int64  `gorm:"primary_key"`
-	FirstRound  uint64 `gorm:"NOT NULL"`
-	RoundRange  uint32 `gorm:"NOT NULL"`
-	Filter      []byte `gorm:"NOT NULL"`
+	Epoch       uint32 `gorm:"primaryKey"`
+	RecipientId int64  `gorm:"primaryKey"`
+	FirstRound  uint64 `gorm:"not null"`
+	RoundRange  uint32 `gorm:"not null"`
+	Filter      []byte `gorm:"not null"`
 }
 
 // Represents a MixedMessage and its contents
 type MixedMessage struct {
-	Id              uint64 `gorm:"primary_key;AUTO_INCREMENT:true"`
-	RoundId         uint64 `gorm:"INDEX;NOT NULL"`
-	RecipientId     int64  `gorm:"INDEX;NOT NULL"`
-	MessageContents []byte `gorm:"NOT NULL"`
+	Id              uint64 `gorm:"primaryKey;autoIncrement:true"`
+	RoundId         uint64 `gorm:"index;not null;references rounds(id)"`
+	RecipientId     int64  `gorm:"index;not null"`
+	MessageContents []byte `gorm:"not null"`
 }
 
 // Creates a new MixedMessage object with the given attributes
@@ -143,7 +154,7 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 // Initialize the database interface with database backend
 // Returns a database interface, close function, and error
 func newDatabase(username, password, dbName, address,
-	port string) (database, func() error, error) {
+	port string) (database, error) {
 
 	var err error
 	var db *gorm.DB
@@ -157,7 +168,9 @@ func newDatabase(username, password, dbName, address,
 		if len(password) > 0 {
 			connectString += fmt.Sprintf(" password=%s", password)
 		}
-		db, err = gorm.Open("postgres", connectString)
+		db, err = gorm.Open(postgres.Open(connectString), &gorm.Config{
+			Logger: logger.New(jww.TRACE, logger.Config{LogLevel: logger.Info}),
+		})
 	}
 
 	// Return the map-backend interface
@@ -186,29 +199,20 @@ func newDatabase(username, password, dbName, address,
 			bloomFilters: BloomFilterMap{
 				RecipientId: map[int64]*ClientBloomFilterList{},
 			},
+			clientRounds: map[uint64]*ClientRound{},
 		}
 
-		return database(mapImpl), func() error { return nil }, nil
+		return database(mapImpl), nil
 	}
-
-	// Initialize the database logger
-	db.SetLogger(jww.TRACE)
-	db.LogMode(true)
-
-	// SetMaxIdleConns sets the maximum number of connections in the idle connection pool.
-	db.DB().SetMaxIdleConns(10)
-	// SetMaxOpenConns sets the maximum number of open connections to the database.
-	db.DB().SetMaxOpenConns(100)
-	// SetConnMaxLifetime sets the maximum amount of time a connection may be reused.
-	db.DB().SetConnMaxLifetime(24 * time.Hour)
 
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
-	models := []interface{}{&Client{}, &Round{}, &MixedMessage{}, &ClientBloomFilter{}, State{}}
+	models := []interface{}{&Client{}, &Round{}, &ClientRound{},
+		&MixedMessage{}, &ClientBloomFilter{}, State{}}
 	for _, model := range models {
-		err = db.AutoMigrate(model).Error
+		err = db.AutoMigrate(model)
 		if err != nil {
-			return database(&DatabaseImpl{}), func() error { return nil }, err
+			return database(&DatabaseImpl{}), err
 		}
 	}
 
@@ -218,5 +222,5 @@ func newDatabase(username, password, dbName, address,
 	}
 
 	jww.INFO.Println("Database backend initialized successfully!")
-	return database(di), db.Close, nil
+	return database(di), nil
 }
