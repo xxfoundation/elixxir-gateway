@@ -42,8 +42,8 @@ type Params struct {
 	DevMode      bool
 	EnableGossip bool
 
-	KeepAlive    time.Duration
-	DeletePeriod time.Duration
+	retentionPeriod time.Duration
+	cleanupInterval time.Duration
 }
 
 func InitParams(vip *viper.Viper) Params {
@@ -108,12 +108,12 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	// Time to keep messages, rounds and filters in storage
-	viper.SetDefault("keepAlive", keepAliveDefault)
-	keepAlive := viper.GetDuration("keepAlive")
+	viper.SetDefault("keepAlive", retentionPeriodDefault)
+	retentionPeriod := viper.GetDuration("retentionPeriod")
 
 	// Time to periodically check for old objects in storage
-	viper.SetDefault("DeletePeriod", deletePeriodDefault)
-	deletePeriod := viper.GetDuration("deletePeriod")
+	viper.SetDefault("cleanupIntervalDefault", cleanupIntervalDefault)
+	cleanupInterval := viper.GetDuration("cleanupInterval")
 
 	// Obtain database connection info
 	rawAddr := viper.GetString("dbAddress")
@@ -135,17 +135,17 @@ func InitParams(vip *viper.Viper) Params {
 		ServerCertPath:        serverCertPath,
 		IDFPath:               idfPath,
 		PermissioningCertPath: permissioningCertPath,
-		gossipFlags:           gossipFlags,
-		rateLimitParams:       bucketMapParams,
-		MessageTimeout:        messageTimeout,
-		DbName:                viper.GetString("dbName"),
-		DbUsername:            viper.GetString("dbUsername"),
-		DbPassword:            viper.GetString("dbPassword"),
-		DbAddress:             addr,
-		DbPort:                port,
-		DevMode:               viper.GetBool("devMode"),
-		EnableGossip:          viper.GetBool("enableGossip"),
-		KeepAlive:             keepAlive,
-		DeletePeriod:          deletePeriod,
+		gossipFlags:     gossipFlags,
+		rateLimitParams: bucketMapParams,
+		MessageTimeout:  messageTimeout,
+		DbName:          viper.GetString("dbName"),
+		DbUsername:      viper.GetString("dbUsername"),
+		DbPassword:      viper.GetString("dbPassword"),
+		DbAddress:       addr,
+		DbPort:          port,
+		DevMode:         viper.GetBool("devMode"),
+		EnableGossip:    viper.GetBool("enableGossip"),
+		retentionPeriod: retentionPeriod,
+		cleanupInterval: cleanupInterval,
 	}
 }

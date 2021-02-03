@@ -1122,13 +1122,13 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 
 func TestInstance_ClearOldStorage(t *testing.T) {
 	gw := NewGatewayInstance(Params{
-		DeletePeriod: 250 * time.Millisecond,
-		KeepAlive:    keepAliveDefault,
+		cleanupInterval: 250 * time.Millisecond,
+		retentionPeriod: retentionPeriodDefault,
 	})
 
 	gw.period = 7
 
-	oldTimestamp := time.Now().Add(-5 * keepAliveDefault)
+	oldTimestamp := time.Now().Add(-5 * retentionPeriodDefault)
 	rndId := uint64(1)
 
 	testId := id.NewIdFromBytes([]byte("Frodo"), t)

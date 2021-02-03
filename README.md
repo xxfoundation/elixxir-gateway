@@ -81,13 +81,13 @@ permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 # before being cleaned from storage. 
 # Valid time units are "h"
 # Defaults to 1 week (168 hours) if not set
-keepAlive: "168h"
+retentionPeriod: "168h"
 
 # How often the periodic storage tracker checks for items older 
-# than the keep alive value in storage.
+# than the retention Period value.
 # Valid time units are "s", "m", "h". 
 # Defaults to 5 minutes if not set
-deletePeriod: "5m"
+cleanupInterval: "5m"
 
 # Database connection information
 dbUsername: "cmix"

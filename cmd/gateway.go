@@ -100,13 +100,13 @@ func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomRe
 
 // Periodically clears out old messages, rounds and bloom filters
 func (gw *Instance) ClearOldStorage() error {
-	ticker := time.NewTicker(gw.Params.DeletePeriod)
-	keepAlive := gw.Params.KeepAlive
+	ticker := time.NewTicker(gw.Params.cleanupInterval)
+	retentionPeriod := gw.Params.retentionPeriod
 	for true {
 		select {
 		case <-ticker.C:
 			now := time.Now()
-			threshold := now.Add(-keepAlive)
+			threshold := now.Add(-retentionPeriod)
 			// Clear out old rounds and messages
 			err := gw.storage.ClearOldStorage(threshold)
 			if err != nil {
