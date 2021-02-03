@@ -129,7 +129,7 @@ func (m *MapImpl) deleteRound(ts time.Time) error {
 	m.Lock()
 	defer m.Unlock()
 	for r, _ := range m.rounds {
-		if m.rounds[r].LastUpdated.Unix() < ts.Unix() {
+		if m.rounds[r].LastUpdated.Before(ts) {
 			delete(m.rounds, r)
 		}
 	}

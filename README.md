@@ -77,6 +77,18 @@ serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 # PEM format. Required field.
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
+# How long messages, rounds and bloom filters remain in storage 
+# before being cleaned from storage. 
+# Valid time units are "h"
+# Defaults to 1 week (168 hours) if not set
+retentionPeriod: "168h"
+
+# How often the periodic storage tracker checks for items older 
+# than the retention Period value.
+# Valid time units are "s", "m", "h". 
+# Defaults to 5 minutes if not set
+cleanupInterval: "5m"
+
 # Database connection information
 dbUsername: "cmix"
 dbPassword: ""
