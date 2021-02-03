@@ -110,7 +110,7 @@ func (gw *Instance) ClearOldStorage() error {
 			// Clear out old rounds and messages
 			err := gw.storage.ClearOldStorage(threshold)
 			if err != nil {
-				return errors.Errorf("Could not clear old storage: %v", err)
+				return errors.Errorf("Could not clear old rounds and/or messages: %v", err)
 			}
 
 			// Clear out filters by epoch
@@ -689,7 +689,12 @@ func (gw *Instance) InitNetwork() error {
 		// }
 	}
 
-	go gw.ClearOldStorage()
+	go func() {
+		err := gw.ClearOldStorage()
+		if err != nil {
+			jww.FATAL.Panicf("Issue clearing old storage: %v", err)
+		}
+	}()
 
 	return nil
 }

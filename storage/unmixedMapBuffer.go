@@ -25,7 +25,7 @@ type UnmixedMessagesMap struct {
 type SendRound struct {
 	batch       *pb.Batch
 	maxElements uint32
-	sent 		bool
+	sent        bool
 }
 
 // NewUnmixedMessagesMap initialize a UnmixedMessageBuffer interface.
@@ -48,11 +48,11 @@ func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)
 		return errors.New("cannot add message to unknown round")
 	}
 
-	if retrievedBatch.sent{
+	if retrievedBatch.sent {
 		return errors.New("Cannot add message to already sent batch")
 	}
 
-	if len(retrievedBatch.batch.Slots)==int(retrievedBatch.maxElements) {
+	if len(retrievedBatch.batch.Slots) == int(retrievedBatch.maxElements) {
 		return errors.New("Cannot add message to full batch")
 	}
 
@@ -106,7 +106,7 @@ func (umb *UnmixedMessagesMap) SetAsRoundLeader(roundId id.Round, batchsize uint
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
-	if _, ok := umb.messages[roundId]; ok{
+	if _, ok := umb.messages[roundId]; ok {
 		jww.FATAL.Panicf("Can set as round leader for extant round %d",
 			roundId)
 	}

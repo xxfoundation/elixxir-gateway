@@ -34,6 +34,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -1117,6 +1118,57 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 			"\n\texpected: %d\n\treceived: %d",
 			expectedLastUpdate, gw.lastUpdate)
 	}
+}
+
+func TestInstance_ClearOldStorage(t *testing.T) {
+	gw := NewGatewayInstance(Params{
+		DeletePeriod: 250 * time.Millisecond,
+		KeepAlive:    keepAliveDefault,
+	})
+
+	gw.period = 7
+
+	oldTimestamp := time.Now().Add(-5 * keepAliveDefault)
+	rndId := uint64(1)
+
+	testId := id.NewIdFromBytes([]byte("Frodo"), t)
+	recipientId, err := ephemeral.GetId(testId, 64, 300000)
+	if err != nil {
+		t.Errorf("Could not make a mock ephemeral Id: %v", err)
+	}
+	msg := storage.NewMixedMessage(id.Round(rndId), &recipientId, []byte("test"), []byte("message"))
+	// Build a ClientRound object around the client messages
+	clientRound := &storage.ClientRound{
+		Id:        rndId,
+		Timestamp: oldTimestamp,
+		Messages:  []storage.MixedMessage{*msg},
+	}
+
+	err = gw.storage.InsertMixedMessages(clientRound)
+	if err != nil {
+		t.Errorf("Could not insert mock message")
+	}
+
+	var wg sync.WaitGroup
+	go func() {
+		wg.Add(1)
+
+		gw.ClearOldStorage()
+
+		wg.Done()
+	}()
+
+	wg.Wait()
+	time.Sleep(2 * time.Second)
+
+	// Test that messages were cleared
+	// NOTE: Rounds not tested as insertion explicitly sets
+	// insert time to time.Now()
+	msgs, _, err := gw.storage.GetMixedMessages(&recipientId, id.Round(rndId))
+	if len(msgs) != 0 {
+		t.Errorf("Message expected to be cleared after ClearOldStorage")
+	}
+
 }
 
 // Happy path
