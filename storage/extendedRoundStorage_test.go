@@ -87,12 +87,15 @@ func TestERS(t *testing.T) {
 		rounds[0].ResourceQueueTimeoutMillis != origR10.ResourceQueueTimeoutMillis {
 		t.Error("Grabbed round object does not look to be the same as the stored one")
 	}
-	if rounds[1].ID != origR8.ID && rounds[1].UpdateID != origR8.UpdateID && rounds[1].BatchSize != origR8.BatchSize &&
-		rounds[1].ResourceQueueTimeoutMillis != origR10.ResourceQueueTimeoutMillis {
+	if rounds[1] != nil {
+		t.Error("Did not receive placeholder for rid 9")
+	}
+	if rounds[2].ID != origR8.ID && rounds[2].UpdateID != origR8.UpdateID && rounds[2].BatchSize != origR8.BatchSize &&
+		rounds[2].ResourceQueueTimeoutMillis != origR10.ResourceQueueTimeoutMillis {
 		t.Error("Grabbed round object does not look to be the same as the stored one")
 	}
-	if rounds[2].ID != origR7.ID && rounds[2].UpdateID != origR7.UpdateID && rounds[2].BatchSize != origR7.BatchSize &&
-		rounds[2].ResourceQueueTimeoutMillis != origR7.ResourceQueueTimeoutMillis {
+	if rounds[3].ID != origR7.ID && rounds[3].UpdateID != origR7.UpdateID && rounds[3].BatchSize != origR7.BatchSize &&
+		rounds[3].ResourceQueueTimeoutMillis != origR7.ResourceQueueTimeoutMillis {
 		t.Error("Grabbed round object does not look to be the same as the stored one")
 	}
 
@@ -101,9 +104,12 @@ func TestERS(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if rounds[2].ID != origR10.ID && rounds[2].UpdateID != origR10.UpdateID && rounds[2].BatchSize != origR10.BatchSize &&
-		rounds[2].ResourceQueueTimeoutMillis != origR10.ResourceQueueTimeoutMillis {
+	if rounds[3].ID != origR10.ID && rounds[3].UpdateID != origR10.UpdateID && rounds[3].BatchSize != origR10.BatchSize &&
+		rounds[3].ResourceQueueTimeoutMillis != origR10.ResourceQueueTimeoutMillis {
 		t.Error("Grabbed round object does not look to be the same as the stored one")
+	}
+	if rounds[2] != nil {
+		t.Error("Did not receive placeholder for rid 9")
 	}
 	if rounds[1].ID != origR8.ID && rounds[1].UpdateID != origR8.UpdateID && rounds[1].BatchSize != origR8.BatchSize &&
 		rounds[1].ResourceQueueTimeoutMillis != origR10.ResourceQueueTimeoutMillis {

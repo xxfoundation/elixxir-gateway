@@ -71,15 +71,12 @@ func (s *Storage) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
 	var r []*pb.RoundInfo
 
 	// Iterate over all rounds provided and put them in the round array
-	dbRounds, err := s.GetRounds(rounds)
-	for _, round := range dbRounds {
-		// Convert it to a pb.RoundInfo object
-		u := &pb.RoundInfo{}
-		err = proto.Unmarshal(round.InfoBlob, u)
+	for _, rid := range rounds {
+		ri, err := s.Retrieve(rid)
 		if err != nil {
 			return nil, err
 		}
-		r = append(r, u)
+		r = append(r, ri)
 	}
 
 	return r, nil
@@ -99,10 +96,7 @@ func (s *Storage) RetrieveRange(first, last id.Round) ([]*pb.RoundInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		if ri != nil {
-			r = append(r, ri)
-		}
+		r = append(r, ri)
 		i++
 	}
 
