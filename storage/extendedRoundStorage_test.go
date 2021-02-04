@@ -119,4 +119,9 @@ func TestERS(t *testing.T) {
 		rounds[0].ResourceQueueTimeoutMillis != origR7.ResourceQueueTimeoutMillis {
 		t.Error("Grabbed round object does not look to be the same as the stored one")
 	}
+
+	rounds, err = ers.RetrieveRange(10, 7)
+	if err == nil {
+		t.Error("Should have received an error when first is greater than last")
+	}
 }

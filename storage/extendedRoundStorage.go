@@ -13,6 +13,7 @@ package storage
 
 import (
 	"github.com/golang/protobuf/proto"
+	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/xx_network/primitives/id"
 	"strings"
@@ -84,6 +85,9 @@ func (s *Storage) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
 
 // Retrieve a concurrent range of round info objects from the memory map database
 func (s *Storage) RetrieveRange(first, last id.Round) ([]*pb.RoundInfo, error) {
+	if first > last {
+		return nil, errors.New("Failed to retrieve range of rounds: last round must be greater than first.")
+	}
 	idRange := uint64(last-first) + 1
 
 	var r = make([]*pb.RoundInfo, idRange)
