@@ -10,7 +10,10 @@
 package storage
 
 import (
+	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"time"
 )
 
 // API for the storage layer
@@ -19,24 +22,46 @@ type Storage struct {
 	database
 }
 
-// Return-type object for non-database representation of a BloomFilter
-type ClientBloomFilter struct {
-	Filter     []byte
-	FirstRound id.Round
-	LastRound  id.Round
-}
-
 // Create a new Storage object wrapping a database interface
 // Returns a Storage object, close function, and error
-func NewStorage(username, password, dbName, address, port string) (*Storage, func() error, error) {
-	db, closeFunc, err := newDatabase(username, password, dbName, address, port)
+func NewStorage(username, password, dbName, address, port string) (*Storage, error) {
+	db, err := newDatabase(username, password, dbName, address, port)
 	storage := &Storage{db}
-	return storage, closeFunc, err
+	return storage, err
+}
+
+// Clears certain data from Storage older than the given timestamp
+// This includes Round and MixedMessage information
+func (s *Storage) ClearOldStorage(ts time.Time) error {
+	err := s.deleteRound(ts)
+	if err != nil {
+		return err
+	}
+
+	return s.deleteMixedMessages(ts)
+}
+
+// Builds a ClientBloomFilter with the given parameters, then stores it
+func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byte, roundId id.Round, epoch uint32) error {
+
+	// Build a newly-initialized ClientBloomFilter to be stored
+	validFilter := &ClientBloomFilter{
+		RecipientId: recipientId.Int64(),
+		Epoch:       epoch,
+		// FirstRound is input as CurrentRound for later calculation
+		FirstRound: uint64(roundId),
+		// RoundRange is empty for now as it can't be calculated yet
+		RoundRange: 0,
+		Filter:     filterBytes,
+	}
+
+	// Commit the new/updated ClientBloomFilter
+	return s.upsertClientBloomFilter(validFilter)
 }
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId
 // Also returns a boolean for whether the gateway contains other messages for the given Round
-func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
+func (s *Storage) GetMixedMessages(recipientId *ephemeral.Id, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
 	// Determine whether this gateway has any messages for the given roundId
 	count, err := s.countMixedMessagesByRound(roundId)
 	isValidGateway = count > 0
@@ -49,54 +74,50 @@ func (s *Storage) GetMixedMessages(recipientId *id.ID, roundId id.Round) (msgs [
 	return
 }
 
-// Returns all of the ClientBloomFilter from Storage relevant to the given clientId
-// latestRound is the most recent round in the network, used to populate fields of ClientBloomFilter
-func (s *Storage) GetBloomFilters(recipientId *id.ID, latestRound id.Round) ([]*ClientBloomFilter, error) {
-	result := make([]*ClientBloomFilter, 0)
-
-	// Get all BloomFilter from Storage for the given recipientId
-	bloomFilters, err := s.getBloomFilters(recipientId)
-	if err != nil {
-		return nil, err
+// Helper function for HandleBloomFilter
+// Returns the bitwise OR of two byte slices
+func or(existingBuffer, additionalBuffer []byte) []byte {
+	if existingBuffer == nil {
+		return additionalBuffer
+	} else if additionalBuffer == nil {
+		return existingBuffer
+	} else if len(existingBuffer) != len(additionalBuffer) {
+		jww.ERROR.Printf("Unable to perform bitwise OR: Slice lens invalid.")
+		return existingBuffer
 	}
 
-	// Get the latest epoch for determining how current the filters are
-	/*latestEpoch, err := s.GetLatestEpoch()
-	if err != nil {
-		return nil, err
-	}*/
-	//latestEpoch := 0
+	result := make([]byte, len(existingBuffer))
+	for i := range existingBuffer {
+		result[i] = existingBuffer[i] | additionalBuffer[i]
+	}
+	return result
+}
 
-	for _, filter := range bloomFilters {
-		clientFilter := &ClientBloomFilter{
-			Filter: filter.Filter,
-		}
-		clientFilter.FirstRound = id.Round(0)
-		clientFilter.LastRound = latestRound
-		/*
-			// Determine relevant rounds for the ClientBloomFilter
-			if filter.EpochId == latestEpoch.Id {
-				// If the BloomFilter is current, use the current round
-				clientFilter.FirstRound = id.Round(latestEpoch.RoundId)
-				clientFilter.LastRound = latestRound
-			} else {
-				// If the BloomFilter is not current, infer the LastRound from the next Epoch
-				epoch, err := s.GetEpoch(filter.EpochId)
-				if err != nil {
-					return nil, err
-				}
-				nextEpoch, err := s.GetEpoch(filter.EpochId + 1)
-				if err != nil {
-					return nil, err
-				}
-
-				clientFilter.FirstRound = id.Round(epoch.RoundId)
-				// (Epoch n).LastRound = (Epoch n + 1).FirstRound - 1
-				clientFilter.LastRound = id.Round(nextEpoch.RoundId - 1)
-			}*/
-
-		result = append(result, clientFilter)
+// Combine with and update this filter using oldFilter
+// Used in upsertFilter functionality in order to ensure atomicity
+// Kept in business logic layer because functionality is shared
+func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
+	// Initialize FirstRound variable if needed
+	if oldFilter.FirstRound == uint64(0) {
+		oldFilter.FirstRound = f.FirstRound
 	}
 
-	return result, nil
+	// Store variables before modifications
+	oldLastRound := oldFilter.FirstRound + uint64(oldFilter.RoundRange)
+	newLastRound := f.FirstRound + uint64(f.RoundRange)
+
+	// Get earliest FirstRound Value
+	if f.FirstRound > oldFilter.FirstRound {
+		f.FirstRound = oldFilter.FirstRound
+	}
+
+	// Get latest LastRound value, and calculate the maximum RoundRange
+	if oldLastRound > newLastRound {
+		f.RoundRange = uint32(oldLastRound - f.FirstRound)
+	} else {
+		f.RoundRange = uint32(newLastRound - f.FirstRound)
+	}
+
+	// Combine the filters
+	f.Filter = or(oldFilter.Filter, f.Filter)
 }
