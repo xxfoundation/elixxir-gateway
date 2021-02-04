@@ -798,35 +798,14 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 		roundIds = append(roundIds, id.Round(rnd))
 	}
 	// Look up requested rounds in the database
-	retrievedRounds, err := gw.storage.GetRounds(roundIds)
+	retrievedRounds, err := gw.storage.RetrieveMany(roundIds)
 	if err != nil {
 		return &pb.HistoricalRoundsResponse{}, errors.New("Could not look up rounds requested.")
 	}
 
-	// Parse the retrieved rounds into the roundInfo message type
-	// Fixme: there is a back and forth type casting going on between placing
-	//  data into the database per the spec laid out
-	//  and taking that data out and casting it back to the original format.
-	//  it's really dumb and shouldn't happen, it should be fixed.
-	var rounds []*pb.RoundInfo
-	for _, rnd := range retrievedRounds {
-		ri := &pb.RoundInfo{}
-		err = proto.Unmarshal(rnd.InfoBlob, ri)
-		if err != nil {
-			// If trouble unmarshalling, move to next round
-			// Note this should never happen with
-			// rounds placed by us in our own database
-			jww.WARN.Printf("Could not unmarshal round %d in our database. "+
-				"Could the database be corrupted?", rnd.Id)
-			continue
-		}
-
-		rounds = append(rounds, ri)
-	}
-
 	// Return the retrievedRounds
 	return &pb.HistoricalRoundsResponse{
-		Rounds: rounds,
+		Rounds: retrievedRounds,
 	}, nil
 
 }
