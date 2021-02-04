@@ -25,6 +25,7 @@ update_release:
 	GOFLAGS="" go get gitlab.com/xx_network/crypto@release
 	GOFLAGS="" go get gitlab.com/elixxir/comms@release
 	GOFLAGS="" go get gitlab.com/xx_network/comms@release
+	GOFLAGS="" go get -u gitlab.com/elixxir/bloomfilter@release
 
 update_master:
 	GOFLAGS="" go get gitlab.com/elixxir/primitives@master
@@ -33,6 +34,7 @@ update_master:
 	GOFLAGS="" go get gitlab.com/xx_network/crypto@master
 	GOFLAGS="" go get gitlab.com/elixxir/comms@master
 	GOFLAGS="" go get gitlab.com/xx_network/comms@master
+	GOFLAGS="" go get -u gitlab.com/elixxir/bloomfilter@master
 
 master: clean update_master build version
 
