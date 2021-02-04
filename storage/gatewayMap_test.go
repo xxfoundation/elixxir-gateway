@@ -10,9 +10,11 @@ package storage
 import (
 	"bytes"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"math/rand"
 	"reflect"
 	"testing"
+	"time"
 )
 
 // Hidden function for one-time unit testing database implementation
@@ -21,13 +23,13 @@ import (
 //	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
 //	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
 //
-//	db, _, err := newDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
+//	db, err := newDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //
-//	testBytes := []byte("test")
+//	testBytes := []byte("tests")
 //	testBytes2 := []byte("words")
 //	testClientId := []byte("client")
 //	testRound := uint64(10)
@@ -35,44 +37,16 @@ import (
 //	testRound3 := uint64(12)
 //
 //	testClient := id.NewIdFromBytes(testClientId, t)
-//
-//	testClientId2 := []byte("testclient2")
-//	testClient2 := id.NewIdFromBytes(testClientId2, t)
-//	// testRecip := id.NewIdFromBytes(testBytes, t)
-//	testRoundId := id.Round(testRound)
-//	testRoundId3 := id.Round(testRound3)
-//	testEpoch, err := db.InsertEpoch(testRoundId)
-//	if err != nil {
-//		t.Errorf("%+v", err)
-//	}
-//	testEpoch2, err := db.InsertEpoch(testRoundId)
-//	if err != nil {
-//		t.Errorf("%+v", err)
-//	}
-//
-//	rtnEpoch, err := db.GetEpoch(testEpoch.Id)
-//	if err != nil || rtnEpoch == nil {
-//		t.Errorf("%+v, %+v", rtnEpoch, err)
-//	}
-//
-//	latestEpoch, err := db.GetLatestEpoch()
-//	if err != nil {
-//		t.Errorf("%+v", err)
-//	}
-//
-//	if testEpoch2.Id != latestEpoch.Id {
-//		t.Errorf("Expected epoch ids to match!")
-//	}
-//
-//	err = db.InsertClient(&Client{
-//		Id:      testClient.Marshal(),
-//		Key:     testBytes,
-//	})
+//	testEphem, err := ephemeral.GetId(testClient, 64, uint64(time.Now().UnixNano()))
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //
+//	testClientId2 := []byte("testclient2")
+//	testClient2 := id.NewIdFromBytes(testClientId2, t)
+//	testRoundId := id.Round(testRound)
+//	testRoundId3 := id.Round(testRound3)
 //	err = db.UpsertClient(&Client{
 //		Id:      testClient2.Marshal(),
 //		Key:     []byte("keystring1"),
@@ -101,7 +75,7 @@ import (
 //		return
 //	}
 //	err = db.UpsertRound(&Round{
-//		Id:       testRound2,
+//		Id:       testRound3,
 //		UpdateId: 51,
 //		InfoBlob: testBytes,
 //	})
@@ -112,68 +86,120 @@ import (
 //	err = db.UpsertRound(&Round{
 //		Id:       testRound3,
 //		UpdateId: 52,
-//		InfoBlob: testBytes,
+//		InfoBlob: testBytes2,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.UpsertBloomFilter(&BloomFilter{
-//		RecipientId:    testClient.Marshal(),
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
 //		Filter:      testBytes,
-//		EpochId: 1,
+//		FirstRound: 5,
+//		Epoch: 1,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.UpsertBloomFilter(&BloomFilter{
-//		RecipientId:    testClient.Marshal(),
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes,
+//		Epoch: 1,
+//		FirstRound: 10,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes,
+//		Epoch: 1,
+//		FirstRound: 7,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
 //		Filter:      testBytes2,
-//		EpochId: testEpoch.Id,
+//		Epoch: 1,
+//		FirstRound: 1,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	err = db.InsertMixedMessages([]*MixedMessage{{
-//		RoundId:         testRound,
-//		RecipientId:     testClient.Marshal(),
-//		MessageContents: testBytes,
-//	}, {
-//		RoundId:         testRound,
-//		RecipientId:     testClient.Marshal(),
-//		MessageContents: testBytes,
-//	}, {
-//		RoundId:         testRound + 1,
-//		RecipientId:     testClient.Marshal(),
-//		MessageContents: testBytes,
-//	}})
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes2,
+//		Epoch: 3,
+//		FirstRound: 15,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      []byte("00000"),
+//		Epoch: 3,
+//		FirstRound: 20,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.InsertMixedMessages(&ClientRound{
+//		Id:        testRound,
+//		Timestamp: time.Now(),
+//		Messages: []MixedMessage{{
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes,
+//		}, {
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes,
+//		}, {
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes2,
+//		}},
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
 //	count, err := db.countMixedMessagesByRound(testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
-//	if count != 2 {
+//	if count != 3 {
 //		t.Errorf("Unexpected count! Got %d", count)
 //	}
-//	err = db.InsertMixedMessages([]*MixedMessage{{
-//		RoundId:         testRound,
-//		RecipientId:     testClient.Marshal(),
-//		MessageContents: []byte("Test24"),
-//	},},)
+//	err = db.InsertMixedMessages(&ClientRound{
+//		Id:        testRound2,
+//		Timestamp: time.Now(),
+//		Messages: []MixedMessage{{
+//			RoundId:         testRound2,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: []byte("jinkies scoob"),
+//		}}})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.deleteMixedMessages(time.Now().Add(1 * time.Hour))
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //
-//	err = db.DeleteMixedMessageByRound(testRoundId)
-//	if err != nil {
-//		t.Errorf(err.Error())
-//		return
-//	}
-//
-//	client, err := db.GetClient(testClient)
+//	client, err := db.GetClient(testClient2)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -191,20 +217,20 @@ import (
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", rounds[1])
-//	messages, err := db.getMixedMessages(testClient, testRoundId)
+//	messages, err := db.getMixedMessages(&testEphem, testRoundId)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", messages)
-//	filters, err := db.getBloomFilters(testClient)
+//	filters, err := db.GetClientBloomFilters(&testEphem, 1, 5)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
 //	}
 //	jwalterweatherman.INFO.Printf("%+v", filters)
 //
-//	err = db.DeleteBloomFilterByEpoch(testEpoch.Id)
+//	err = db.DeleteClientFiltersBeforeEpoch(3)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -217,7 +243,7 @@ func TestNewMixedMessage(t *testing.T) {
 	testBytes1 := []byte("test")
 	testBytes2 := []byte("1234")
 	testRound := uint64(10)
-	testRecip := id.NewIdFromBytes(testBytes, t)
+	testRecip := &ephemeral.Id{1, 2, 3}
 	testRoundId := id.Round(testRound)
 
 	mm := NewMixedMessage(testRoundId, testRecip, testBytes1, testBytes2)
@@ -228,30 +254,29 @@ func TestNewMixedMessage(t *testing.T) {
 	if mm.RoundId != testRound {
 		t.Errorf("Invalid Round Id: %d", mm.RoundId)
 	}
-	if bytes.Compare(mm.RecipientId, testRecip.Marshal()) != 0 {
+	if mm.RecipientId != testRecip.Int64() {
 		t.Errorf("Invalid Recipient Id: %v", mm.RecipientId)
 	}
-	if bytes.Compare(mm.MessageContents, testBytes) != 0 {
+	if !bytes.Equal(mm.MessageContents, testBytes) {
 		t.Errorf("Invalid Message Contents: %v", mm.MessageContents)
 	}
 }
 
 // Happy path
 func TestMixedMessage_GetMessageContents(t *testing.T) {
-	testBytes := []byte("test1234")
 	testBytes1 := []byte("test")
 	testBytes2 := []byte("1234")
 	testRound := uint64(10)
-	testRecip := id.NewIdFromBytes(testBytes, t)
+	testRecip := &ephemeral.Id{1, 2, 3}
 	testRoundId := id.Round(testRound)
 
 	mm := NewMixedMessage(testRoundId, testRecip, testBytes1, testBytes2)
 	messageContentsA, messageContentsB := mm.GetMessageContents()
 
-	if bytes.Compare(testBytes1, messageContentsA) != 0 {
+	if !bytes.Equal(testBytes1, messageContentsA) {
 		t.Errorf("Invalid message contents A: %v", string(messageContentsA))
 	}
-	if bytes.Compare(testBytes2, messageContentsB) != 0 {
+	if !bytes.Equal(testBytes2, messageContentsB) {
 		t.Errorf("Invalid message contents B: %v", string(messageContentsB))
 	}
 }
@@ -280,46 +305,6 @@ func TestMapImpl_GetClient_NoClientError(t *testing.T) {
 	client, err := m.GetClient(testKey)
 	if err == nil || client != nil {
 		t.Errorf("No error returned when client does not exist.")
-	}
-}
-
-// Happy path
-func TestMapImpl_InsertClient(t *testing.T) {
-	testKey := id.NewIdFromString("testKey1", id.User, t)
-	testClient := &Client{Id: testKey.Marshal()}
-	m := &MapImpl{
-		clients: make(map[id.ID]*Client),
-	}
-
-	err := m.InsertClient(testClient)
-	if err != nil || m.clients[*testKey] == nil {
-		t.Errorf("Failed to insert client: %v", err)
-	}
-}
-
-// Error Path: Client already exists in map.
-func TestMapImpl_InsertClient_ClientAlreadyExistsError(t *testing.T) {
-	testKey := *id.NewIdFromString("testKey1", id.User, t)
-	testClient := &Client{Id: testKey.Marshal()}
-	m := &MapImpl{
-		clients: map[id.ID]*Client{testKey: testClient},
-	}
-
-	err := m.InsertClient(testClient)
-	if err == nil {
-		t.Errorf("Did not error when attempting to insert a client that " +
-			"already exists.")
-	}
-}
-
-// Error Path: Client has an invalid ID.
-func TestMapImpl_InsertClient_InvalidIdError(t *testing.T) {
-	testClient := &Client{Id: []byte{1, 2, 3}}
-	m := &MapImpl{}
-
-	err := m.InsertClient(testClient)
-	if err == nil {
-		t.Errorf("Did not error when provided client with invalid ID.")
 	}
 }
 
@@ -428,26 +413,30 @@ func TestMapImpl_countMixedMessagesByRound(t *testing.T) {
 	testRoundID := rand.Uint64()
 	m := &MapImpl{
 		mixedMessages: MixedMessageMap{
-			RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
-			RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+			RoundId:      map[id.Round]map[int64]map[uint64]*MixedMessage{},
+			RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			RoundIdCount: map[id.Round]uint64{},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
 	// Add more messages with different recipient and round IDs.
-	_ = m.InsertMixedMessages([]*MixedMessage{{
-		Id:          rand.Uint64(),
-		RoundId:     testRoundID,
-		RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
-	}, {
-		Id:          rand.Uint64(),
-		RoundId:     testRoundID,
-		RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
-	}, {
-		Id:          rand.Uint64(),
-		RoundId:     testRoundID,
-		RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
-	}})
+	_ = m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages: []MixedMessage{{
+			Id:          rand.Uint64(),
+			RoundId:     testRoundID,
+			RecipientId: rand.Int63(),
+		}, {
+			Id:          rand.Uint64(),
+			RoundId:     testRoundID,
+			RecipientId: rand.Int63(),
+		}, {
+			Id:          rand.Uint64(),
+			RoundId:     testRoundID,
+			RecipientId: rand.Int63(),
+		}}})
 
 	count, err := m.countMixedMessagesByRound(id.Round(testRoundID))
 	if err != nil {
@@ -464,18 +453,23 @@ func TestMapImpl_countMixedMessagesByRound(t *testing.T) {
 func TestMapImpl_getMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
+	testRecipientID := &ephemeral.Id{1, 2, 3}
 	testMixedMessage := &MixedMessage{
 		Id:          testMsgID,
 		RoundId:     uint64(testRoundID),
-		RecipientId: testRecipientID.Marshal(),
+		RecipientId: testRecipientID.Int64(),
 	}
 	m := &MapImpl{
 		mixedMessages: MixedMessageMap{
-			RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{testRoundID: {*testRecipientID: {testMsgID: testMixedMessage}}},
-			RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{*testRecipientID: {testRoundID: {testMsgID: testMixedMessage}}},
+			RoundId: map[id.Round]map[int64]map[uint64]*MixedMessage{
+				testRoundID: {testRecipientID.Int64(): {testMsgID: testMixedMessage}},
+			},
+			RecipientId: map[int64]map[id.Round]map[uint64]*MixedMessage{
+				testRecipientID.Int64(): {testRoundID: {testMsgID: testMixedMessage}},
+			},
 			RoundIdCount: map[id.Round]uint64{testRoundID: 1},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
 	// Get list of 1 item
@@ -491,16 +485,16 @@ func TestMapImpl_getMixedMessages(t *testing.T) {
 	testMixedMessage = &MixedMessage{
 		Id:          rand.Uint64(),
 		RoundId:     uint64(testRoundID),
-		RecipientId: testRecipientID.Marshal(),
+		RecipientId: testRecipientID.Int64(),
 	}
-	_ = m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	_ = m.InsertMixedMessages(&ClientRound{Id: 420, Timestamp: time.Now(), Messages: []MixedMessage{*testMixedMessage}})
 
 	testMixedMessage = &MixedMessage{
 		Id:          rand.Uint64(),
 		RoundId:     uint64(testRoundID),
-		RecipientId: testRecipientID.Marshal(),
+		RecipientId: testRecipientID.Int64(),
 	}
-	_ = m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	_ = m.InsertMixedMessages(&ClientRound{Id: 420, Timestamp: time.Now(), Messages: []MixedMessage{*testMixedMessage}})
 
 	// Get list of 3 items
 	mixedMsgs, err = m.getMixedMessages(testRecipientID, testRoundID)
@@ -515,15 +509,15 @@ func TestMapImpl_getMixedMessages(t *testing.T) {
 	testMixedMessage = &MixedMessage{
 		Id:          rand.Uint64(),
 		RoundId:     rand.Uint64(),
-		RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
+		RecipientId: rand.Int63(),
 	}
-	_ = m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	_ = m.InsertMixedMessages(&ClientRound{Id: 420, Timestamp: time.Now(), Messages: []MixedMessage{*testMixedMessage}})
 	testMixedMessage = &MixedMessage{
 		Id:          rand.Uint64(),
 		RoundId:     rand.Uint64(),
-		RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
+		RecipientId: rand.Int63(),
 	}
-	_ = m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	_ = m.InsertMixedMessages(&ClientRound{Id: 420, Timestamp: time.Now(), Messages: []MixedMessage{*testMixedMessage}})
 
 	// Get list of 3 items
 	mixedMsgs, err = m.getMixedMessages(testRecipientID, testRoundID)
@@ -539,24 +533,28 @@ func TestMapImpl_getMixedMessages(t *testing.T) {
 // Error Path: No matching messages exist in the map.
 func TestMapImpl_getMixedMessages_NoMessageError(t *testing.T) {
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
+	testRecipientID := &ephemeral.Id{1, 2, 3}
 	m := &MapImpl{
 		mixedMessages: MixedMessageMap{
-			RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
-			RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+			RoundId:      map[id.Round]map[int64]map[uint64]*MixedMessage{},
+			RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			RoundIdCount: map[id.Round]uint64{},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
-	_ = m.InsertMixedMessages([]*MixedMessage{
-		{
-			RoundId:     rand.Uint64(),
-			RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
-		}, {
-			RoundId:     rand.Uint64(),
-			RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(),
-		},
-	})
+	_ = m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages: []MixedMessage{
+			{
+				RoundId:     rand.Uint64(),
+				RecipientId: rand.Int63(),
+			}, {
+				RoundId:     rand.Uint64(),
+				RecipientId: rand.Int63(),
+			},
+		}})
 
 	// Attempt to get message that is not in map
 	mixedMsgs, err := m.getMixedMessages(testRecipientID, testRoundID)
@@ -571,22 +569,26 @@ func TestMapImpl_getMixedMessages_NoMessageError(t *testing.T) {
 // Happy path.
 func TestMapImpl_InsertMixedMessages(t *testing.T) {
 	roundID := id.Round(rand.Uint64())
-	recipientId := id.NewIdFromUInt(rand.Uint64(), id.User, t)
+	recipientId := &ephemeral.Id{1, 2, 3}
 	testMixedMessage := &MixedMessage{
 		RoundId:     uint64(roundID),
-		RecipientId: recipientId.Marshal(),
+		RecipientId: recipientId.Int64(),
 	}
 	m := &MapImpl{
 		mixedMessages: MixedMessageMap{
-			RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
-			RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+			RoundId:      map[id.Round]map[int64]map[uint64]*MixedMessage{},
+			RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			RoundIdCount: map[id.Round]uint64{},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
-	err := m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
-	if err != nil || m.mixedMessages.RecipientId[*recipientId][roundID] == nil ||
-		m.mixedMessages.RoundId[roundID][*recipientId] == nil {
+	err := m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages:  []MixedMessage{*testMixedMessage}})
+	if err != nil || m.mixedMessages.RecipientId[recipientId.Int64()][roundID] == nil ||
+		m.mixedMessages.RoundId[roundID][recipientId.Int64()] == nil {
 		t.Errorf("Failed to insert MixedMessage: %v", err)
 	}
 
@@ -598,20 +600,28 @@ func TestMapImpl_InsertMixedMessages(t *testing.T) {
 // Error Path: MixedMessage already exists in map.
 func TestMapImpl_InsertMixedMessages_MessageAlreadyExistsError(t *testing.T) {
 	roundId := id.Round(rand.Uint64())
-	recipientId := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
+	recipientId := &ephemeral.Id{1, 2, 3}
 	testMixedMessage := &MixedMessage{
 		RoundId:     uint64(roundId),
-		RecipientId: recipientId.Marshal(),
+		RecipientId: recipientId.Int64(),
 	}
 	m := &MapImpl{
 		mixedMessages: MixedMessageMap{
-			RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{roundId: {recipientId: {testMixedMessage.Id: testMixedMessage}}},
-			RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{recipientId: {roundId: {testMixedMessage.Id: testMixedMessage}}},
+			RoundId: map[id.Round]map[int64]map[uint64]*MixedMessage{
+				roundId: {recipientId.Int64(): {testMixedMessage.Id: testMixedMessage}},
+			},
+			RecipientId: map[int64]map[id.Round]map[uint64]*MixedMessage{
+				recipientId.Int64(): {roundId: {testMixedMessage.Id: testMixedMessage}},
+			},
 			RoundIdCount: map[id.Round]uint64{roundId: 1},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
-	err := m.InsertMixedMessages([]*MixedMessage{testMixedMessage})
+	err := m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages:  []MixedMessage{*testMixedMessage}})
 	if err == nil {
 		t.Errorf("Did not error when attempting to insert a mixedMessage that " +
 			"already exists.")
@@ -619,308 +629,367 @@ func TestMapImpl_InsertMixedMessages_MessageAlreadyExistsError(t *testing.T) {
 }
 
 // Happy path
-func TestMapImpl_DeleteMixedMessageByRound(t *testing.T) {
+func TestMapImpl_deleteMixedMessages(t *testing.T) {
 	testRoundId := id.Round(100)
 	testRoundId2 := id.Round(2)
-	testRecipientId := *id.NewIdFromUInt(5, id.User, t)
+	testRecipientId := &ephemeral.Id{1, 2, 3}
 	m := &MapImpl{
 		mixedMessages: MixedMessageMap{
-			RoundId:      map[id.Round]map[id.ID]map[uint64]*MixedMessage{},
-			RecipientId:  map[id.ID]map[id.Round]map[uint64]*MixedMessage{},
+			RoundId:      map[id.Round]map[int64]map[uint64]*MixedMessage{},
+			RecipientId:  map[int64]map[id.Round]map[uint64]*MixedMessage{},
 			RoundIdCount: map[id.Round]uint64{},
 		},
+		clientRounds: map[uint64]*ClientRound{},
 	}
 
 	// Insert message not to be deleted
-	_ = m.InsertMixedMessages([]*MixedMessage{{
-		RoundId:     uint64(testRoundId2),
-		RecipientId: testRecipientId.Bytes(),
-	}})
+	_ = m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages: []MixedMessage{{
+			RoundId:     uint64(testRoundId2),
+			RecipientId: testRecipientId.Int64(),
+		}}})
+	time.Sleep(time.Second)
 
 	// Insert two messages to be deleted
-	_ = m.InsertMixedMessages([]*MixedMessage{
-		{
-			RoundId:     uint64(testRoundId),
-			RecipientId: testRecipientId.Bytes(),
-		}, {
-			RoundId:     uint64(testRoundId),
-			RecipientId: testRecipientId.Bytes(),
-		},
-	})
+	_ = m.InsertMixedMessages(&ClientRound{
+		Id:        420,
+		Timestamp: time.Now(),
+		Messages: []MixedMessage{
+			{
+				RoundId:     uint64(testRoundId),
+				RecipientId: testRecipientId.Int64(),
+			}, {
+				RoundId:     uint64(testRoundId),
+				RecipientId: testRecipientId.Int64(),
+			},
+		}})
 
 	// Delete the two messages
-	err := m.DeleteMixedMessageByRound(testRoundId)
+
+	err := m.deleteMixedMessages(time.Now())
 	if err != nil {
 		t.Errorf("Unable to delete mixed messages by round: %+v", err)
 	}
 
 	// Ensure both messages were deleted
-	if m.mixedMessages.RoundId[testRoundId][testRecipientId][1] != nil ||
-		m.mixedMessages.RecipientId[testRecipientId][testRoundId][1] != nil {
+	if m.mixedMessages.RoundId[testRoundId][testRecipientId.Int64()][1] != nil ||
+		m.mixedMessages.RecipientId[testRecipientId.Int64()][testRoundId][1] != nil {
 		t.Errorf("Expected to delete message with id %d from map", 1)
 	}
-	if m.mixedMessages.RoundId[testRoundId][testRecipientId][2] != nil ||
-		m.mixedMessages.RecipientId[testRecipientId][testRoundId][2] != nil {
+	if m.mixedMessages.RoundId[testRoundId][testRecipientId.Int64()][2] != nil ||
+		m.mixedMessages.RecipientId[testRecipientId.Int64()][testRoundId][2] != nil {
 		t.Errorf("Expected to delete message with id %d from map", 2)
 	}
 
 	// Ensure other message remains
-	if m.mixedMessages.RoundId[testRoundId2][testRecipientId][0] == nil ||
-		m.mixedMessages.RecipientId[testRecipientId][testRoundId2][0] == nil {
+	if m.mixedMessages.RoundId[testRoundId2][testRecipientId.Int64()][0] == nil ||
+		m.mixedMessages.RecipientId[testRecipientId.Int64()][testRoundId2][0] == nil {
 		t.Errorf("Incorrectly deleted message with id %d", 0)
 	}
 }
 
 // Happy path.
-func TestMapImpl_GetBloomFilters(t *testing.T) {
-	testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
+func TestMapImpl_GetClientBloomFilters(t *testing.T) {
+	// Build list of bloom filters to add
+	ephemeralID, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, uint64(time.Now().Unix()))
+	if err != nil {
+		t.Fatalf("Failed to get ephermeral ID: %+v", err)
+	}
+	rid := ephemeralID.Int64()
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 50},
+		{RecipientId: rid, Epoch: 100},
+		{RecipientId: rid, Epoch: 150},
+		{RecipientId: rid, Epoch: 160},
+		{RecipientId: rid, Epoch: 199},
+		{RecipientId: rid, Epoch: 200},
+		{RecipientId: rid, Epoch: 201},
+		{RecipientId: rid, Epoch: 401},
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
 	m := &MapImpl{
 		bloomFilters: BloomFilterMap{
-			RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-			EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+			RecipientId: map[int64]*ClientBloomFilterList{},
 		},
 	}
 
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: testClientID.Marshal(), EpochId: rand.Uint64()})
-
-	bloomFilters, err := m.getBloomFilters(testClientID)
-	if err != nil {
-		t.Errorf("Unexpected error retrieving bloom filters: %v", err)
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
 	}
-	if len(bloomFilters) != 3 {
-		t.Errorf("Received unexpected number of bloom filters: %v", bloomFilters)
+
+	testVals := []struct {
+		expected   []*ClientBloomFilter
+		start, end uint32
+	}{
+		{filters[1:6], 100, 200},
+		{filters[1:7], 75, 300},
+		{filters[0:1], 25, 50},
+		{filters[7:], 400, 600},
+		{filters, 25, 600},
+	}
+
+	for i, val := range testVals {
+		bloomFilters, err := m.GetClientBloomFilters(&ephemeralID, val.start, val.end)
+		if err != nil {
+			t.Errorf("Unexpected error retrieving bloom filters (%d): %v", i, err)
+		}
+		if !reflect.DeepEqual(val.expected, bloomFilters) {
+			t.Errorf("Received unexpected bloom filter list (%d)."+
+				"\nexpected: %+v\nreceived: %+v", i, val.expected, bloomFilters)
+		}
 	}
 }
 
 // Error Path: No matching bloom filters exist in the map.
-func TestMapImpl_GetBloomFilters_NoFiltersError(t *testing.T) {
-	testClientID := id.NewIdFromUInt(rand.Uint64(), id.User, t)
+func TestMapImpl_GetClientBloomFilters_NoFiltersError(t *testing.T) {
+	// Build list of bloom filters to add
+	ephemeralID, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, uint64(time.Now().Unix()))
+	if err != nil {
+		t.Fatalf("Failed to get ephermeral ID: %+v", err)
+	}
+	rid := ephemeralID.Int64()
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 100},
+		{RecipientId: rid, Epoch: 150},
+		{RecipientId: rid, Epoch: 160},
+		{RecipientId: rid, Epoch: 199},
+		{RecipientId: rid, Epoch: 200},
+		{RecipientId: rid, Epoch: 201},
+		{RecipientId: rid, Epoch: 401},
+		{RecipientId: rid, Epoch: 50},
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
 	m := &MapImpl{
 		bloomFilters: BloomFilterMap{
-			RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-			EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+			RecipientId: map[int64]*ClientBloomFilterList{},
 		},
 	}
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
-	_ = m.UpsertBloomFilter(&BloomFilter{RecipientId: id.NewIdFromUInt(rand.Uint64(), id.User, t).Marshal(), EpochId: rand.Uint64()})
 
-	bloomFilters, err := m.getBloomFilters(testClientID)
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	testVals := []struct {
+		start, end uint32
+	}{
+		{10, 20},
+		{402, 500},
+		{110, 120},
+	}
+
+	for i, val := range testVals {
+		bloomFilters, err := m.GetClientBloomFilters(&ephemeralID, val.start, val.end)
+		if err == nil {
+			t.Errorf("Expected an error when bloom filters is not in map (%d).", i)
+		}
+		if bloomFilters != nil {
+			t.Errorf("Expected nil bloom filters returned (%d). Received: %v",
+				i, bloomFilters)
+		}
+	}
+
+	// Test with an ID not in the map
+	bloomFilters, err := m.GetClientBloomFilters(&ephemeral.Id{}, 0, 1)
 	if err == nil {
-		t.Errorf("Expected an error when bloom filters is not in map.")
+		t.Error("Expected an error when bloom filters is not in map.")
 	}
 	if bloomFilters != nil {
-		t.Errorf("Expected nil bloom filters returned. Received: %v",
-			bloomFilters)
+		t.Errorf("Expected nil bloom filters returned. Received: %v", bloomFilters)
 	}
 }
 
 // Happy path.
-func TestMapImpl_UpsertBloomFilter(t *testing.T) {
-	testRecipientId := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
-	testEpochId := rand.Uint64()
-	testBloomFilter := &BloomFilter{
-		RecipientId: testRecipientId.Marshal(),
-		EpochId:     testEpochId,
+func TestMapImpl_upsertClientBloomFilter(t *testing.T) {
+	// Build list of bloom filters to add
+	rid := rand.Int63()
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 100},
+		{RecipientId: rid, Epoch: 150},
+		{RecipientId: rid, Epoch: 160},
+		{RecipientId: rid, Epoch: 199},
+		{RecipientId: rid, Epoch: 200},
+		{RecipientId: rid, Epoch: 201},
+		{RecipientId: rid, Epoch: 401},
+		{RecipientId: rid, Epoch: 401},
+		{RecipientId: rid, Epoch: 50},
 	}
+
+	// Build expected bloom filter list
+	expectedList := &ClientBloomFilterList{
+		list:  make([]*ClientBloomFilter, 451),
+		start: 50,
+	}
+	for _, bf := range filters {
+		expectedList.list[bf.Epoch-expectedList.start] = bf
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
 	m := &MapImpl{
 		bloomFilters: BloomFilterMap{
-			RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-			EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+			RecipientId: map[int64]*ClientBloomFilterList{},
 		},
 	}
 
-	err := m.UpsertBloomFilter(testBloomFilter)
-	if err != nil || m.bloomFilters.RecipientId[testRecipientId][testEpochId] == nil ||
-		m.bloomFilters.EpochId[testEpochId][testRecipientId] == nil {
-		t.Errorf("Failed to insert BloomFilter: %v", err)
+	// Upsert test bloom filters and check for errors
+	for i, bf := range filters {
+		err := m.upsertClientBloomFilter(bf)
+		if err != nil || m.bloomFilters.RecipientId[rid].list[bf.Epoch-m.bloomFilters.RecipientId[rid].start] == nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	if !reflect.DeepEqual(expectedList, m.bloomFilters.RecipientId[rid]) {
+		t.Errorf("Created list does not match expected."+
+			"\nexpected: %+v\nreceived: %+v",
+			expectedList, m.bloomFilters.RecipientId[rid])
 	}
 }
 
 // Happy path.
-func TestMapImpl_DeleteBloomFilterByEpoch(t *testing.T) {
-	epochId := rand.Uint64()
-	recipientId := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
-	vals := []struct {
-		recipientId id.ID
-		epochId     uint64
-	}{
-		{*id.NewIdFromUInt(rand.Uint64(), id.User, t), rand.Uint64()},
-		{recipientId, rand.Uint64()},
-		{recipientId, epochId},
-		{*id.NewIdFromUInt(rand.Uint64(), id.User, t), epochId},
+func TestMapImpl_DeleteClientFiltersBeforeEpoch(t *testing.T) {
+	rid := []int64{rand.Int63(), rand.Int63(), rand.Int63(), rand.Int63()}
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid[0], Epoch: 50},
+		{RecipientId: rid[0], Epoch: 100},
+		{RecipientId: rid[0], Epoch: 150},
+		{RecipientId: rid[0], Epoch: 160},
+		{RecipientId: rid[0], Epoch: 199},
+		{RecipientId: rid[0], Epoch: 200},
+		{RecipientId: rid[0], Epoch: 201},
+		{RecipientId: rid[0], Epoch: 401},
+		{RecipientId: rid[1], Epoch: 161},
+		{RecipientId: rid[1], Epoch: 200},
+		{RecipientId: rid[1], Epoch: 250},
+		{RecipientId: rid[2], Epoch: 0},
+		{RecipientId: rid[2], Epoch: 110},
+		{RecipientId: rid[2], Epoch: 115},
+		{RecipientId: rid[2], Epoch: 160},
+		{RecipientId: rid[3], Epoch: 1},
 	}
 
+	// Initialize MapImpl with ClientBloomFilterList
 	m := &MapImpl{
 		bloomFilters: BloomFilterMap{
-			RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-			EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+			RecipientId: map[int64]*ClientBloomFilterList{},
 		},
 	}
 
-	// Insert the messages
-	for _, val := range vals {
-		_ = m.UpsertBloomFilter(&BloomFilter{
-			RecipientId: val.recipientId.Marshal(),
-			EpochId:     val.epochId,
-		})
+	// Upsert test bloom filters
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Fatalf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
 	}
 
-	// Delete two of the filters
-	err := m.DeleteBloomFilterByEpoch(epochId)
+	err := m.DeleteClientFiltersBeforeEpoch(160)
 	if err != nil {
-		t.Errorf("Unable to delete bloom filters by epochId: %+v", err)
+		t.Errorf("DeleteClientFiltersBeforeEpoch() produced an error: %+v", err)
 	}
 
-	// Ensure both filters were deleted
-	for i, val := range vals {
-		if val.epochId == epochId {
-			if m.bloomFilters.RecipientId[val.recipientId][val.epochId] != nil ||
-				m.bloomFilters.EpochId[val.epochId][val.recipientId] != nil {
-				t.Errorf("Expected to delete bloom filter %d from map", i)
-			}
+	// Get list of filters for the first ID
+	var mapFilters []*ClientBloomFilter
+	for _, bf := range m.bloomFilters.RecipientId[rid[0]].list {
+		if bf != nil {
+			mapFilters = append(mapFilters, bf)
 		}
 	}
 
-	// Ensure the other filter remains
-	for i, val := range vals {
-		if val.epochId != epochId {
-			if m.bloomFilters.RecipientId[val.recipientId][val.epochId] == nil ||
-				m.bloomFilters.EpochId[val.epochId][val.recipientId] == nil {
-				t.Errorf("Incorrectly deleted bloom filter %d: %+v", i, val)
-			}
+	if !reflect.DeepEqual(filters[4:8], mapFilters) {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the expected "+
+			"bloom filters for ID %d.\nexpected: %+v\nreceived: %+v",
+			rid[0], filters[4:8], mapFilters)
+	}
+
+	// Get list of filters for the second ID
+	mapFilters = []*ClientBloomFilter{}
+	for _, bf := range m.bloomFilters.RecipientId[rid[1]].list {
+		if bf != nil {
+			mapFilters = append(mapFilters, bf)
 		}
+	}
+
+	if !reflect.DeepEqual(filters[8:11], mapFilters) {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the expected "+
+			"bloom filters for ID %d.\nexpected: %+v\nreceived: %+v",
+			rid[1], filters[8:11], mapFilters)
+	}
+
+	// Get list of filters for the third ID
+	mapFilters = []*ClientBloomFilter{}
+	for _, bf := range m.bloomFilters.RecipientId[rid[2]].list {
+		if bf != nil {
+			mapFilters = append(mapFilters, bf)
+		}
+	}
+
+	if !reflect.DeepEqual([]*ClientBloomFilter{}, mapFilters) {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the expected "+
+			"bloom filters for ID %d.\nexpected: %+v\nreceived: %+v",
+			rid[2], []*ClientBloomFilter{}, mapFilters)
+	}
+
+	if m.bloomFilters.RecipientId[rid[3]] != nil {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the list for ID "+
+			"%d when all stores epochs occured before the given epoch.\nlist: %+v",
+			rid[2], m.bloomFilters.RecipientId[rid[3]])
 	}
 }
 
-// Error Path: The bloom filter does not exists in map.
-func TestMapImpl_DeleteBloomFilterByEpoch_NoFilterError(t *testing.T) {
-	epochId := rand.Uint64()
-	recipientId := *id.NewIdFromUInt(rand.Uint64(), id.User, t)
-	vals := []struct {
-		recipientId id.ID
-		epochId     uint64
-	}{
-		{*id.NewIdFromUInt(rand.Uint64(), id.User, t), rand.Uint64()},
-		{recipientId, rand.Uint64()},
-		{recipientId, rand.Uint64()},
-		{*id.NewIdFromUInt(rand.Uint64(), id.User, t), rand.Uint64()},
+// Error path: no bloom filters with epochs before the given one exist.
+func TestMapImpl_DeleteClientFiltersBeforeEpoch_NoFiltersError(t *testing.T) {
+	rid := rand.Int63()
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 50},
+		{RecipientId: rid, Epoch: 100},
+		{RecipientId: rid, Epoch: 150},
+		{RecipientId: rid, Epoch: 160},
+		{RecipientId: rid, Epoch: 199},
+		{RecipientId: rid, Epoch: 200},
+		{RecipientId: rid, Epoch: 201},
+		{RecipientId: rid, Epoch: 250},
+		{RecipientId: rid, Epoch: 401},
 	}
 
+	// Initialize MapImpl with ClientBloomFilterList
 	m := &MapImpl{
 		bloomFilters: BloomFilterMap{
-			RecipientId: map[id.ID]map[uint64]*BloomFilter{},
-			EpochId:     map[uint64]map[id.ID]*BloomFilter{},
+			RecipientId: map[int64]*ClientBloomFilterList{},
 		},
 	}
 
-	// Insert the messages
-	for _, val := range vals {
-		_ = m.UpsertBloomFilter(&BloomFilter{
-			RecipientId: val.recipientId.Marshal(),
-			EpochId:     val.epochId,
-		})
-	}
-
-	// Attempt to delete
-	err := m.DeleteBloomFilterByEpoch(epochId)
-	if err == nil {
-		t.Errorf("No error ocurred when bloom filters do not exist.")
-	}
-
-	// Ensure all filters still exist
-	for i, val := range vals {
-		if m.bloomFilters.RecipientId[val.recipientId][val.epochId] == nil ||
-			m.bloomFilters.EpochId[val.epochId][val.recipientId] == nil {
-			t.Errorf("Incorrectly deleted bloom filter %d: %+v", i, val)
+	// Upsert test bloom filters
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Fatalf("Failed to insert BloomFilter (%d): %v", i, err)
 		}
 	}
-}
 
-// Happy path.
-func TestMapImpl_InsertEpoch(t *testing.T) {
-	testRid := id.Round(rand.Uint64())
-	m := &MapImpl{
-		epochs: EpochMap{
-			M:       map[uint64]*Epoch{},
-			IdTrack: 0,
-		},
-	}
-
-	_, err := m.InsertEpoch(testRid)
-	if err != nil || m.epochs.M[0] == nil || m.epochs.M[0].RoundId != uint64(testRid) {
-		t.Errorf("Failed to insert epoch: %+v", err)
-	}
-}
-
-// Happy path.
-func TestMapImpl_GetEpoch(t *testing.T) {
-	testRid := id.Round(rand.Uint64())
-	m := &MapImpl{
-		epochs: EpochMap{
-			M:       map[uint64]*Epoch{},
-			IdTrack: 0,
-		},
-	}
-	_, _ = m.InsertEpoch(testRid)
-
-	epoch, err := m.GetEpoch(0)
-	if err != nil || epoch.RoundId != uint64(testRid) {
-		t.Errorf("Failed to get epoch: %+v", err)
-	}
-}
-
-// Error path: no matching epoch exists.
-func TestMapImpl_GetEpoch_NoMatchingEpochError(t *testing.T) {
-	m := &MapImpl{
-		epochs: EpochMap{
-			M:       map[uint64]*Epoch{},
-			IdTrack: 0,
-		},
-	}
-
-	epoch, err := m.GetEpoch(0)
-	if err == nil || epoch != nil {
-		t.Errorf("Retrieved epoch when one should not exist")
-	}
-}
-
-// Happy path.
-func TestMapImpl_GetLatestEpoch(t *testing.T) {
-	m := &MapImpl{
-		epochs: EpochMap{
-			M:       map[uint64]*Epoch{},
-			IdTrack: 0,
-		},
-	}
-	_, _ = m.InsertEpoch(id.Round(rand.Uint64()))
-	_, _ = m.InsertEpoch(id.Round(rand.Uint64()))
-	_, _ = m.InsertEpoch(id.Round(rand.Uint64()))
-	_, _ = m.InsertEpoch(id.Round(rand.Uint64()))
-	epoch, _ := m.InsertEpoch(id.Round(rand.Uint64()))
-
-	testEpoch, err := m.GetLatestEpoch()
-	if err != nil || !reflect.DeepEqual(epoch, testEpoch) {
-		t.Errorf("Failed to get correct latest epoch: %+v"+
-			"\n\texpected: %+v\n\treceived: %+v", err, epoch, testEpoch)
-	}
-}
-
-// Error path: no epochs exist in map
-func TestMapImpl_GetLatestEpoch_NoEpochsInMapError(t *testing.T) {
-	m := &MapImpl{
-		epochs: EpochMap{
-			M:       map[uint64]*Epoch{},
-			IdTrack: 0,
-		},
-	}
-
-	_, err := m.GetLatestEpoch()
+	err := m.DeleteClientFiltersBeforeEpoch(5)
 	if err == nil {
-		t.Errorf("Expected error when epoch map is empty.")
+		t.Error("DeleteClientFiltersBeforeEpoch() did not produced an error when no " +
+			"filters should have been deleted.")
+	}
+
+	// Get list of filters for the first ID
+	var mapFilters []*ClientBloomFilter
+	for _, bf := range m.bloomFilters.RecipientId[rid].list {
+		if bf != nil {
+			mapFilters = append(mapFilters, bf)
+		}
+	}
+
+	if !reflect.DeepEqual(filters, mapFilters) {
+		t.Errorf("DeleteClientFiltersBeforeEpoch() did not delete the expected "+
+			"bloom filters for ID %d.\nexpected: %+v\nreceived: %+v",
+			rid, filters, mapFilters)
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +38,7 @@ func (gw *Instance) InitBloomGossip() {
 
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
-func (gw *Instance) GossipBloom(recipients map[id.ID]interface{}, roundId id.Round) error {
+func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round) error {
 
 	jww.INFO.Printf("GossipBloom: %v", roundId)
 	var err error
@@ -151,19 +152,25 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	roundID := id.Round(payloadMsg.RoundID)
 	jww.INFO.Printf("Gossip received for round %d", roundID)
+	round, err := gw.NetInf.GetRound(roundID)
+	if err != nil {
+		return err
+	}
+
+	epoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
 
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
 		wg.Add(1)
 		go func(localRecipient []byte) {
 			// Marshal the id
-			recipientId, err := id.Unmarshal(localRecipient)
+			recipientId, err := ephemeral.Marshal(localRecipient)
 			if err != nil {
 				errs = append(errs, err.Error())
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, roundID)
+			err = gw.UpsertFilter(recipientId, roundID, epoch)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -190,15 +197,15 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
-func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Round) ([]byte, error) {
+func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId id.Round) ([]byte, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
-	numElements := 0
+	i := 0
 	recipients := make([][]byte, len(recipientIDs))
 	for key := range recipientIDs {
-		jww.INFO.Printf("buildGossip Rec: %v", key)
-		recipients[numElements] = key.Bytes()
-		numElements++
+		recipients[i] = make([]byte, len(key))
+		copy(recipients[i], key[:])
+		i++
 	}
 
 	// Build the message payload and return
@@ -206,6 +213,5 @@ func buildGossipPayloadBloom(recipientIDs map[id.ID]interface{}, roundId id.Roun
 		RecipientIds: recipients,
 		RoundID:      uint64(roundId),
 	}
-
 	return proto.Marshal(payloadMsg)
 }

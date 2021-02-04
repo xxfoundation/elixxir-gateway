@@ -11,8 +11,9 @@ import (
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	bloom "gitlab.com/elixxir/bloomfilter"
-	"gitlab.com/elixxir/gateway/storage"
+	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"strings"
 )
 
@@ -23,12 +24,20 @@ const bloomFilterSize = 71888 // In Bits
 const bloomFilterHashes = 8
 
 // Upserts filters of passed in recipients, using the round ID
-func (gw *Instance) UpsertFilters(recipients map[id.ID]interface{}, roundId id.Round) error {
+func (gw *Instance) UpsertFilters(recipients map[ephemeral.Id]interface{}, roundId id.Round) error {
 	var errReturn error
 	var errs []string
 
+	// Get epoch information
+	round, err := gw.NetInf.GetRound(roundId)
+	if err != nil {
+		return err
+	}
+	roundTimestamp := round.Timestamps[states.REALTIME]
+	epoch := GetEpoch(int64(roundTimestamp), gw.period)
+
 	for recipient := range recipients {
-		err := gw.UpsertFilter(&recipient, roundId)
+		err := gw.UpsertFilter(&recipient, roundId, epoch)
 		if err != nil {
 			errs = append(errs, err.Error())
 		}
@@ -41,87 +50,15 @@ func (gw *Instance) UpsertFilters(recipients map[id.ID]interface{}, roundId id.R
 	return errReturn
 }
 
-// Update function which updates a recipient's bloom filter.
-// TODO: will handle higher business logic when complex filter design
-//  is ready
-func (gw *Instance) UpsertFilter(recipientId *id.ID, roundId id.Round) error {
-	return gw.upsertFilter(recipientId, roundId)
-}
-
 // Helper function which updates the clients bloom filter
-func (gw *Instance) upsertFilter(recipientId *id.ID, roundId id.Round) error {
-	//// Get the latest epoch value
-	// todo: uncomment when epoch implementation is complete
-	//epoch, err := gw.storage.GetLatestEpoch()
-	//if err != nil {
-	//	return errors.Errorf("Unable to get latest epoch: %s", err)
-	//}
+func (gw *Instance) UpsertFilter(recipientId *ephemeral.Id, roundId id.Round, epoch uint32) error {
+	jww.DEBUG.Printf("Adding bloom filter for client %v on round  %d", recipientId, roundId)
 
-	jww.DEBUG.Printf("Adding bloom filter for client [%v] on round  %d", recipientId, roundId)
-
-	// Get the filters for the associated client
-	filters, err := gw.storage.GetBloomFilters(recipientId, roundId)
-	if err != nil || filters == nil {
-		// Generate a new filter
-		newUserFilter, err := generateNewFilter(recipientId, roundId)
-		if err != nil {
-			return errors.Errorf("Unable to generate a new user filter: %v", err)
-		}
-
-		// Update the epoch it was created in
-		// todo: uncomment when epoch implementation is complete
-		//newUserFilter.EpochId = epoch.Id
-
-		// Upsert the filter to storage
-		return gw.storage.UpsertBloomFilter(newUserFilter)
-	}
-
-	// Pull the most recent filter
-	recentFilter := filters[len(filters)-1]
-
-	// Unmarshal the most recent filter
-	bloomFilter, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
-	if err != nil {
-		return errors.Errorf("Unable to create a bloom filter: %v", err)
-	}
-	err = bloomFilter.UnmarshalBinary(recentFilter.Filter)
-	if err != nil {
-		return errors.Errorf("Unable to unmarshal filter from storage: %v", err)
-	}
-
-	// Add the round to the bloom filter
-	serializedRound := serializeRound(roundId)
-	bloomFilter.Add(serializedRound)
-
-	// Marshal the bloom filter back for storage
-	marshaledFilter, err := bloomFilter.MarshalBinary()
-	if err != nil {
-		return errors.Errorf("Unable to marshal user filter: %v", err)
-	}
-
-	// fixme: Likely to change due to DB restructure
-	// Place filter back into database
-	err = gw.storage.UpsertBloomFilter(&storage.BloomFilter{
-		RecipientId: recipientId.Bytes(),
-		Filter:      marshaledFilter,
-		// todo: uncomment when epoch implementation is complete
-		//EpochId:     epoch.Id,
-	})
-
-	if err != nil {
-		return errors.Errorf("Unable to insert user filter into database: %v", err)
-	}
-
-	return nil
-}
-
-// Helper function which generates a bloom filter with the round hashed into it
-func generateNewFilter(recipientId *id.ID, roundId id.Round) (*storage.BloomFilter, error) {
+	// Generate a new filter
 	// Initialize a new bloom filter
 	newBloom, err := bloom.InitByParameters(bloomFilterSize, bloomFilterHashes)
 	if err != nil {
-		return &storage.BloomFilter{},
-			errors.Errorf("Unable to generate new bloom filter: %s", err)
+		return errors.Errorf("Unable to generate new bloom filter: %s", err)
 	}
 
 	// Add the round to the bloom filter
@@ -132,15 +69,11 @@ func generateNewFilter(recipientId *id.ID, roundId id.Round) (*storage.BloomFilt
 	// Marshal the new bloom filter
 	marshaledBloom, err := newBloom.MarshalBinary()
 	if err != nil {
-		return &storage.BloomFilter{},
-			errors.Errorf("Unable to marshal new bloom filter: %s", err)
+		return errors.Errorf("Unable to marshal new bloom filter: %s", err)
 	}
 
-	return &storage.BloomFilter{
-		RecipientId: recipientId.Bytes(),
-		Filter:      marshaledBloom,
-	}, nil
-
+	// Upsert the filter to storage
+	return gw.storage.HandleBloomFilter(recipientId, marshaledBloom, roundId, epoch)
 }
 
 // Serializes a round into a byte array.

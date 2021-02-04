@@ -39,7 +39,7 @@ func TestUnmixedMapBuffer_GetUnmixedMessages(t *testing.T) {
 			unmixedMessageBuf.LenUnmixed(id.Round(0)))
 	}
 
-	if unmixedMessageBuf.PopRound( 0) != nil {
+	if unmixedMessageBuf.PopRound(0) != nil {
 		t.Errorf("GetRoundMessages: Should have returned empty batch")
 	}
 	testSlot := &pb.Slot{SenderID: id.ZeroUser.Marshal()}
@@ -53,13 +53,13 @@ func TestUnmixedMapBuffer_GetUnmixedMessages(t *testing.T) {
 		t.Errorf("GetRoundMessages: Queue should have 1 message!")
 	}
 
-	unmixedMessageBuf.PopRound( 0)
+	unmixedMessageBuf.PopRound(0)
 
 	// Test that if minCount is greater than the amount of messages, then the
 	// batch that is returned is nil
 	unmixedMessageBuf.AddUnmixedMessage(testSlot, id.Round(0))
 
-	batch := unmixedMessageBuf.PopRound( 0)
+	batch := unmixedMessageBuf.PopRound(0)
 
 	if batch != nil {
 		t.Errorf("Error case of minCount being greater than the amount of"+
