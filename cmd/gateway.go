@@ -1026,7 +1026,7 @@ func (gw *Instance) shareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
 	// Process round topology into IDs
 	idList, err := id.NewIDListFromBytes(round.Topology)
 	if err != nil {
-		return errors.Errorf("Could not read topology from round object: %s", err)
+		return errors.Errorf("Could not read topology from round %d: %+v", round.ID, err)
 	}
 
 	// Build share message
@@ -1047,11 +1047,15 @@ func (gw *Instance) shareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
 			return errors.Errorf("Unable to find host for message sharing: %s",
 				teamId.String())
 		}
-		err = gw.Comms.SendShareMessages(teamHost, shareMsg)
-		if err != nil {
-			return errors.Errorf("Unable to share messages with host %s: %+v",
-				teamId.String(), err)
-		}
+
+		// Make the sends non-blocking
+		go func(teamIdStr string) {
+			err = gw.Comms.SendShareMessages(teamHost, shareMsg)
+			if err != nil {
+				jww.ERROR.Printf("Unable to share messages with host %s on round %d: %+v",
+					teamIdStr, round.ID, err)
+			}
+		}(teamId.String())
 	}
 	return nil
 }
