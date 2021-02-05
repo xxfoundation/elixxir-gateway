@@ -1021,6 +1021,41 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	}
 }
 
+// Helper function for sharing messages in the batch with the rest of the team
+func (gw *Instance) shareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
+	// Process round topology into IDs
+	idList, err := id.NewIDListFromBytes(round.Topology)
+	if err != nil {
+		return errors.Errorf("Could not read topology from round object: %s", err)
+	}
+
+	// Build share message
+	shareMsg := &pb.RoundMessages{
+		RoundId:  round.ID,
+		Messages: msgs,
+	}
+
+	// Send share message to other gateways in team, excluding self
+	for _, teamId := range idList {
+		teamId.SetType(id.Gateway)
+		if teamId.Cmp(gw.Comms.Id) {
+			continue
+		}
+
+		teamHost, exists := gw.Comms.GetHost(teamId)
+		if !exists {
+			return errors.Errorf("Unable to find host for message sharing: %s",
+				teamId.String())
+		}
+		err = gw.Comms.SendShareMessages(teamHost, shareMsg)
+		if err != nil {
+			return errors.Errorf("Unable to share messages with host %s: %+v",
+				teamId.String(), err)
+		}
+	}
+	return nil
+}
+
 // ProcessCompletedBatch handles messages coming out of the mixnet
 func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	if len(msgs) == 0 {
@@ -1033,6 +1068,13 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	if err != nil {
 		jww.ERROR.Printf("ProcessCompleted - Unable to get round: %+v", err)
 		return
+	}
+
+	// Share messages in the batch with the rest of the team
+	err = gw.shareMessages(msgs, round)
+	if err != nil {
+		// Print error but do not stop message processing
+		jww.ERROR.Printf("Message sharing failed: %+v", err)
 	}
 
 	// Build a ClientRound object around the client messages
@@ -1057,7 +1099,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 				continue
 			}
 
-			recipients[*recipientId] = nil
+			// Clear random bytes from recipient ID and add to map
+			recipients[recipientId.Clear(uint(round.AddressSpaceSize))] = nil
 
 			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
 				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
