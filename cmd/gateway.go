@@ -311,7 +311,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 
 	impl.Functions.ShareMessages = func(msg *pb.RoundMessages, auth *connect.Auth) error {
-		fmt.Printf("I hit message baby")
 		return instance.ShareMessages(msg, auth)
 	}
 	return impl
@@ -1040,7 +1039,7 @@ func (gw *Instance) sendShareMessages(msgs []*pb.Slot, round *pb.RoundInfo) erro
 		RoundId:  round.ID,
 		Messages: msgs,
 	}
-	fmt.Printf("leng of Idlist: %v\n", len(idList))
+
 	// Send share message to other gateways in team, excluding self
 	for _, teamId := range idList {
 		teamId.SetType(id.Gateway)
@@ -1054,7 +1053,6 @@ func (gw *Instance) sendShareMessages(msgs []*pb.Slot, round *pb.RoundInfo) erro
 				teamId.String())
 		}
 
-		fmt.Printf("sending to host: %v\n", teamHost)
 		// Make the sends non-blocking
 		go func(teamIdStr string) {
 			err = gw.Comms.SendShareMessages(teamHost, shareMsg)
@@ -1143,6 +1141,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	go PrintProfilingStatistics()
 }
 
+// Helper function which takes passed in messages from a round and
+// stores these as mixedMessages
 func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 	round *pb.RoundInfo) map[ephemeral.Id]interface{} {
 	numReal := 0
@@ -1154,7 +1154,6 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 	}
 	msgsToInsert := make([]storage.MixedMessage, len(msgs))
 	recipients := make(map[ephemeral.Id]interface{})
-	fmt.Printf("number of messages: %v\n", len(msgs))
 	// Process the messages into the ClientRound object
 	for _, msg := range msgs {
 		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
@@ -1166,7 +1165,6 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			recipIdBytes := serialMsg.GetEphemeralRID()
 			recipientId, err := ephemeral.Marshal(recipIdBytes)
 			if err != nil {
-				fmt.Printf("continue\n")
 				jww.ERROR.Printf("Unable to marshal ID: %+v", err)
 				continue
 			}
@@ -1185,7 +1183,6 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 
 	// Perform the message insertion into Storage
 	clientRound.Messages = msgsToInsert[:numReal]
-	fmt.Printf("number of messages to inser: %v", numReal)
 	err := gw.storage.InsertMixedMessages(clientRound)
 	if err != nil {
 		jww.ERROR.Printf("Inserting new mixed messages failed in "+
