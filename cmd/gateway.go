@@ -309,6 +309,11 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.Poll = func(msg *pb.GatewayPoll) (response *pb.GatewayPollResponse, err error) {
 		return instance.Poll(msg)
 	}
+
+	impl.Functions.ShareMessages = func(msg *pb.RoundMessages, auth *connect.Auth) error {
+		fmt.Printf("I hit message baby")
+		return instance.ShareMessages(msg, auth)
+	}
 	return impl
 }
 
@@ -1022,7 +1027,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 }
 
 // Helper function for sharing messages in the batch with the rest of the team
-func (gw *Instance) shareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
+func (gw *Instance) sendShareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
 	// Process round topology into IDs
 	idList, err := id.NewIDListFromBytes(round.Topology)
 	if err != nil {
@@ -1034,7 +1039,7 @@ func (gw *Instance) shareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
 		RoundId:  round.ID,
 		Messages: msgs,
 	}
-
+	fmt.Printf("leng of Idlist: %v\n", len(idList))
 	// Send share message to other gateways in team, excluding self
 	for _, teamId := range idList {
 		teamId.SetType(id.Gateway)
@@ -1048,6 +1053,7 @@ func (gw *Instance) shareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
 				teamId.String())
 		}
 
+		fmt.Printf("sending to host: %v\n", teamHost)
 		// Make the sends non-blocking
 		go func(teamIdStr string) {
 			err = gw.Comms.SendShareMessages(teamHost, shareMsg)
@@ -1060,13 +1066,46 @@ func (gw *Instance) shareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
 	return nil
 }
 
+// Reception handler for sendShareMessages. Performs auth checks for a valid gateway.
+// If valid, processes and adds the messages to storage
+func (gw *Instance) ShareMessages(msg *pb.RoundMessages, auth *connect.Auth) error {
+	// At this point, the returned batch and its fields should be non-nil
+	roundId := id.Round(msg.RoundId)
+	round, err := gw.NetInf.GetRound(roundId)
+	if err != nil {
+		return errors.Errorf("Unable to get round: %+v", err)
+	}
+
+	// Parse the round topology
+	idList, err := id.NewIDListFromBytes(round.Topology)
+	if err != nil {
+		return errors.Errorf("Could not read topology from round messages: %s",
+			err)
+	}
+
+	topology := connect.NewCircuit(idList)
+	senderId :=	auth.Sender.GetId()
+
+	// Auth checks required:
+	// Make sure authentication is valid, this gateway is in the round,
+	// the sender is the LastGateway in that round, and that the num slots
+	// that sender sent less equal to the batchSize for that round
+	if !auth.IsAuthenticated  || topology.GetNodeLocation(gw.Comms.Id) != -1 ||
+	  topology.IsLastNode(senderId) || len(msg.Messages) <= int(round.BatchSize) {
+		return connect.AuthError(senderId)
+	}
+
+	gw.processMessages(msg.Messages, roundId, round)
+
+	return nil
+}
+
 // ProcessCompletedBatch handles messages coming out of the mixnet
 func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	if len(msgs) == 0 {
 		return
 	}
 
-	numReal := 0
 	// At this point, the returned batch and its fields should be non-nil
 	round, err := gw.NetInf.GetRound(roundID)
 	if err != nil {
@@ -1075,53 +1114,13 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	}
 
 	// Share messages in the batch with the rest of the team
-	err = gw.shareMessages(msgs, round)
+	err = gw.sendShareMessages(msgs, round)
 	if err != nil {
 		// Print error but do not stop message processing
 		jww.ERROR.Printf("Message sharing failed: %+v", err)
 	}
 
-	// Build a ClientRound object around the client messages
-	clientRound := &storage.ClientRound{
-		Id:        uint64(roundID),
-		Timestamp: time.Unix(0, int64(round.Timestamps[states.REALTIME])),
-	}
-	msgsToInsert := make([]storage.MixedMessage, len(msgs))
-	recipients := make(map[ephemeral.Id]interface{})
-
-	// Process the messages into the ClientRound object
-	for _, msg := range msgs {
-		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-
-		// If IdentityFP is not zeroed, the message is not a dummy
-		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
-			serialMsg.SetPayloadB(msg.PayloadB)
-			recipIdBytes := serialMsg.GetEphemeralRID()
-			recipientId, err := ephemeral.Marshal(recipIdBytes)
-			if err != nil {
-				jww.ERROR.Printf("Unable to marshal ID: %+v", err)
-				continue
-			}
-
-			// Clear random bytes from recipient ID and add to map
-			recipients[recipientId.Clear(uint(round.AddressSpaceSize))] = nil
-
-			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
-				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
-
-			// Create new message and add it to the list for insertion
-			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
-			numReal++
-		}
-	}
-
-	// Perform the message insertion into Storage
-	clientRound.Messages = msgsToInsert[:numReal]
-	err = gw.storage.InsertMixedMessages(clientRound)
-	if err != nil {
-		jww.ERROR.Printf("Inserting new mixed messages failed in "+
-			"ProcessCompletedBatch: %+v", err)
-	}
+	recipients := gw.processMessages(msgs, roundID, round)
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
@@ -1140,10 +1139,63 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		}()
 	}
 
+	go PrintProfilingStatistics()
+}
+
+func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
+	round *pb.RoundInfo) map[ephemeral.Id]interface{} {
+	numReal := 0
+
+	// Build a ClientRound object around the client messages
+	clientRound := &storage.ClientRound{
+		Id:        uint64(roundID),
+		Timestamp: time.Unix(0, int64(round.Timestamps[states.REALTIME])),
+	}
+	msgsToInsert := make([]storage.MixedMessage, len(msgs))
+	recipients := make(map[ephemeral.Id]interface{})
+	fmt.Printf("number of messages: %v\n", len(msgs))
+	// Process the messages into the ClientRound object
+	for _, msg := range msgs {
+		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
+
+		// If IdentityFP is not zeroed, the message is not a dummy
+		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
+			serialMsg.SetPayloadB(msg.PayloadB)
+			recipIdBytes := serialMsg.GetEphemeralRID()
+			recipientId, err := ephemeral.Marshal(recipIdBytes)
+			if err != nil {
+				fmt.Printf("continue\n")
+				jww.ERROR.Printf("Unable to marshal ID: %+v", err)
+				continue
+			}
+
+			// Clear random bytes from recipient ID and add to map
+			recipients[recipientId.Clear(uint(round.AddressSpaceSize))] = nil
+
+			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
+				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
+
+			// Create new message and add it to the list for insertion
+			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
+			numReal++
+		}
+	}
+
+	// Perform the message insertion into Storage
+	clientRound.Messages = msgsToInsert[:numReal]
+	fmt.Printf("number of messages to inser: %v", numReal)
+	err := gw.storage.InsertMixedMessages(clientRound)
+	if err != nil {
+		jww.ERROR.Printf("Inserting new mixed messages failed in "+
+			"ProcessCompletedBatch: %+v", err)
+	}
+
 	jww.INFO.Printf("Round received, %d real messages "+
 		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
 
-	go PrintProfilingStatistics()
+
+
+	return recipients
 }
 
 // Start sets up the threads and network server to run the gateway
@@ -1269,3 +1321,4 @@ func (gw *Instance) LoadLastUpdateID() error {
 
 	return nil
 }
+
