@@ -1469,7 +1469,7 @@ func TestInstance_ShareMessages(t *testing.T) {
 	retrieved, _, err := gw.storage.GetMixedMessages(&recipientId, id.Round(roundId))
 	t.Logf("Retrieved message: %v", retrieved[0])
 
-	if len(retrieved) != 0 {
+	if len(retrieved) == 0 {
 		t.Errorf("Message from storage should not be empty")
 	}
 
