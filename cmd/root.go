@@ -26,16 +26,6 @@ import (
 	"time"
 )
 
-const (
-	// Default time period for keeping messages, rounds and bloom filters
-	// alive in storage. Anything in storage older gets deleted
-	retentionPeriodDefault = 24 * 7 * time.Hour
-
-	// Default time period for checking storage for stored items older
-	// than the retention period value
-	cleanupIntervalDefault = 5 * time.Minute
-)
-
 // Flags to import from command line or config file
 var (
 	cfgFile, idfPath, logPath string

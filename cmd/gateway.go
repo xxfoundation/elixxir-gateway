@@ -497,12 +497,12 @@ func (gw *Instance) InitNetwork() error {
 			gw.Params.PermissioningCertPath)
 	}
 
-	// Load knownRounds data from database if it exists
+	// Load knownRounds data from storage if it exists
 	if err := gw.LoadKnownRounds(); err != nil {
 		jww.WARN.Printf("Unable to load KnownRounds: %+v", err)
 	}
 
-	// Load lastUpdate ID from database if it exists
+	// Load lastUpdate ID from storage if it exists
 	if err := gw.LoadLastUpdateID(); err != nil {
 		jww.WARN.Printf("Unable to load LastUpdateID: %+v", err)
 	}
