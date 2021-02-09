@@ -964,7 +964,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
 		Salt:     salt,
-		SenderID: ephId[:],
+		SenderID: id.DummyUser.Marshal(),
 		KMACs:    KMACs,
 	}
 }
