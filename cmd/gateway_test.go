@@ -1262,11 +1262,11 @@ func TestInstance_shareMessages(t *testing.T) {
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
-	addr := "0.0.0.0:6666"
+	addr := "0.0.0.0:1234"
 	gw.Comms = gateway.StartGateway(&id.TempGateway, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	addr2 := "0.0.0.0:7777"
+	addr2 := "0.0.0.0:5678"
 	gw2.Comms = gateway.StartGateway(&id.TempGateway, addr2, gw2,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
