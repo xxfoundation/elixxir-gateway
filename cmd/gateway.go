@@ -497,22 +497,14 @@ func (gw *Instance) InitNetwork() error {
 			gw.Params.PermissioningCertPath)
 	}
 
-	// Load knownRounds data from file
+	// Load knownRounds data from database if it exists
 	if err := gw.LoadKnownRounds(); err != nil {
-		return err
-	}
-	// Ensure that knowRounds can be saved and crash if it cannot
-	if err := gw.SaveKnownRounds(); err != nil {
-		jww.FATAL.Panicf("Failed to save KnownRounds: %v", err)
+		jww.WARN.Printf("Unable to load KnownRounds: %+v", err)
 	}
 
-	// Load lastUpdate ID from file
+	// Load lastUpdate ID from database if it exists
 	if err := gw.LoadLastUpdateID(); err != nil {
-		return err
-	}
-	// Ensure that lastUpdate ID can be saved and crash if it cannot
-	if err := gw.SaveLastUpdateID(); err != nil {
-		jww.FATAL.Panicf("Failed to save lastUpdate: %v", err)
+		jww.WARN.Printf("Unable to load LastUpdateID: %+v", err)
 	}
 
 	// Set up temporary gateway listener
@@ -953,7 +945,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
 	// fixme: should these be suppressed?
-	ephId, _, _ , err:= ephemeral.GetId(&id.DummyUser, 64, time.Now().UnixNano())
+	ephId, _, _, err := ephemeral.GetId(&id.DummyUser, 64, time.Now().UnixNano())
 	if err != nil {
 		jww.FATAL.Panicf("Could not get ID: %+v", err)
 	}
@@ -1083,14 +1075,14 @@ func (gw *Instance) ShareMessages(msg *pb.RoundMessages, auth *connect.Auth) err
 	}
 
 	topology := connect.NewCircuit(idList)
-	senderId :=	auth.Sender.GetId()
+	senderId := auth.Sender.GetId()
 
 	// Auth checks required:
 	// Make sure authentication is valid, this gateway is in the round,
 	// the sender is the LastGateway in that round, and that the num slots
 	// that sender sent less equal to the batchSize for that round
-	if !auth.IsAuthenticated  || topology.GetNodeLocation(gw.Comms.Id) != -1 ||
-	  topology.IsLastNode(senderId) || len(msg.Messages) <= int(round.BatchSize) {
+	if !auth.IsAuthenticated || topology.GetNodeLocation(gw.Comms.Id) != -1 ||
+		topology.IsLastNode(senderId) || len(msg.Messages) <= int(round.BatchSize) {
 		return connect.AuthError(senderId)
 	}
 
@@ -1190,8 +1182,6 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 
 	jww.INFO.Printf("Round received, %d real messages "+
 		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
-
-
 
 	return recipients
 }
@@ -1319,4 +1309,3 @@ func (gw *Instance) LoadLastUpdateID() error {
 
 	return nil
 }
-
