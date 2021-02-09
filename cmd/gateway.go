@@ -207,7 +207,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client
 	clientFilters, err := gw.storage.GetClientBloomFilters(
-		receptionId, startEpoch, endEpoch)
+		&receptionId, startEpoch, endEpoch)
 	jww.INFO.Printf("Adding %d client filters for %d", len(clientFilters), receptionId.Int64())
 	if err != nil {
 		jww.WARN.Printf("Could not get filters in range %d - %d for %d when polling: %v", startEpoch, endEpoch, receptionId.Int64(), err)
@@ -746,7 +746,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	roundID := id.Round(req.RoundID)
 
 	// Search the database for the requested messages
-	msgs, isValidGateway, err := gw.storage.GetMixedMessages(userId, roundID)
+	msgs, isValidGateway, err := gw.storage.GetMixedMessages(&userId, roundID)
 	if err != nil {
 		jww.WARN.Printf("Could not find any MixedMessages with "+
 			"recipient ID %v and round ID %v: %+v", userId, roundID, err)
@@ -953,7 +953,8 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
-	ephId, err := ephemeral.GetId(&id.DummyUser, 64, uint64(time.Now().UnixNano()))
+	// fixme: should these be suppressed?
+	ephId, _, _ , err:= ephemeral.GetId(&id.DummyUser, 64, time.Now().UnixNano())
 	if err != nil {
 		jww.FATAL.Panicf("Could not get ID: %+v", err)
 	}
@@ -1157,7 +1158,8 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 	// Process the messages into the ClientRound object
 	for _, msg := range msgs {
 		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-
+		serialMsg.SetPayloadA(msg.GetPayloadA())
+		serialMsg.SetPayloadB(msg.GetPayloadB())
 		// If IdentityFP is not zeroed, the message is not a dummy
 		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
 			serialMsg.SetPayloadB(msg.PayloadB)
@@ -1176,7 +1178,7 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
 
 			// Create new message and add it to the list for insertion
-			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
+			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, &recipientId, msg.PayloadA, msg.PayloadB)
 			numReal++
 		}
 	}

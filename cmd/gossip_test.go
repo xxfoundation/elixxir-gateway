@@ -496,7 +496,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		if err != nil {
 			t.Errorf("%+v", err)
 		}
-		testEphId, err := ephemeral.GetId(&client, 64, uint64(time.Now().UnixNano()))
+		testEphId, _, _, err := ephemeral.GetId(&client, 64, time.Now().UnixNano())
 		if err != nil {
 			t.Errorf("Could not create an ephemeral id: %v", err)
 		}

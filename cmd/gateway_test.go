@@ -144,7 +144,8 @@ func TestMain(m *testing.M) {
 	payloadA[0] = 1
 	msg.SetPayloadA(payloadA)
 
-	testEphId, err := ephemeral.GetId(id.NewIdFromUInt(1, id.User, m), 64, uint64(time.Now().UnixNano()))
+	testEphId, _, _, err := ephemeral.GetId(id.NewIdFromUInt(1, id.User, m),
+		64, time.Now().UnixNano())
 	if err != nil {
 		t.Errorf("Could not create an ephemeral id: %v", err)
 	}
@@ -361,7 +362,7 @@ func TestInstance_RequestMessages(t *testing.T) {
 	numMessages := 5
 	expectedRound := id.Round(1)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
-	testEphId, err := ephemeral.GetId(recipientID, 64, uint64(time.Now().UnixNano()))
+	testEphId, _, _, err := ephemeral.GetId(recipientID, 64, time.Now().UnixNano())
 	if err != nil {
 		t.Errorf("Could not create an ephemeral id: %v", err)
 	}
@@ -424,7 +425,7 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	numMessages := 5
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
-	testEphId, err := ephemeral.GetId(recipientID, 64, uint64(time.Now().UnixNano()))
+	testEphId, _, _, err := ephemeral.GetId(recipientID, 64, time.Now().UnixNano())
 	if err != nil {
 		t.Errorf("Could not create an ephemeral id: %v", err)
 	}
@@ -469,7 +470,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	numMessages := 5
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
-	testEphId, err := ephemeral.GetId(recipientID, 64, uint64(time.Now().UnixNano()))
+	testEphId, _, _, err := ephemeral.GetId(recipientID, 64, time.Now().UnixNano())
 	if err != nil {
 		t.Errorf("Could not create an ephemeral id: %v", err)
 	}
@@ -514,7 +515,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	numMessages := 5
 	expectedRound := id.Round(0)
 	recipientID := id.NewIdFromBytes([]byte("test"), t)
-	testEphId, err := ephemeral.GetId(recipientID, 64, uint64(time.Now().UnixNano()))
+	testEphId, _, _, err := ephemeral.GetId(recipientID, 64, time.Now().UnixNano())
 	if err != nil {
 		t.Errorf("Could not create an ephemeral id: %v", err)
 	}
@@ -1133,7 +1134,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	rndId := uint64(1)
 
 	testId := id.NewIdFromBytes([]byte("Frodo"), t)
-	recipientId, err := ephemeral.GetId(testId, 64, 300000)
+	recipientId, _, _, err := ephemeral.GetId(testId, 64, 300000)
 	if err != nil {
 		t.Errorf("Could not make a mock ephemeral Id: %v", err)
 	}
@@ -1434,6 +1435,7 @@ func TestInstance_ShareMessages(t *testing.T) {
 
 	// build a single mock message
 	data := format.NewMessage(grp2.GetP().ByteLen())
+	data.SetIdentityFP([]byte("I am the length of a FP!!"))
 	senderId := id.NewIdFromUInt(666, id.User, t).Marshal()
 	msg := &pb.Slot{
 		SenderID: senderId,
@@ -1464,8 +1466,12 @@ func TestInstance_ShareMessages(t *testing.T) {
 		t.Errorf("Unable to marshal ID: %+v", err)
 	}
 
-	retrieved, _, err := gw.storage.GetMixedMessages(recipientId, id.Round(roundId))
-	t.Logf("Retrieved: %v", retrieved)
+	retrieved, _, err := gw.storage.GetMixedMessages(&recipientId, id.Round(roundId))
+	t.Logf("Retrieved message: %v", retrieved[0])
+
+	if len(retrieved) != 0 {
+		t.Errorf("Message from storage should not be empty")
+	}
 
 }
 

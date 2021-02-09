@@ -29,7 +29,7 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 
 	// Create a mock client
 	testClientId := id.NewIdFromString("0", id.User, t)
-	testEphId, err := ephemeral.GetId(testClientId, 64, uint64(time.Now().UnixNano()))
+	testEphId, _, _, err := ephemeral.GetId(testClientId, 64, time.Now().UnixNano())
 	if err != nil {
 		t.Errorf("Could not create an ephemeral id: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestInstance_UpsertFilters(t *testing.T) {
 
 	// Create a mock client
 	testClientId := id.NewIdFromString("0", id.User, t)
-	testEphId, err := ephemeral.GetId(testClientId, 64, uint64(time.Now().UnixNano()))
+	testEphId, _, _, err := ephemeral.GetId(testClientId, 64, time.Now().UnixNano())
 	if err != nil {
 		t.Errorf("Could not create an ephemeral id: %v", err)
 	}
