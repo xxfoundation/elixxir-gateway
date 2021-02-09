@@ -170,7 +170,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, roundID, epoch)
+			err = gw.UpsertFilter(&recipientId, roundID, epoch)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}

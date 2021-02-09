@@ -693,7 +693,7 @@ func TestMapImpl_deleteMixedMessages(t *testing.T) {
 // Happy path.
 func TestMapImpl_GetClientBloomFilters(t *testing.T) {
 	// Build list of bloom filters to add
-	ephemeralID, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, uint64(time.Now().Unix()))
+	ephemeralID, _, _, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, time.Now().Unix())
 	if err != nil {
 		t.Fatalf("Failed to get ephermeral ID: %+v", err)
 	}
@@ -748,7 +748,7 @@ func TestMapImpl_GetClientBloomFilters(t *testing.T) {
 // Error Path: No matching bloom filters exist in the map.
 func TestMapImpl_GetClientBloomFilters_NoFiltersError(t *testing.T) {
 	// Build list of bloom filters to add
-	ephemeralID, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, uint64(time.Now().Unix()))
+	ephemeralID, _, _, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, time.Now().Unix())
 	if err != nil {
 		t.Fatalf("Failed to get ephermeral ID: %+v", err)
 	}
