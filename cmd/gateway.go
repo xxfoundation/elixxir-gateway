@@ -1161,7 +1161,6 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 		serialMsg.SetPayloadB(msg.GetPayloadB())
 		// If IdentityFP is not zeroed, the message is not a dummy
 		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
-			serialMsg.SetPayloadB(msg.PayloadB)
 			recipIdBytes := serialMsg.GetEphemeralRID()
 			recipientId, err := ephemeral.Marshal(recipIdBytes)
 			if err != nil {
