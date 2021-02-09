@@ -1266,7 +1266,7 @@ func TestInstance_shareMessages(t *testing.T) {
 	gw.Comms = gateway.StartGateway(&id.TempGateway, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	addr2 := "0.0.0.0:8888"
+	addr2 := "0.0.0.0:7777"
 	gw2.Comms = gateway.StartGateway(&id.TempGateway, addr2, gw2,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
@@ -1364,11 +1364,11 @@ func TestInstance_ShareMessages(t *testing.T) {
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
-	addr := "0.0.0.0:7777"
+	addr := "0.0.0.0:3333"
 	gw.Comms = gateway.StartGateway(&id.TempGateway, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	addr2 := "0.0.0.0:8888"
+	addr2 := "0.0.0.0:4444"
 	gw2Id := id.NewIdFromBytes([]byte("gw2"), t)
 	gw2.Comms = gateway.StartGateway(gw2Id, addr2, gw2,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
