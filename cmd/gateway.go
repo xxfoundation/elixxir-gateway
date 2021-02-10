@@ -1166,7 +1166,8 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			}
 
 			// Clear random bytes from recipient ID and add to map
-			recipients[recipientId.Clear(uint(round.AddressSpaceSize))] = nil
+			recipientId = recipientId.Clear(uint(round.AddressSpaceSize))
+			recipients[recipientId] = nil
 
 			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
 				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
