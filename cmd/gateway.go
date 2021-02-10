@@ -224,7 +224,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	// Build ClientBloomFilter list for client
 	for _, f := range clientFilters {
-		filtersMsg.Filters[f.Epoch-startEpoch] = &pb.ClientBloom{
+		index := f.Epoch - startEpoch - 1
+		filtersMsg.Filters[index] = &pb.ClientBloom{
 			Filter:     f.Filter,
 			FirstRound: f.FirstRound,
 			RoundRange: f.RoundRange,
