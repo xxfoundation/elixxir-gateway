@@ -1076,15 +1076,18 @@ func (gw *Instance) ShareMessages(msg *pb.RoundMessages, auth *connect.Auth) err
 	}
 
 	topology := connect.NewCircuit(idList)
-	senderId := auth.Sender.GetId()
+	nodeID := auth.Sender.GetId().DeepCopy()
+	nodeID.SetType(id.Node)
+	myNodeID := gw.Comms.Id.DeepCopy()
+	myNodeID.SetType(id.Node)
 
 	// Auth checks required:
 	// Make sure authentication is valid, this gateway is in the round,
 	// the sender is the LastGateway in that round, and that the num slots
 	// that sender sent less equal to the batchSize for that round
-	if !auth.IsAuthenticated || topology.GetNodeLocation(gw.Comms.Id) != -1 ||
-		topology.IsLastNode(senderId) || len(msg.Messages) <= int(round.BatchSize) {
-		return connect.AuthError(senderId)
+	if !(auth.IsAuthenticated && topology.GetNodeLocation(myNodeID) != -1 &&
+		topology.IsLastNode(nodeID) && len(msg.Messages) <= int(round.BatchSize)) {
+		return connect.AuthError(auth.Sender.GetId())
 	}
 
 	gw.processMessages(msg.Messages, roundId, round)
@@ -1106,11 +1109,12 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	}
 
 	// Share messages in the batch with the rest of the team
-	err = gw.sendShareMessages(msgs, round)
-	if err != nil {
-		// Print error but do not stop message processing
-		jww.ERROR.Printf("Message sharing failed: %+v", err)
-	}
+	// TODO: Gateways must authenticate for the following to work
+	//err = gw.sendShareMessages(msgs, round)
+	//if err != nil {
+	//	// Print error but do not stop message processing
+	//	jww.ERROR.Printf("Message sharing failed: %+v", err)
+	//}
 
 	recipients := gw.processMessages(msgs, roundID, round)
 
