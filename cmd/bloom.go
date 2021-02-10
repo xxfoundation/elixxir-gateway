@@ -52,7 +52,7 @@ func (gw *Instance) UpsertFilters(recipients map[ephemeral.Id]interface{}, round
 
 // Helper function which updates the clients bloom filter
 func (gw *Instance) UpsertFilter(recipientId *ephemeral.Id, roundId id.Round, epoch uint32) error {
-	jww.DEBUG.Printf("Adding bloom filter for client %v on round  %d", recipientId, roundId)
+	jww.DEBUG.Printf("Adding bloom filter for client %v on round  %d", recipientId.Int64(), roundId)
 
 	// Generate a new filter
 	// Initialize a new bloom filter
