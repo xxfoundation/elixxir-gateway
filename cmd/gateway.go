@@ -12,7 +12,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -36,7 +35,6 @@ import (
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +49,7 @@ const (
 	ErrInvalidHost = "Invalid host ID:"
 	ErrAuth        = "Failed to authenticate id:"
 	gwChanLen      = 1000
+	period         = int64(1800000000000) // 30 minutes in nanoseconds
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -98,15 +97,43 @@ func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomRe
 	panic("implement me")
 }
 
-// Set the gw.period attribute
-// TODO: Test
-func (gw *Instance) SetPeriod() error {
-	periodConst := int64(1800000000000) // 30 minutes in nanoseconds
+// Periodically clears out old messages, rounds and bloom filters
+func (gw *Instance) ClearOldStorage() error {
+	ticker := time.NewTicker(gw.Params.cleanupInterval)
+	retentionPeriod := gw.Params.retentionPeriod
+	for true {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			threshold := now.Add(-retentionPeriod)
+			// Clear out old rounds and messages
+			err := gw.storage.ClearOldStorage(threshold)
+			if err != nil {
+				return errors.Errorf("Could not clear old rounds and/or messages: %v", err)
+			}
 
+			// Clear out filters by epoch
+			timestamp := time.Unix(0, threshold.UnixNano()).UnixNano()
+			epoch := GetEpoch(timestamp, gw.period)
+			err = gw.storage.DeleteClientFiltersBeforeEpoch(epoch)
+			if err != nil {
+				return errors.Errorf("Could not clear bloom filters: %v", err)
+			}
+
+		}
+	}
+	return nil
+}
+
+// Set the gw.period attribute
+// NOTE: Saves the constant to storage if it does not exist
+//       or reads an existing value from storage and sets accordingly
+//       It's not great but it's structured this way as a business requirement
+func (gw *Instance) SetPeriod() error {
 	// Get an existing Period value from storage
 	periodStr, err := gw.storage.GetStateValue(storage.PeriodKey)
 	if err != nil &&
-		!strings.Contains(err.Error(), gorm.ErrRecordNotFound.Error()) &&
+		!errors.Is(err, gorm.ErrRecordNotFound) &&
 		!strings.Contains(err.Error(), "Unable to locate state for key") {
 		// If the error is unrelated to record not in storage, return it
 		return err
@@ -117,26 +144,26 @@ func (gw *Instance) SetPeriod() error {
 		gw.period, err = strconv.ParseInt(periodStr, 10, 64)
 	} else {
 		// If period not already stored, use periodConst
-		gw.period = periodConst
+		gw.period = period
 		err = gw.storage.UpsertState(&storage.State{
 			Key:   storage.PeriodKey,
-			Value: strconv.FormatInt(periodConst, 10),
+			Value: strconv.FormatInt(period, 10),
 		})
 	}
 	return err
 }
 
 // Determines the Epoch value of the given timestamp with the given period
-// TODO: Test
 func GetEpoch(ts int64, period int64) uint32 {
-	if period > 0 {
-		return uint32(ts / period)
+	if period == 0 {
+		jww.FATAL.Panicf("GetEpoch: Divide by zero")
+	} else if ts < 0 || period < 0 {
+		jww.FATAL.Panicf("GetEpoch: Negative input")
 	}
-	return 0
+	return uint32(ts / period)
 }
 
 // Determines the timestamp value of the given epoch
-// TODO: Test
 func GetEpochTimestamp(epoch uint32, period int64) int64 {
 	return period * int64(epoch)
 }
@@ -167,7 +194,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	kr, err := gw.knownRound.Marshal()
 	if err != nil {
 		errStr := fmt.Sprintf("couldn't get known rounds for client "+
-			"[%v]'s request: %v", clientRequest.ReceptionID, err)
+			"%d's request: %v", receptionId.Int64(), err)
 		jww.WARN.Printf(errStr)
 		return &pb.GatewayPollResponse{}, errors.New(errStr)
 	}
@@ -180,10 +207,10 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client
 	clientFilters, err := gw.storage.GetClientBloomFilters(
-		receptionId, startEpoch, endEpoch)
-	jww.INFO.Printf("Adding %d client filters for %s", len(clientFilters), receptionId)
+		&receptionId, startEpoch, endEpoch)
+	jww.INFO.Printf("Adding %d client filters for %d", len(clientFilters), receptionId.Int64())
 	if err != nil {
-		jww.WARN.Printf("Could not get filters for %s when polling: %v", receptionId, err)
+		jww.WARN.Printf("Could not get filters in range %d - %d for %d when polling: %v", startEpoch, endEpoch, receptionId.Int64(), err)
 	}
 
 	// Build ClientBlooms metadata
@@ -197,7 +224,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	// Build ClientBloomFilter list for client
 	for _, f := range clientFilters {
-		filtersMsg.Filters[f.Epoch-startEpoch] = &pb.ClientBloom{
+		index := f.Epoch - startEpoch - 1
+		filtersMsg.Filters[index] = &pb.ClientBloom{
 			Filter:     f.Filter,
 			FirstRound: f.FirstRound,
 			RoundRange: f.RoundRange,
@@ -211,17 +239,16 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	return &pb.GatewayPollResponse{
-		PartialNDF:       netDef,
-		Updates:          updates,
-		LastTrackedRound: uint64(0), // FIXME: This should be the earliest tracked network round
-		KnownRounds:      kr,
-		Filters:          filtersMsg,
+		PartialNDF:  netDef,
+		Updates:     updates,
+		KnownRounds: kr,
+		Filters:     filtersMsg,
 	}, nil
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
 func NewGatewayInstance(params Params) *Instance {
-	newDatabase, _, err := storage.NewStorage(params.DbUsername,
+	newDatabase, err := storage.NewStorage(params.DbUsername,
 		params.DbPassword,
 		params.DbName,
 		params.DbAddress,
@@ -282,6 +309,10 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.Poll = func(msg *pb.GatewayPoll) (response *pb.GatewayPollResponse, err error) {
 		return instance.Poll(msg)
+	}
+
+	impl.Functions.ShareMessages = func(msg *pb.RoundMessages, auth *connect.Auth) error {
+		return instance.ShareMessages(msg, auth)
 	}
 	return impl
 }
@@ -467,22 +498,14 @@ func (gw *Instance) InitNetwork() error {
 			gw.Params.PermissioningCertPath)
 	}
 
-	// Load knownRounds data from file
+	// Load knownRounds data from storage if it exists
 	if err := gw.LoadKnownRounds(); err != nil {
-		return err
-	}
-	// Ensure that knowRounds can be saved and crash if it cannot
-	if err := gw.SaveKnownRounds(); err != nil {
-		jww.FATAL.Panicf("Failed to save KnownRounds: %v", err)
+		jww.WARN.Printf("Unable to load KnownRounds: %+v", err)
 	}
 
-	// Load lastUpdate ID from file
+	// Load lastUpdate ID from storage if it exists
 	if err := gw.LoadLastUpdateID(); err != nil {
-		return err
-	}
-	// Ensure that lastUpdate ID can be saved and crash if it cannot
-	if err := gw.SaveLastUpdateID(); err != nil {
-		jww.FATAL.Panicf("Failed to save lastUpdate: %v", err)
+		jww.WARN.Printf("Unable to load LastUpdateID: %+v", err)
 	}
 
 	// Set up temporary gateway listener
@@ -662,6 +685,13 @@ func (gw *Instance) InitNetwork() error {
 		// }
 	}
 
+	go func() {
+		err := gw.ClearOldStorage()
+		if err != nil {
+			jww.FATAL.Panicf("Issue clearing old storage: %v", err)
+		}
+	}()
+
 	return nil
 }
 
@@ -701,14 +731,14 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	// Parse the requested clientID within the message for the database request
 	userId, err := ephemeral.Marshal(req.ClientID)
 	if err != nil {
-		return &pb.GetMessagesResponse{}, errors.New("Could not parse requested user ID!")
+		return &pb.GetMessagesResponse{}, errors.Errorf("Could not parse requested user ID: %+v", err)
 	}
 
 	// Parse the roundID within the message
 	roundID := id.Round(req.RoundID)
 
 	// Search the database for the requested messages
-	msgs, isValidGateway, err := gw.storage.GetMixedMessages(userId, roundID)
+	msgs, isValidGateway, err := gw.storage.GetMixedMessages(&userId, roundID)
 	if err != nil {
 		jww.WARN.Printf("Could not find any MixedMessages with "+
 			"recipient ID %v and round ID %v: %+v", userId, roundID, err)
@@ -734,7 +764,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			PayloadA: payloadA,
 			PayloadB: payloadB,
 		}
-		jww.DEBUG.Printf("Message Retrieved: %s, %s, %s",
+		jww.DEBUG.Printf("Message Retrieved: %d, %s, %s",
 			userId.Int64(), payloadA, payloadB)
 
 		slots = append(slots, data)
@@ -764,35 +794,14 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 		roundIds = append(roundIds, id.Round(rnd))
 	}
 	// Look up requested rounds in the database
-	retrievedRounds, err := gw.storage.GetRounds(roundIds)
+	retrievedRounds, err := gw.storage.RetrieveMany(roundIds)
 	if err != nil {
 		return &pb.HistoricalRoundsResponse{}, errors.New("Could not look up rounds requested.")
 	}
 
-	// Parse the retrieved rounds into the roundInfo message type
-	// Fixme: there is a back and forth type casting going on between placing
-	//  data into the database per the spec laid out
-	//  and taking that data out and casting it back to the original format.
-	//  it's really dumb and shouldn't happen, it should be fixed.
-	var rounds []*pb.RoundInfo
-	for _, rnd := range retrievedRounds {
-		ri := &pb.RoundInfo{}
-		err = proto.Unmarshal(rnd.InfoBlob, ri)
-		if err != nil {
-			// If trouble unmarshalling, move to next round
-			// Note this should never happen with
-			// rounds placed by us in our own database
-			jww.WARN.Printf("Could not unmarshal round %d in our database. "+
-				"Could the database be corrupted?", rnd.Id)
-			continue
-		}
-
-		rounds = append(rounds, ri)
-	}
-
 	// Return the retrievedRounds
 	return &pb.HistoricalRoundsResponse{
-		Rounds: rounds,
+		Rounds: retrievedRounds,
 	}, nil
 
 }
@@ -936,7 +945,8 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
-	ephId, err := ephemeral.GetId(&id.DummyUser, 64, uint64(time.Now().UnixNano()))
+	// fixme: should these be suppressed?
+	ephId, _, _, err := ephemeral.GetId(&id.DummyUser, 64, time.Now().UnixNano())
 	if err != nil {
 		jww.FATAL.Panicf("Could not get ID: %+v", err)
 	}
@@ -955,7 +965,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
 		Salt:     salt,
-		SenderID: ephId[:],
+		SenderID: id.DummyUser.Marshal(),
 		KMACs:    KMACs,
 	}
 }
@@ -1009,45 +1019,100 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	}
 }
 
+// Helper function for sharing messages in the batch with the rest of the team
+func (gw *Instance) sendShareMessages(msgs []*pb.Slot, round *pb.RoundInfo) error {
+	// Process round topology into IDs
+	idList, err := id.NewIDListFromBytes(round.Topology)
+	if err != nil {
+		return errors.Errorf("Could not read topology from round %d: %+v", round.ID, err)
+	}
+
+	// Build share message
+	shareMsg := &pb.RoundMessages{
+		RoundId:  round.ID,
+		Messages: msgs,
+	}
+
+	// Send share message to other gateways in team, excluding self
+	for _, teamId := range idList {
+		teamId.SetType(id.Gateway)
+		if teamId.Cmp(gw.Comms.Id) {
+			continue
+		}
+
+		teamHost, exists := gw.Comms.GetHost(teamId)
+		if !exists {
+			return errors.Errorf("Unable to find host for message sharing: %s",
+				teamId.String())
+		}
+
+		// Make the sends non-blocking
+		go func(teamIdStr string) {
+			err = gw.Comms.SendShareMessages(teamHost, shareMsg)
+			if err != nil {
+				jww.ERROR.Printf("Unable to share messages with host %s on round %d: %+v",
+					teamIdStr, round.ID, err)
+			}
+		}(teamId.String())
+	}
+	return nil
+}
+
+// Reception handler for sendShareMessages. Performs auth checks for a valid gateway.
+// If valid, processes and adds the messages to storage
+func (gw *Instance) ShareMessages(msg *pb.RoundMessages, auth *connect.Auth) error {
+	// At this point, the returned batch and its fields should be non-nil
+	roundId := id.Round(msg.RoundId)
+	round, err := gw.NetInf.GetRound(roundId)
+	if err != nil {
+		return errors.Errorf("Unable to get round: %+v", err)
+	}
+
+	// Parse the round topology
+	idList, err := id.NewIDListFromBytes(round.Topology)
+	if err != nil {
+		return errors.Errorf("Could not read topology from round messages: %s",
+			err)
+	}
+
+	topology := connect.NewCircuit(idList)
+	senderId := auth.Sender.GetId()
+
+	// Auth checks required:
+	// Make sure authentication is valid, this gateway is in the round,
+	// the sender is the LastGateway in that round, and that the num slots
+	// that sender sent less equal to the batchSize for that round
+	if !auth.IsAuthenticated || topology.GetNodeLocation(gw.Comms.Id) != -1 ||
+		topology.IsLastNode(senderId) || len(msg.Messages) <= int(round.BatchSize) {
+		return connect.AuthError(senderId)
+	}
+
+	gw.processMessages(msg.Messages, roundId, round)
+
+	return nil
+}
+
 // ProcessCompletedBatch handles messages coming out of the mixnet
 func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	if len(msgs) == 0 {
 		return
 	}
 
-	numReal := 0
 	// At this point, the returned batch and its fields should be non-nil
-	msgsToInsert := make([]*storage.MixedMessage, len(msgs))
-	recipients := make(map[ephemeral.Id]interface{})
-	for _, msg := range msgs {
-		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-		serialMsg.SetPayloadB(msg.PayloadB)
-		recipIdBytes := serialMsg.GetEphemeralRID()
-		recipientId, err := ephemeral.Marshal(recipIdBytes)
-		if err != nil {
-			jww.ERROR.Printf("Unable to marshal ID: %+v", err)
-			continue
-		}
-
-		// If IdentityFP is not zeroed, the message is not a dummy
-		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
-			recipients[*recipientId] = nil
-
-			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
-				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
-
-			// Create new message and add it to the list for insertion
-			msgsToInsert[numReal] = storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
-			numReal++
-		}
-	}
-
-	// Perform the message insertion into Storage
-	err := gw.storage.InsertMixedMessages(msgsToInsert[:numReal])
+	round, err := gw.NetInf.GetRound(roundID)
 	if err != nil {
-		jww.ERROR.Printf("Inserting new mixed messages failed in "+
-			"ProcessCompletedBatch: %+v", err)
+		jww.ERROR.Printf("ProcessCompleted - Unable to get round: %+v", err)
+		return
 	}
+
+	// Share messages in the batch with the rest of the team
+	err = gw.sendShareMessages(msgs, round)
+	if err != nil {
+		// Print error but do not stop message processing
+		jww.ERROR.Printf("Message sharing failed: %+v", err)
+	}
+
+	recipients := gw.processMessages(msgs, roundID, round)
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
@@ -1066,10 +1131,60 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		}()
 	}
 
+	go PrintProfilingStatistics()
+}
+
+// Helper function which takes passed in messages from a round and
+// stores these as mixedMessages
+func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
+	round *pb.RoundInfo) map[ephemeral.Id]interface{} {
+	numReal := 0
+
+	// Build a ClientRound object around the client messages
+	clientRound := &storage.ClientRound{
+		Id:        uint64(roundID),
+		Timestamp: time.Unix(0, int64(round.Timestamps[states.REALTIME])),
+	}
+	msgsToInsert := make([]storage.MixedMessage, len(msgs))
+	recipients := make(map[ephemeral.Id]interface{})
+	// Process the messages into the ClientRound object
+	for _, msg := range msgs {
+		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
+		serialMsg.SetPayloadA(msg.GetPayloadA())
+		serialMsg.SetPayloadB(msg.GetPayloadB())
+		// If IdentityFP is not zeroed, the message is not a dummy
+		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
+			recipIdBytes := serialMsg.GetEphemeralRID()
+			recipientId, err := ephemeral.Marshal(recipIdBytes)
+			if err != nil {
+				jww.ERROR.Printf("Unable to marshal ID: %+v", err)
+				continue
+			}
+
+			// Clear random bytes from recipient ID and add to map
+			recipients[recipientId.Clear(uint(round.AddressSpaceSize))] = nil
+
+			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
+				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
+
+			// Create new message and add it to the list for insertion
+			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, &recipientId, msg.PayloadA, msg.PayloadB)
+			numReal++
+		}
+	}
+
+	// Perform the message insertion into Storage
+	clientRound.Messages = msgsToInsert[:numReal]
+	err := gw.storage.InsertMixedMessages(clientRound)
+	if err != nil {
+		jww.ERROR.Printf("Inserting new mixed messages failed in "+
+			"ProcessCompletedBatch: %+v", err)
+	}
+
 	jww.INFO.Printf("Round received, %d real messages "+
 		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
 
-	go PrintProfilingStatistics()
+	return recipients
 }
 
 // Start sets up the threads and network server to run the gateway
@@ -1131,33 +1246,32 @@ func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error)
 
 // SaveKnownRounds saves the KnownRounds to a file.
 func (gw *Instance) SaveKnownRounds() error {
-	path := gw.Params.knownRoundsPath
+	// Serialize knownRounds
 	data, err := gw.knownRound.Marshal()
 	if err != nil {
 		return errors.Errorf("Failed to marshal KnownRounds: %v", err)
 	}
 
-	err = utils.WriteFile(path, data, utils.FilePerms, utils.DirPerms)
-	if err != nil {
-		return errors.Errorf("Failed to save KnownRounds to file: %v", err)
-	}
+	// Store knownRounds data
+	return gw.storage.UpsertState(&storage.State{
+		Key:   storage.KnownRoundsKey,
+		Value: string(data),
+	})
 
-	return nil
 }
 
-// LoadKnownRounds loads the KnownRounds from file into the Instance, if the
-// file exists. Returns nil on successful loading or if the file does not exist.
-// Returns an error if the file cannot be accessed or the data cannot be
-// unmarshaled.
+// LoadKnownRounds loads the KnownRounds from storage into the Instance, if a
+// stored value exists.
 func (gw *Instance) LoadKnownRounds() error {
-	data, err := utils.ReadFile(gw.Params.knownRoundsPath)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return errors.Errorf("Failed to read KnownRounds from file: %v", err)
+
+	// Get an existing knownRounds value from storage
+	data, err := gw.storage.GetStateValue(storage.KnownRoundsKey)
+	if err != nil {
+		return err
 	}
 
-	err = gw.knownRound.Unmarshal(data)
+	// Parse the data and store in the instance
+	err = gw.knownRound.Unmarshal([]byte(data))
 	if err != nil {
 		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
 	}
@@ -1165,33 +1279,28 @@ func (gw *Instance) LoadKnownRounds() error {
 	return nil
 }
 
-// SaveLastUpdateID saves the Instance.lastUpdate to a file.
+// SaveLastUpdateID saves the Instance.lastUpdate value to storage
 func (gw *Instance) SaveLastUpdateID() error {
-	path := gw.Params.lastUpdateIdPath
-	data := []byte(strconv.FormatUint(gw.lastUpdate, 10))
+	data := strconv.FormatUint(gw.lastUpdate, 10)
 
-	err := utils.WriteFile(path, data, utils.FilePerms, utils.DirPerms)
-	if err != nil {
-		return errors.Errorf("Failed to save lastUpdate to file: %v", err)
-	}
+	return gw.storage.UpsertState(&storage.State{
+		Key:   storage.LastUpdateKey,
+		Value: data,
+	})
 
-	return nil
 }
 
-// LoadLastUpdateID loads the Instance.lastUpdate from file into the Instance,
-// if the file exists. Returns nil on successful loading or if the file does not
-// exist. Returns an error if the file cannot be accessed or the data cannot be
-// parsed.
+// LoadLastUpdateID loads the Instance.lastUpdate from storage into the Instance,
+// if the key exists.
 func (gw *Instance) LoadLastUpdateID() error {
-	data, err := utils.ReadFile(gw.Params.lastUpdateIdPath)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return errors.Errorf("Failed to read lastUpdate from file: %v", err)
+	// Get an existing lastUpdate value from storage
+	data, err := gw.storage.GetStateValue(storage.LastUpdateKey)
+	if err != nil {
+		return err
 	}
 
-	dataStr := strings.TrimSpace(string(data))
-
+	// Parse the last update
+	dataStr := strings.TrimSpace(data)
 	lastUpdate, err := strconv.ParseUint(dataStr, 10, 64)
 	if err != nil {
 		return errors.Errorf("Failed to parse lastUpdate from file: %v", err)

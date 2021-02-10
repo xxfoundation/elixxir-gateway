@@ -26,14 +26,6 @@ import (
 	"time"
 )
 
-const (
-	// Default path for saving/loading KnownRounds.
-	knownRoundsDefaultPath = "/opt/xxnetwork/gateway-logs/knownRounds.json"
-
-	// Default path for saving/loading the last checked UpdateID.
-	lastUpdateIdDefaultPath = "/opt/xxnetwork/gateway-logs/lastUpdateID.txt"
-)
-
 // Flags to import from command line or config file
 var (
 	cfgFile, idfPath, logPath string

@@ -13,6 +13,7 @@ package storage
 
 import (
 	"github.com/golang/protobuf/proto"
+	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/xx_network/primitives/id"
 	"strings"
@@ -68,18 +69,15 @@ func (s *Storage) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 
 // Get multiple specific round info objects from the memory map database
 func (s *Storage) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
-	var r []*pb.RoundInfo
+	var r = make([]*pb.RoundInfo, len(rounds))
 
 	// Iterate over all rounds provided and put them in the round array
-	dbRounds, err := s.GetRounds(rounds)
-	for _, round := range dbRounds {
-		// Convert it to a pb.RoundInfo object
-		u := &pb.RoundInfo{}
-		err = proto.Unmarshal(round.InfoBlob, u)
+	for i, rid := range rounds {
+		ri, err := s.Retrieve(rid)
 		if err != nil {
 			return nil, err
 		}
-		r = append(r, u)
+		r[i] = ri
 	}
 
 	return r, nil
@@ -87,23 +85,21 @@ func (s *Storage) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
 
 // Retrieve a concurrent range of round info objects from the memory map database
 func (s *Storage) RetrieveRange(first, last id.Round) ([]*pb.RoundInfo, error) {
-	idRange := uint64(last - first)
-	i := uint64(0)
+	if first > last {
+		return nil, errors.New("Failed to retrieve range of rounds: last round must be greater than first.")
+	}
+	idRange := uint64(last-first) + 1
 
-	var r []*pb.RoundInfo
+	var r = make([]*pb.RoundInfo, idRange)
 
 	// Iterate over all IDs in the range, retrieving them and putting them in the
 	// round array
-	for i < idRange+1 {
+	for i := uint64(0); i < idRange; i++ {
 		ri, err := s.Retrieve(id.Round(uint64(first) + i))
 		if err != nil {
 			return nil, err
 		}
-
-		if ri != nil {
-			r = append(r, ri)
-		}
-		i++
+		r[i] = ri
 	}
 
 	return r, nil

@@ -39,12 +39,22 @@ type Params struct {
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
 
-	knownRoundsPath  string
-	lastUpdateIdPath string
-
 	DevMode      bool
 	EnableGossip bool
+
+	retentionPeriod time.Duration
+	cleanupInterval time.Duration
 }
+
+const (
+	// Default time period for keeping messages, rounds and bloom filters
+	// alive in storage. Anything in storage older gets deleted
+	retentionPeriodDefault = 24 * 7 * time.Hour
+
+	// Default time period for checking storage for stored items older
+	// than the retention period value
+	cleanupIntervalDefault = 5 * time.Minute
+)
 
 func InitParams(vip *viper.Viper) Params {
 	if !validConfig {
@@ -107,11 +117,13 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
-	viper.SetDefault("knownRoundsPath", knownRoundsDefaultPath)
-	krPath := viper.GetString("knownRoundsPath")
+	// Time to keep messages, rounds and filters in storage
+	viper.SetDefault("keepAlive", retentionPeriodDefault)
+	retentionPeriod := viper.GetDuration("retentionPeriod")
 
-	viper.SetDefault("lastUpdateIdPath", lastUpdateIdDefaultPath)
-	lastUpdateIdPath := viper.GetString("lastUpdateIdPath")
+	// Time to periodically check for old objects in storage
+	viper.SetDefault("cleanupInterval", cleanupIntervalDefault)
+	cleanupInterval := viper.GetDuration("cleanupInterval")
 
 	// Obtain database connection info
 	rawAddr := viper.GetString("dbAddress")
@@ -136,14 +148,14 @@ func InitParams(vip *viper.Viper) Params {
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
 		MessageTimeout:        messageTimeout,
-		knownRoundsPath:       krPath,
 		DbName:                viper.GetString("dbName"),
 		DbUsername:            viper.GetString("dbUsername"),
 		DbPassword:            viper.GetString("dbPassword"),
 		DbAddress:             addr,
 		DbPort:                port,
-		lastUpdateIdPath:      lastUpdateIdPath,
 		DevMode:               viper.GetBool("devMode"),
 		EnableGossip:          viper.GetBool("enableGossip"),
+		retentionPeriod:       retentionPeriod,
+		cleanupInterval:       cleanupInterval,
 	}
 }

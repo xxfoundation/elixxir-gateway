@@ -13,6 +13,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"time"
 )
 
 // API for the storage layer
@@ -23,10 +24,21 @@ type Storage struct {
 
 // Create a new Storage object wrapping a database interface
 // Returns a Storage object, close function, and error
-func NewStorage(username, password, dbName, address, port string) (*Storage, func() error, error) {
-	db, closeFunc, err := newDatabase(username, password, dbName, address, port)
+func NewStorage(username, password, dbName, address, port string) (*Storage, error) {
+	db, err := newDatabase(username, password, dbName, address, port)
 	storage := &Storage{db}
-	return storage, closeFunc, err
+	return storage, err
+}
+
+// Clears certain data from Storage older than the given timestamp
+// This includes Round and MixedMessage information
+func (s *Storage) ClearOldStorage(ts time.Time) error {
+	err := s.deleteRound(ts)
+	if err != nil {
+		return err
+	}
+
+	return s.deleteMixedMessages(ts)
 }
 
 // Builds a ClientBloomFilter with the given parameters, then stores it
@@ -36,9 +48,11 @@ func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byt
 	validFilter := &ClientBloomFilter{
 		RecipientId: recipientId.Int64(),
 		Epoch:       epoch,
-		FirstRound:  uint64(roundId),
-		RoundRange:  0,
-		Filter:      filterBytes,
+		// FirstRound is input as CurrentRound for later calculation
+		FirstRound: uint64(roundId),
+		// RoundRange is empty for now as it can't be calculated yet
+		RoundRange: 0,
+		Filter:     filterBytes,
 	}
 
 	// Commit the new/updated ClientBloomFilter
@@ -62,26 +76,26 @@ func (s *Storage) GetMixedMessages(recipientId *ephemeral.Id, roundId id.Round) 
 
 // Helper function for HandleBloomFilter
 // Returns the bitwise OR of two byte slices
-// TODO: Test
-func or(l1, l2 []byte) []byte {
-	if l1 == nil {
-		return l2
-	} else if l2 == nil {
-		return l1
-	} else if len(l1) != len(l2) {
+func or(existingBuffer, additionalBuffer []byte) []byte {
+	if existingBuffer == nil {
+		return additionalBuffer
+	} else if additionalBuffer == nil {
+		return existingBuffer
+	} else if len(existingBuffer) != len(additionalBuffer) {
 		jww.ERROR.Printf("Unable to perform bitwise OR: Slice lens invalid.")
-		return l1
+		return existingBuffer
 	}
 
-	result := make([]byte, len(l1))
-	for i := range l1 {
-		result[i] = l1[i] | l2[i]
+	result := make([]byte, len(existingBuffer))
+	for i := range existingBuffer {
+		result[i] = existingBuffer[i] | additionalBuffer[i]
 	}
 	return result
 }
 
 // Combine with and update this filter using oldFilter
-// TODO: Test
+// Used in upsertFilter functionality in order to ensure atomicity
+// Kept in business logic layer because functionality is shared
 func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	// Initialize FirstRound variable if needed
 	if oldFilter.FirstRound == uint64(0) {
@@ -105,5 +119,5 @@ func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	}
 
 	// Combine the filters
-	f.Filter = or(f.Filter, oldFilter.Filter)
+	f.Filter = or(oldFilter.Filter, f.Filter)
 }

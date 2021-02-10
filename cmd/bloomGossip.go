@@ -152,6 +152,12 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	roundID := id.Round(payloadMsg.RoundID)
 	jww.INFO.Printf("Gossip received for round %d", roundID)
+	round, err := gw.NetInf.GetRound(roundID)
+	if err != nil {
+		return err
+	}
+
+	epoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
 
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
@@ -164,14 +170,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			round, err := gw.NetInf.GetRound(roundID)
-			if err != nil {
-				errs = append(errs, err.Error())
-				return
-			}
-
-			epoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
-			err = gw.UpsertFilter(recipientId, roundID, epoch)
+			err = gw.UpsertFilter(&recipientId, roundID, epoch)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -201,12 +200,12 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId id.Round) ([]byte, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
-	numElements := 0
+	i := 0
 	recipients := make([][]byte, len(recipientIDs))
 	for key := range recipientIDs {
-		jww.DEBUG.Printf("buildGossip Rec: %v", key)
-		recipients[numElements] = key[:]
-		numElements++
+		recipients[i] = make([]byte, len(key))
+		copy(recipients[i], key[:])
+		i++
 	}
 
 	// Build the message payload and return
@@ -214,6 +213,5 @@ func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId 
 		RecipientIds: recipients,
 		RoundID:      uint64(roundId),
 	}
-
 	return proto.Marshal(payloadMsg)
 }

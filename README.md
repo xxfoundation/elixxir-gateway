@@ -77,13 +77,17 @@ serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 # PEM format. Required field.
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
-# Path of where a copy of the known rounds buffer is saved and loaded from.
-# Defaults to "/opt/xxnetwork/gateway-logs/knownRounds.json", if not set.
-knownRoundsPath: "/opt/xxnetwork/gateway-logs/knownRounds.json"
+# How long messages, rounds and bloom filters remain in storage 
+# before being cleaned from storage. 
+# Valid time units are "h"
+# Defaults to 1 week (168 hours) if not set
+retentionPeriod: "168h"
 
-# Path of where a copy of the last checked update ID is saved and loaded from.
-# Defaults to "/opt/xxnetwork/gateway-logs/lastUpdateID.txt", if not set.
-lastUpdateIdPath: "/opt/xxnetwork/gateway-logs/lastUpdateID.txt"
+# How often the periodic storage tracker checks for items older 
+# than the retention Period value.
+# Valid time units are "s", "m", "h". 
+# Defaults to 5 minutes if not set
+cleanupInterval: "5m"
 
 # Database connection information
 dbUsername: "cmix"

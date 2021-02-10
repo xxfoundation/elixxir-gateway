@@ -25,9 +25,9 @@ import (
 	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/crypto/tls"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -98,16 +98,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
-		knownRoundsPath:       "kr.json",
 	}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
 
 	params.rateLimitParams = &rateLimiting.MapParams{
 		Capacity:     capacity,
@@ -116,14 +107,6 @@ func TestInstance_GossipVerify(t *testing.T) {
 		PollDuration: pollDuration,
 		BucketMaxAge: bucketMaxAge,
 	}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
 
 	gw := NewGatewayInstance(params)
 	p := large.NewIntFromString(prime, 16)
@@ -315,16 +298,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
-		knownRoundsPath:       "kr.json",
 	}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
 
 	params.rateLimitParams = &rateLimiting.MapParams{
 		Capacity:     capacity,
@@ -429,16 +403,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
-		knownRoundsPath:       "kr.json",
 	}
-
-	// Delete the test file at the end
-	defer func() {
-		err := os.RemoveAll(params.knownRoundsPath)
-		if err != nil {
-			t.Fatalf("Error deleting test file: %v", err)
-		}
-	}()
 
 	params.rateLimitParams = &rateLimiting.MapParams{
 		Capacity:     capacity,
@@ -449,6 +414,10 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 
 	gw := NewGatewayInstance(params)
+	err := gw.SetPeriod()
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
@@ -458,16 +427,12 @@ func TestInstance_GossipBloom(t *testing.T) {
 
 	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
 
-	var err error
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
 	if err != nil {
 		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
 	}
 
 	rndId := uint64(10)
-
-	gw.storage.InsertEpoch(id.Round(rndId))
-
 	gw.InitBloomGossip()
 
 	// Add permissioning as a host
@@ -496,9 +461,10 @@ func TestInstance_GossipBloom(t *testing.T) {
 	topology := [][]byte{nodeID.Bytes()}
 	// Create a fake round info to store
 	ri := &pb.RoundInfo{
-		ID:       rndId,
-		UpdateID: 10,
-		Topology: topology,
+		ID:         rndId,
+		UpdateID:   10,
+		Topology:   topology,
+		Timestamps: make([]uint64, states.NUM_STATES),
 	}
 
 	// Sign the round info with the mock permissioning private key
@@ -521,11 +487,20 @@ func TestInstance_GossipBloom(t *testing.T) {
 
 	// Insert the first five IDs as known clients
 	i := 0
+	ephIds := make(map[ephemeral.Id]interface{}, len(clients))
 	for client := range clients {
 		mockClient := &storage.Client{
 			Id: client.Bytes(),
 		}
-		gw.storage.InsertClient(mockClient)
+		err := gw.storage.UpsertClient(mockClient)
+		if err != nil {
+			t.Errorf("%+v", err)
+		}
+		testEphId, _, _, err := ephemeral.GetId(&client, 64, time.Now().UnixNano())
+		if err != nil {
+			t.Errorf("Could not create an ephemeral id: %v", err)
+		}
+		ephIds[testEphId] = nil
 		i++
 		if i == 5 {
 			break
@@ -538,19 +513,28 @@ func TestInstance_GossipBloom(t *testing.T) {
 		ri.State = uint32(states.COMPLETED)
 		gw.NetInf.GetRoundEvents().TriggerRoundEvent(ri)
 	}()
-	err = gw.GossipBloom(clients, id.Round(rndId))
+	err = gw.GossipBloom(ephIds, id.Round(rndId))
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
 	time.Sleep(2 * time.Second)
 
 	i = 0
-	for clientId := range clients {
+	err = gw.SetPeriod()
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	round, err := gw.NetInf.GetRound(id.Round(rndId))
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	testEpoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
+	for clientId := range ephIds {
 		// Check that the first five IDs are known clients, and thus
 		// in the user bloom filter
-		filters, err := gw.storage.GetClientBloomFilters(&clientId, id.Round(rndId))
+		filters, err := gw.storage.GetClientBloomFilters(&clientId, testEpoch, testEpoch)
 		if err != nil || filters == nil {
-			t.Errorf("Could not get a bloom filter for user %d with ID %s", i, clientId.String())
+			t.Errorf("Could not get a bloom filter for user %d with ID %d", i, clientId.Int64())
 		}
 		i++
 	}
