@@ -34,7 +34,6 @@ import (
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
-	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -216,22 +215,22 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	// Build ClientBlooms metadata
 	filtersMsg := &pb.ClientBlooms{
-		Period:  gw.period,
-		Filters: make([]*pb.ClientBloom, endEpoch-startEpoch),
+		Period:         gw.period,
+		FirstTimestamp: GetEpochTimestamp(startEpoch, gw.period),
 	}
 
-	// Build ClientBloomFilter list for client
-	earliestEpoch := float64(math.MaxUint32)
-	for _, f := range clientFilters {
-		earliestEpoch = math.Min(earliestEpoch, float64(f.Epoch))
-		index := f.Epoch - startEpoch - 1
-		filtersMsg.Filters[index] = &pb.ClientBloom{
-			Filter:     f.Filter,
-			FirstRound: f.FirstRound,
-			RoundRange: f.RoundRange,
+	if len(clientFilters) > 0 {
+		filtersMsg.Filters = make([]*pb.ClientBloom, endEpoch-startEpoch+1)
+		// Build ClientBloomFilter list for client
+		for _, f := range clientFilters {
+			index := f.Epoch - startEpoch
+			filtersMsg.Filters[index] = &pb.ClientBloom{
+				Filter:     f.Filter,
+				FirstRound: f.FirstRound,
+				RoundRange: f.RoundRange,
+			}
 		}
 	}
-	filtersMsg.FirstTimestamp = GetEpochTimestamp(uint32(earliestEpoch), gw.period)
 
 	var netDef *pb.NDF
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
