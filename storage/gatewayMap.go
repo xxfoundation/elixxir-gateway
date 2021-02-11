@@ -128,7 +128,7 @@ func (m *MapImpl) UpsertRound(round *Round) error {
 func (m *MapImpl) deleteRound(ts time.Time) error {
 	m.Lock()
 	defer m.Unlock()
-	for r, _ := range m.rounds {
+	for r := range m.rounds {
 		if m.rounds[r].LastUpdated.Before(ts) {
 			delete(m.rounds, r)
 		}
@@ -156,7 +156,7 @@ func (m *MapImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) 
 	// Return an error if no matching messages are in the map
 	if msgCount == 0 {
 		return nil, errors.Errorf("Could not find any MixedMessages with the "+
-			"recipient ID %v and the round ID %v in map.", recipientId, roundId)
+			"recipient ID %d and the round ID %v in map.", recipientId.Int64(), roundId)
 	}
 
 	// Build list of matching messages
@@ -224,7 +224,7 @@ func (m *MapImpl) deleteMixedMessages(ts time.Time) error {
 	defer m.mixedMessages.Unlock()
 	m.Lock()
 	defer m.Unlock()
-	for cr, _ := range m.clientRounds {
+	for cr := range m.clientRounds {
 		if m.clientRounds[cr].Timestamp.Before(ts) {
 			for _, msg := range m.clientRounds[cr].Messages {
 				roundId := id.Round(msg.RoundId)
@@ -261,7 +261,7 @@ func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, e
 	// if no epochs exist for the given ID.
 	if !exists || startEpoch > list.lastEpoch() || endEpoch < list.start {
 		return nil, errors.Errorf("Could not find any BloomFilters with the "+
-			"client ID %v in map.", recipientId)
+			"client ID %v in map.", recipientId.Int64())
 	}
 
 	// Calculate the index for the startEpoch
@@ -287,7 +287,7 @@ func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, e
 	// Return an error if no BloomFilters were found
 	if len(bloomFilters) == 0 {
 		return nil, errors.Errorf("Could not find any ClientBloomFilter with "+
-			"the client ID %v in map.", recipientId)
+			"the client ID %v in map.", recipientId.Int64())
 	}
 
 	return bloomFilters, nil
