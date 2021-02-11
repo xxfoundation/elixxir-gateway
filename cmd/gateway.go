@@ -34,6 +34,7 @@ import (
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -218,12 +219,11 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		Period:  gw.period,
 		Filters: make([]*pb.ClientBloom, endEpoch-startEpoch),
 	}
-	if len(clientFilters) > 0 {
-		filtersMsg.FirstTimestamp = GetEpochTimestamp(clientFilters[0].Epoch, gw.period)
-	}
 
 	// Build ClientBloomFilter list for client
+	earliestEpoch := float64(math.MaxUint32)
 	for _, f := range clientFilters {
+		earliestEpoch = math.Min(earliestEpoch, float64(f.Epoch))
 		index := f.Epoch - startEpoch - 1
 		filtersMsg.Filters[index] = &pb.ClientBloom{
 			Filter:     f.Filter,
@@ -231,6 +231,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			RoundRange: f.RoundRange,
 		}
 	}
+	filtersMsg.FirstTimestamp = GetEpochTimestamp(uint32(earliestEpoch), gw.period)
 
 	var netDef *pb.NDF
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
@@ -1076,15 +1077,18 @@ func (gw *Instance) ShareMessages(msg *pb.RoundMessages, auth *connect.Auth) err
 	}
 
 	topology := connect.NewCircuit(idList)
-	senderId := auth.Sender.GetId()
+	nodeID := auth.Sender.GetId().DeepCopy()
+	nodeID.SetType(id.Node)
+	myNodeID := gw.Comms.Id.DeepCopy()
+	myNodeID.SetType(id.Node)
 
 	// Auth checks required:
 	// Make sure authentication is valid, this gateway is in the round,
 	// the sender is the LastGateway in that round, and that the num slots
 	// that sender sent less equal to the batchSize for that round
-	if !auth.IsAuthenticated || topology.GetNodeLocation(gw.Comms.Id) != -1 ||
-		topology.IsLastNode(senderId) || len(msg.Messages) <= int(round.BatchSize) {
-		return connect.AuthError(senderId)
+	if !(auth.IsAuthenticated && topology.GetNodeLocation(myNodeID) != -1 &&
+		topology.IsLastNode(nodeID) && len(msg.Messages) <= int(round.BatchSize)) {
+		return connect.AuthError(auth.Sender.GetId())
 	}
 
 	gw.processMessages(msg.Messages, roundId, round)
@@ -1106,11 +1110,12 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	}
 
 	// Share messages in the batch with the rest of the team
-	err = gw.sendShareMessages(msgs, round)
-	if err != nil {
-		// Print error but do not stop message processing
-		jww.ERROR.Printf("Message sharing failed: %+v", err)
-	}
+	// TODO: Gateways must authenticate for the following to work
+	//err = gw.sendShareMessages(msgs, round)
+	//if err != nil {
+	//	// Print error but do not stop message processing
+	//	jww.ERROR.Printf("Message sharing failed: %+v", err)
+	//}
 
 	recipients := gw.processMessages(msgs, roundID, round)
 
@@ -1162,10 +1167,11 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			}
 
 			// Clear random bytes from recipient ID and add to map
-			recipients[recipientId.Clear(uint(round.AddressSpaceSize))] = nil
+			recipientId = recipientId.Clear(uint(round.AddressSpaceSize))
+			recipients[recipientId] = nil
 
-			jww.DEBUG.Printf("Message Received for: %d, %s, %s",
-				recipientId.Int64(), msg.GetPayloadA(), msg.GetPayloadB())
+			jww.DEBUG.Printf("Message Received for: %d [%d], %s, %s",
+				recipientId.Int64(), round.AddressSpaceSize, msg.GetPayloadA(), msg.GetPayloadB())
 
 			// Create new message and add it to the list for insertion
 			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, &recipientId, msg.PayloadA, msg.PayloadB)
