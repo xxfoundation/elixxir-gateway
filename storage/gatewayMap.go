@@ -151,7 +151,6 @@ func (m *MapImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) 
 	m.mixedMessages.RLock()
 	defer m.mixedMessages.RUnlock()
 
-	jww.INFO.Printf("Dumping RecipientMap: %#v", m.mixedMessages.RecipientId)
 	msgCount := len(m.mixedMessages.RecipientId[recipientId.Int64()][roundId])
 
 	// Return an error if no matching messages are in the map
@@ -177,7 +176,10 @@ func (m *MapImpl) InsertMixedMessages(cr *ClientRound) error {
 	m.mixedMessages.Lock()
 	msgs := cr.Messages
 
-	for _, msg := range msgs {
+	for i, _ := range msgs {
+
+		msg := msgs[i]
+
 		// Generate  map keys
 		roundId := id.Round(msg.RoundId)
 
@@ -210,7 +212,7 @@ func (m *MapImpl) InsertMixedMessages(cr *ClientRound) error {
 		// Update the count of the number of mixed messages in map
 		m.mixedMessages.RoundIdCount[roundId]++
 	}
-	jww.INFO.Printf("Dumping RecipientMap: %#v", m.mixedMessages.RecipientId)
+
 	m.mixedMessages.Unlock()
 
 	m.Lock()
