@@ -1137,7 +1137,7 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 	// Build a ClientRound object around the client messages
 	clientRound := &storage.ClientRound{
 		Id:        uint64(roundID),
-		Timestamp: time.Unix(0, int64(round.Timestamps[states.REALTIME])),
+		Timestamp: time.Unix(0, int64(round.Timestamps[states.QUEUED])),
 	}
 	msgsToInsert := make([]storage.MixedMessage, len(msgs))
 	recipients := make(map[ephemeral.Id]interface{})
@@ -1148,7 +1148,7 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 		serialMsg.SetPayloadB(msg.GetPayloadB())
 
 		// If IdentityFP is not zeroed, the message is not a dummy
-		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
+		if !bytes.Equal(serialMsg.GetIdentityFP(), dummyIdFp) {
 			recipIdBytes := serialMsg.GetEphemeralRID()
 			recipientId, err := ephemeral.Marshal(recipIdBytes)
 			if err != nil {

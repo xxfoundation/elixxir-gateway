@@ -182,16 +182,16 @@ func (m *MapImpl) InsertMixedMessages(cr *ClientRound) error {
 
 		// Initialize inner maps if they do not already exist
 		if m.mixedMessages.RoundId[roundId] == nil {
-			m.mixedMessages.RoundId[roundId] = map[int64]map[uint64]*MixedMessage{}
+			m.mixedMessages.RoundId[roundId] = make(map[int64]map[uint64]*MixedMessage)
 		}
 		if m.mixedMessages.RoundId[roundId][msg.RecipientId] == nil {
-			m.mixedMessages.RoundId[roundId][msg.RecipientId] = map[uint64]*MixedMessage{}
+			m.mixedMessages.RoundId[roundId][msg.RecipientId] = make(map[uint64]*MixedMessage)
 		}
 		if m.mixedMessages.RecipientId[msg.RecipientId] == nil {
-			m.mixedMessages.RecipientId[msg.RecipientId] = map[id.Round]map[uint64]*MixedMessage{}
+			m.mixedMessages.RecipientId[msg.RecipientId] = make(map[id.Round]map[uint64]*MixedMessage)
 		}
 		if m.mixedMessages.RecipientId[msg.RecipientId][roundId] == nil {
-			m.mixedMessages.RecipientId[msg.RecipientId][roundId] = map[uint64]*MixedMessage{}
+			m.mixedMessages.RecipientId[msg.RecipientId][roundId] = make(map[uint64]*MixedMessage)
 		}
 
 		// Return an error if the message already exists

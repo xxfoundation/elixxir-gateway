@@ -136,10 +136,15 @@ type MixedMessage struct {
 // Creates a new MixedMessage object with the given attributes
 // NOTE: Do not modify the MixedMessage.Id attribute.
 func NewMixedMessage(roundId id.Round, recipientId *ephemeral.Id, messageContentsA, messageContentsB []byte) *MixedMessage {
+
+	messageContents := make([]byte, len(messageContentsA)+len(messageContentsB))
+	copy(messageContents[:len(messageContentsA)], messageContentsA)
+	copy(messageContents[len(messageContentsA):], messageContentsB)
+
 	return &MixedMessage{
 		RoundId:         uint64(roundId),
 		RecipientId:     recipientId.Int64(),
-		MessageContents: append(messageContentsA, messageContentsB...),
+		MessageContents: messageContents,
 	}
 }
 
