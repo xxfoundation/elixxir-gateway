@@ -20,8 +20,8 @@ import (
 // This file will handle the logistics of maintaining, creating and deleting user bloom filters
 
 // Constants for constructing a bloom filter
-const bloomFilterSize = 71888 // In Bits
-const bloomFilterHashes = 8
+const bloomFilterSize = 64 // In Bits
+const bloomFilterHashes = 10
 
 // Upserts filters of passed in recipients, using the round ID
 func (gw *Instance) UpsertFilters(recipients map[ephemeral.Id]interface{}, roundId id.Round) error {
