@@ -93,10 +93,6 @@ type Instance struct {
 	bloomFilterGossip sync.Mutex
 }
 
-func (gw *Instance) GetBloom(msg *pb.GetBloom, ipAddress string) (*pb.GetBloomResponse, error) {
-	panic("implement me")
-}
-
 // Periodically clears out old messages, rounds and bloom filters
 func (gw *Instance) ClearOldStorage() error {
 	ticker := time.NewTicker(gw.Params.cleanupInterval)
@@ -283,14 +279,14 @@ func NewGatewayInstance(params Params) *Instance {
 
 func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl := gateway.NewImplementation()
-	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation, ipaddress string) (confirmation *pb.RegistrationConfirmation, e error) {
-		return instance.ConfirmNonce(message, ipaddress)
+	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation) (confirmation *pb.RegistrationConfirmation, e error) {
+		return instance.ConfirmNonce(message)
 	}
-	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipaddress string) (*pb.GatewaySlotResponse, error) {
-		return instance.PutMessage(message, ipaddress)
+	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
+		return instance.PutMessage(message)
 	}
-	impl.Functions.RequestNonce = func(message *pb.NonceRequest, ipaddress string) (nonce *pb.Nonce, e error) {
-		return instance.RequestNonce(message, ipaddress)
+	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
+		return instance.RequestNonce(message)
 	}
 	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
 		return instance.PollForNotifications(auth)
@@ -302,10 +298,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	// Client -> Gateway message request
 	impl.Functions.RequestMessages = func(msg *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 		return instance.RequestMessages(msg)
-	}
-	// Client -> Gateway bloom request
-	impl.Functions.RequestBloom = func(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
-		return instance.RequestBloom(msg)
 	}
 	impl.Functions.Poll = func(msg *pb.GatewayPoll) (response *pb.GatewayPollResponse, err error) {
 		return instance.Poll(msg)
@@ -445,7 +437,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 // SprintRoundInfo prints the interesting parts of the round info object.
 func SprintRoundInfo(ri *pb.RoundInfo) string {
-	states := []string{"NOT_STARTED", "Waiting", "Precomp", "Standby",
+	roundStates := []string{"NOT_STARTED", "Waiting", "Precomp", "Standby",
 		"Realtime", "Completed", "Error", "Crash"}
 	topology := "v"
 	for i := 0; i < len(ri.Topology); i++ {
@@ -454,7 +446,7 @@ func SprintRoundInfo(ri *pb.RoundInfo) string {
 	}
 	riStr := fmt.Sprintf("ID: %d, UpdateID: %d, State: %s, BatchSize: %d,"+
 		"Topology: %s, RQTimeout: %d, Errors: %v",
-		ri.ID, ri.UpdateID, states[ri.State], ri.BatchSize, topology,
+		ri.ID, ri.UpdateID, roundStates[ri.State], ri.BatchSize, topology,
 		ri.ResourceQueueTimeoutMillis, ri.Errors)
 	return riStr
 }
@@ -717,7 +709,6 @@ func (gw *Instance) setupIDF(nodeId []byte, ourNdf *ndf.NetworkDefinition) (err 
 	return errors.Errorf("Unable to locate ID %v in NDF!", nodeId)
 }
 
-// TODO: Refactor to get messages once the old endpoint is ready to be fully deprecated
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
@@ -807,7 +798,7 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 }
 
 // PutMessage adds a message to the outgoing queue
-func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddress string) (*pb.GatewaySlotResponse, error) {
+func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
 	// Construct Client ID for database lookup
 	clientID, err := id.Unmarshal(msg.Message.SenderID)
 	if err != nil {
@@ -887,15 +878,14 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 }
 
 // Pass-through for Registration Nonce Communication
-func (gw *Instance) RequestNonce(msg *pb.NonceRequest, ipAddress string) (*pb.Nonce, error) {
+func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
 	jww.INFO.Print("Passing on registration nonce request")
 	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
 
 }
 
 // Pass-through for Registration Nonce Confirmation
-func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation,
-	ipAddress string) (*pb.RegistrationConfirmation, error) {
+func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.RegistrationConfirmation, error) {
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
 
@@ -945,7 +935,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	}
 	msg.SetPayloadA(payloadBytes)
 	msg.SetPayloadB(payloadBytes)
-	// fixme: should these be suppressed?
+
 	ephId, _, _, err := ephemeral.GetId(&id.DummyUser, 64, time.Now().UnixNano())
 	if err != nil {
 		jww.FATAL.Panicf("Could not get ID: %+v", err)
@@ -1156,6 +1146,7 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
 		serialMsg.SetPayloadA(msg.GetPayloadA())
 		serialMsg.SetPayloadB(msg.GetPayloadB())
+
 		// If IdentityFP is not zeroed, the message is not a dummy
 		if bytes.Compare(serialMsg.GetIdentityFP(), dummyIdFp) != 0 {
 			recipIdBytes := serialMsg.GetEphemeralRID()
@@ -1197,7 +1188,6 @@ func (gw *Instance) Start() {
 	// Now that we're set up, run a thread that constantly
 	// polls for updates
 	go func() {
-		// fixme: this last update needs to be persistent across resets
 		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
@@ -1242,11 +1232,6 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 	return gw.un.Notified(), nil
-}
-
-// Client -> Gateway bloom request
-func (gw *Instance) RequestBloom(msg *pb.GetBloom) (*pb.GetBloomResponse, error) {
-	return nil, nil
 }
 
 // SaveKnownRounds saves the KnownRounds to a file.
