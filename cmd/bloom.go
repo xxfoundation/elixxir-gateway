@@ -20,7 +20,7 @@ import (
 // This file will handle the logistics of maintaining, creating and deleting user bloom filters
 
 // Constants for constructing a bloom filter
-const bloomFilterSize = 64 // In Bits
+const bloomFilterSize = 648 // In Bits
 const bloomFilterHashes = 10
 
 // Upserts filters of passed in recipients, using the round ID
