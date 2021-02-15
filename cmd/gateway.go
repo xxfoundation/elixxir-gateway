@@ -1160,8 +1160,9 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			recipientId = recipientId.Clear(uint(round.AddressSpaceSize))
 			recipients[recipientId] = nil
 
-			jww.DEBUG.Printf("Message Received for: %d [%d], %s, %s",
-				recipientId.Int64(), round.AddressSpaceSize, msg.GetPayloadA(), msg.GetPayloadB())
+			jww.DEBUG.Printf("Message Received for: %d [%d], %s, %s "+
+				"(rid: %d)", recipientId.Int64(), round.AddressSpaceSize,
+				msg.GetPayloadA(), msg.GetPayloadB(), roundID)
 
 			// Create new message and add it to the list for insertion
 			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, &recipientId, msg.PayloadA, msg.PayloadB)
