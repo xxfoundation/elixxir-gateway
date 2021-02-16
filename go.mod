@@ -18,12 +18,12 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20210120224144-ac046983a17a
-	gitlab.com/elixxir/comms v0.0.4-0.20210215180544-d672a6bfd53a
-	gitlab.com/elixxir/crypto v0.0.7-0.20210210215733-951b4e717763
-	gitlab.com/elixxir/primitives v0.0.3-0.20210210215643-bf48247248e5
-	gitlab.com/xx_network/comms v0.0.4-0.20210210215624-622913c0a215
-	gitlab.com/xx_network/crypto v0.0.5-0.20210210215543-446333e9022e
-	gitlab.com/xx_network/primitives v0.0.4-0.20210212180522-50ec526a6c12
+	gitlab.com/elixxir/comms v0.0.4-0.20210216174714-dc3e5c456e20
+	gitlab.com/elixxir/crypto v0.0.7-0.20210216174551-f806f79610eb
+	gitlab.com/elixxir/primitives v0.0.3-0.20210216174458-2a23825c1eb1
+	gitlab.com/xx_network/comms v0.0.4-0.20210216174438-0790d1f1f225
+	gitlab.com/xx_network/crypto v0.0.5-0.20210216174356-e81e1ddf8fb7
+	gitlab.com/xx_network/primitives v0.0.4-0.20210215192713-e32335847d4f
 	gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1 // indirect
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
 	golang.org/x/sys v0.0.0-20210105210732-16f7687f5001 // indirect
