@@ -147,7 +147,7 @@ func (m *MapImpl) countMixedMessagesByRound(roundId id.Round) (uint64, error) {
 // Returns a slice of MixedMessages from database
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (m *MapImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
+func (m *MapImpl) getMixedMessages(recipientId ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
 	m.mixedMessages.RLock()
 	defer m.mixedMessages.RUnlock()
 
@@ -254,7 +254,7 @@ func (m *MapImpl) deleteMixedMessages(ts time.Time) error {
 // Returns ClientBloomFilter from database with the given recipientId
 // and an Epoch between startEpoch and endEpoch (inclusive)
 // Or an error if no matching ClientBloomFilter exist
-func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
+func (m *MapImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
 	m.bloomFilters.RLock()
 	defer m.bloomFilters.RUnlock()
 
@@ -263,9 +263,12 @@ func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, e
 
 	// Return an error if the start or end epoch are out of range of the list or
 	// if no epochs exist for the given ID.
-	if !exists || startEpoch > list.lastEpoch() || endEpoch < list.start {
+	if !exists {
 		return nil, errors.Errorf("Could not find any BloomFilters with the "+
-			"client ID %v in map.", recipientId.Int64())
+			"client ID %d in map.", recipientId.Int64())
+	} else if startEpoch > list.lastEpoch() || endEpoch < list.start {
+		return nil, errors.Errorf("BloomFilters with the "+
+			"client ID %d found but not within range.\nlistStart: %d  listEnd: %d  startEpoch: %d  endEpoch: %d", recipientId.Int64(), list.start, list.lastEpoch(), startEpoch, endEpoch)
 	}
 
 	// Calculate the index for the startEpoch
@@ -331,6 +334,7 @@ func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 
 	// Insert the filter into the list
 	list.list[index] = filter
+	jww.DEBUG.Printf("Bloom filter list: %+v", m.bloomFilters.RecipientId[filter.RecipientId])
 
 	return nil
 }

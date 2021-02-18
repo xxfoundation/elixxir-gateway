@@ -42,7 +42,7 @@ func (s *Storage) ClearOldStorage(ts time.Time) error {
 }
 
 // Builds a ClientBloomFilter with the given parameters, then stores it
-func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byte, roundId id.Round, epoch uint32) error {
+func (s *Storage) HandleBloomFilter(recipientId ephemeral.Id, filterBytes []byte, roundId id.Round, epoch uint32) error {
 
 	// Build a newly-initialized ClientBloomFilter to be stored
 	validFilter := &ClientBloomFilter{
@@ -61,7 +61,7 @@ func (s *Storage) HandleBloomFilter(recipientId *ephemeral.Id, filterBytes []byt
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId
 // Also returns a boolean for whether the gateway contains other messages for the given Round
-func (s *Storage) GetMixedMessages(recipientId *ephemeral.Id, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
+func (s *Storage) GetMixedMessages(recipientId ephemeral.Id, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
 	// Determine whether this gateway has any messages for the given roundId
 	count, err := s.countMixedMessagesByRound(roundId)
 	isValidGateway = count > 0

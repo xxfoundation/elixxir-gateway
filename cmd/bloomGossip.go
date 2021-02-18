@@ -157,7 +157,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 		return err
 	}
 
-	epoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
+	epoch := GetEpoch(int64(round.Timestamps[states.QUEUED]), gw.period)
 
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
@@ -170,7 +170,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			err = gw.UpsertFilter(&recipientId, roundID, epoch)
+			err = gw.UpsertFilter(recipientId, roundID, epoch)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}

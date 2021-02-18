@@ -243,7 +243,7 @@ func TestNewMixedMessage(t *testing.T) {
 	testBytes1 := []byte("test")
 	testBytes2 := []byte("1234")
 	testRound := uint64(10)
-	testRecip := &ephemeral.Id{1, 2, 3}
+	testRecip := ephemeral.Id{1, 2, 3}
 	testRoundId := id.Round(testRound)
 
 	mm := NewMixedMessage(testRoundId, testRecip, testBytes1, testBytes2)
@@ -267,7 +267,7 @@ func TestMixedMessage_GetMessageContents(t *testing.T) {
 	testBytes1 := []byte("test")
 	testBytes2 := []byte("1234")
 	testRound := uint64(10)
-	testRecip := &ephemeral.Id{1, 2, 3}
+	testRecip := ephemeral.Id{1, 2, 3}
 	testRoundId := id.Round(testRound)
 
 	mm := NewMixedMessage(testRoundId, testRecip, testBytes1, testBytes2)
@@ -453,7 +453,7 @@ func TestMapImpl_countMixedMessagesByRound(t *testing.T) {
 func TestMapImpl_getMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := &ephemeral.Id{1, 2, 3}
+	testRecipientID := ephemeral.Id{1, 2, 3}
 	testMixedMessage := &MixedMessage{
 		Id:          testMsgID,
 		RoundId:     uint64(testRoundID),
@@ -533,7 +533,7 @@ func TestMapImpl_getMixedMessages(t *testing.T) {
 // Error Path: No matching messages exist in the map.
 func TestMapImpl_getMixedMessages_NoMessageError(t *testing.T) {
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := &ephemeral.Id{1, 2, 3}
+	testRecipientID := ephemeral.Id{1, 2, 3}
 	m := &MapImpl{
 		mixedMessages: MixedMessageMap{
 			RoundId:      map[id.Round]map[int64]map[uint64]*MixedMessage{},
@@ -666,8 +666,11 @@ func TestMapImpl_deleteMixedMessages(t *testing.T) {
 			},
 		}})
 
-	// Delete the two messages
+	// Sleep to make sure time.Now() does not fail due to clock resolution
+	// issues on Windows
+	time.Sleep(50 * time.Millisecond)
 
+	// Delete the two messages
 	err := m.deleteMixedMessages(time.Now())
 	if err != nil {
 		t.Errorf("Unable to delete mixed messages by round: %+v", err)
@@ -734,7 +737,7 @@ func TestMapImpl_GetClientBloomFilters(t *testing.T) {
 	}
 
 	for i, val := range testVals {
-		bloomFilters, err := m.GetClientBloomFilters(&ephemeralID, val.start, val.end)
+		bloomFilters, err := m.GetClientBloomFilters(ephemeralID, val.start, val.end)
 		if err != nil {
 			t.Errorf("Unexpected error retrieving bloom filters (%d): %v", i, err)
 		}
@@ -786,7 +789,7 @@ func TestMapImpl_GetClientBloomFilters_NoFiltersError(t *testing.T) {
 	}
 
 	for i, val := range testVals {
-		bloomFilters, err := m.GetClientBloomFilters(&ephemeralID, val.start, val.end)
+		bloomFilters, err := m.GetClientBloomFilters(ephemeralID, val.start, val.end)
 		if err == nil {
 			t.Errorf("Expected an error when bloom filters is not in map (%d).", i)
 		}
@@ -797,7 +800,7 @@ func TestMapImpl_GetClientBloomFilters_NoFiltersError(t *testing.T) {
 	}
 
 	// Test with an ID not in the map
-	bloomFilters, err := m.GetClientBloomFilters(&ephemeral.Id{}, 0, 1)
+	bloomFilters, err := m.GetClientBloomFilters(ephemeral.Id{}, 0, 1)
 	if err == nil {
 		t.Error("Expected an error when bloom filters is not in map.")
 	}
