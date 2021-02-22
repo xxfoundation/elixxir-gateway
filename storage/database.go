@@ -34,11 +34,11 @@ type database interface {
 	deleteRound(ts time.Time) error
 
 	countMixedMessagesByRound(roundId id.Round) (uint64, error)
-	getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error)
+	getMixedMessages(recipientId ephemeral.Id, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessages(cr *ClientRound) error
 	deleteMixedMessages(ts time.Time) error
 
-	GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
+	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error
 	DeleteClientFiltersBeforeEpoch(epoch uint32) error
 }
@@ -135,7 +135,7 @@ type MixedMessage struct {
 
 // Creates a new MixedMessage object with the given attributes
 // NOTE: Do not modify the MixedMessage.Id attribute.
-func NewMixedMessage(roundId id.Round, recipientId *ephemeral.Id, messageContentsA, messageContentsB []byte) *MixedMessage {
+func NewMixedMessage(roundId id.Round, recipientId ephemeral.Id, messageContentsA, messageContentsB []byte) *MixedMessage {
 
 	messageContents := make([]byte, len(messageContentsA)+len(messageContentsB))
 	copy(messageContents[:len(messageContentsA)], messageContentsA)

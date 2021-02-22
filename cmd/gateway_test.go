@@ -374,7 +374,7 @@ func TestInstance_RequestMessages(t *testing.T) {
 	}
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, &testEphId, messageContents, messageContents)
+		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, testEphId, messageContents, messageContents)
 	}
 	err = gatewayInstance.storage.InsertMixedMessages(clientRound)
 	if err != nil {
@@ -436,7 +436,7 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	}
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, &testEphId, messageContents, messageContents)
+		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, testEphId, messageContents, messageContents)
 	}
 	err = gatewayInstance.storage.InsertMixedMessages(clientRound)
 	if err != nil {
@@ -481,7 +481,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	}
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, &testEphId, messageContents, messageContents)
+		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, testEphId, messageContents, messageContents)
 	}
 	err = gatewayInstance.storage.InsertMixedMessages(clientRound)
 	if err != nil {
@@ -526,7 +526,7 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 	}
 	for i := 0; i < numMessages; i++ {
 		messageContents := []byte(payload)
-		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, &testEphId, messageContents, messageContents)
+		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, testEphId, messageContents, messageContents)
 	}
 	err = gatewayInstance.storage.InsertMixedMessages(clientRound)
 	if err != nil {
@@ -1137,7 +1137,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	if err != nil {
 		t.Errorf("Could not make a mock ephemeral Id: %v", err)
 	}
-	msg := storage.NewMixedMessage(id.Round(rndId), &recipientId, []byte("test"), []byte("message"))
+	msg := storage.NewMixedMessage(id.Round(rndId), recipientId, []byte("test"), []byte("message"))
 	// Build a ClientRound object around the client messages
 	clientRound := &storage.ClientRound{
 		Id:        rndId,
@@ -1154,7 +1154,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	go func() {
 		wg.Add(1)
 
-		gw.ClearOldStorage()
+		gw.clearOldStorage(time.Now().Add(-retentionPeriodDefault))
 
 		wg.Done()
 	}()
@@ -1165,9 +1165,9 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	// Test that messages were cleared
 	// NOTE: Rounds not tested as insertion explicitly sets
 	// insert time to time.Now()
-	msgs, _, err := gw.storage.GetMixedMessages(&recipientId, id.Round(rndId))
+	msgs, _, err := gw.storage.GetMixedMessages(recipientId, id.Round(rndId))
 	if len(msgs) != 0 {
-		t.Errorf("Message expected to be cleared after ClearOldStorage")
+		t.Errorf("Message expected to be cleared after clearOldStorage")
 	}
 
 }

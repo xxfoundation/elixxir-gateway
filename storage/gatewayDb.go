@@ -150,7 +150,7 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, erro
 // Returns a slice of MixedMessages from database
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (d *DatabaseImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
+func (d *DatabaseImpl) getMixedMessages(recipientId ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
 	results := make([]*MixedMessage, 0)
 	err := d.db.Find(&results,
 		&MixedMessage{RecipientId: recipientId.Int64(),
@@ -172,7 +172,7 @@ func (d *DatabaseImpl) deleteMixedMessages(ts time.Time) error {
 // Returns ClientBloomFilter from database with the given recipientId
 // and an Epoch between startEpoch and endEpoch (inclusive)
 // Or an error if no matching ClientBloomFilter exist
-func (d *DatabaseImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
+func (d *DatabaseImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
 	jww.DEBUG.Printf("Getting filters for client [%v]", recipientId)
 
 	var results []*ClientBloomFilter

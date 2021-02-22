@@ -94,30 +94,21 @@ type Instance struct {
 }
 
 // Periodically clears out old messages, rounds and bloom filters
-func (gw *Instance) ClearOldStorage() error {
-	ticker := time.NewTicker(gw.Params.cleanupInterval)
-	retentionPeriod := gw.Params.retentionPeriod
-	for true {
-		select {
-		case <-ticker.C:
-			now := time.Now()
-			threshold := now.Add(-retentionPeriod)
-			// Clear out old rounds and messages
-			err := gw.storage.ClearOldStorage(threshold)
-			if err != nil {
-				return errors.Errorf("Could not clear old rounds and/or messages: %v", err)
-			}
-
-			// Clear out filters by epoch
-			timestamp := time.Unix(0, threshold.UnixNano()).UnixNano()
-			epoch := GetEpoch(timestamp, gw.period)
-			err = gw.storage.DeleteClientFiltersBeforeEpoch(epoch)
-			if err != nil {
-				return errors.Errorf("Could not clear bloom filters: %v", err)
-			}
-
-		}
+func (gw *Instance) clearOldStorage(threshold time.Time) error {
+	// Clear out old rounds and messages
+	err := gw.storage.ClearOldStorage(threshold)
+	if err != nil {
+		return errors.Errorf("Could not clear old rounds and/or messages: %v", err)
 	}
+
+	// Clear out filters by epoch
+	timestamp := time.Unix(0, threshold.UnixNano()).UnixNano()
+	epoch := GetEpoch(timestamp, gw.period)
+	err = gw.storage.DeleteClientFiltersBeforeEpoch(epoch)
+	if err != nil {
+		return errors.Errorf("Could not clear bloom filters: %v", err)
+	}
+
 	return nil
 }
 
@@ -203,7 +194,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client
 	clientFilters, err := gw.storage.GetClientBloomFilters(
-		&receptionId, startEpoch, endEpoch)
+		receptionId, startEpoch, endEpoch)
 	jww.INFO.Printf("Adding %d client filters for %d", len(clientFilters), receptionId.Int64())
 	if err != nil {
 		jww.WARN.Printf("Could not get filters in range %d - %d for %d when polling: %v", startEpoch, endEpoch, receptionId.Int64(), err)
@@ -677,10 +668,19 @@ func (gw *Instance) InitNetwork() error {
 		// }
 	}
 
+	// Start storage cleanup thread
 	go func() {
-		err := gw.ClearOldStorage()
-		if err != nil {
-			jww.FATAL.Panicf("Issue clearing old storage: %v", err)
+		ticker := time.NewTicker(gw.Params.cleanupInterval)
+		retentionPeriod := gw.Params.retentionPeriod
+		for true {
+			select {
+			case <-ticker.C:
+				now := time.Now()
+				err := gw.clearOldStorage(now.Add(-retentionPeriod))
+				if err != nil {
+					jww.WARN.Printf("Issue clearing old storage: %v", err)
+				}
+			}
 		}
 	}()
 
@@ -729,7 +729,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	roundID := id.Round(req.RoundID)
 
 	// Search the database for the requested messages
-	msgs, isValidGateway, err := gw.storage.GetMixedMessages(&userId, roundID)
+	msgs, isValidGateway, err := gw.storage.GetMixedMessages(userId, roundID)
 	if err != nil {
 		jww.WARN.Printf("Could not find any MixedMessages with "+
 			"recipient ID %v and round ID %v: %+v", userId, roundID, err)
@@ -1160,12 +1160,17 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			recipientId = recipientId.Clear(uint(round.AddressSpaceSize))
 			recipients[recipientId] = nil
 
-			jww.DEBUG.Printf("Message Received for: %d [%d], %s, %s "+
-				"(rid: %d)", recipientId.Int64(), round.AddressSpaceSize,
-				msg.GetPayloadA(), msg.GetPayloadB(), roundID)
+			if jww.GetStdoutThreshold() <= jww.LevelDebug {
+				payloadA := strings.ReplaceAll(string(msg.GetPayloadA()), "\n", "")
+				payloadB := strings.ReplaceAll(string(msg.GetPayloadA()), "\n", "")
+
+				jww.DEBUG.Printf("Message received for: %d [%d], round: %d,"+
+					"payloadA: %s, payloadB: %s", recipientId.Int64(),
+					round.AddressSpaceSize, roundID, payloadA, payloadB)
+			}
 
 			// Create new message and add it to the list for insertion
-			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, &recipientId, msg.PayloadA, msg.PayloadB)
+			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
 			numReal++
 		}
 	}
