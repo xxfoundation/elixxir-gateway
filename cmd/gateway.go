@@ -94,30 +94,21 @@ type Instance struct {
 }
 
 // Periodically clears out old messages, rounds and bloom filters
-func (gw *Instance) ClearOldStorage() error {
-	ticker := time.NewTicker(gw.Params.cleanupInterval)
-	retentionPeriod := gw.Params.retentionPeriod
-	for true {
-		select {
-		case <-ticker.C:
-			now := time.Now()
-			threshold := now.Add(-retentionPeriod)
-			// Clear out old rounds and messages
-			err := gw.storage.ClearOldStorage(threshold)
-			if err != nil {
-				return errors.Errorf("Could not clear old rounds and/or messages: %v", err)
-			}
-
-			// Clear out filters by epoch
-			timestamp := time.Unix(0, threshold.UnixNano()).UnixNano()
-			epoch := GetEpoch(timestamp, gw.period)
-			err = gw.storage.DeleteClientFiltersBeforeEpoch(epoch)
-			if err != nil {
-				return errors.Errorf("Could not clear bloom filters: %v", err)
-			}
-
-		}
+func (gw *Instance) clearOldStorage(threshold time.Time) error {
+	// Clear out old rounds and messages
+	err := gw.storage.ClearOldStorage(threshold)
+	if err != nil {
+		return errors.Errorf("Could not clear old rounds and/or messages: %v", err)
 	}
+
+	// Clear out filters by epoch
+	timestamp := time.Unix(0, threshold.UnixNano()).UnixNano()
+	epoch := GetEpoch(timestamp, gw.period)
+	err = gw.storage.DeleteClientFiltersBeforeEpoch(epoch)
+	if err != nil {
+		return errors.Errorf("Could not clear bloom filters: %v", err)
+	}
+
 	return nil
 }
 
@@ -677,10 +668,19 @@ func (gw *Instance) InitNetwork() error {
 		// }
 	}
 
+	// Start storage cleanup thread
 	go func() {
-		err := gw.ClearOldStorage()
-		if err != nil {
-			jww.FATAL.Panicf("Issue clearing old storage: %v", err)
+		ticker := time.NewTicker(gw.Params.cleanupInterval)
+		retentionPeriod := gw.Params.retentionPeriod
+		for true {
+			select {
+			case <-ticker.C:
+				now := time.Now()
+				err := gw.clearOldStorage(now.Add(-retentionPeriod))
+				if err != nil {
+					jww.WARN.Printf("Issue clearing old storage: %v", err)
+				}
+			}
 		}
 	}()
 

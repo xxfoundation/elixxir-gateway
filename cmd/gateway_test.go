@@ -1154,7 +1154,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	go func() {
 		wg.Add(1)
 
-		gw.ClearOldStorage()
+		gw.clearOldStorage(time.Now().Add(-retentionPeriodDefault))
 
 		wg.Done()
 	}()
@@ -1167,7 +1167,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	// insert time to time.Now()
 	msgs, _, err := gw.storage.GetMixedMessages(recipientId, id.Round(rndId))
 	if len(msgs) != 0 {
-		t.Errorf("Message expected to be cleared after ClearOldStorage")
+		t.Errorf("Message expected to be cleared after clearOldStorage")
 	}
 
 }
