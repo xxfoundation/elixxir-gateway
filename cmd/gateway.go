@@ -847,7 +847,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 				"Please try a different round.")
 	}
 
-	jww.DEBUG.Printf("Putting message from user %v in outgoing queue "+
+	jww.DEBUG.Printf("Putting message from user %s in outgoing queue "+
 		"for round %d...", msg.Message.GetSenderID(), thisRound)
 
 	return &pb.GatewaySlotResponse{
