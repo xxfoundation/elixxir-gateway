@@ -60,15 +60,18 @@ func (m *MapImpl) GetClient(id *id.ID) (*Client, error) {
 
 // Upsert client into the database - replace key field if it differs so interrupted reg doesn't fail
 func (m *MapImpl) UpsertClient(client *Client) error {
+
 	cid, err := id.Unmarshal(client.Id)
 	if err != nil {
 		return err
 	}
+	m.Lock()
 	if _, ok := m.clients[*cid]; ok {
 		copy(m.clients[*cid].Key, client.Key)
 	} else {
 		m.clients[*cid] = client
 	}
+	m.Unlock()
 	return nil
 }
 
