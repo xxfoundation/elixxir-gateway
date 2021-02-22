@@ -534,7 +534,6 @@ func (gw *Instance) InitNetwork() error {
 
 	// Combine the discovered gateway host with the provided port
 	gw.address = net.JoinHostPort(gw.Params.Address, strconv.Itoa(gw.Params.Port))
-	address = gw.address
 
 	// Begin polling server for NDF
 	jww.INFO.Printf("Beginning polling NDF...")
@@ -609,7 +608,7 @@ func (gw *Instance) InitNetwork() error {
 
 		gatewayId := serverID
 		gatewayId.SetType(id.Gateway)
-		gw.Comms = gateway.StartGateway(gatewayId, address, gatewayHandler,
+		gw.Comms = gateway.StartGateway(gatewayId, net.JoinHostPort("0.0.0.0", strconv.Itoa(gw.Params.Port)), gatewayHandler,
 			gwCert, gwKey, gossip.DefaultManagerFlags())
 
 		jww.DEBUG.Printf("Creating instance!")
