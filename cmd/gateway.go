@@ -120,7 +120,7 @@ func (gw *Instance) SetPeriod() error {
 	// Get an existing Period value from storage
 	periodStr, err := gw.storage.GetStateValue(storage.PeriodKey)
 	if err != nil &&
-		!errors.Is(err, gorm.ErrRecordNotFound) &&
+		!strings.Contains(err.Error(), gorm.ErrRecordNotFound.Error()) &&
 		!strings.Contains(err.Error(), "Unable to locate state for key") {
 		// If the error is unrelated to record not in storage, return it
 		return err
@@ -1298,10 +1298,9 @@ func (gw *Instance) LoadLastUpdateID() error {
 	dataStr := strings.TrimSpace(data)
 	lastUpdate, err := strconv.ParseUint(dataStr, 10, 64)
 	if err != nil {
-		return errors.Errorf("Failed to parse lastUpdate from file: %v", err)
+		return errors.Errorf("Failed to get LastUpdateID: %v", err)
 	}
 
 	gw.lastUpdate = lastUpdate
-
 	return nil
 }
