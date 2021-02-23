@@ -846,8 +846,14 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 				"Please try a different round.")
 	}
 
-	jww.DEBUG.Printf("Putting message from user %s in outgoing queue "+
-		"for round %d...", msg.Message.GetSenderID(), thisRound)
+	if jww.GetLogThreshold() <= jww.LevelDebug {
+		msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
+		msgFmt.SetPayloadA(msg.Message.PayloadA)
+		msgFmt.SetPayloadB(msg.Message.PayloadB)
+		jww.DEBUG.Printf("Putting message from user %s (msgDigest: %s) "+
+			"in outgoing queue for round %d...", msg.Message.GetSenderID(),
+			msgFmt.Digest(), thisRound)
+	}
 
 	return &pb.GatewaySlotResponse{
 		Accepted: true,
@@ -1160,12 +1166,13 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			recipients[recipientId] = nil
 
 			if jww.GetStdoutThreshold() <= jww.LevelDebug {
-				payloadA := strings.ReplaceAll(string(msg.GetPayloadA()), "\n", "")
-				payloadB := strings.ReplaceAll(string(msg.GetPayloadA()), "\n", "")
+				msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
+				msgFmt.SetPayloadA(msg.PayloadA)
+				msgFmt.SetPayloadB(msg.PayloadB)
 
-				jww.DEBUG.Printf("Message received for: %d [%d], round: %d,"+
-					"payloadA: %s, payloadB: %s", recipientId.Int64(),
-					round.AddressSpaceSize, roundID, payloadA, payloadB)
+				jww.DEBUG.Printf("Message received for: %d[%d] in "+
+					"round: %d, msgDigest: %s", recipientId.Int64(),
+					round.AddressSpaceSize, roundID, msgFmt.Digest())
 			}
 
 			// Create new message and add it to the list for insertion
