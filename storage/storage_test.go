@@ -182,7 +182,7 @@ func TestClientBloomFilter_Combine_UpdateOld(t *testing.T) {
 func TestStorage_GetMixedMessages(t *testing.T) {
 	testMsgID := rand.Uint64()
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := &ephemeral.Id{1, 2, 3}
+	testRecipientID := ephemeral.Id{1, 2, 3}
 	testMixedMessage := &MixedMessage{
 		Id:          testMsgID,
 		RoundId:     uint64(testRoundID),
@@ -217,7 +217,7 @@ func TestStorage_GetMixedMessages(t *testing.T) {
 // Invalid gateway path
 func TestStorage_GetMixedMessagesInvalidGw(t *testing.T) {
 	testRoundID := id.Round(rand.Uint64())
-	testRecipientID := &ephemeral.Id{1, 2, 3}
+	testRecipientID := ephemeral.Id{1, 2, 3}
 
 	storage := &Storage{
 		&MapImpl{

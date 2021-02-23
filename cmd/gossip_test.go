@@ -532,7 +532,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	for clientId := range ephIds {
 		// Check that the first five IDs are known clients, and thus
 		// in the user bloom filter
-		filters, err := gw.storage.GetClientBloomFilters(&clientId, testEpoch, testEpoch)
+		filters, err := gw.storage.GetClientBloomFilters(clientId, testEpoch, testEpoch)
 		if err != nil || filters == nil {
 			t.Errorf("Could not get a bloom filter for user %d with ID %d", i, clientId.Int64())
 		}

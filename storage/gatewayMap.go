@@ -60,15 +60,18 @@ func (m *MapImpl) GetClient(id *id.ID) (*Client, error) {
 
 // Upsert client into the database - replace key field if it differs so interrupted reg doesn't fail
 func (m *MapImpl) UpsertClient(client *Client) error {
+
 	cid, err := id.Unmarshal(client.Id)
 	if err != nil {
 		return err
 	}
+	m.Lock()
 	if _, ok := m.clients[*cid]; ok {
 		copy(m.clients[*cid].Key, client.Key)
 	} else {
 		m.clients[*cid] = client
 	}
+	m.Unlock()
 	return nil
 }
 
@@ -128,7 +131,7 @@ func (m *MapImpl) UpsertRound(round *Round) error {
 func (m *MapImpl) deleteRound(ts time.Time) error {
 	m.Lock()
 	defer m.Unlock()
-	for r, _ := range m.rounds {
+	for r := range m.rounds {
 		if m.rounds[r].LastUpdated.Before(ts) {
 			delete(m.rounds, r)
 		}
@@ -147,7 +150,7 @@ func (m *MapImpl) countMixedMessagesByRound(roundId id.Round) (uint64, error) {
 // Returns a slice of MixedMessages from database
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
-func (m *MapImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
+func (m *MapImpl) getMixedMessages(recipientId ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
 	m.mixedMessages.RLock()
 	defer m.mixedMessages.RUnlock()
 
@@ -156,7 +159,7 @@ func (m *MapImpl) getMixedMessages(recipientId *ephemeral.Id, roundId id.Round) 
 	// Return an error if no matching messages are in the map
 	if msgCount == 0 {
 		return nil, errors.Errorf("Could not find any MixedMessages with the "+
-			"recipient ID %v and the round ID %v in map.", recipientId, roundId)
+			"recipient ID %d and the round ID %v in map.", recipientId.Int64(), roundId)
 	}
 
 	// Build list of matching messages
@@ -176,22 +179,25 @@ func (m *MapImpl) InsertMixedMessages(cr *ClientRound) error {
 	m.mixedMessages.Lock()
 	msgs := cr.Messages
 
-	for _, msg := range msgs {
+	for i, _ := range msgs {
+
+		msg := msgs[i]
+
 		// Generate  map keys
 		roundId := id.Round(msg.RoundId)
 
 		// Initialize inner maps if they do not already exist
 		if m.mixedMessages.RoundId[roundId] == nil {
-			m.mixedMessages.RoundId[roundId] = map[int64]map[uint64]*MixedMessage{}
+			m.mixedMessages.RoundId[roundId] = make(map[int64]map[uint64]*MixedMessage)
 		}
 		if m.mixedMessages.RoundId[roundId][msg.RecipientId] == nil {
-			m.mixedMessages.RoundId[roundId][msg.RecipientId] = map[uint64]*MixedMessage{}
+			m.mixedMessages.RoundId[roundId][msg.RecipientId] = make(map[uint64]*MixedMessage)
 		}
 		if m.mixedMessages.RecipientId[msg.RecipientId] == nil {
-			m.mixedMessages.RecipientId[msg.RecipientId] = map[id.Round]map[uint64]*MixedMessage{}
+			m.mixedMessages.RecipientId[msg.RecipientId] = make(map[id.Round]map[uint64]*MixedMessage)
 		}
 		if m.mixedMessages.RecipientId[msg.RecipientId][roundId] == nil {
-			m.mixedMessages.RecipientId[msg.RecipientId][roundId] = map[uint64]*MixedMessage{}
+			m.mixedMessages.RecipientId[msg.RecipientId][roundId] = make(map[uint64]*MixedMessage)
 		}
 
 		// Return an error if the message already exists
@@ -209,6 +215,7 @@ func (m *MapImpl) InsertMixedMessages(cr *ClientRound) error {
 		// Update the count of the number of mixed messages in map
 		m.mixedMessages.RoundIdCount[roundId]++
 	}
+
 	m.mixedMessages.Unlock()
 
 	m.Lock()
@@ -224,7 +231,7 @@ func (m *MapImpl) deleteMixedMessages(ts time.Time) error {
 	defer m.mixedMessages.Unlock()
 	m.Lock()
 	defer m.Unlock()
-	for cr, _ := range m.clientRounds {
+	for cr := range m.clientRounds {
 		if m.clientRounds[cr].Timestamp.Before(ts) {
 			for _, msg := range m.clientRounds[cr].Messages {
 				roundId := id.Round(msg.RoundId)
@@ -250,7 +257,7 @@ func (m *MapImpl) deleteMixedMessages(ts time.Time) error {
 // Returns ClientBloomFilter from database with the given recipientId
 // and an Epoch between startEpoch and endEpoch (inclusive)
 // Or an error if no matching ClientBloomFilter exist
-func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
+func (m *MapImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
 	m.bloomFilters.RLock()
 	defer m.bloomFilters.RUnlock()
 
@@ -259,9 +266,12 @@ func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, e
 
 	// Return an error if the start or end epoch are out of range of the list or
 	// if no epochs exist for the given ID.
-	if !exists || startEpoch > list.lastEpoch() || endEpoch < list.start {
+	if !exists {
 		return nil, errors.Errorf("Could not find any BloomFilters with the "+
-			"client ID %v in map.", recipientId)
+			"client ID %d in map.", recipientId.Int64())
+	} else if startEpoch > list.lastEpoch() || endEpoch < list.start {
+		return nil, errors.Errorf("BloomFilters with the "+
+			"client ID %d found but not within range.\nlistStart: %d  listEnd: %d  startEpoch: %d  endEpoch: %d", recipientId.Int64(), list.start, list.lastEpoch(), startEpoch, endEpoch)
 	}
 
 	// Calculate the index for the startEpoch
@@ -287,7 +297,7 @@ func (m *MapImpl) GetClientBloomFilters(recipientId *ephemeral.Id, startEpoch, e
 	// Return an error if no BloomFilters were found
 	if len(bloomFilters) == 0 {
 		return nil, errors.Errorf("Could not find any ClientBloomFilter with "+
-			"the client ID %v in map.", recipientId)
+			"the client ID %v in map.", recipientId.Int64())
 	}
 
 	return bloomFilters, nil
@@ -327,6 +337,7 @@ func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 
 	// Insert the filter into the list
 	list.list[index] = filter
+	jww.DEBUG.Printf("Bloom filter list: %+v", m.bloomFilters.RecipientId[filter.RecipientId])
 
 	return nil
 }

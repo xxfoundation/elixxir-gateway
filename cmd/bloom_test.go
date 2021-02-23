@@ -36,7 +36,7 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 	testEpoch := uint32(0)
 
 	// Pull a bloom filter from the database on the client ID BEFORE INSERTION
-	retrievedFilters, err := gw.storage.GetClientBloomFilters(&testEphId, testEpoch, testEpoch)
+	retrievedFilters, err := gw.storage.GetClientBloomFilters(testEphId, testEpoch, testEpoch)
 
 	// Check that this filter is nil
 	if err == nil || retrievedFilters != nil {
@@ -44,13 +44,13 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 	}
 
 	// Create a bloom filter on this client ID
-	err = gw.UpsertFilter(&testEphId, rndId, testEpoch)
+	err = gw.UpsertFilter(testEphId, rndId, testEpoch)
 	if err != nil {
 		t.Errorf("Failed to create user bloom filter: %s", err)
 	}
 
 	// Pull a bloom filter from the database on the client ID AFTER INSERTION
-	retrievedFilters, err = gw.storage.GetClientBloomFilters(&testEphId, testEpoch, testEpoch)
+	retrievedFilters, err = gw.storage.GetClientBloomFilters(testEphId, testEpoch, testEpoch)
 	if err != nil {
 		t.Errorf("Could not get filters from storage: %s", err)
 	}
@@ -69,13 +69,13 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 	}
 
 	// Create a bloom filter on this client ID
-	err = gw.UpsertFilter(&testEphId, id.Round(1), testEpoch)
+	err = gw.UpsertFilter(testEphId, id.Round(1), testEpoch)
 	if err != nil {
 		t.Errorf("Failed to create user bloom filter: %s", err)
 	}
 
 	// Pull a bloom filter from the database on the client ID AFTER INSERTION
-	retrievedFilters, err = gw.storage.GetClientBloomFilters(&testEphId, testEpoch, testEpoch)
+	retrievedFilters, err = gw.storage.GetClientBloomFilters(testEphId, testEpoch, testEpoch)
 	if err != nil {
 		t.Errorf("Could not get filters from storage: %s", err)
 	}
@@ -109,20 +109,20 @@ func TestInstance_UpsertFilters(t *testing.T) {
 	testEpoch := uint32(0)
 
 	// Check that the databases are empty of filters
-	retrievedFilter, err := gw.storage.GetClientBloomFilters(&testEphId, testEpoch, testEpoch)
+	retrievedFilter, err := gw.storage.GetClientBloomFilters(testEphId, testEpoch, testEpoch)
 	// Check that this filter is nil
 	if err == nil || retrievedFilter != nil {
 		t.Errorf("Should not get test client from storage prior to insertion.")
 	}
 
 	// This should result in a bloom filter being created
-	err = gw.UpsertFilter(&testEphId, rndId, testEpoch)
+	err = gw.UpsertFilter(testEphId, rndId, testEpoch)
 	if err != nil {
 		t.Errorf("Could not create a bloom filter: %v", err)
 	}
 
 	// Check that a bloom filter has been created
-	retrievedFilter, err = gw.storage.GetClientBloomFilters(&testEphId, testEpoch, testEpoch)
+	retrievedFilter, err = gw.storage.GetClientBloomFilters(testEphId, testEpoch, testEpoch)
 	if retrievedFilter == nil || len(retrievedFilter) != 1 {
 		t.Errorf("Retrieved ehphemeral filter was not expected. Should be non-nil an dlength of 1")
 	}

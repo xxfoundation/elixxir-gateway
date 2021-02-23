@@ -20,8 +20,8 @@ import (
 // This file will handle the logistics of maintaining, creating and deleting user bloom filters
 
 // Constants for constructing a bloom filter
-const bloomFilterSize = 71888 // In Bits
-const bloomFilterHashes = 8
+const bloomFilterSize = 648 // In Bits
+const bloomFilterHashes = 10
 
 // Upserts filters of passed in recipients, using the round ID
 func (gw *Instance) UpsertFilters(recipients map[ephemeral.Id]interface{}, roundId id.Round) error {
@@ -33,11 +33,11 @@ func (gw *Instance) UpsertFilters(recipients map[ephemeral.Id]interface{}, round
 	if err != nil {
 		return err
 	}
-	roundTimestamp := round.Timestamps[states.REALTIME]
+	roundTimestamp := round.Timestamps[states.QUEUED]
 	epoch := GetEpoch(int64(roundTimestamp), gw.period)
 
 	for recipient := range recipients {
-		err := gw.UpsertFilter(&recipient, roundId, epoch)
+		err := gw.UpsertFilter(recipient, roundId, epoch)
 		if err != nil {
 			errs = append(errs, err.Error())
 		}
@@ -51,8 +51,9 @@ func (gw *Instance) UpsertFilters(recipients map[ephemeral.Id]interface{}, round
 }
 
 // Helper function which updates the clients bloom filter
-func (gw *Instance) UpsertFilter(recipientId *ephemeral.Id, roundId id.Round, epoch uint32) error {
-	jww.DEBUG.Printf("Adding bloom filter for client %v on round  %d", recipientId, roundId)
+func (gw *Instance) UpsertFilter(recipientId ephemeral.Id, roundId id.Round, epoch uint32) error {
+	jww.DEBUG.Printf("Adding bloom filter for client %d on round %d with epoch %d",
+		recipientId.Int64(), roundId, epoch)
 
 	// Generate a new filter
 	// Initialize a new bloom filter
