@@ -166,6 +166,18 @@ func init() {
 	err := viper.BindPFlag("port", rootCmd.Flags().Lookup("port"))
 	handleBindingError(err, "port")
 
+	rootCmd.Flags().String("listeningAddress", "0.0.0.0",
+		"Local IP address of the Gateway used for internal listening.")
+	err = viper.BindPFlag("listeningAddress", rootCmd.Flags().Lookup("listeningAddress"))
+	handleBindingError(err, "listeningAddress")
+
+	rootCmd.Flags().String("overridePublicIP", "",
+		"The public IPv4 address of the Gateway, as reported to the network, "+
+			"to use instead of dynamically looking up Gateway's own IP address. "+
+			"If a port is not included, then the port flag is used instead.")
+	err = viper.BindPFlag("overridePublicIP", rootCmd.Flags().Lookup("overridePublicIP"))
+	handleBindingError(err, "overridePublicIP")
+
 	rootCmd.Flags().StringVar(&idfPath, "idfPath", "./gateway-logs/gatewayIDF.json",
 		"Path to where the IDF is saved. This is used by the wrapper management script.")
 	err = viper.BindPFlag("idfPath", rootCmd.Flags().Lookup("idfPath"))
@@ -188,13 +200,8 @@ func init() {
 	err = viper.BindPFlag("messageTimeout", rootCmd.Flags().Lookup("messageTimeout"))
 	handleBindingError(err, "messageTimeout")
 
-	rootCmd.Flags().String("listeningAddress", "0.0.0.0",
-		"Local IP address of the Gateway used for internal listening.")
-	err = viper.BindPFlag("listeningAddress", rootCmd.Flags().Lookup("listeningAddress"))
-	handleBindingError(err, "listeningAddress")
-
 	rootCmd.Flags().String("nodeAddress", "",
-		"Public IP address of the Node associated with this Gateway. Required field.")
+		"The IP address of the Node that the Gateway communicates with. Required field.")
 	err = viper.BindPFlag("nodeAddress", rootCmd.Flags().Lookup("nodeAddress"))
 	handleBindingError(err, "nodeAddress")
 
@@ -274,8 +281,9 @@ func init() {
 	rootCmd.Flags().BoolP("devMode", "", false,
 		"Run in development/testing mode. Do not use on beta or main "+
 			"nets")
-	viper.BindPFlag("devMode", rootCmd.Flags().Lookup("devMode"))
-	rootCmd.Flags().MarkHidden("devMode")
+	err = viper.BindPFlag("devMode", rootCmd.Flags().Lookup("devMode"))
+	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
+	_ = rootCmd.Flags().MarkHidden("devMode")
 
 }
 
