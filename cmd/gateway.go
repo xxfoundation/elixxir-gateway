@@ -27,6 +27,7 @@ import (
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/states"
+	"gitlab.com/elixxir/primitives/version"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
@@ -166,6 +167,21 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	if gw.NetInf == nil {
 		return &pb.GatewayPollResponse{}, errors.New(ndf.NO_NDF)
+	}
+
+	clientVersion, err := version.ParseVersion(string(clientRequest.ClientVersion))
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.Errorf(
+			"Poll() - Unable to ParseVersion for clientRequest: %+v", err)
+	}
+	expectedClientVersion, err := version.ParseVersion(gw.NetInf.GetPartialNdf().Get().ClientVersion)
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.Errorf(
+			"Poll() - Unable to ParseVersion for gateway's NDF: %+v", err)
+	}
+	if version.IsCompatible(clientVersion, expectedClientVersion) != false {
+		return &pb.GatewayPollResponse{}, errors.Errorf(
+			"Poll() - client version was not compatible with NDF defined minimum version")
 	}
 
 	// Check if the clientID is populated and valid
