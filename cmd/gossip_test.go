@@ -95,7 +95,6 @@ func TestInstance_GossipVerify(t *testing.T) {
 		NodeAddress:           NODE_ADDRESS,
 		ServerCertPath:        testkeys.GetNodeCertPath(),
 		CertPath:              testkeys.GetGatewayCertPath(),
-		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 	}
@@ -296,7 +295,6 @@ func TestInstance_GossipBatch(t *testing.T) {
 		NodeAddress:           NODE_ADDRESS,
 		ServerCertPath:        testkeys.GetNodeCertPath(),
 		CertPath:              testkeys.GetGatewayCertPath(),
-		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 	}
@@ -403,7 +401,6 @@ func TestInstance_GossipBloom(t *testing.T) {
 		NodeAddress:           NODE_ADDRESS,
 		ServerCertPath:        testkeys.GetNodeCertPath(),
 		CertPath:              testkeys.GetGatewayCertPath(),
-		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 	}

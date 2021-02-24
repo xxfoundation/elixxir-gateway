@@ -40,7 +40,6 @@ type Params struct {
 
 	rateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
-	MessageTimeout  time.Duration
 
 	DevMode      bool
 	EnableGossip bool
@@ -74,7 +73,6 @@ func InitParams(vip *viper.Viper) Params {
 
 	idfPath = viper.GetString("idfPath")
 	keyPath = viper.GetString("keyPath")
-	messageTimeout = viper.GetDuration("messageTimeout")
 	nodeAddress := viper.GetString("nodeAddress")
 	if nodeAddress == "" {
 		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
@@ -164,7 +162,6 @@ func InitParams(vip *viper.Viper) Params {
 		PermissioningCertPath: permissioningCertPath,
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
-		MessageTimeout:        messageTimeout,
 		DbName:                viper.GetString("dbName"),
 		DbUsername:            viper.GetString("dbUsername"),
 		DbPassword:            viper.GetString("dbPassword"),

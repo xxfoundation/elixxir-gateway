@@ -103,7 +103,6 @@ func TestMain(m *testing.M) {
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 		KeyPath:        testkeys.GetGatewayKeyPath(),
-		MessageTimeout: 10 * time.Minute,
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
@@ -275,7 +274,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
-		MessageTimeout: 10 * time.Minute,
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
@@ -991,7 +989,6 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
-		MessageTimeout: 10 * time.Minute,
 	}
 
 	gw := NewGatewayInstance(params)

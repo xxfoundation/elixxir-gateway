@@ -55,13 +55,8 @@ listeningAddress: ""
 overridePublicIP: ""
 
 # The IP address of the Node that the Gateway communicates with. Expects an IPv4
-# address with a port. (Required))
+# address with a port. (Required)
 nodeAddress: "0.0.0.128:11420"
-
-# Period in which the message cleanup function executes. All users who message
-# buffer have exceeded the maximum size will get their messages deleted.
-# Recommended period is on the order of a minute to an hour. (Default 1m0s)
-messageTimeout: "1m0s"
 
 # Path to where the IDF is saved. This is used by the wrapper management script.
 # (Default "./gateway-logs/gatewayIDF.json")
@@ -84,41 +79,46 @@ serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
 # How long messages, rounds, and bloom filters remain in storage before being
-# cleaned from storage. Valid time units are "h". (Defaults to 1 week (168 hours))
-retentionPeriod: "168h"
+# cleaned from storage. Expects duration in"h". (Defaults to 1 week (168 hours))
+retentionPeriod: 168h
 
 # How often the periodic storage tracker checks for items older than the
-# retention period value. Valid time units are "s", "m", "h". (Defaults to 5
+# retention period value. Expects duration in "s", "m", "h". (Defaults to 5
 # minutes)
-cleanupInterval: "5m"
+cleanupInterval: 5m
 
-# Database connection information
+# Database connection information.
 dbUsername: "cmix"
 dbPassword: ""
 dbName: "cmix_gateway"
 dbAddress: ""
 
-# Flags for our gossip protocol
+# Flags for gossip protocol
 
-# How long a message record should last in the buffer
-BufferExpirationTime: "1m0s"
+# How long a message record should last in the gossip buffer if it arrives
+# before the Gateway starts handling the gossip. (Default 300s)
+bufferExpiration: 1m0s
 
-# Frequency with which to check the buffer.
-# Should be long, since the thread takes a lock each time it checks the buffer
-MonitorThreadFrequency: "3m0s"
+# Frequency with which to check the gossip buffer. Should be long, since the
+# thread takes a lock each time it checks the buffer. (Default 150s)
+monitorThreadFrequency: 3m0s
 
 # Flags for rate limiting communications
-ratelimiting:
-  # The capacity of buckets in the map
-  capacity: 5
-  # The leak rate is calculated by LeakedTokens / LeakDuration
-  # It is the rate that the bucket leaks tokens at [tokens/ns]
-  leakedTokens: 3
-  leakDuration: 1ms
-  # Duration between polls for stale buckets
-  pollDuration: 0m10s
-  # Max time of inactivity before removal
-  bucketMaxAge: 0m3s
+
+# The capacity of rate limiting buckets in the map. (Default 20)
+capacity: 5
+
+# The rate that the rate limiting bucket leaks tokens at [tokens/ns]. (Default 3)
+leakedTokens: 3
+
+# How often the number of leaked tokens is leaked from the bucket. (Default 1ms)
+leakDuration: 1ms
+
+# How often inactive buckets are removed. (Default 10s)
+pollDuration: 10s
+
+# The max age of a bucket without activity before it is removed. (Default 10s)
+bucketMaxAge: 0m3s
 ```
 
 ## Command line flags
@@ -140,46 +140,44 @@ Available Commands:
   version     Print the version and dependency information for the xx network binary
 
 Flags:
-      --bucketMaxAge duration             Max time of inactivity before removal (default 10s)
-      --bufferExpiration duration         How long a message record should last in the buffer (default 5m0s)
-      --capacity uint32                   Amount of buckets to keep track of for rate limiting communications (default 20)
+      --bucketMaxAge duration             The max age of a bucket without activity before it is removed. (default 10s)
+      --bufferExpiration duration         How long a message record should last in the gossip buffer if it arrives
+                                          before the Gateway starts handling the gossip. (default 5m0s)
+      --capacity uint32                   The capacity of rate-limiting buckets in the map. (default 20)
       --certPath string                   Path to the self-signed TLS certificate for Gateway. Expects PEM format.
-                                          Required field.
+                                          (Required)
   -c, --config string                     Path to load the Gateway configuration file from. If not set, this file must
-                                          be named gateway.yaml and must be located in ~/.xxnetwork/, /opt/xxnetwork,
-                                          or /etc/xxnetwork.
+                                          be named gateway.yaml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or
+                                          /etc/xxnetwork.
       --enableGossip                      Feature flag for in progress gossip functionality
   -h, --help                              help for gateway
       --idfPath string                    Path to where the IDF is saved. This is used by the wrapper management script.
                                           (default "./gateway-logs/gatewayIDF.json")
       --keyPath string                    Path to the private key associated with the self-signed TLS certificate.
-                                          Required field.
+                                          (Required)
       --kr int                            Amount of rounds to keep track of in kr (default 1024)
-      --leakDuration duration             Used to calculate the leak rate (default 1ms)
-      --leakedTokens uint32               Used to calculate the leak rate (default 3)
-      --listeningAddress string           Local IP address of the Gateway used for internal listening. (default "0.0.0.0")
+      --leakDuration duration             How often the number of leaked tokens is leaked from the bucket. (default 1ms)
+      --leakedTokens uint32               The rate that the rate limiting bucket leaks tokens at [tokens/ns]. (default 3)
+      --listeningAddress string           Local IP address of the Gateway, used for internal listening. Expects an IPv4
+                                          address without a port. (default "0.0.0.0")
       --log string                        Path where log file will be saved. (default "./gateway-logs/gateway.log")
   -l, --logLevel uint                     Level of debugging to print (0 = info, 1 = debug, >1 = trace).
-      --messageTimeout duration           Period in which the message cleanup function executes. All users who message
-                                          buffer have exceeded the maximum size will get their messages deleted.
-                                          Recommended period is on the order of a minute to an hour. (default 1m0s)
-      --monitorThreadFrequency duration   Frequency with which to check the gossip's buffer. (default 2m30s)
-      --nodeAddress string                The IP address of the Node that the Gateway communicates with. Required field.
-      --overridePublicIP string           The public IPv4 address of the Gateway, as reported to the network, to use
+      --monitorThreadFrequency duration   Frequency with which to check the gossip buffer. (default 2m30s)
+      --nodeAddress string                The IP address of the Node that the Gateway communicates with. Expects an IPv4
+                                          address with a port. (Required)
+      --overridePublicIP string           The public IPv4 address of the Gateway, as reported to the network, to be used
                                           instead of dynamically looking up Gateway's own IP address. If a port is not
-                                          included, then the port flag is used instead.
+                                          included, then the port from the port flag is used instead.
       --permissioningCertPath string      Path to the self-signed TLS certificate for the Permissioning server. Expects
-                                          PEM format. Required field.
-      --pollDuration duration             Duration between polls for stale buckets (default 10s)
-  -p, --port int                          Port for Gateway to listen on. Gateway must be the only listener on this port.
-                                          Required field. (default -1)
+                                          PEM format. (Required)
+      --pollDuration duration             How often inactive buckets are removed. (default 10s)
+  -p, --port int                          Port for Gateway to listen on.Gateway must be the only listener on this port.
+                                          (Required) (default -1)
       --serverCertPath string             Path to the self-signed TLS certificate for Server. Expects PEM format.
-                                          Required field.
+                                          (Required)
 
 Use "gateway [command] --help" for more information about a command.
 
-
-Use "gateway [command] --help" for more information about a command.
 ```
 
 All of those flags, except `--config`, override values in the configuration
