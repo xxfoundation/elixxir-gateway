@@ -35,23 +35,19 @@ found.
 Note: YAML prohibits the use of tabs because whitespace has meaning.
 
 ```yaml
-# Level of debugging to print (0 = info, 1 = debug, >1 = trace). (default 0)
+# Level of debugging to print (0 = info, 1 = debug, >1 = trace). (Default info)
 logLevel: 1
 
-# Path where log file will be saved. (default "./gateway-logs/gateway.log")
+# Path where log file will be saved. (Default "./gateway-logs/gateway.log")
 log: "/opt/xxnetwork/gateway-logs/gateway.log"
 
 # Port for Gateway to listen on. Gateway must be the only listener on this port.
-# Required field.
+# (Required)
 port: 22840
 
 # Local IP address of the Gateway, used for internal listening. Expects an IPv4
-# address without a port. (default "0.0.0.0")
+# address without a port. (Default "0.0.0.0")
 listeningAddress: ""
-
-# The public IPv4 address of the Gateway, as reported to the network, to use
-# instead of dynamically looking up Gateway's own IP address. If a port is not
-# included, then the port flag is used instead.
 
 # The public IPv4 address of the Gateway, as reported to the network, to be
 # used instead of dynamically looking up Gateway's own IP address. If a port
@@ -59,44 +55,41 @@ listeningAddress: ""
 overridePublicIP: ""
 
 # The IP address of the Node that the Gateway communicates with. Expects an IPv4
-# address with a port. Required field.
+# address with a port. (Required))
 nodeAddress: "0.0.0.128:11420"
 
 # Period in which the message cleanup function executes. All users who message
 # buffer have exceeded the maximum size will get their messages deleted.
-# Recommended period is on the order of a minute to an hour. (default 1m0s)
+# Recommended period is on the order of a minute to an hour. (Default 1m0s)
 messageTimeout: "1m0s"
 
 # Path to where the IDF is saved. This is used by the wrapper management script.
-# (default "./gateway-logs/gatewayIDF.json")
+# (Default "./gateway-logs/gatewayIDF.json")
 idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
 
 # Path to the private key associated with the self-signed TLS certificate.
-# Required field.
+# (Required)
 keyPath: "/opt/xxnetwork/creds/gateway_key.key"
 
 # Path to the self-signed TLS certificate for Gateway. Expects PEM format.
-# Required field.
+# (Required)
 certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
 
 # Path to the self-signed TLS certificate for Server. Expects PEM format.
-# Required field.
+# (Required)
 serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 
 # Path to the self-signed TLS certificate for the Permissioning server. Expects
-# PEM format. Required field.
+# PEM format. (Required)
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
-# How long messages, rounds and bloom filters remain in storage 
-# before being cleaned from storage. 
-# Valid time units are "h"
-# Defaults to 1 week (168 hours) if not set
+# How long messages, rounds, and bloom filters remain in storage before being
+# cleaned from storage. Valid time units are "h". (Defaults to 1 week (168 hours))
 retentionPeriod: "168h"
 
-# How often the periodic storage tracker checks for items older 
-# than the retention Period value.
-# Valid time units are "s", "m", "h". 
-# Defaults to 5 minutes if not set
+# How often the periodic storage tracker checks for items older than the
+# retention period value. Valid time units are "s", "m", "h". (Defaults to 5
+# minutes)
 cleanupInterval: "5m"
 
 # Database connection information
@@ -112,20 +105,20 @@ BufferExpirationTime: "1m0s"
 
 # Frequency with which to check the buffer.
 # Should be long, since the thread takes a lock each time it checks the buffer
-MonitorThreadFrequency: "3m0s" 
+MonitorThreadFrequency: "3m0s"
 
 # Flags for rate limiting communications
 ratelimiting:
-    # The capacity of buckets in the map
-    capacity: 5
-    # The leak rate is calculated by LeakedTokens / LeakDuration
-    # It is the rate that the bucket leaks tokens at [tokens/ns]
-    leakedTokens: 3
-    leakDuration: 1ms
-    # Duration between polls for stale buckets
-    pollDuration: 0m10s
-    # Max time of inactivity before removal
-    bucketMaxAge: 0m3s
+  # The capacity of buckets in the map
+  capacity: 5
+  # The leak rate is calculated by LeakedTokens / LeakDuration
+  # It is the rate that the bucket leaks tokens at [tokens/ns]
+  leakedTokens: 3
+  leakDuration: 1ms
+  # Duration between polls for stale buckets
+  pollDuration: 0m10s
+  # Max time of inactivity before removal
+  bucketMaxAge: 0m3s
 ```
 
 ## Command line flags
