@@ -94,7 +94,7 @@ var rootCmd = &cobra.Command{
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
 
 		// Begin gateway persistent components
-		if params.DisableGossip {
+		if !params.DisableGossip {
 			jww.INFO.Println("Gossip is enabled")
 			gateway.StartPeersThread()
 		}
