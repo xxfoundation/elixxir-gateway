@@ -560,7 +560,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			netDef, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
+			netDef, err := ndf.Unmarshal(serverResponse.FullNDF.Ndf)
 			if err != nil {
 				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
 				return err
