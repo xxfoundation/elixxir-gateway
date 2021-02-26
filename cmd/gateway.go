@@ -834,7 +834,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		msgFmt.SetPayloadA(msg.Message.PayloadA)
 		msgFmt.SetPayloadB(msg.Message.PayloadB)
 		jww.DEBUG.Printf("Putting message from user %s (msgDigest: %s) "+
-			"in outgoing queue for round %d...", msg.Message.GetSenderID(),
+			"in outgoing queue for round %d...", senderId.String(),
 			msgFmt.Digest(), thisRound)
 	}
 
