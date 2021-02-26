@@ -50,13 +50,14 @@ port: 22840
 listeningAddress: ""
 
 # The public IPv4 address of the Gateway, as reported to the network, to be
-# used instead of dynamically looking up Gateway's own IP address. If a port
-# is not included, then the port from the port flag is used instead.
+# used instead of dynamically looking up Gateway's own IP address via pinging
+# external services. If a port is not included, then the port from the port flag
+# is used instead.
 overridePublicIP: ""
 
 # The IP address of the Node that the Gateway communicates with. Expects an IPv4
 # address with a port. (Required)
-nodeAddress: "0.0.0.128:11420"
+nodeAddress: "0.0.0.0:11420"
 
 # Path to where the identity file (IDF) is saved. The IDF stores the Gateway's
 # Node's network identity. This is used by the wrapper management script.
@@ -71,13 +72,22 @@ keyPath: "/opt/xxnetwork/creds/gateway_key.key"
 # (Required)
 certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
 
-# Path to the self-signed TLS certificate for Server. Expects PEM format.
+# Path to the self-signed TLS certificate for Node. Expects PEM format.
 # (Required)
 serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 
 # Path to the self-signed TLS certificate for the Permissioning server. Expects
 # PEM format. (Required)
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
+
+# Database connection information. (Required)
+dbName: "cmix_gateway"
+dbAddress: "0.0.0.0:5432"
+dbUsername: "cmix"
+dbPassword: ""
+
+# Flags listed below should be left as their defaults unless you know what you
+# are doing.
 
 # How long messages, rounds, and bloom filters remain in storage before being
 # cleaned from storage. Expects duration in"h". (Defaults to 1 week (168 hours))
@@ -87,15 +97,6 @@ retentionPeriod: 168h
 # retention period value. Expects duration in "s", "m", "h". (Defaults to 5
 # minutes)
 cleanupInterval: 5m
-
-# Database connection information.
-dbUsername: "cmix"
-dbPassword: ""
-dbName: "cmix_gateway"
-dbAddress: ""
-
-# Flags listed below should be left as their defaults unless you know what you
-# are doing.
 
 # Flags for gossip protocol
 
