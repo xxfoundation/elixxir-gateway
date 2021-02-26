@@ -80,7 +80,7 @@ const generator = "" +
 func TestMain(m *testing.M) {
 	jww.SetStdoutThreshold(jww.LevelTrace)
 
-	//Begin gateway comms
+	// Begin gateway comms
 	cmixNodes := make([]string, 1)
 	cmixNodes[0] = GW_ADDRESS
 
@@ -90,14 +90,14 @@ func TestMain(m *testing.M) {
 	gComm = gateway.StartGateway(&id.TempGateway, GW_ADDRESS,
 		gatewayInstance, gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	//Start mock node
+	// Start mock node
 	nodeHandler := buildTestNodeImpl()
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
 	nodeKey, _ = utils.ReadFile(testkeys.GetNodeKeyPath())
 	n = node.StartNode(id.NewIdFromString("node", id.Node, m), NODE_ADDRESS, 0, nodeHandler, nodeCert, nodeKey)
 
-	//Build the gateway instance
+	// Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
@@ -125,7 +125,7 @@ func TestMain(m *testing.M) {
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	t := testing.T{}
@@ -177,10 +177,10 @@ func buildTestNodeImpl() *node.Implementation {
 	}
 	nodeHandler.Functions.GetCompletedBatch = func(auth *connect.Auth) (
 		*pb.Batch, error) {
-		//build a batch
+		// build a batch
 		b := pb.Batch{
 			Round: &pb.RoundInfo{
-				ID: 42, //meaning of life
+				ID: 42, // meaning of life
 			},
 			FromPhase: 0,
 			Slots: []*pb.Slot{
@@ -200,7 +200,7 @@ func buildTestNodeImpl() *node.Implementation {
 	return nodeHandler
 }
 
-//Tests that receiving messages and sending them to the node works
+// Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
 	gatewayInstance.InitRateLimitGossip()
 	defer gatewayInstance.KillRateLimiter()
@@ -266,10 +266,10 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 }
 
 func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
-	//Begin gateway comms
+	// Begin gateway comms
 	cmixNodes := make([]string, 1)
 	cmixNodes[0] = GW_ADDRESS
-	//Build the gateway instance
+	// Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
@@ -289,7 +289,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	var err error
 	gw.NetInf, err = network.NewInstanceTesting(nil, testNDF, testNDF, grp2, grp2, t)
@@ -783,8 +783,8 @@ func TestInstance_PutMessage_NonLeader(t *testing.T) {
 
 	// Commented out explicitly. For this test we do NOT want the
 	// gateway to be the leader for this round
-	//ri := &pb.RoundInfo{ID:(rndId), BatchSize:uint32(batchSize)}
-	//gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
+	// ri := &pb.RoundInfo{ID:(rndId), BatchSize:uint32(batchSize)}
+	// gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
 	_, err := gatewayInstance.PutMessage(slotMsg)
 	if err == nil {
@@ -984,7 +984,7 @@ func TestInstance_Poll(t *testing.T) {
 */
 // Error path: Pass in invalid messages
 func TestInstance_Poll_NilCheck(t *testing.T) {
-	//Build the gateway instance
+	// Build the gateway instance
 	params := Params{
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
@@ -1001,7 +1001,7 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 		ReceptionID: nil,
 	}
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
@@ -1241,7 +1241,7 @@ func TestInstance_SetPeriodExisting(t *testing.T) {
 }
 
 // TODO: Re-add these tests along with ShareMessages
-//func TestInstance_shareMessages(t *testing.T) {
+// func TestInstance_shareMessages(t *testing.T) {
 //	var err error
 //	//Build the gateway instance
 //	params := Params{
@@ -1341,9 +1341,9 @@ func TestInstance_SetPeriodExisting(t *testing.T) {
 //		t.Errorf("Error with send share message: %v", err)
 //	}
 //
-//}
+// }
 //
-//func TestInstance_ShareMessages(t *testing.T) {
+// func TestInstance_ShareMessages(t *testing.T) {
 //	var err error
 //	//Build the gateway instance
 //	params := Params{
@@ -1469,7 +1469,7 @@ func TestInstance_SetPeriodExisting(t *testing.T) {
 //	if len(retrieved) == 0 {
 //		t.Errorf("Message from storage should not be empty")
 //	}
-//}
+// }
 
 // TestUpdateInstance tests that the instance updates itself appropriately
 // FIXME: This test cannot test the Ndf functionality, since we don't have
@@ -1477,7 +1477,7 @@ func TestInstance_SetPeriodExisting(t *testing.T) {
 //        at the moment.
 // FIXME: the following will fail with a nil pointer deref if the
 //        CreateNetworkInstance test doesn't run....
-//func TestUpdateInstance(t *testing.T) {
+// func TestUpdateInstance(t *testing.T) {
 //	nodeId := id.NewIdFromString("node", id.Node, t)
 //	testNdf := buildMockNdf(nodeId, NODE_ADDRESS, GW_ADDRESS, nodeCert, nodeKey)
 //
@@ -1559,10 +1559,10 @@ func TestInstance_SetPeriodExisting(t *testing.T) {
 //		t.Errorf("Did not send batch: %d", len(nodeIncomingBatch.Slots))
 //	}
 //
-//}
+// }
 
 var (
-	ExampleJSON = `{
+	ExampleJSON = []byte(`{
 	"Timestamp": "2019-06-04T20:48:48-07:00",
 	"gateways": [
 		{
@@ -1619,6 +1619,5 @@ var (
 		"Small_prime": "7FFFFFFFFFFFFFFFE487ED5110B4611A62633145C06E0E68948127044533E63A0105DF531D89CD9128A5043CC71A026EF7CA8CD9E69D218D98158536F92F8A1BA7F09AB6B6A8E122F242DABB312F3F637A262174D31BF6B585FFAE5B7A035BF6F71C35FDAD44CFD2D74F9208BE258FF324943328F6722D9EE1003E5C50B1DF82CC6D241B0E2AE9CD348B1FD47E9267AFC1B2AE91EE51D6CB0E3179AB1042A95DCF6A9483B84B4B36B3861AA7255E4C0278BA3604650C10BE19482F23171B671DF1CF3B960C074301CD93C1D17603D147DAE2AEF837A62964EF15E5FB4AAC0B8C1CCAA4BE754AB5728AE9130C4C7D02880AB9472D455655347FFFFFFFFFFFFFFF",
 		"Generator": "02"
 	}
-}`
-	ExampleSignature = `gkh98J10rQiuVsEXd6xe8IeCINplnD93CFpXZFNjT1CgNMxgsHumiC5HsctjnF0xTxDPq3hn3/J0s+eblSVyGMMszTIoWNINVSS1fkm0EGkKafC1vKTZMmc9ivsWL7oY`
+}`)
 )
