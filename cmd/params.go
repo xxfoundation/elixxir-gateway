@@ -41,8 +41,8 @@ type Params struct {
 	rateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
 
-	DevMode      bool
-	EnableGossip bool
+	DevMode       bool
+	DisableGossip bool
 
 	retentionPeriod time.Duration
 	cleanupInterval time.Duration
@@ -72,6 +72,9 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	idfPath = viper.GetString("idfPath")
+	if idfPath == "" {
+		jww.FATAL.Panicf("Gateway.yaml idfPath is required, path provided is empty.")
+	}
 	keyPath = viper.GetString("keyPath")
 	nodeAddress := viper.GetString("nodeAddress")
 	if nodeAddress == "" {
@@ -168,7 +171,7 @@ func InitParams(vip *viper.Viper) Params {
 		DbAddress:             addr,
 		DbPort:                port,
 		DevMode:               viper.GetBool("devMode"),
-		EnableGossip:          viper.GetBool("enableGossip"),
+		DisableGossip:         viper.GetBool("disableGossip"),
 		retentionPeriod:       retentionPeriod,
 		cleanupInterval:       cleanupInterval,
 	}

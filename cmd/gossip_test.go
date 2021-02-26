@@ -116,7 +116,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 	gw.Comms = gateway.StartGateway(gwID, "0.0.0.0:11690", gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	var err error
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
@@ -316,7 +316,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	gw.Comms = gateway.StartGateway(gwID, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	var err error
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
@@ -426,7 +426,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	gw.Comms = gateway.StartGateway(gwID, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
 	if err != nil {

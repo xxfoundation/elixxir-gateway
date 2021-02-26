@@ -560,7 +560,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			netDef, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
+			netDef, err := ndf.Unmarshal(serverResponse.FullNDF.Ndf)
 			if err != nil {
 				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
 				return err
@@ -625,7 +625,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
-		if gw.Params.EnableGossip {
+		if !gw.Params.DisableGossip {
 			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
@@ -812,7 +812,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		err = gw.FilterMessage(senderId)
 		if err != nil {
 			jww.INFO.Printf("Rate limiting check failed on send message from "+
@@ -834,7 +834,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		msgFmt.SetPayloadA(msg.Message.PayloadA)
 		msgFmt.SetPayloadB(msg.Message.PayloadB)
 		jww.DEBUG.Printf("Putting message from user %s (msgDigest: %s) "+
-			"in outgoing queue for round %d...", msg.Message.GetSenderID(),
+			"in outgoing queue for round %d...", senderId.String(),
 			msgFmt.Digest(), thisRound)
 	}
 
@@ -988,7 +988,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
 
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		// Gossip senders included in the batch to other gateways
 		err = gw.GossipBatch(batch)
 		if err != nil {
@@ -1096,10 +1096,9 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		jww.ERROR.Printf("Message sharing failed: %+v", err)
 	}
 
-
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		// Update filters in our storage system
 		err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
 		if err != nil {
@@ -1173,8 +1172,9 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			"ProcessCompletedBatch: %+v", err)
 	}
 
-	jww.INFO.Printf("Round received, %d real messages "+
-		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
+	jww.INFO.Printf("Round %d received, %d real messages "+
+		"processed, %d dummies ignored", clientRound.Id, numReal,
+		len(msgs)-numReal)
 
 	return recipients
 }

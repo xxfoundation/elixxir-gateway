@@ -94,7 +94,7 @@ var rootCmd = &cobra.Command{
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
 
 		// Begin gateway persistent components
-		if params.EnableGossip {
+		if !params.DisableGossip {
 			jww.INFO.Println("Gossip is enabled")
 			gateway.StartPeersThread()
 		}
@@ -164,22 +164,10 @@ func init() {
 	err := viper.BindPFlag("port", rootCmd.Flags().Lookup("port"))
 	handleBindingError(err, "port")
 
-	rootCmd.Flags().String("listeningAddress", "0.0.0.0",
-		"Local IP address of the Gateway, used for internal listening. "+
-			"Expects an IPv4 address without a port.")
-	err = viper.BindPFlag("listeningAddress", rootCmd.Flags().Lookup("listeningAddress"))
-	handleBindingError(err, "listeningAddress")
-
-	rootCmd.Flags().String("overridePublicIP", "",
-		"The public IPv4 address of the Gateway, as reported to the network, "+
-			"to be used instead of dynamically looking up Gateway's own IP "+
-			"address. If a port is not included, then the port from the port flag "+
-			"is used instead.")
-	err = viper.BindPFlag("overridePublicIP", rootCmd.Flags().Lookup("overridePublicIP"))
-	handleBindingError(err, "overridePublicIP")
-
-	rootCmd.Flags().StringVar(&idfPath, "idfPath", "./gateway-logs/gatewayIDF.json",
-		"Path to where the IDF is saved. This is used by the wrapper management script.")
+	rootCmd.Flags().StringVar(&idfPath, "idfPath", "",
+		"Path to where the identity file (IDF) is saved. The IDF stores the "+
+			"Gateway's Node's network identity. This is used by the wrapper "+
+			"management script. (Required)")
 	err = viper.BindPFlag("idfPath", rootCmd.Flags().Lookup("idfPath"))
 	handleBindingError(err, "idfPath")
 

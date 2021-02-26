@@ -337,8 +337,6 @@ func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 
 	// Insert the filter into the list
 	list.list[index] = filter
-	jww.DEBUG.Printf("Bloom filter list: %+v", m.bloomFilters.RecipientId[filter.RecipientId])
-
 	return nil
 }
 
