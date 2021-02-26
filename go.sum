@@ -468,6 +468,8 @@ gitlab.com/xx_network/primitives v0.0.4-0.20210219231511-983054dbee36 h1:41qeW7X
 gitlab.com/xx_network/primitives v0.0.4-0.20210219231511-983054dbee36/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
 gitlab.com/xx_network/primitives v0.0.4-0.20210225002641-4e446b2531ea h1:8Kq5/7x4uMOrda8jWKnbe9ynNahd7Vkfe0ETijdM17s=
 gitlab.com/xx_network/primitives v0.0.4-0.20210225002641-4e446b2531ea/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
+gitlab.com/xx_network/primitives v0.0.4-0.20210226002915-98505d29e226 h1:/Mpf0JU9Nnoh1qkx6OzJyhCMjmyg9eAfNtVSJkYHIpc=
+gitlab.com/xx_network/primitives v0.0.4-0.20210226002915-98505d29e226/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
 gitlab.com/xx_network/ring v0.0.2 h1:TlPjlbFdhtJrwvRgIg4ScdngMTaynx/ByHBRZiXCoL0=
 gitlab.com/xx_network/ring v0.0.2/go.mod h1:aLzpP2TiZTQut/PVHR40EJAomzugDdHXetbieRClXIM=
 gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1 h1:yqXC/naXN6Hw1fmfI6qOOMmBbmZGsYXsESVSwf6IEdM=
