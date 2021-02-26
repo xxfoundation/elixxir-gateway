@@ -58,8 +58,9 @@ overridePublicIP: ""
 # address with a port. (Required)
 nodeAddress: "0.0.0.128:11420"
 
-# Path to where the IDF is saved. This is used by the wrapper management script.
-# (Default "./gateway-logs/gatewayIDF.json")
+# Path to where the identity file (IDF) is saved. The IDF stores the Gateway's
+# Node's network identity. This is used by the wrapper management script.
+# (Required)
 idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
 
 # Path to the private key associated with the self-signed TLS certificate.
@@ -93,20 +94,23 @@ dbPassword: ""
 dbName: "cmix_gateway"
 dbAddress: ""
 
+# Flags listed below should be left as their defaults unless you know what you
+# are doing.
+
 # Flags for gossip protocol
 
 # How long a message record should last in the gossip buffer if it arrives
 # before the Gateway starts handling the gossip. (Default 300s)
-bufferExpiration: 1m0s
+bufferExpiration: 300s
 
 # Frequency with which to check the gossip buffer. Should be long, since the
 # thread takes a lock each time it checks the buffer. (Default 150s)
-monitorThreadFrequency: 3m0s
+monitorThreadFrequency: 150s
 
 # Flags for rate limiting communications
 
 # The capacity of rate limiting buckets in the map. (Default 20)
-capacity: 5
+capacity: 20
 
 # The rate that the rate limiting bucket leaks tokens at [tokens/ns]. (Default 3)
 leakedTokens: 3
@@ -118,7 +122,7 @@ leakDuration: 1ms
 pollDuration: 10s
 
 # The max age of a bucket without activity before it is removed. (Default 10s)
-bucketMaxAge: 0m3s
+bucketMaxAge: 10s
 ```
 
 ## Command line flags
@@ -141,43 +145,27 @@ Available Commands:
 
 Flags:
       --bucketMaxAge duration             The max age of a bucket without activity before it is removed. (default 10s)
-      --bufferExpiration duration         How long a message record should last in the gossip buffer if it arrives
-                                          before the Gateway starts handling the gossip. (default 5m0s)
+      --bufferExpiration duration         How long a message record should last in the gossip buffer if it arrives before the Gateway starts handling the gossip. (default 5m0s)
       --capacity uint32                   The capacity of rate-limiting buckets in the map. (default 20)
-      --certPath string                   Path to the self-signed TLS certificate for Gateway. Expects PEM format.
-                                          (Required)
-  -c, --config string                     Path to load the Gateway configuration file from. If not set, this file must
-                                          be named gateway.yaml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or
-                                          /etc/xxnetwork.
+      --certPath string                   Path to the self-signed TLS certificate for Gateway. Expects PEM format. (Required)
+  -c, --config string                     Path to load the Gateway configuration file from. If not set, this file must be named gateway.yaml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.
       --enableGossip                      Feature flag for in progress gossip functionality
   -h, --help                              help for gateway
-      --idfPath string                    Path to where the IDF is saved. This is used by the wrapper management script.
-                                          (default "./gateway-logs/gatewayIDF.json")
-      --keyPath string                    Path to the private key associated with the self-signed TLS certificate.
-                                          (Required)
+      --idfPath string                    Path to where the identity file (IDF) is saved. The IDF stores the Gateway's Node's network identity. This is used by the wrapper management script. (Required)
+      --keyPath string                    Path to the private key associated with the self-signed TLS certificate. (Required)
       --kr int                            Amount of rounds to keep track of in kr (default 1024)
       --leakDuration duration             How often the number of leaked tokens is leaked from the bucket. (default 1ms)
       --leakedTokens uint32               The rate that the rate limiting bucket leaks tokens at [tokens/ns]. (default 3)
-      --listeningAddress string           Local IP address of the Gateway, used for internal listening. Expects an IPv4
-                                          address without a port. (default "0.0.0.0")
       --log string                        Path where log file will be saved. (default "./gateway-logs/gateway.log")
   -l, --logLevel uint                     Level of debugging to print (0 = info, 1 = debug, >1 = trace).
       --monitorThreadFrequency duration   Frequency with which to check the gossip buffer. (default 2m30s)
-      --nodeAddress string                The IP address of the Node that the Gateway communicates with. Expects an IPv4
-                                          address with a port. (Required)
-      --overridePublicIP string           The public IPv4 address of the Gateway, as reported to the network, to be used
-                                          instead of dynamically looking up Gateway's own IP address. If a port is not
-                                          included, then the port from the port flag is used instead.
-      --permissioningCertPath string      Path to the self-signed TLS certificate for the Permissioning server. Expects
-                                          PEM format. (Required)
+      --nodeAddress string                The IP address of the Node that the Gateway communicates with. Expects an IPv4 address with a port. (Required)
+      --permissioningCertPath string      Path to the self-signed TLS certificate for the Permissioning server. Expects PEM format. (Required)
       --pollDuration duration             How often inactive buckets are removed. (default 10s)
-  -p, --port int                          Port for Gateway to listen on.Gateway must be the only listener on this port.
-                                          (Required) (default -1)
-      --serverCertPath string             Path to the self-signed TLS certificate for Server. Expects PEM format.
-                                          (Required)
+  -p, --port int                          Port for Gateway to listen on.Gateway must be the only listener on this port. (Required) (default -1)
+      --serverCertPath string             Path to the self-signed TLS certificate for Server. Expects PEM format. (Required)
 
 Use "gateway [command] --help" for more information about a command.
-
 ```
 
 All of those flags, except `--config`, override values in the configuration
