@@ -17,13 +17,13 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
-	gitlab.com/elixxir/bloomfilter v0.0.0-20200930191214-10e9ac31b228
-	gitlab.com/elixxir/comms v0.0.4-0.20210225221619-5a3e81a0f21f
-	gitlab.com/elixxir/crypto v0.0.7-0.20210225184707-8e497d2c904e
-	gitlab.com/elixxir/primitives v0.0.3-0.20210225184649-54d1b20caf89
-	gitlab.com/xx_network/comms v0.0.4-0.20210225184643-04d57ac38237
-	gitlab.com/xx_network/crypto v0.0.5-0.20210225184630-793a5fc60d3a
-	gitlab.com/xx_network/primitives v0.0.4-0.20210226002915-98505d29e226
+	gitlab.com/elixxir/bloomfilter v0.0.0-20210120224144-ac046983a17a
+	gitlab.com/elixxir/comms v0.0.4-0.20210226003144-c355c2c144be
+	gitlab.com/elixxir/crypto v0.0.7-0.20210226164631-dd11d922075b
+	gitlab.com/elixxir/primitives v0.0.3-0.20210226174258-0b3abdb33fc3
+	gitlab.com/xx_network/comms v0.0.4-0.20210226173933-8a1df6d9c9c9
+	gitlab.com/xx_network/crypto v0.0.5-0.20210226174051-ac1ac369cb91
+	gitlab.com/xx_network/primitives v0.0.4-0.20210226174356-de1e25cd8cca
 	gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1 // indirect
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
 	golang.org/x/sys v0.0.0-20210105210732-16f7687f5001 // indirect
