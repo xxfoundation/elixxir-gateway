@@ -39,8 +39,8 @@ type Params struct {
 	gossipFlags     gossip.ManagerFlags
 	MessageTimeout  time.Duration
 
-	DevMode      bool
-	EnableGossip bool
+	DevMode       bool
+	DisableGossip bool
 
 	retentionPeriod time.Duration
 	cleanupInterval time.Duration
@@ -154,7 +154,7 @@ func InitParams(vip *viper.Viper) Params {
 		DbAddress:             addr,
 		DbPort:                port,
 		DevMode:               viper.GetBool("devMode"),
-		EnableGossip:          viper.GetBool("enableGossip"),
+		DisableGossip:         viper.GetBool("disableGossip"),
 		retentionPeriod:       retentionPeriod,
 		cleanupInterval:       cleanupInterval,
 	}

@@ -636,7 +636,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
-		if gw.Params.EnableGossip {
+		if !gw.Params.DisableGossip {
 			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
@@ -829,7 +829,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		err = gw.FilterMessage(senderId)
 		if err != nil {
 			jww.INFO.Printf("Rate limiting check failed on send message from "+
@@ -1005,7 +1005,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
 
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		// Gossip senders included in the batch to other gateways
 		err = gw.GossipBatch(batch)
 		if err != nil {
@@ -1103,6 +1103,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		return
 	}
 
+	recipients := gw.processMessages(msgs, roundID, round)
+
 	// Share messages in the batch with the rest of the team
 	// TODO: Gateways must authenticate for the following to work
 	//err = gw.sendShareMessages(msgs, round)
@@ -1111,11 +1113,9 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	//	jww.ERROR.Printf("Message sharing failed: %+v", err)
 	//}
 
-	recipients := gw.processMessages(msgs, roundID, round)
-
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		// Update filters in our storage system
 		err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
 		if err != nil {
