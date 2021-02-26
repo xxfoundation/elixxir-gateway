@@ -1172,8 +1172,9 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			"ProcessCompletedBatch: %+v", err)
 	}
 
-	jww.INFO.Printf("Round received, %d real messages "+
-		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
+	jww.INFO.Printf("Round %d received, %d real messages "+
+		"processed, %d dummies ignored", clientRound.Id, numReal,
+		len(msgs)-numReal)
 
 	return recipients
 }
