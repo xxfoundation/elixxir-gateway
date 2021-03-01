@@ -12,6 +12,11 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -35,10 +40,6 @@ import (
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 )
 
 // Zeroed identity fingerprint identifies dummy messages
@@ -163,20 +164,24 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"clientRequest is empty")
 	}
 
+	// Make sure Gateway network instance is not nil
 	if gw.NetInf == nil {
 		return &pb.GatewayPollResponse{}, errors.New(ndf.NO_NDF)
 	}
 
+	// Get version sent from client
 	clientVersion, err := version.ParseVersion(string(clientRequest.ClientVersion))
 	if err != nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
 			"Unable to ParseVersion for clientRequest: %+v", err)
 	}
-	expectedClientVersion, err := version.ParseVersion(gw.NetInf.GetPartialNdf().Get().ClientVersion)
+	// Get version from NDF
+	expectedClientVersion, err := version.ParseVersion(gw.NetInf.GetFullNdf().Get().ClientVersion)
 	if err != nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
 			"Unable to ParseVersion for gateway's NDF: %+v", err)
 	}
+	// Check that the two versions are compatible
 	if version.IsCompatible(clientVersion, expectedClientVersion) != false {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
 			"client version was not compatible with NDF defined minimum version")
