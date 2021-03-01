@@ -826,6 +826,68 @@ func TestMapImpl_GetClientBloomFilters_NoFiltersError(t *testing.T) {
 	}
 }
 
+// Happy path
+func TestMapImpl_GetLowestBloomRound(t *testing.T) {
+	// Build list of bloom filters to add
+	ephemeralID, _, _, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, time.Now().Unix())
+	if err != nil {
+		t.Fatalf("Failed to get ephermeral ID: %+v", err)
+	}
+	rid := ephemeralID.Int64()
+	expected := uint64(10)
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 100, FirstRound: 100},
+		{RecipientId: rid, Epoch: 150, FirstRound: 150},
+		{RecipientId: rid, Epoch: 160, FirstRound: 160},
+		{RecipientId: rid, Epoch: 199, FirstRound: 199},
+		{RecipientId: rid, Epoch: 200, FirstRound: 200},
+		{RecipientId: rid, Epoch: 201, FirstRound: 201},
+		{RecipientId: rid, Epoch: 70, FirstRound: expected},
+		{RecipientId: rid, Epoch: 50, FirstRound: 50},
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	// get result
+	result, err := m.GetLowestBloomRound()
+	if err != nil {
+		t.Errorf("Unable to GetLowestBloomRound: %+v", err)
+		return
+	}
+
+	if result != expected {
+		t.Errorf("Unexpected GetLowestBloomRound result: Got %d, expected %d", result, expected)
+	}
+}
+
+// Error path
+func TestMapImpl_GetLowestBloomRound_Error(t *testing.T) {
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	// get result
+	_, err := m.GetLowestBloomRound()
+	if err == nil {
+		t.Errorf("Expected error getting lowest bloom round!")
+		return
+	}
+}
+
 // Happy path.
 func TestMapImpl_upsertClientBloomFilter(t *testing.T) {
 	// Build list of bloom filters to add

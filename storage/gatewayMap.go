@@ -316,7 +316,7 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 	earliestFirstRound := uint64(math.MaxUint64)
 	for _, v := range m.bloomFilters.RecipientId {
 		for _, filter := range v.list {
-			if filter.FirstRound < earliestFirstRound {
+			if filter != nil && filter.FirstRound < earliestFirstRound {
 				earliestFirstRound = filter.FirstRound
 			}
 		}
