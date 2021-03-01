@@ -18,8 +18,8 @@ import (
 )
 
 // Hidden function for one-time unit testing database implementation
+// DROP TABLE states, rounds, mixed_messages, clients, client_rounds, client_bloom_filters;
 //func TestDatabaseImpl(t *testing.T) {
-//
 //	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
 //	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
 //
@@ -37,7 +37,7 @@ import (
 //	testRound3 := uint64(12)
 //
 //	testClient := id.NewIdFromBytes(testClientId, t)
-//	testEphem, err := ephemeral.GetId(testClient, 64, uint64(time.Now().UnixNano()))
+//	testEphem, _, _, err := ephemeral.GetId(testClient, 64, time.Now().UnixNano())
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -126,7 +126,7 @@ import (
 //		RecipientId:    testEphem.Int64(),
 //		Filter:      testBytes2,
 //		Epoch: 1,
-//		FirstRound: 1,
+//		FirstRound: 3,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
@@ -152,6 +152,22 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes2,
+//		Epoch: 5,
+//		FirstRound: 2,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	firstRound, err := db.GetLowestBloomRound()
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%d", firstRound)
 //	err = db.InsertMixedMessages(&ClientRound{
 //		Id:        testRound,
 //		Timestamp: time.Now(),

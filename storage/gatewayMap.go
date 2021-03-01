@@ -14,6 +14,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"math"
 	"time"
 )
 
@@ -303,6 +304,29 @@ func (m *MapImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, en
 	return bloomFilters, nil
 }
 
+// Returns the lowest FirstRound value from ClientBloomFilter
+// Or an error if no ClientBloomFilter exist
+func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
+	m.bloomFilters.Lock()
+	if len(m.bloomFilters.RecipientId) == 0 {
+		return 0, errors.Errorf("Could not find any ClientBloomFilters")
+	}
+
+	// TODO: Really really dumb, probably revise
+	earliestFirstRound := uint64(math.MaxUint64)
+	for _, v := range m.bloomFilters.RecipientId {
+		for _, filter := range v.list {
+			if filter.FirstRound < earliestFirstRound {
+				earliestFirstRound = filter.FirstRound
+			}
+		}
+	}
+	m.bloomFilters.Unlock()
+
+	jww.TRACE.Printf("Obtained lowest ClientBloomFilter FirstRound from Map: %d", earliestFirstRound)
+	return earliestFirstRound, nil
+}
+
 // Inserts the given ClientBloomFilter into database if it does not exist
 // Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
 func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
@@ -368,7 +392,7 @@ func (m *MapImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
 	}
 
 	if bfCount == 0 {
-		return errors.Errorf("Could not find any bloom filters that occurred "+
+		return errors.Errorf("Could not find any ClientBloomFilters that occurred "+
 			"before epoch %d.", epoch)
 	}
 

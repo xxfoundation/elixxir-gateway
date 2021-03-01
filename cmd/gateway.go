@@ -190,12 +190,12 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
-	//  are returned to the client
+	//  are returned to the client. Debug to avoid message spam.
 	clientFilters, err := gw.storage.GetClientBloomFilters(
 		receptionId, startEpoch, endEpoch)
-	jww.INFO.Printf("Adding %d client filters for %d", len(clientFilters), receptionId.Int64())
+	jww.DEBUG.Printf("Adding %d client filters for %d", len(clientFilters), receptionId.Int64())
 	if err != nil {
-		jww.WARN.Printf("Could not get filters in range %d - %d for %d when polling: %v", startEpoch, endEpoch, receptionId.Int64(), err)
+		jww.DEBUG.Printf("Could not get filters in range %d - %d for %d when polling: %v", startEpoch, endEpoch, receptionId.Int64(), err)
 	}
 
 	// Build ClientBlooms metadata
@@ -223,11 +223,19 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		netDef = gw.NetInf.GetPartialNdf().GetPb()
 	}
 
+	// Obtain earliest BloomFilter round
+	earliestRound, err := gw.storage.GetLowestBloomRound()
+	if err != nil {
+		// This error should never really happen, will return zero-value to client
+		jww.ERROR.Printf("Unable to GetLowestBloomRound: %+v", err)
+	}
+
 	return &pb.GatewayPollResponse{
-		PartialNDF:  netDef,
-		Updates:     updates,
-		KnownRounds: kr,
-		Filters:     filtersMsg,
+		PartialNDF:    netDef,
+		Updates:       updates,
+		KnownRounds:   kr,
+		Filters:       filtersMsg,
+		EarliestRound: earliestRound,
 	}, nil
 }
 
