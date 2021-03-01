@@ -162,7 +162,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	// Nil check to check for valid clientRequest
 	if clientRequest == nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"Poll() clientRequest is empty")
+			"clientRequest is empty")
 	}
 
 	if gw.NetInf == nil {
@@ -172,23 +172,23 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	clientVersion, err := version.ParseVersion(string(clientRequest.ClientVersion))
 	if err != nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"Poll() - Unable to ParseVersion for clientRequest: %+v", err)
+			"Unable to ParseVersion for clientRequest: %+v", err)
 	}
 	expectedClientVersion, err := version.ParseVersion(gw.NetInf.GetPartialNdf().Get().ClientVersion)
 	if err != nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"Poll() - Unable to ParseVersion for gateway's NDF: %+v", err)
+			"Unable to ParseVersion for gateway's NDF: %+v", err)
 	}
 	if version.IsCompatible(clientVersion, expectedClientVersion) != false {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"Poll() - client version was not compatible with NDF defined minimum version")
+			"client version was not compatible with NDF defined minimum version")
 	}
 
 	// Check if the clientID is populated and valid
 	receptionId, err := ephemeral.Marshal(clientRequest.GetReceptionID())
 	if err != nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"Poll() - Valid ReceptionID required: %+v", err)
+			"Valid ReceptionID required: %+v", err)
 	}
 
 	// Get the range of updates from the network instance
