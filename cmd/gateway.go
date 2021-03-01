@@ -184,7 +184,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	// Check that the two versions are compatible
 	if version.IsCompatible(clientVersion, expectedClientVersion) != false {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"client version was not compatible with NDF defined minimum version")
+			"client version \"%s\" was not compatible with NDF defined minimum version", clientRequest.ClientVersion)
 	}
 
 	// Check if the clientID is populated and valid
