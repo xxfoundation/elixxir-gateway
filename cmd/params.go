@@ -12,18 +12,21 @@ package cmd
 import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
+	"gitlab.com/elixxir/comms/publicAddress"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"net"
+	"strconv"
 	"time"
 )
 
 type Params struct {
-	NodeAddress string
-	Port        int
-	Address     string
-	CertPath    string
-	KeyPath     string
+	NodeAddress      string
+	Port             int
+	PublicAddress    string // Gateway's public IP address (with port)
+	ListeningAddress string // Gateway's local IP address (with port)
+	CertPath         string
+	KeyPath          string
 
 	DbUsername string
 	DbPassword string
@@ -37,10 +40,9 @@ type Params struct {
 
 	rateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
-	MessageTimeout  time.Duration
 
-	DevMode      bool
-	EnableGossip bool
+	DevMode       bool
+	DisableGossip bool
 
 	retentionPeriod time.Duration
 	cleanupInterval time.Duration
@@ -61,7 +63,7 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Invalid Config File: %s", cfgFile)
 	}
 
-	//print all config options
+	// Print all config options
 	jww.INFO.Printf("All config params: %+v", vip.AllKeys())
 
 	certPath = viper.GetString("certPath")
@@ -70,9 +72,10 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	idfPath = viper.GetString("idfPath")
+	if idfPath == "" {
+		jww.FATAL.Panicf("Gateway.yaml idfPath is required, path provided is empty.")
+	}
 	keyPath = viper.GetString("keyPath")
-	addressOverride := viper.GetString("addressOverride")
-	messageTimeout = viper.GetDuration("messageTimeout")
 	nodeAddress := viper.GetString("nodeAddress")
 	if nodeAddress == "" {
 		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
@@ -90,10 +93,25 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
 	}
 
+	// Get gateway's public IP or use the IP override
+	overrideIP := viper.GetString("overridePublicIP")
+	gwAddress, err := publicAddress.GetIpOverride(overrideIP, gwPort)
+	if err != nil {
+		jww.FATAL.Panicf("Failed to get public IP: %+v", err)
+	}
+
+	// Construct listening address
+	listeningIP := viper.GetString("listeningAddress")
+	if listeningIP == "" {
+		listeningIP = "0.0.0.0"
+	}
+	listeningAddress := net.JoinHostPort(listeningIP, strconv.Itoa(gwPort))
+
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
 	jww.INFO.Printf("Gateway port: %d", gwPort)
-	jww.INFO.Printf("Gateway address override: %s", addressOverride)
+	jww.INFO.Printf("Gateway public IP: %s", gwAddress)
+	jww.INFO.Printf("Gateway listening address: %s", listeningAddress)
 	jww.INFO.Printf("Gateway node: %s", nodeAddress)
 
 	// If the values aren't default, repopulate flag values with customized values
@@ -128,7 +146,6 @@ func InitParams(vip *viper.Viper) Params {
 	// Obtain database connection info
 	rawAddr := viper.GetString("dbAddress")
 	var addr, port string
-	var err error
 	if rawAddr != "" {
 		addr, port, err = net.SplitHostPort(rawAddr)
 		if err != nil {
@@ -138,7 +155,8 @@ func InitParams(vip *viper.Viper) Params {
 
 	return Params{
 		Port:                  gwPort,
-		Address:               addressOverride,
+		PublicAddress:         gwAddress,
+		ListeningAddress:      listeningAddress,
 		NodeAddress:           nodeAddress,
 		CertPath:              certPath,
 		KeyPath:               keyPath,
@@ -147,14 +165,13 @@ func InitParams(vip *viper.Viper) Params {
 		PermissioningCertPath: permissioningCertPath,
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
-		MessageTimeout:        messageTimeout,
 		DbName:                viper.GetString("dbName"),
 		DbUsername:            viper.GetString("dbUsername"),
 		DbPassword:            viper.GetString("dbPassword"),
 		DbAddress:             addr,
 		DbPort:                port,
 		DevMode:               viper.GetBool("devMode"),
-		EnableGossip:          viper.GetBool("enableGossip"),
+		DisableGossip:         viper.GetBool("disableGossip"),
 		retentionPeriod:       retentionPeriod,
 		cleanupInterval:       cleanupInterval,
 	}

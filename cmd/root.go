@@ -31,10 +31,9 @@ var (
 	cfgFile, idfPath, logPath string
 	certPath, keyPath, serverCertPath,
 	permissioningCertPath string
-	logLevel       uint // 0 = info, 1 = debug, >1 = trace
-	messageTimeout time.Duration
-	gwPort         int
-	validConfig    bool
+	logLevel    uint // 0 = info, 1 = debug, >1 = trace
+	gwPort      int
+	validConfig bool
 
 	kr int
 
@@ -95,7 +94,7 @@ var rootCmd = &cobra.Command{
 		jww.INFO.Printf("Starting xx network gateway v%s", SEMVER)
 
 		// Begin gateway persistent components
-		if params.EnableGossip {
+		if !params.DisableGossip {
 			jww.INFO.Println("Gossip is enabled")
 			gateway.StartPeersThread()
 		}
@@ -160,14 +159,15 @@ func init() {
 			"file must be named gateway.yaml and must be located in "+
 			"~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.")
 
-	rootCmd.Flags().IntP("port", "p", -1,
-		"Port for Gateway to listen on. Gateway must be the only listener "+
-			"on this port. Required field.")
+	rootCmd.Flags().IntP("port", "p", -1, "Port for Gateway to listen on."+
+		"Gateway must be the only listener on this port. (Required)")
 	err := viper.BindPFlag("port", rootCmd.Flags().Lookup("port"))
 	handleBindingError(err, "port")
 
-	rootCmd.Flags().StringVar(&idfPath, "idfPath", "./gateway-logs/gatewayIDF.json",
-		"Path to where the IDF is saved. This is used by the wrapper management script.")
+	rootCmd.Flags().StringVar(&idfPath, "idfPath", "",
+		"Path to where the identity file (IDF) is saved. The IDF stores the "+
+			"Gateway's Node's network identity. This is used by the wrapper "+
+			"management script. (Required)")
 	err = viper.BindPFlag("idfPath", rootCmd.Flags().Lookup("idfPath"))
 	handleBindingError(err, "idfPath")
 
@@ -181,70 +181,59 @@ func init() {
 	err = viper.BindPFlag("log", rootCmd.Flags().Lookup("log"))
 	handleBindingError(err, "log")
 
-	rootCmd.Flags().DurationVar(&messageTimeout, "messageTimeout", 60*time.Second,
-		"Period in which the message cleanup function executes. All users"+
-			" who message buffer have exceeded the maximum size will get their"+
-			" messages deleted. Recommended period is on the order of a minute to an hour.")
-	err = viper.BindPFlag("messageTimeout", rootCmd.Flags().Lookup("messageTimeout"))
-	handleBindingError(err, "messageTimeout")
-
-	rootCmd.Flags().String("listeningAddress", "0.0.0.0",
-		"Local IP address of the Gateway used for internal listening.")
-	err = viper.BindPFlag("listeningAddress", rootCmd.Flags().Lookup("listeningAddress"))
-	handleBindingError(err, "listeningAddress")
-
 	rootCmd.Flags().String("nodeAddress", "",
-		"Public IP address of the Node associated with this Gateway. Required field.")
+		"The IP address of the Node that the Gateway communicates with. "+
+			"Expects an IPv4 address with a port. (Required)")
 	err = viper.BindPFlag("nodeAddress", rootCmd.Flags().Lookup("nodeAddress"))
 	handleBindingError(err, "nodeAddress")
 
 	rootCmd.Flags().StringVar(&certPath, "certPath", "",
 		"Path to the self-signed TLS certificate for Gateway. Expects PEM "+
-			"format. Required field.")
+			"format. (Required)")
 	err = viper.BindPFlag("certPath", rootCmd.Flags().Lookup("certPath"))
 	handleBindingError(err, "certPath")
 
 	rootCmd.Flags().StringVar(&keyPath, "keyPath", "",
 		"Path to the private key associated with the self-signed TLS "+
-			"certificate. Required field.")
+			"certificate. (Required)")
 	err = viper.BindPFlag("keyPath", rootCmd.Flags().Lookup("keyPath"))
 	handleBindingError(err, "keyPath")
 
 	rootCmd.Flags().StringVar(&serverCertPath, "serverCertPath", "",
 		"Path to the self-signed TLS certificate for Server. Expects PEM "+
-			"format. Required field.")
+			"format. (Required)")
 	err = viper.BindPFlag("serverCertPath", rootCmd.Flags().Lookup("serverCertPath"))
 	handleBindingError(err, "serverCertPath")
 
 	rootCmd.Flags().StringVar(&permissioningCertPath, "permissioningCertPath", "",
-		"Path to the self-signed TLS certificate for the Permissioning "+
-			"server. Expects PEM format. Required field.")
+		"Path to the self-signed TLS certificate for the Permissioning server. "+
+			"Expects PEM format. (Required)")
 	err = viper.BindPFlag("permissioningCertPath", rootCmd.Flags().Lookup("permissioningCertPath"))
 	handleBindingError(err, "permissioningCertPath")
 
 	// RATE LIMITING FLAGS
 	rootCmd.Flags().Uint32Var(&capacity, "capacity", 20,
-		"Amount of buckets to keep track of for rate limiting communications")
+		"The capacity of rate-limiting buckets in the map.")
 	err = viper.BindPFlag("capacity", rootCmd.Flags().Lookup("capacity"))
 	handleBindingError(err, "Rate_Limiting_Capacity")
 
 	rootCmd.Flags().Uint32Var(&leakedTokens, "leakedTokens", 3,
-		"Used to calculate the leak rate")
+		"The rate that the rate limiting bucket leaks tokens at [tokens/ns].")
 	err = viper.BindPFlag("leakedTokens", rootCmd.Flags().Lookup("leakedTokens"))
 	handleBindingError(err, "Rate_Limiting_LeakedTokens")
 
 	rootCmd.Flags().DurationVar(&leakDuration, "leakDuration", 1*time.Millisecond,
-		"Used to calculate the leak rate")
+		"How often the number of leaked tokens is leaked from the bucket.")
 	err = viper.BindPFlag("leakDuration", rootCmd.Flags().Lookup("leakDuration"))
 	handleBindingError(err, "Rate_Limiting_LeakDuration")
 
 	rootCmd.Flags().DurationVar(&pollDuration, "pollDuration", 10*time.Second,
-		"Duration between polls for stale buckets")
+		"How often inactive buckets are removed.")
 	err = viper.BindPFlag("pollDuration", rootCmd.Flags().Lookup("pollDuration"))
 	handleBindingError(err, "Rate_Limiting_PollDuration")
 
 	rootCmd.Flags().DurationVar(&bucketMaxAge, "bucketMaxAge", 10*time.Second,
-		"Max time of inactivity before removal")
+		"The max age of a bucket without activity before it is removed.")
 	err = viper.BindPFlag("bucketMaxAge", rootCmd.Flags().Lookup("bucketMaxAge"))
 	handleBindingError(err, "Rate_Limiting_BucketMaxAge")
 
@@ -255,12 +244,13 @@ func init() {
 	handleBindingError(err, "Enable_Gossip")
 
 	rootCmd.Flags().DurationVar(&bufferExpiration, "bufferExpiration", 300*time.Second,
-		"How long a message record should last in the buffer")
+		"How long a message record should last in the gossip buffer if it "+
+			"arrives before the Gateway starts handling the gossip.")
 	err = viper.BindPFlag("bufferExpiration", rootCmd.Flags().Lookup("bufferExpiration"))
 	handleBindingError(err, "Rate_Limiting_BufferExpiration")
 
 	rootCmd.Flags().DurationVar(&monitorThreadFrequency, "monitorThreadFrequency", 150*time.Second,
-		"Frequency with which to check the gossip's buffer.")
+		"Frequency with which to check the gossip buffer.")
 	err = viper.BindPFlag("monitorThreadFrequency", rootCmd.Flags().Lookup("monitorThreadFrequency"))
 	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
 
@@ -274,8 +264,9 @@ func init() {
 	rootCmd.Flags().BoolP("devMode", "", false,
 		"Run in development/testing mode. Do not use on beta or main "+
 			"nets")
-	viper.BindPFlag("devMode", rootCmd.Flags().Lookup("devMode"))
-	rootCmd.Flags().MarkHidden("devMode")
+	err = viper.BindPFlag("devMode", rootCmd.Flags().Lookup("devMode"))
+	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
+	_ = rootCmd.Flags().MarkHidden("devMode")
 
 }
 

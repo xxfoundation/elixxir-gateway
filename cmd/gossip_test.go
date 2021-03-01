@@ -95,7 +95,6 @@ func TestInstance_GossipVerify(t *testing.T) {
 		NodeAddress:           NODE_ADDRESS,
 		ServerCertPath:        testkeys.GetNodeCertPath(),
 		CertPath:              testkeys.GetGatewayCertPath(),
-		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 	}
@@ -112,11 +111,12 @@ func TestInstance_GossipVerify(t *testing.T) {
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
+	gwID := id.NewIdFromString("Samus", id.Gateway, t)
 
-	gw.Comms = gateway.StartGateway(&id.TempGateway, "0.0.0.0:11690", gw,
+	gw.Comms = gateway.StartGateway(gwID, "0.0.0.0:11690", gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	var err error
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
@@ -295,7 +295,6 @@ func TestInstance_GossipBatch(t *testing.T) {
 		NodeAddress:           NODE_ADDRESS,
 		ServerCertPath:        testkeys.GetNodeCertPath(),
 		CertPath:              testkeys.GetGatewayCertPath(),
-		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 	}
@@ -313,10 +312,11 @@ func TestInstance_GossipBatch(t *testing.T) {
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
 	addr := "0.0.0.0:6666"
-	gw.Comms = gateway.StartGateway(&id.TempGateway, addr, gw,
+	gwID := id.NewIdFromString("Samus", id.Gateway, t)
+	gw.Comms = gateway.StartGateway(gwID, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	var err error
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
@@ -346,7 +346,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to add gossip peer: %+v", err)
 	}
-
+	fmt.Printf("gwID: %v\n", gw.Comms.Id)
 	// Build a mock node ID for a topology
 	nodeID := gw.Comms.Id.DeepCopy()
 	nodeID.SetType(id.Node)
@@ -357,6 +357,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 		UpdateID: 10,
 		Topology: topology,
 	}
+	fmt.Printf("nodeID: %v\n", nodeID)
 
 	// Sign the round info with the mock permissioning private key
 	err = signRoundInfo(ri)
@@ -400,7 +401,6 @@ func TestInstance_GossipBloom(t *testing.T) {
 		NodeAddress:           NODE_ADDRESS,
 		ServerCertPath:        testkeys.GetNodeCertPath(),
 		CertPath:              testkeys.GetGatewayCertPath(),
-		MessageTimeout:        10 * time.Minute,
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 	}
@@ -422,10 +422,11 @@ func TestInstance_GossipBloom(t *testing.T) {
 	g := large.NewIntFromString(generator, 16)
 	grp2 := cyclic.NewGroup(p, g)
 	addr := "0.0.0.0:7777"
-	gw.Comms = gateway.StartGateway(&id.TempGateway, addr, gw,
+	gwID := id.NewIdFromString("Samus", id.Gateway, t)
+	gw.Comms = gateway.StartGateway(gwID, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	testNDF, _, _ := ndf.DecodeNDF(ExampleJSON + "\n" + ExampleSignature)
+	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
 	if err != nil {

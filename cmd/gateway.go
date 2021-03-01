@@ -35,7 +35,6 @@ import (
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
-	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -90,7 +89,6 @@ type Instance struct {
 	lastUpdate uint64
 	period     int64 // Defines length of validity for ClientBloomFilter
 
-	address           string
 	bloomFilterGossip sync.Mutex
 }
 
@@ -464,7 +462,6 @@ func SprintRoundInfo(ri *pb.RoundInfo) string {
 // Additionally, to clean up the network object (especially in tests), call
 // Shutdown() on the network object.
 func (gw *Instance) InitNetwork() error {
-	address := net.JoinHostPort(gw.Params.Address, strconv.Itoa(gw.Params.Port))
 	var err error
 	var gwCert, gwKey, nodeCert, permissioningCert []byte
 
@@ -509,8 +506,8 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
-	gw.Comms = gateway.StartGateway(&id.TempGateway, address, gatewayHandler,
-		gwCert, gwKey, gossip.DefaultManagerFlags())
+	gw.Comms = gateway.StartGateway(&id.TempGateway, gw.Params.ListeningAddress,
+		gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
 
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
@@ -542,15 +539,6 @@ func (gw *Instance) InitNetwork() error {
 		return errors.Errorf("Failed to add permissioning host: %+v", err)
 	}
 
-	// Get gateway's host from permissioning
-	gw.Params.Address, err = CheckPermConn(gw.Params.Address, gw.Params.Port, gw.Comms)
-	if err != nil {
-		return errors.Errorf("Couldn't complete CheckPermConn: %v", err)
-	}
-
-	// Combine the discovered gateway host with the provided port
-	gw.address = net.JoinHostPort(gw.Params.Address, strconv.Itoa(gw.Params.Port))
-
 	// Begin polling server for NDF
 	jww.INFO.Printf("Beginning polling NDF...")
 	var nodeId []byte
@@ -563,7 +551,8 @@ func (gw *Instance) InitNetwork() error {
 
 		// Poll Server for the NDFs, then use it to create the
 		// network instance and begin polling for server updates
-		serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0, gw.address)
+		serverResponse, err = PollServer(gw.Comms, gw.ServerHost, nil, nil, 0,
+			gw.Params.PublicAddress)
 		if err != nil {
 			eMsg := err.Error()
 			// Catch recoverable error
@@ -587,7 +576,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Install the NDF once we get it
 		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			netDef, _, err := ndf.DecodeNDF(string(serverResponse.FullNDF.Ndf))
+			netDef, err := ndf.Unmarshal(serverResponse.FullNDF.Ndf)
 			if err != nil {
 				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
 				return err
@@ -624,8 +613,8 @@ func (gw *Instance) InitNetwork() error {
 
 		gatewayId := serverID
 		gatewayId.SetType(id.Gateway)
-		gw.Comms = gateway.StartGateway(gatewayId, net.JoinHostPort("0.0.0.0", strconv.Itoa(gw.Params.Port)), gatewayHandler,
-			gwCert, gwKey, gossip.DefaultManagerFlags())
+		gw.Comms = gateway.StartGateway(gatewayId, gw.Params.ListeningAddress,
+			gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
 
 		jww.DEBUG.Printf("Creating instance!")
 		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
@@ -652,7 +641,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
-		if gw.Params.EnableGossip {
+		if !gw.Params.DisableGossip {
 			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
@@ -666,12 +655,6 @@ func (gw *Instance) InitNetwork() error {
 			jww.ERROR.Printf("Update instance error: %v", err)
 			continue
 		}
-
-		gw.Params.Address, err = CheckPermConn(gw.Params.Address, gw.Params.Port, gw.Comms)
-		if err != nil {
-			return errors.Errorf("Couldn't complete CheckPermConn: %v", err)
-		}
-		gw.address = fmt.Sprintf("%s:%d", gw.Params.Address, gw.Params.Port)
 
 		// newNdf := gw.NetInf.GetPartialNdf().Get()
 
@@ -845,7 +828,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		err = gw.FilterMessage(senderId)
 		if err != nil {
 			jww.INFO.Printf("Rate limiting check failed on send message from "+
@@ -867,7 +850,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		msgFmt.SetPayloadA(msg.Message.PayloadA)
 		msgFmt.SetPayloadB(msg.Message.PayloadB)
 		jww.DEBUG.Printf("Putting message from user %s (msgDigest: %s) "+
-			"in outgoing queue for round %d...", msg.Message.GetSenderID(),
+			"in outgoing queue for round %d...", senderId.String(),
 			msgFmt.Digest(), thisRound)
 	}
 
@@ -1021,7 +1004,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.WARN.Printf("Error while sending batch: %v", err)
 	}
 
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		// Gossip senders included in the batch to other gateways
 		err = gw.GossipBatch(batch)
 		if err != nil {
@@ -1119,19 +1102,19 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		return
 	}
 
+	recipients := gw.processMessages(msgs, roundID, round)
+
 	// Share messages in the batch with the rest of the team
 	// TODO: Gateways must authenticate for the following to work
-	//err = gw.sendShareMessages(msgs, round)
-	//if err != nil {
-	//	// Print error but do not stop message processing
-	//	jww.ERROR.Printf("Message sharing failed: %+v", err)
-	//}
-
-	recipients := gw.processMessages(msgs, roundID, round)
+	// err = gw.sendShareMessages(msgs, round)
+	// if err != nil {
+	// 	// Print error but do not stop message processing
+	// 	jww.ERROR.Printf("Message sharing failed: %+v", err)
+	// }
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
-	if gw.Params.EnableGossip {
+	if !gw.Params.DisableGossip {
 		// Update filters in our storage system
 		err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
 		if err != nil {
@@ -1205,8 +1188,9 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			"ProcessCompletedBatch: %+v", err)
 	}
 
-	jww.INFO.Printf("Round received, %d real messages "+
-		"processed, %d dummies ignored", numReal, len(msgs)-numReal)
+	jww.INFO.Printf("Round %d received, %d real messages "+
+		"processed, %d dummies ignored", clientRound.Id, numReal,
+		len(msgs)-numReal)
 
 	return recipients
 }
@@ -1223,7 +1207,7 @@ func (gw *Instance) Start() {
 				gw.NetInf.GetFullNdf(),
 				gw.NetInf.GetPartialNdf(),
 				gw.lastUpdate,
-				gw.address)
+				gw.Params.PublicAddress)
 			if err != nil {
 				jww.WARN.Printf(
 					"Failed to Poll: %v",

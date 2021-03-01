@@ -1,43 +1,54 @@
-# Level of debugging to print (0 = info, 1 = debug, >1 = trace). (default 0)
+##
+# Gateway Configuration File
+##
+
+# Level of debugging to print (0 = info, 1 = debug, >1 = trace). (Default info)
 logLevel: 1
-  ​
-# Path where log file will be saved. (default "./gateway-logs/gateway.log")
+
+# Path where log file will be saved. (Default "./gateway-logs/gateway.log")
 log: "/opt/xxnetwork/gateway-logs/gateway.log"
-       ​
+
 # Port for Gateway to listen on. Gateway must be the only listener on this port.
-# Required field.
+# (Required)
 port: 22840
-  ​
-# Public IP address of the Node associated with this Gateway. Required field.
-nodeAddress: "0.0.0.128:11420"
-               ​
-# Period in which the message cleanup function executes. All users who message
-# buffer have exceeded the maximum size will get their messages deleted.
-# Recommended period is on the order of a minute to an hour. (default 1m0s)
-messageTimeout: "1m0s"
-                  ​
-# Path to where the IDF is saved. This is used by the wrapper management script.
-# (default "./gateway-logs/gatewayIDF.json")
+
+# Local IP address of the Gateway, used for internal listening. Expects an IPv4
+# address without a port. (Default "0.0.0.0")
+listeningAddress: ""
+
+# The public IPv4 address of the Gateway, as reported to the network, to be
+# used instead of dynamically looking up Gateway's own IP address via pinging
+# external services. If a port is not included, then the port from the port flag
+# is used instead.
+overridePublicIP: ""
+
+# The IP address of the Node that the Gateway communicates with. Expects an IPv4
+# address with a port. (Required)
+nodeAddress: "0.0.0.0:11420"
+
+# Path to where the identity file (IDF) is saved. The IDF stores the Gateway's
+# Node's network identity. This is used by the wrapper management script.
+# (Required)
 idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
-           ​
+
 # Path to the private key associated with the self-signed TLS certificate.
-# Required field.
+# (Required)
 keyPath: "/opt/xxnetwork/creds/gateway_key.key"
-           ​
+
 # Path to the self-signed TLS certificate for Gateway. Expects PEM format.
-# Required field.
+# (Required)
 certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
-            ​
-# Path to the self-signed TLS certificate for Server. Expects PEM format.
-# Required field.
+
+# Path to the self-signed TLS certificate for Node. Expects PEM format.
+# (Required)
 serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
-                  ​
+
 # Path to the self-signed TLS certificate for the Permissioning server. Expects
-# PEM format. Required field.
+# PEM format. (Required)
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
-# Database connection information
+# Database connection information. (Required)
+dbName: "cmix_gateway"
+dbAddress: "0.0.0.0:5432"
 dbUsername: "cmix"
 dbPassword: ""
-dbName: "cmix_gateway"
-dbAddress: ""

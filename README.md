@@ -35,87 +35,95 @@ found.
 Note: YAML prohibits the use of tabs because whitespace has meaning.
 
 ```yaml
-# Level of debugging to print (0 = info, 1 = debug, >1 = trace). (default 0)
+# Level of debugging to print (0 = info, 1 = debug, >1 = trace). (Default info)
 logLevel: 1
 
-# Path where log file will be saved. (default "./gateway-logs/gateway.log")
+# Path where log file will be saved. (Default "./gateway-logs/gateway.log")
 log: "/opt/xxnetwork/gateway-logs/gateway.log"
 
-# If set, this address (host and port required) will be used for the gateway's
-# public IP address instead of the automatically determined address. Optional.
-addressOverride: ""
-
 # Port for Gateway to listen on. Gateway must be the only listener on this port.
-# Required field.
+# (Required)
 port: 22840
 
-# Public IP address of the Node associated with this Gateway. Required field.
-nodeAddress: "0.0.0.128:11420"
+# Local IP address of the Gateway, used for internal listening. Expects an IPv4
+# address without a port. (Default "0.0.0.0")
+listeningAddress: ""
 
-# Period in which the message cleanup function executes. All users who message
-# buffer have exceeded the maximum size will get their messages deleted.
-# Recommended period is on the order of a minute to an hour. (default 1m0s)
-messageTimeout: "1m0s"
+# The public IPv4 address of the Gateway, as reported to the network, to be
+# used instead of dynamically looking up Gateway's own IP address via pinging
+# external services. If a port is not included, then the port from the port flag
+# is used instead.
+overridePublicIP: ""
 
-# Path to where the IDF is saved. This is used by the wrapper management script.
-# (default "./gateway-logs/gatewayIDF.json")
+# The IP address of the Node that the Gateway communicates with. Expects an IPv4
+# address with a port. (Required)
+nodeAddress: "0.0.0.0:11420"
+
+# Path to where the identity file (IDF) is saved. The IDF stores the Gateway's
+# Node's network identity. This is used by the wrapper management script.
+# (Required)
 idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
 
 # Path to the private key associated with the self-signed TLS certificate.
-# Required field.
+# (Required)
 keyPath: "/opt/xxnetwork/creds/gateway_key.key"
 
 # Path to the self-signed TLS certificate for Gateway. Expects PEM format.
-# Required field.
+# (Required)
 certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
 
-# Path to the self-signed TLS certificate for Server. Expects PEM format.
-# Required field.
+# Path to the self-signed TLS certificate for Node. Expects PEM format.
+# (Required)
 serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 
 # Path to the self-signed TLS certificate for the Permissioning server. Expects
-# PEM format. Required field.
+# PEM format. (Required)
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
-# How long messages, rounds and bloom filters remain in storage 
-# before being cleaned from storage. 
-# Valid time units are "h"
-# Defaults to 1 week (168 hours) if not set
-retentionPeriod: "168h"
-
-# How often the periodic storage tracker checks for items older 
-# than the retention Period value.
-# Valid time units are "s", "m", "h". 
-# Defaults to 5 minutes if not set
-cleanupInterval: "5m"
-
-# Database connection information
+# Database connection information. (Required)
+dbName: "cmix_gateway"
+dbAddress: "0.0.0.0:5432"
 dbUsername: "cmix"
 dbPassword: ""
-dbName: "cmix_gateway"
-dbAddress: ""
 
-# Flags for our gossip protocol
+# Flags listed below should be left as their defaults unless you know what you
+# are doing.
 
-# How long a message record should last in the buffer
-BufferExpirationTime: "1m0s"
+# How long messages, rounds, and bloom filters remain in storage before being
+# cleaned from storage. Expects duration in"h". (Defaults to 1 week (168 hours))
+retentionPeriod: 168h
 
-# Frequency with which to check the buffer.
-# Should be long, since the thread takes a lock each time it checks the buffer
-MonitorThreadFrequency: "3m0s" 
+# How often the periodic storage tracker checks for items older than the
+# retention period value. Expects duration in "s", "m", "h". (Defaults to 5
+# minutes)
+cleanupInterval: 5m
+
+# Flags for gossip protocol
+
+# How long a message record should last in the gossip buffer if it arrives
+# before the Gateway starts handling the gossip. (Default 300s)
+bufferExpiration: 300s
+
+# Frequency with which to check the gossip buffer. Should be long, since the
+# thread takes a lock each time it checks the buffer. (Default 150s)
+monitorThreadFrequency: 150s
 
 # Flags for rate limiting communications
-ratelimiting:
-    # The capacity of buckets in the map
-    capacity: 5
-    # The leak rate is calculated by LeakedTokens / LeakDuration
-    # It is the rate that the bucket leaks tokens at [tokens/ns]
-    leakedTokens: 3
-    leakDuration: 1ms
-    # Duration between polls for stale buckets
-    pollDuration: 0m10s
-    # Max time of inactivity before removal
-    bucketMaxAge: 0m3s
+
+# The capacity of rate limiting buckets in the map. (Default 20)
+capacity: 20
+
+# The rate that the rate limiting bucket leaks tokens at [tokens/ns]. (Default 3)
+leakedTokens: 3
+
+# How often the number of leaked tokens is leaked from the bucket. (Default 1ms)
+leakDuration: 1ms
+
+# How often inactive buckets are removed. (Default 10s)
+pollDuration: 10s
+
+# The max age of a bucket without activity before it is removed. (Default 10s)
+bucketMaxAge: 10s
 ```
 
 ## Command line flags
@@ -137,19 +145,26 @@ Available Commands:
   version     Print the version and dependency information for the xx network binary
 
 Flags:
-      --certPath string                Path to the self-signed TLS certificate for Gateway. Expects PEM format. Required field.
-  -c, --config string                  Path to load the Gateway configuration file from. If not set, this file must be named gateway.yml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.
-  -h, --help                           help for gateway
-      --idfPath string                 Path to where the IDF is saved. This is used by the wrapper management script. (default "./gateway-logs/gatewayIDF.json")
-      --keyPath string                 Path to the private key associated with the self-signed TLS certificate. Required field.
-      --listeningAddress string        Local IP address of the Gateway used for internal listening. (default "0.0.0.0")
-      --log string                     Path where log file will be saved. (default "./gateway-logs/gateway.log")
-  -l, --logLevel uint                  Level of debugging to print (0 = info, 1 = debug, >1 = trace).
-      --messageTimeout duration        Period in which the message cleanup function executes. All users who message buffer have exceeded the maximum size will get their messages deleted. Recommended period is on the order of a minute to an hour. (default 1m0s)
-      --nodeAddress string             Public IP address of the Node associated with this Gateway. Required field.
-      --permissioningCertPath string   Path to the self-signed TLS certificate for the Permissioning server. Expects PEM format. Required field.
-  -p, --port int                       Port for Gateway to listen on. Gateway must be the only listener on this port. Required field. (default -1)
-      --serverCertPath string          Path to the self-signed TLS certificate for Server. Expects PEM format. Required field.
+      --bucketMaxAge duration             The max age of a bucket without activity before it is removed. (default 10s)
+      --bufferExpiration duration         How long a message record should last in the gossip buffer if it arrives before the Gateway starts handling the gossip. (default 5m0s)
+      --capacity uint32                   The capacity of rate-limiting buckets in the map. (default 20)
+      --certPath string                   Path to the self-signed TLS certificate for Gateway. Expects PEM format. (Required)
+  -c, --config string                     Path to load the Gateway configuration file from. If not set, this file must be named gateway.yaml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.
+      --enableGossip                      Feature flag for in progress gossip functionality
+  -h, --help                              help for gateway
+      --idfPath string                    Path to where the identity file (IDF) is saved. The IDF stores the Gateway's Node's network identity. This is used by the wrapper management script. (Required)
+      --keyPath string                    Path to the private key associated with the self-signed TLS certificate. (Required)
+      --kr int                            Amount of rounds to keep track of in kr (default 1024)
+      --leakDuration duration             How often the number of leaked tokens is leaked from the bucket. (default 1ms)
+      --leakedTokens uint32               The rate that the rate limiting bucket leaks tokens at [tokens/ns]. (default 3)
+      --log string                        Path where log file will be saved. (default "./gateway-logs/gateway.log")
+  -l, --logLevel uint                     Level of debugging to print (0 = info, 1 = debug, >1 = trace).
+      --monitorThreadFrequency duration   Frequency with which to check the gossip buffer. (default 2m30s)
+      --nodeAddress string                The IP address of the Node that the Gateway communicates with. Expects an IPv4 address with a port. (Required)
+      --permissioningCertPath string      Path to the self-signed TLS certificate for the Permissioning server. Expects PEM format. (Required)
+      --pollDuration duration             How often inactive buckets are removed. (default 10s)
+  -p, --port int                          Port for Gateway to listen on.Gateway must be the only listener on this port. (Required) (default -1)
+      --serverCertPath string             Path to the self-signed TLS certificate for Server. Expects PEM format. (Required)
 
 Use "gateway [command] --help" for more information about a command.
 ```

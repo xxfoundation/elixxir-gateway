@@ -179,7 +179,7 @@ func (m *MapImpl) InsertMixedMessages(cr *ClientRound) error {
 	m.mixedMessages.Lock()
 	msgs := cr.Messages
 
-	for i, _ := range msgs {
+	for i := range msgs {
 
 		msg := msgs[i]
 
@@ -282,7 +282,7 @@ func (m *MapImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, en
 
 	// Calculate the index for the endEpoch
 	endIndex := list.getIndex(endEpoch)
-	if endIndex > len(list.list) {
+	if endIndex >= len(list.list) {
 		endIndex = len(list.list) - 1
 	}
 
@@ -337,8 +337,6 @@ func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 
 	// Insert the filter into the list
 	list.list[index] = filter
-	jww.DEBUG.Printf("Bloom filter list: %+v", m.bloomFilters.RecipientId[filter.RecipientId])
-
 	return nil
 }
 

@@ -734,6 +734,7 @@ func TestMapImpl_GetClientBloomFilters(t *testing.T) {
 		{filters[0:1], 25, 50},
 		{filters[7:], 400, 600},
 		{filters, 25, 600},
+		{filters, 25, 501},
 	}
 
 	for i, val := range testVals {
