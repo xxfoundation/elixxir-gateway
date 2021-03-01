@@ -52,7 +52,7 @@ const (
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
-const knownRoundsSize = 1000
+const knownRoundsSize = 1024
 
 type Instance struct {
 	// Storage buffer for messages to be submitted to the network
