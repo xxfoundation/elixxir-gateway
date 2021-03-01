@@ -39,6 +39,7 @@ type database interface {
 	deleteMixedMessages(ts time.Time) error
 
 	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
+	GetLowestBloomRound() (uint64, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error
 	DeleteClientFiltersBeforeEpoch(epoch uint32) error
 }
@@ -120,7 +121,7 @@ type ClientRound struct {
 type ClientBloomFilter struct {
 	Epoch       uint32 `gorm:"primaryKey"`
 	RecipientId int64  `gorm:"primaryKey"`
-	FirstRound  uint64 `gorm:"not null"`
+	FirstRound  uint64 `gorm:"index;not null"`
 	RoundRange  uint32 `gorm:"not null"`
 	Filter      []byte `gorm:"not null"`
 }
