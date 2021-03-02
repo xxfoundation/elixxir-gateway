@@ -79,8 +79,8 @@ type Instance struct {
 	removeGateway chan *id.ID
 
 	lastUpdate  uint64
-	period      int64 // Defines length of validity for ClientBloomFilter
-	lowestRound *uint64
+	period      int64   // Defines length of validity for ClientBloomFilter
+	lowestRound *uint64 // Cache lowest known BloomFilter round for client retrieval
 
 	bloomFilterGossip sync.Mutex
 }
@@ -519,10 +519,12 @@ func (gw *Instance) InitNetwork() error {
 				err := gw.clearOldStorage(now.Add(-retentionPeriod))
 				if err != nil {
 					jww.WARN.Printf("Issue clearing old storage: %v", err)
+					continue
 				}
 				earliestRound, err = gw.storage.GetLowestBloomRound()
 				if err != nil {
 					jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
+					continue
 				}
 				atomic.StoreUint64(gw.lowestRound, earliestRound)
 			}
