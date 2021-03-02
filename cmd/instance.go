@@ -508,7 +508,8 @@ func (gw *Instance) InitNetwork() error {
 // and managing variables that need updated after cleanup
 func (gw *Instance) beginStorageCleanup() {
 	// Set gw.lowestRound information
-	atomic.StoreUint64(gw.lowestRound, 0)
+	zeroRound := uint64(0)
+	gw.lowestRound = &zeroRound
 	var earliestRound uint64
 	var err error
 	for earliestRound == 0 {
