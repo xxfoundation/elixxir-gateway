@@ -508,7 +508,7 @@ func (gw *Instance) InitNetwork() error {
 			}
 			time.Sleep(1 * time.Second)
 		}
-		atomic.SwapUint64(gw.lowestRound, earliestRound)
+		atomic.StoreUint64(gw.lowestRound, earliestRound)
 
 		ticker := time.NewTicker(gw.Params.cleanupInterval)
 		retentionPeriod := gw.Params.retentionPeriod
@@ -524,7 +524,7 @@ func (gw *Instance) InitNetwork() error {
 				if err != nil {
 					jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
 				}
-				atomic.SwapUint64(gw.lowestRound, earliestRound)
+				atomic.StoreUint64(gw.lowestRound, earliestRound)
 			}
 		}
 	}()
