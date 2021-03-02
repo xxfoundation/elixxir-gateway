@@ -308,6 +308,8 @@ func (m *MapImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, en
 // Or an error if no ClientBloomFilter exist
 func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 	m.bloomFilters.Lock()
+	defer m.bloomFilters.Unlock()
+
 	if len(m.bloomFilters.RecipientId) == 0 {
 		return 0, errors.Errorf("Could not find any ClientBloomFilters")
 	}
@@ -321,7 +323,6 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 			}
 		}
 	}
-	m.bloomFilters.Unlock()
 
 	jww.TRACE.Printf("Obtained lowest ClientBloomFilter FirstRound from Map: %d", earliestFirstRound)
 	return earliestFirstRound, nil
