@@ -20,6 +20,7 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
+	"sync/atomic"
 	"time"
 )
 
@@ -93,19 +94,12 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		netDef = gw.NetInf.GetPartialNdf().GetPb()
 	}
 
-	// Obtain earliest BloomFilter round
-	earliestRound, err := gw.storage.GetLowestBloomRound()
-	if err != nil {
-		// This error should never really happen, will return zero-value to client
-		jww.ERROR.Printf("Unable to GetLowestBloomRound: %+v", err)
-	}
-
 	return &pb.GatewayPollResponse{
 		PartialNDF:    netDef,
 		Updates:       updates,
 		KnownRounds:   kr,
 		Filters:       filtersMsg,
-		EarliestRound: earliestRound,
+		EarliestRound: atomic.LoadUint64(gw.lowestRound),
 	}, nil
 }
 

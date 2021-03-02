@@ -32,6 +32,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -77,8 +78,9 @@ type Instance struct {
 	addGateway    chan network.NodeGateway
 	removeGateway chan *id.ID
 
-	lastUpdate uint64
-	period     int64 // Defines length of validity for ClientBloomFilter
+	lastUpdate  uint64
+	period      int64 // Defines length of validity for ClientBloomFilter
+	lowestRound *uint64
 
 	bloomFilterGossip sync.Mutex
 }
@@ -496,6 +498,18 @@ func (gw *Instance) InitNetwork() error {
 
 	// Start storage cleanup thread
 	go func() {
+		// Obtain lowest round information
+		var earliestRound uint64
+		var err error
+		for earliestRound == 0 {
+			earliestRound, err = gw.storage.GetLowestBloomRound()
+			if err != nil {
+				jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
+			}
+			time.Sleep(1 * time.Second)
+		}
+		atomic.SwapUint64(gw.lowestRound, earliestRound)
+
 		ticker := time.NewTicker(gw.Params.cleanupInterval)
 		retentionPeriod := gw.Params.retentionPeriod
 		for true {
@@ -506,6 +520,11 @@ func (gw *Instance) InitNetwork() error {
 				if err != nil {
 					jww.WARN.Printf("Issue clearing old storage: %v", err)
 				}
+				earliestRound, err = gw.storage.GetLowestBloomRound()
+				if err != nil {
+					jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
+				}
+				atomic.SwapUint64(gw.lowestRound, earliestRound)
 			}
 		}
 	}()
