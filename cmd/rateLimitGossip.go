@@ -15,10 +15,13 @@ import (
 	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
+	"gitlab.com/elixxir/comms/network/dataStructures"
+	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/rateLimiting"
+	"time"
 )
 
 // Initialize fields required for the gossip protocol specialized to rate limiting
@@ -44,11 +47,23 @@ func verifyRateLimit(msg *gossip.GossipMsg, origin *id.ID, instance *network.Ins
 	}
 
 	// Check if we recognize the round
-	ri, err := instance.GetRound(id.Round(payloadMsg.RoundID))
+	r := id.Round(payloadMsg.RoundID)
+	ri, err := instance.GetRound(r)
 	if err != nil {
-		return errors.Errorf("Did not recognize round sent out by gossip message: %s", err)
-	}
+		eventChan := make(chan dataStructures.EventReturn, 1)
+		instance.GetRoundEvents().AddRoundEventChan(r,
+			eventChan, 60*time.Second, states.COMPLETED, states.FAILED)
 
+		// Check if we recognize the round
+		event := <-eventChan
+		if event.TimedOut {
+			return errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
+		} else if states.Round(event.RoundInfo.State) == states.FAILED {
+			return errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
+		}
+
+		ri = event.RoundInfo
+	}
 	// Parse the round topology
 	idList, err := id.NewIDListFromBytes(ri.Topology)
 	if err != nil {

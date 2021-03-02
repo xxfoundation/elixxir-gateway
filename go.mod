@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/golang/protobuf v1.4.3
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
-	github.com/jinzhu/gorm v1.9.16
+	github.com/jinzhu/gorm v1.9.16 // indirect
 	github.com/lib/pq v1.9.0 // indirect
 	github.com/magiconair/properties v1.8.4 // indirect
 	github.com/mitchellh/mapstructure v1.4.0 // indirect
