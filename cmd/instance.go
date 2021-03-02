@@ -499,6 +499,7 @@ func (gw *Instance) InitNetwork() error {
 	// Start storage cleanup thread
 	go func() {
 		// Obtain lowest round information
+		atomic.StoreUint64(gw.lowestRound, 0)
 		var earliestRound uint64
 		var err error
 		for earliestRound == 0 {
