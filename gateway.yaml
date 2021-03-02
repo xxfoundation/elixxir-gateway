@@ -24,7 +24,7 @@ overridePublicIP: ""
 
 # The IP address of the Node that the Gateway communicates with. Expects an IPv4
 # address with a port. (Required)
-nodeAddress: "0.0.0.128:11420"
+nodeAddress: "0.0.0.0:11420"
 
 # Path to where the identity file (IDF) is saved. The IDF stores the Gateway's
 # Node's network identity. This is used by the wrapper management script.
@@ -39,7 +39,7 @@ keyPath: "/opt/xxnetwork/creds/gateway_key.key"
 # (Required)
 certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
 
-# Path to the self-signed TLS certificate for Server. Expects PEM format.
+# Path to the self-signed TLS certificate for Node. Expects PEM format.
 # (Required)
 serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 
@@ -47,8 +47,8 @@ serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 # PEM format. (Required)
 permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
-# Database connection information.
+# Database connection information. (Required)
+dbName: "cmix_gateway"
+dbAddress: "0.0.0.0:5432"
 dbUsername: "cmix"
 dbPassword: ""
-dbName: "cmix_gateway"
-dbAddress: ""

@@ -18,8 +18,8 @@ import (
 )
 
 // Hidden function for one-time unit testing database implementation
+// DROP TABLE states, rounds, mixed_messages, clients, client_rounds, client_bloom_filters;
 //func TestDatabaseImpl(t *testing.T) {
-//
 //	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
 //	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
 //
@@ -37,7 +37,7 @@ import (
 //	testRound3 := uint64(12)
 //
 //	testClient := id.NewIdFromBytes(testClientId, t)
-//	testEphem, err := ephemeral.GetId(testClient, 64, uint64(time.Now().UnixNano()))
+//	testEphem, _, _, err := ephemeral.GetId(testClient, 64, time.Now().UnixNano())
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -126,7 +126,7 @@ import (
 //		RecipientId:    testEphem.Int64(),
 //		Filter:      testBytes2,
 //		Epoch: 1,
-//		FirstRound: 1,
+//		FirstRound: 3,
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())
@@ -152,6 +152,22 @@ import (
 //		t.Errorf(err.Error())
 //		return
 //	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes2,
+//		Epoch: 5,
+//		FirstRound: 2,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	firstRound, err := db.GetLowestBloomRound()
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%d", firstRound)
 //	err = db.InsertMixedMessages(&ClientRound{
 //		Id:        testRound,
 //		Timestamp: time.Now(),
@@ -734,6 +750,7 @@ func TestMapImpl_GetClientBloomFilters(t *testing.T) {
 		{filters[0:1], 25, 50},
 		{filters[7:], 400, 600},
 		{filters, 25, 600},
+		{filters, 25, 501},
 	}
 
 	for i, val := range testVals {
@@ -806,6 +823,68 @@ func TestMapImpl_GetClientBloomFilters_NoFiltersError(t *testing.T) {
 	}
 	if bloomFilters != nil {
 		t.Errorf("Expected nil bloom filters returned. Received: %v", bloomFilters)
+	}
+}
+
+// Happy path
+func TestMapImpl_GetLowestBloomRound(t *testing.T) {
+	// Build list of bloom filters to add
+	ephemeralID, _, _, err := ephemeral.GetId(id.NewIdFromString("test", id.User, t), 16, time.Now().Unix())
+	if err != nil {
+		t.Fatalf("Failed to get ephermeral ID: %+v", err)
+	}
+	rid := ephemeralID.Int64()
+	expected := uint64(10)
+	filters := []*ClientBloomFilter{
+		{RecipientId: rid, Epoch: 100, FirstRound: 100},
+		{RecipientId: rid, Epoch: 150, FirstRound: 150},
+		{RecipientId: rid, Epoch: 160, FirstRound: 160},
+		{RecipientId: rid, Epoch: 199, FirstRound: 199},
+		{RecipientId: rid, Epoch: 200, FirstRound: 200},
+		{RecipientId: rid, Epoch: 201, FirstRound: 201},
+		{RecipientId: rid, Epoch: 70, FirstRound: expected},
+		{RecipientId: rid, Epoch: 50, FirstRound: 50},
+	}
+
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	for i, bf := range filters {
+		if err := m.upsertClientBloomFilter(bf); err != nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	// get result
+	result, err := m.GetLowestBloomRound()
+	if err != nil {
+		t.Errorf("Unable to GetLowestBloomRound: %+v", err)
+		return
+	}
+
+	if result != expected {
+		t.Errorf("Unexpected GetLowestBloomRound result: Got %d, expected %d", result, expected)
+	}
+}
+
+// Error path
+func TestMapImpl_GetLowestBloomRound_Error(t *testing.T) {
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+
+	// get result
+	_, err := m.GetLowestBloomRound()
+	if err == nil {
+		t.Errorf("Expected error getting lowest bloom round!")
+		return
 	}
 }
 
