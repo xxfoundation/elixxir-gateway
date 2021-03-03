@@ -11,6 +11,9 @@ package cmd
 
 import (
 	"fmt"
+	"sync/atomic"
+	"time"
+
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
@@ -20,8 +23,6 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
-	"sync/atomic"
-	"time"
 )
 
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
@@ -84,6 +85,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 				Filter:     f.Filter,
 				FirstRound: f.FirstRound,
 				RoundRange: f.RoundRange,
+				Size: bloomFilterSize,
+				NumOfHashes: bloomFilterHashes,
 			}
 		}
 	}
