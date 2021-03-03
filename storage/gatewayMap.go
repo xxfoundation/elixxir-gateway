@@ -310,10 +310,6 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 	m.bloomFilters.Lock()
 	defer m.bloomFilters.Unlock()
 
-	if len(m.bloomFilters.RecipientId) == 0 {
-		return 0, errors.Errorf("Could not find any ClientBloomFilters")
-	}
-
 	// TODO: Really really dumb, probably revise
 	earliestFirstRound := uint64(math.MaxUint64)
 	for _, v := range m.bloomFilters.RecipientId {
@@ -322,6 +318,10 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 				earliestFirstRound = filter.FirstRound
 			}
 		}
+	}
+
+	if earliestFirstRound == uint64(math.MaxUint64) {
+		return 0, errors.Errorf("Could not find any ClientBloomFilters")
 	}
 
 	jww.TRACE.Printf("Obtained lowest ClientBloomFilter FirstRound from Map: %d", earliestFirstRound)
