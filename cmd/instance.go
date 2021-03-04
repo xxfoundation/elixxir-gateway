@@ -258,13 +258,13 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		}
 	}
 
-	// Send a new batch to the server when it asks for one
+	// Send a new batch to the server when it asks for one, run this in its own thread
 	if newInfo.BatchRequest != nil {
-		gw.SendBatch(newInfo.BatchRequest)
+		go gw.SendBatch(newInfo.BatchRequest)
 	}
-	// Process a batch that has been completed by this server
+	// Process a batch that has been completed by this server, run in its own thread
 	if newInfo.Batch != nil {
-		gw.ProcessCompletedBatch(newInfo.Batch.Slots, id.Round(newInfo.Batch.RoundID))
+		go gw.ProcessCompletedBatch(newInfo.Batch.Slots, id.Round(newInfo.Batch.RoundID))
 	}
 
 	return nil
