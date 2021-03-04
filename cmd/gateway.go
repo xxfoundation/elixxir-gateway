@@ -90,8 +90,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			PayloadA: payloadA,
 			PayloadB: payloadB,
 		}
-		jww.DEBUG.Printf("Message Retrieved: %d, %s, %s",
-			userId.Int64(), payloadA, payloadB)
+		jww.DEBUG.Printf("Message Retrieved for: %d", userId.Int64())
 
 		slots = append(slots, data)
 	}
