@@ -129,7 +129,8 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 	senderIdCopy := origin.DeepCopy()
 	senderIdCopy.SetType(id.Node)
 	if topology.GetNodeLocation(senderIdCopy) < 0 {
-		return errors.New("Origin gateway is not in round it's gossiping about")
+		return errors.Errorf("Origin gateway (%s) is not in round "+
+			"it's gossiping about (rid: %s)", senderIdCopy, ri.ID)
 	}
 	jww.DEBUG.Printf("Verified gossip message from %+v", origin)
 
