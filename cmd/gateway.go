@@ -453,13 +453,13 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	// in a new thread
 	if !gw.Params.DisableGossip {
 		// Update filters in our storage system
-		err = gw.UpsertFilters(recipients, gw.NetInf.GetLastRoundID())
+		err = gw.UpsertFilters(recipients, roundID)
 		if err != nil {
 			jww.ERROR.Printf("Unable to update local bloom filters: %+v", err)
 		}
 
 		go func() {
-			err = gw.GossipBloom(recipients, gw.NetInf.GetLastRoundID())
+			err = gw.GossipBloom(recipients, roundID)
 			if err != nil {
 				jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
 			}
