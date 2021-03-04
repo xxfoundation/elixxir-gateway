@@ -498,43 +498,53 @@ func (gw *Instance) InitNetwork() error {
 
 	// Start storage cleanup thread
 	go func() {
-		// Obtain lowest round information
-		var earliestRound uint64
-		var err error
-		for earliestRound == 0 {
-			earliestRound, err = gw.storage.GetLowestBloomRound()
-			if err != nil {
-				jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
-			}
-			time.Sleep(1 * time.Second)
-		}
-		atomic.StoreUint64(gw.lowestRound, earliestRound)
-
-		ticker := time.NewTicker(gw.Params.cleanupInterval)
-		retentionPeriod := gw.Params.retentionPeriod
-		for true {
-			select {
-			case <-ticker.C:
-				now := time.Now()
-				err := gw.clearOldStorage(now.Add(-retentionPeriod))
-				if err != nil {
-					jww.WARN.Printf("Issue clearing old storage: %v", err)
-					continue
-				}
-				earliestRound, err = gw.storage.GetLowestBloomRound()
-				if err != nil {
-					jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
-					continue
-				}
-				atomic.StoreUint64(gw.lowestRound, earliestRound)
-			}
-		}
+		gw.beginStorageCleanup()
 	}()
 
 	return nil
 }
 
-// Periodically clears out old messages, rounds and bloom filters
+// Async function for cleaning up gateway storage
+// and managing variables that need updated after cleanup
+func (gw *Instance) beginStorageCleanup() {
+	// Set gw.lowestRound information
+	zeroRound := uint64(0)
+	gw.lowestRound = &zeroRound
+	var earliestRound uint64
+	var err error
+	for earliestRound == 0 {
+		earliestRound, err = gw.storage.GetLowestBloomRound()
+		if err != nil {
+			jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
+		}
+		time.Sleep(1 * time.Second)
+	}
+	atomic.StoreUint64(gw.lowestRound, earliestRound)
+
+	// Begin ticker for storage cleanup
+	ticker := time.NewTicker(gw.Params.cleanupInterval)
+	retentionPeriod := gw.Params.retentionPeriod
+	for true {
+		select {
+		case <-ticker.C:
+			// Run storage cleanup when timer expires
+			err := gw.clearOldStorage(time.Now().Add(-retentionPeriod))
+			if err != nil {
+				jww.WARN.Printf("Issue clearing old storage: %v", err)
+				continue
+			}
+			// Update lowestRound information after cleanup
+			earliestRound, err = gw.storage.GetLowestBloomRound()
+			if err != nil {
+				jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
+				continue
+			}
+			atomic.StoreUint64(gw.lowestRound, earliestRound)
+		}
+	}
+}
+
+// Clears out old messages, rounds and bloom filters
 func (gw *Instance) clearOldStorage(threshold time.Time) error {
 	// Clear out old rounds and messages
 	err := gw.storage.ClearOldStorage(threshold)
