@@ -19,7 +19,6 @@ import (
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
-	"gitlab.com/xx_network/primitives/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -155,9 +154,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
-		"Path to load the Gateway configuration file from. If not set, this "+
-			"file must be named gateway.yaml and must be located in "+
-			"~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.")
+		"Path to load the Gateway configuration file from. (Required)")
 
 	rootCmd.Flags().IntP("port", "p", -1, "Port for Gateway to listen on."+
 		"Gateway must be the only listener on this port. (Required)")
@@ -176,7 +173,7 @@ func init() {
 	err = viper.BindPFlag("logLevel", rootCmd.Flags().Lookup("logLevel"))
 	handleBindingError(err, "logLevel")
 
-	rootCmd.Flags().StringVar(&logPath, "log", "./gateway-logs/gateway.log",
+	rootCmd.Flags().StringVar(&logPath, "log", "./gateway.log",
 		"Path where log file will be saved.")
 	err = viper.BindPFlag("log", rootCmd.Flags().Lookup("log"))
 	handleBindingError(err, "log")
@@ -281,12 +278,7 @@ func handleBindingError(err error, flag string) {
 func initConfig() {
 	validConfig = true
 	if cfgFile == "" {
-		var err error
-		cfgFile, err = utils.SearchDefaultLocations("gateway.yaml", "xxnetwork")
-		if err != nil {
-			validConfig = false
-			jww.FATAL.Panicf("Failed to find config file: %+v", err)
-		}
+		jww.FATAL.Panicf("No config file provided.")
 	}
 	viper.SetConfigFile(cfgFile)
 	viper.AutomaticEnv() // read in environment variables that match
