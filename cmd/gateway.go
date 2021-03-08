@@ -250,7 +250,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.R
 }
 
 // GenJunkMsg generates a junk message using the gateway's client key
-func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
+func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round) *pb.Slot {
 
 	baseKey := grp.NewIntFromBytes(id.DummyUser[:])
 
@@ -283,14 +283,14 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	msg.SetEphemeralRID(ephId[:])
 	msg.SetIdentityFP(dummyIdFp)
 
-	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
+	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys, roundID)
 
 	h, err := hash.NewCMixHash()
 	if err != nil {
 		jww.FATAL.Printf("Could not get hash: %+v", err)
 	}
 
-	KMACs := cmix.GenerateKMACs(salt, baseKeys, h)
+	KMACs := cmix.GenerateKMACs(salt, baseKeys, roundID, h)
 	return &pb.Slot{
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
@@ -310,7 +310,9 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		return
 	}
 
-	batch := gw.UnmixedBuffer.PopRound(id.Round(roundInfo.ID))
+	rid := id.Round(roundInfo.ID)
+
+	batch := gw.UnmixedBuffer.PopRound(rid)
 
 	if batch == nil {
 		jww.FATAL.Panicf("Batch for %v not found!", roundInfo.ID)
@@ -329,7 +331,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
 		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
-			uint32(i))
+			uint32(i), rid)
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
