@@ -38,7 +38,7 @@ Note: YAML prohibits the use of tabs because whitespace has meaning.
 # Level of debugging to print (0 = info, 1 = debug, >1 = trace). (Default info)
 logLevel: 1
 
-# Path where log file will be saved. (Default "./gateway-logs/gateway.log")
+# Path where log file will be saved. (Required)
 log: "/opt/xxnetwork/gateway-logs/gateway.log"
 
 # Port for Gateway to listen on. Gateway must be the only listener on this port.
@@ -149,7 +149,7 @@ Flags:
       --bufferExpiration duration         How long a message record should last in the gossip buffer if it arrives before the Gateway starts handling the gossip. (default 5m0s)
       --capacity uint32                   The capacity of rate-limiting buckets in the map. (default 20)
       --certPath string                   Path to the self-signed TLS certificate for Gateway. Expects PEM format. (Required)
-  -c, --config string                     Path to load the Gateway configuration file from. If not set, this file must be named gateway.yaml and must be located in ~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.
+  -c, --config string                     Path to load the Gateway configuration file from. (Required)
       --enableGossip                      Feature flag for in progress gossip functionality
   -h, --help                              help for gateway
       --idfPath string                    Path to where the identity file (IDF) is saved. The IDF stores the Gateway's Node's network identity. This is used by the wrapper management script. (Required)
@@ -157,7 +157,7 @@ Flags:
       --kr int                            Amount of rounds to keep track of in kr (default 1024)
       --leakDuration duration             How often the number of leaked tokens is leaked from the bucket. (default 1ms)
       --leakedTokens uint32               The rate that the rate limiting bucket leaks tokens at [tokens/ns]. (default 3)
-      --log string                        Path where log file will be saved. (default "./gateway-logs/gateway.log")
+      --log string                        Path where log file will be saved. (Required)
   -l, --logLevel uint                     Level of debugging to print (0 = info, 1 = debug, >1 = trace).
       --monitorThreadFrequency duration   Frequency with which to check the gossip buffer. (default 2m30s)
       --nodeAddress string                The IP address of the Node that the Gateway communicates with. Expects an IPv4 address with a port. (Required)

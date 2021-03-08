@@ -5,7 +5,7 @@
 # Level of debugging to print (0 = info, 1 = debug, >1 = trace). (Default info)
 logLevel: 1
 
-# Path where log file will be saved. (Default "./gateway-logs/gateway.log")
+# Path where log file will be saved. (Required)
 log: "/opt/xxnetwork/gateway-logs/gateway.log"
 
 # Port for Gateway to listen on. Gateway must be the only listener on this port.

@@ -155,9 +155,8 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	rootCmd.Flags().StringVarP(&cfgFile, "config", "c", "",
-		"Path to load the Gateway configuration file from. If not set, this "+
-			"file must be named gateway.yaml and must be located in "+
-			"~/.xxnetwork/, /opt/xxnetwork, or /etc/xxnetwork.")
+		"Path to load the Gateway configuration file from. (Required)")
+	handleRequiredError(rootCmd.MarkFlagRequired("config"), "config")
 
 	rootCmd.Flags().IntP("port", "p", -1, "Port for Gateway to listen on."+
 		"Gateway must be the only listener on this port. (Required)")
@@ -176,8 +175,8 @@ func init() {
 	err = viper.BindPFlag("logLevel", rootCmd.Flags().Lookup("logLevel"))
 	handleBindingError(err, "logLevel")
 
-	rootCmd.Flags().StringVar(&logPath, "log", "./gateway-logs/gateway.log",
-		"Path where log file will be saved.")
+	rootCmd.Flags().StringVar(&logPath, "log", "",
+		"Path where log file will be saved. (Required)")
 	err = viper.BindPFlag("log", rootCmd.Flags().Lookup("log"))
 	handleBindingError(err, "log")
 
@@ -277,6 +276,14 @@ func handleBindingError(err error, flag string) {
 	}
 }
 
+// handleRequiredError handles the error produced when setting a flag to
+// required.
+func handleRequiredError(err error, flag string) {
+	if err != nil {
+		jww.FATAL.Panicf("Failed setting flag \"%s\" as required: %+v", flag, err)
+	}
+}
+
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	validConfig = true
@@ -331,10 +338,11 @@ func initLog() {
 	}
 
 	logPath = viper.GetString("log")
+	if logPath == "" {
+		jww.FATAL.Panic("Path for log file not provided.")
+	}
 
-	logFile, err := os.OpenFile(logPath,
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND,
-		0644)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		fmt.Printf("Could not open log file %s!\n", logPath)
 	} else {
