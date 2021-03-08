@@ -183,6 +183,18 @@ func (d *DatabaseImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoc
 	return results, err
 }
 
+// Returns the lowest FirstRound value from ClientBloomFilter
+// Or an error if no ClientBloomFilter exist
+func (d *DatabaseImpl) GetLowestBloomRound() (uint64, error) {
+	result := &ClientBloomFilter{}
+	err := d.db.Order("first_round asc").Take(result).Error
+	if err != nil {
+		return 0, err
+	}
+	jww.TRACE.Printf("Obtained lowest ClientBloomFilter FirstRound from DB: %d", result.FirstRound)
+	return result.FirstRound, nil
+}
+
 // Inserts the given ClientBloomFilter into database if it does not exist
 // Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
 func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
