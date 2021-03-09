@@ -22,7 +22,6 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -149,7 +148,6 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	}
 
 	var errs []string
-	var wg sync.WaitGroup
 
 	roundID := id.Round(payloadMsg.RoundID)
 	jww.INFO.Printf("Gossip received for round %d", roundID)
@@ -162,24 +160,19 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
-		wg.Add(1)
-		go func(localRecipient []byte) {
-			// Marshal the id
-			recipientId, err := ephemeral.Marshal(localRecipient)
-			if err != nil {
-				errs = append(errs, err.Error())
-				return
-			}
 
-			err = gw.UpsertFilter(recipientId, roundID, epoch)
-			if err != nil {
-				errs = append(errs, err.Error())
-			}
-			wg.Done()
-		}(recipient)
+		// Marshal the id
+		recipientId, err := ephemeral.Marshal(recipient)
+		if err != nil {
+			errs = append(errs, err.Error())
+			continue
+		}
 
+		err = gw.UpsertFilter(recipientId, roundID, epoch)
+		if err != nil {
+			errs = append(errs, err.Error())
+		}
 	}
-	wg.Wait()
 
 	//denote the reception in known rounds
 	gw.knownRound.ForceCheck(roundID)
