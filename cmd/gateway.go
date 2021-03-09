@@ -498,7 +498,9 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 
 			// Clear random bytes from recipient ID and add to map
 			recipientId = recipientId.Clear(uint(round.AddressSpaceSize))
-			recipients[recipientId] = nil
+			if recipientId.Int64() != 0 {
+				recipients[recipientId] = nil
+			}
 
 			if jww.GetStdoutThreshold() <= jww.LevelDebug {
 				msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
