@@ -121,7 +121,7 @@ type ClientRound struct {
 // Represents a ClientBloomFilter
 type ClientBloomFilter struct {
 	Epoch       uint32 `gorm:"primaryKey"`
-	RecipientId int64  `gorm:"primaryKey"`
+	RecipientId *int64 `gorm:"primaryKey"` // Pointer to enforce zero-value reading in ORM
 	FirstRound  uint64 `gorm:"index;not null"`
 	RoundRange  uint32 `gorm:"not null"`
 	Filter      []byte `gorm:"not null"`
