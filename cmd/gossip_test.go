@@ -10,21 +10,18 @@ package cmd
 import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
-	"github.com/pkg/errors"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/comms/testkeys"
+	"gitlab.com/elixxir/comms/testutils"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
-	"gitlab.com/xx_network/comms/signature"
 	"gitlab.com/xx_network/crypto/large"
-	"gitlab.com/xx_network/crypto/signature/rsa"
-	"gitlab.com/xx_network/crypto/tls"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
@@ -47,7 +44,7 @@ func TestInstance_GossipReceive_RateLimit(t *testing.T) {
 	}
 
 	// Sign the round info with the mock permissioning private key
-	err = signRoundInfo(ri)
+	err = testutils.SignRoundInfo(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
@@ -134,10 +131,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
 
-	keyPath := testkeys.GetNodeKeyPath()
-	keyData := testkeys.LoadFromPath(keyPath)
-
-	privKey, err := rsa.LoadPrivateKeyFromPem(keyData)
+	privKey, err := testutils.LoadPrivateKeyTesting(t)
 	if err != nil {
 		t.Errorf("Could not load public key: %v", err)
 		t.FailNow()
@@ -160,7 +154,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 	}
 
 	// Sign the round info with the mock permissioning private key
-	err = signRoundInfo(ri)
+	err = testutils.SignRoundInfo(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
@@ -229,7 +223,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 	go func() {
 		time.Sleep(time.Millisecond)
 		ri.State = uint32(states.COMPLETED)
-		signRoundInfo(ri)
+		err = testutils.SignRoundInfo(ri, t)
 		rnd := dataStructures.NewRound(ri, publicKey)
 		gw.NetInf.GetRoundEvents().TriggerRoundEvent(rnd)
 	}()
@@ -375,7 +369,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	fmt.Printf("nodeID: %v\n", nodeID)
 
 	// Sign the round info with the mock permissioning private key
-	err = signRoundInfo(ri)
+	err = testutils.SignRoundInfo(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
@@ -484,7 +478,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 
 	// Sign the round info with the mock permissioning private key
-	err = signRoundInfo(ri)
+	err = testutils.SignRoundInfo(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
@@ -523,10 +517,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		}
 	}
 
-	keyPath := testkeys.GetNodeKeyPath()
-	keyData := testkeys.LoadFromPath(keyPath)
-
-	privKey, err := rsa.LoadPrivateKeyFromPem(keyData)
+	privKey, err := testutils.LoadPrivateKeyTesting(t)
 	if err != nil {
 		t.Errorf("Could not load public key: %v", err)
 		t.FailNow()
@@ -537,7 +528,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	go func() {
 		time.Sleep(250 * time.Millisecond)
 		ri.State = uint32(states.COMPLETED)
-		signRoundInfo(ri)
+		testutils.SignRoundInfo(ri, t)
 		rnd := dataStructures.NewRound(ri, publicKey)
 		gw.NetInf.GetRoundEvents().TriggerRoundEvent(rnd)
 	}()
@@ -566,19 +557,4 @@ func TestInstance_GossipBloom(t *testing.T) {
 		}
 		i++
 	}
-}
-
-// Utility function which signs a round info message
-func signRoundInfo(ri *pb.RoundInfo) error {
-	privKeyFromFile := testkeys.LoadFromPath(testkeys.GetNodeKeyPath())
-
-	pk, err := tls.LoadRSAPrivateKey(string(privKeyFromFile))
-	if err != nil {
-		return errors.Errorf("Couldn't load private key: %+v", err)
-	}
-
-	ourPrivateKey := &rsa.PrivateKey{PrivateKey: *pk}
-
-	signature.Sign(ri, ourPrivateKey)
-	return nil
 }
