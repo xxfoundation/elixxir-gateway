@@ -10,6 +10,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
+	"time"
+
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -23,7 +25,6 @@ import (
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
-	"time"
 )
 
 // Zeroed identity fingerprint identifies dummy messages
@@ -250,7 +251,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.R
 }
 
 // GenJunkMsg generates a junk message using the gateway's client key
-func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
+func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round) *pb.Slot {
 
 	baseKey := grp.NewIntFromBytes(id.DummyUser[:])
 
@@ -283,14 +284,14 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32) *pb.Slot {
 	msg.SetEphemeralRID(ephId[:])
 	msg.SetIdentityFP(dummyIdFp)
 
-	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys)
+	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys, roundID)
 
 	h, err := hash.NewCMixHash()
 	if err != nil {
 		jww.FATAL.Printf("Could not get hash: %+v", err)
 	}
 
-	KMACs := cmix.GenerateKMACs(salt, baseKeys, h)
+	KMACs := cmix.GenerateKMACs(salt, baseKeys, roundID, h)
 	return &pb.Slot{
 		PayloadB: ecrMsg.GetPayloadB(),
 		PayloadA: ecrMsg.GetPayloadA(),
@@ -310,7 +311,9 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		return
 	}
 
-	batch := gw.UnmixedBuffer.PopRound(id.Round(roundInfo.ID))
+	rid := id.Round(roundInfo.ID)
+
+	batch := gw.UnmixedBuffer.PopRound(rid)
 
 	if batch == nil {
 		jww.FATAL.Panicf("Batch for %v not found!", roundInfo.ID)
@@ -318,7 +321,8 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 
 	batch.Round = roundInfo
 
-	jww.INFO.Printf("Sending batch for round %d with %d messages...", roundInfo.ID, len(batch.Slots))
+	jww.INFO.Printf("Sending batch for round %d with %d messages...",
+		roundInfo.ID, len(batch.Slots))
 
 	numNodes := len(roundInfo.GetTopology())
 
@@ -329,7 +333,7 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
 		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
-			uint32(i))
+			uint32(i), rid)
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
@@ -498,7 +502,9 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 
 			// Clear random bytes from recipient ID and add to map
 			recipientId = recipientId.Clear(uint(round.AddressSpaceSize))
-			recipients[recipientId] = nil
+			if recipientId.Int64() != 0 {
+				recipients[recipientId] = nil
+			}
 
 			if jww.GetStdoutThreshold() <= jww.LevelDebug {
 				msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())

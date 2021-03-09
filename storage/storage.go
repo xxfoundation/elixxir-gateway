@@ -43,10 +43,15 @@ func (s *Storage) ClearOldStorage(ts time.Time) error {
 
 // Builds a ClientBloomFilter with the given parameters, then stores it
 func (s *Storage) HandleBloomFilter(recipientId ephemeral.Id, filterBytes []byte, roundId id.Round, epoch uint32) error {
+	// Ignore zero-value recipient ID for now - this is a reserved address
+	recipientIdInt := recipientId.Int64()
+	if recipientIdInt == 0 {
+		return nil
+	}
 
 	// Build a newly-initialized ClientBloomFilter to be stored
 	validFilter := &ClientBloomFilter{
-		RecipientId: recipientId.Int64(),
+		RecipientId: &recipientIdInt,
 		Epoch:       epoch,
 		// FirstRound is input as CurrentRound for later calculation
 		FirstRound: uint64(roundId),

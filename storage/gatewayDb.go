@@ -10,6 +10,7 @@ package storage
 
 import (
 	"bytes"
+	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
@@ -176,7 +177,8 @@ func (d *DatabaseImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoc
 	jww.DEBUG.Printf("Getting filters for client [%v]", recipientId)
 
 	var results []*ClientBloomFilter
-	err := d.db.Find(&results, &ClientBloomFilter{RecipientId: recipientId.Int64()}).
+	recipientIdInt := recipientId.Int64()
+	err := d.db.Find(&results, &ClientBloomFilter{RecipientId: &recipientIdInt}).
 		Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Error
 	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
 
@@ -198,7 +200,7 @@ func (d *DatabaseImpl) GetLowestBloomRound() (uint64, error) {
 // Inserts the given ClientBloomFilter into database if it does not exist
 // Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
 func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
-	jww.DEBUG.Printf("Upserting filter for client %v at epoch %d", filter.RecipientId, filter.Epoch)
+	jww.DEBUG.Printf("Upserting filter for client %d at epoch %d", *filter.RecipientId, filter.Epoch)
 
 	// Build a transaction to prevent race conditions
 	return d.db.Transaction(func(tx *gorm.DB) error {
@@ -214,14 +216,18 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 			RecipientId: filter.RecipientId,
 		}).FirstOrCreate(oldFilter).Error
 		if err != nil {
-			return err
+			return errors.Errorf("Failed to get/create filter for client %d at epoch %d: %+v", *filter.RecipientId, filter.Epoch, err)
 		}
 
 		// Combine oldFilter with filter
 		filter.combine(oldFilter)
 
 		// Commit to the database
-		return tx.Save(filter).Error
+		err = tx.Save(filter).Error
+		if err != nil {
+			return errors.Errorf("Failed to save filter for client %d at epoch %d: %+v", *filter.RecipientId, filter.Epoch, err)
+		}
+		return nil
 	})
 }
 
