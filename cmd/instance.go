@@ -167,7 +167,8 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF, ers *st
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers)
+	// fixme: make validation type config or CLI?
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers, network.Lazy)
 }
 
 // Start sets up the threads and network server to run the gateway

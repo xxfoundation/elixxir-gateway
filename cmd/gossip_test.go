@@ -14,6 +14,7 @@ import (
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
+	"gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/comms/testkeys"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/gateway/storage"
@@ -132,6 +133,18 @@ func TestInstance_GossipVerify(t *testing.T) {
 	_, err = gw.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
+
+	keyPath := testkeys.GetNodeKeyPath()
+	keyData := testkeys.LoadFromPath(keyPath)
+
+	privKey, err := rsa.LoadPrivateKeyFromPem(keyData)
+	if err != nil {
+		t.Errorf("Could not load public key: %v", err)
+		t.FailNow()
+	}
+	publicKey := privKey.GetPublic()
+
+
 	originId := id.NewIdFromString("test", id.Gateway, t)
 
 	// Build a mock node ID for a topology
@@ -216,7 +229,9 @@ func TestInstance_GossipVerify(t *testing.T) {
 	go func() {
 		time.Sleep(time.Millisecond)
 		ri.State = uint32(states.COMPLETED)
-		gw.NetInf.GetRoundEvents().TriggerRoundEvent(ri)
+		signRoundInfo(ri)
+		rnd := dataStructures.NewRound(ri, publicKey)
+		gw.NetInf.GetRoundEvents().TriggerRoundEvent(rnd)
 	}()
 
 	// Test the gossipVerify function
@@ -508,11 +523,23 @@ func TestInstance_GossipBloom(t *testing.T) {
 		}
 	}
 
+	keyPath := testkeys.GetNodeKeyPath()
+	keyData := testkeys.LoadFromPath(keyPath)
+
+	privKey, err := rsa.LoadPrivateKeyFromPem(keyData)
+	if err != nil {
+		t.Errorf("Could not load public key: %v", err)
+		t.FailNow()
+	}
+	publicKey := privKey.GetPublic()
+
 	// Send the gossip
 	go func() {
 		time.Sleep(250 * time.Millisecond)
 		ri.State = uint32(states.COMPLETED)
-		gw.NetInf.GetRoundEvents().TriggerRoundEvent(ri)
+		signRoundInfo(ri)
+		rnd := dataStructures.NewRound(ri, publicKey)
+		gw.NetInf.GetRoundEvents().TriggerRoundEvent(rnd)
 	}()
 	err = gw.GossipBloom(ephIds, id.Round(rndId))
 	if err != nil {
