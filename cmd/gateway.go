@@ -10,6 +10,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
+	"time"
+
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -23,7 +25,6 @@ import (
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
-	"time"
 )
 
 // Zeroed identity fingerprint identifies dummy messages
