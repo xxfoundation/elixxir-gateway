@@ -310,10 +310,6 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 	m.bloomFilters.Lock()
 	defer m.bloomFilters.Unlock()
 
-	if len(m.bloomFilters.RecipientId) == 0 {
-		return 0, errors.Errorf("Could not find any ClientBloomFilters")
-	}
-
 	// TODO: Really really dumb, probably revise
 	earliestFirstRound := uint64(math.MaxUint64)
 	for _, v := range m.bloomFilters.RecipientId {
@@ -322,6 +318,10 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 				earliestFirstRound = filter.FirstRound
 			}
 		}
+	}
+
+	if earliestFirstRound == uint64(math.MaxUint64) {
+		return 0, errors.Errorf("Could not find any ClientBloomFilters")
 	}
 
 	jww.TRACE.Printf("Obtained lowest ClientBloomFilter FirstRound from Map: %d", earliestFirstRound)
@@ -333,16 +333,16 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	m.bloomFilters.Lock()
 	defer m.bloomFilters.Unlock()
-	jww.DEBUG.Printf("Upserting filter for client %v at epoch %d", filter.RecipientId, filter.Epoch)
+	jww.DEBUG.Printf("Upserting filter for client %d at epoch %d", *filter.RecipientId, filter.Epoch)
 
 	// Initialize list if it does not exist
-	list := m.bloomFilters.RecipientId[filter.RecipientId]
+	list := m.bloomFilters.RecipientId[*filter.RecipientId]
 	if list == nil {
-		m.bloomFilters.RecipientId[filter.RecipientId] = &ClientBloomFilterList{
+		m.bloomFilters.RecipientId[*filter.RecipientId] = &ClientBloomFilterList{
 			list:  make([]*ClientBloomFilter, initialClientBloomFilterListSize),
 			start: filter.Epoch,
 		}
-		list = m.bloomFilters.RecipientId[filter.RecipientId]
+		list = m.bloomFilters.RecipientId[*filter.RecipientId]
 	}
 
 	// Expand the list if it is not large enough

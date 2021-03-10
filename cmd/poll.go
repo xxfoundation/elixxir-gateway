@@ -19,6 +19,7 @@ import (
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
+	"gitlab.com/elixxir/primitives/version"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
@@ -34,8 +35,27 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() clientRequest is empty")
 	}
 
+	// Make sure Gateway network instance is not nil
 	if gw.NetInf == nil {
 		return &pb.GatewayPollResponse{}, errors.New(ndf.NO_NDF)
+	}
+
+	// Get version sent from client
+	clientVersion, err := version.ParseVersion(string(clientRequest.ClientVersion))
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.Errorf(
+			"Unable to ParseVersion for clientRequest: %+v", err)
+	}
+	// Get version from NDF
+	expectedClientVersion, err := version.ParseVersion(gw.NetInf.GetFullNdf().Get().ClientVersion)
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.Errorf(
+			"Unable to ParseVersion for gateway's NDF: %+v", err)
+	}
+	// Check that the two versions are compatible
+	if version.IsCompatible(expectedClientVersion, clientVersion) == false {
+		return &pb.GatewayPollResponse{}, errors.Errorf(
+			"client version \"%s\" was not compatible with NDF defined minimum version", clientRequest.ClientVersion)
 	}
 
 	// Check if the clientID is populated and valid

@@ -129,7 +129,8 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 	senderIdCopy := origin.DeepCopy()
 	senderIdCopy.SetType(id.Node)
 	if topology.GetNodeLocation(senderIdCopy) < 0 {
-		return errors.New("Origin gateway is not in round it's gossiping about")
+		return errors.Errorf("Origin gateway (%s) is not in round "+
+			"it's gossiping about (rid: %d)", senderIdCopy, ri.ID)
 	}
 	jww.DEBUG.Printf("Verified gossip message from %+v", origin)
 
@@ -139,6 +140,7 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 // Receive function for Gossip messages regarding bloom filters
 func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	gw.bloomFilterGossip.Lock()
+	defer gw.bloomFilterGossip.Unlock()
 
 	// Unmarshal the Recipients data
 	payloadMsg := &pb.Recipients{}
@@ -192,7 +194,6 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 		errReturn = errors.New(strings.Join(errs, errorDelimiter))
 	}
 
-	gw.bloomFilterGossip.Unlock()
 	return errReturn
 }
 
