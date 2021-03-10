@@ -718,14 +718,14 @@ func TestMapImpl_GetClientBloomFilters(t *testing.T) {
 	}
 	rid := ephemeralID.Int64()
 	filters := []*ClientBloomFilter{
-		{RecipientId: rid, Epoch: 50},
-		{RecipientId: rid, Epoch: 100},
-		{RecipientId: rid, Epoch: 150},
-		{RecipientId: rid, Epoch: 160},
-		{RecipientId: rid, Epoch: 199},
-		{RecipientId: rid, Epoch: 200},
-		{RecipientId: rid, Epoch: 201},
-		{RecipientId: rid, Epoch: 401},
+		{RecipientId: &rid, Epoch: 50},
+		{RecipientId: &rid, Epoch: 100},
+		{RecipientId: &rid, Epoch: 150},
+		{RecipientId: &rid, Epoch: 160},
+		{RecipientId: &rid, Epoch: 199},
+		{RecipientId: &rid, Epoch: 200},
+		{RecipientId: &rid, Epoch: 201},
+		{RecipientId: &rid, Epoch: 401},
 	}
 
 	// Initialize MapImpl with ClientBloomFilterList
@@ -774,14 +774,14 @@ func TestMapImpl_GetClientBloomFilters_NoFiltersError(t *testing.T) {
 	}
 	rid := ephemeralID.Int64()
 	filters := []*ClientBloomFilter{
-		{RecipientId: rid, Epoch: 100},
-		{RecipientId: rid, Epoch: 150},
-		{RecipientId: rid, Epoch: 160},
-		{RecipientId: rid, Epoch: 199},
-		{RecipientId: rid, Epoch: 200},
-		{RecipientId: rid, Epoch: 201},
-		{RecipientId: rid, Epoch: 401},
-		{RecipientId: rid, Epoch: 50},
+		{RecipientId: &rid, Epoch: 100},
+		{RecipientId: &rid, Epoch: 150},
+		{RecipientId: &rid, Epoch: 160},
+		{RecipientId: &rid, Epoch: 199},
+		{RecipientId: &rid, Epoch: 200},
+		{RecipientId: &rid, Epoch: 201},
+		{RecipientId: &rid, Epoch: 401},
+		{RecipientId: &rid, Epoch: 50},
 	}
 
 	// Initialize MapImpl with ClientBloomFilterList
@@ -836,14 +836,14 @@ func TestMapImpl_GetLowestBloomRound(t *testing.T) {
 	rid := ephemeralID.Int64()
 	expected := uint64(10)
 	filters := []*ClientBloomFilter{
-		{RecipientId: rid, Epoch: 100, FirstRound: 100},
-		{RecipientId: rid, Epoch: 150, FirstRound: 150},
-		{RecipientId: rid, Epoch: 160, FirstRound: 160},
-		{RecipientId: rid, Epoch: 199, FirstRound: 199},
-		{RecipientId: rid, Epoch: 200, FirstRound: 200},
-		{RecipientId: rid, Epoch: 201, FirstRound: 201},
-		{RecipientId: rid, Epoch: 70, FirstRound: expected},
-		{RecipientId: rid, Epoch: 50, FirstRound: 50},
+		{RecipientId: &rid, Epoch: 100, FirstRound: 100},
+		{RecipientId: &rid, Epoch: 150, FirstRound: 150},
+		{RecipientId: &rid, Epoch: 160, FirstRound: 160},
+		{RecipientId: &rid, Epoch: 199, FirstRound: 199},
+		{RecipientId: &rid, Epoch: 200, FirstRound: 200},
+		{RecipientId: &rid, Epoch: 201, FirstRound: 201},
+		{RecipientId: &rid, Epoch: 70, FirstRound: expected},
+		{RecipientId: &rid, Epoch: 50, FirstRound: 50},
 	}
 
 	// Initialize MapImpl with ClientBloomFilterList
@@ -893,15 +893,15 @@ func TestMapImpl_upsertClientBloomFilter(t *testing.T) {
 	// Build list of bloom filters to add
 	rid := rand.Int63()
 	filters := []*ClientBloomFilter{
-		{RecipientId: rid, Epoch: 100},
-		{RecipientId: rid, Epoch: 150},
-		{RecipientId: rid, Epoch: 160},
-		{RecipientId: rid, Epoch: 199},
-		{RecipientId: rid, Epoch: 200},
-		{RecipientId: rid, Epoch: 201},
-		{RecipientId: rid, Epoch: 401},
-		{RecipientId: rid, Epoch: 401},
-		{RecipientId: rid, Epoch: 50},
+		{RecipientId: &rid, Epoch: 100},
+		{RecipientId: &rid, Epoch: 150},
+		{RecipientId: &rid, Epoch: 160},
+		{RecipientId: &rid, Epoch: 199},
+		{RecipientId: &rid, Epoch: 200},
+		{RecipientId: &rid, Epoch: 201},
+		{RecipientId: &rid, Epoch: 401},
+		{RecipientId: &rid, Epoch: 401},
+		{RecipientId: &rid, Epoch: 50},
 	}
 
 	// Build expected bloom filter list
@@ -939,22 +939,22 @@ func TestMapImpl_upsertClientBloomFilter(t *testing.T) {
 func TestMapImpl_DeleteClientFiltersBeforeEpoch(t *testing.T) {
 	rid := []int64{rand.Int63(), rand.Int63(), rand.Int63(), rand.Int63()}
 	filters := []*ClientBloomFilter{
-		{RecipientId: rid[0], Epoch: 50},
-		{RecipientId: rid[0], Epoch: 100},
-		{RecipientId: rid[0], Epoch: 150},
-		{RecipientId: rid[0], Epoch: 160},
-		{RecipientId: rid[0], Epoch: 199},
-		{RecipientId: rid[0], Epoch: 200},
-		{RecipientId: rid[0], Epoch: 201},
-		{RecipientId: rid[0], Epoch: 401},
-		{RecipientId: rid[1], Epoch: 161},
-		{RecipientId: rid[1], Epoch: 200},
-		{RecipientId: rid[1], Epoch: 250},
-		{RecipientId: rid[2], Epoch: 0},
-		{RecipientId: rid[2], Epoch: 110},
-		{RecipientId: rid[2], Epoch: 115},
-		{RecipientId: rid[2], Epoch: 160},
-		{RecipientId: rid[3], Epoch: 1},
+		{RecipientId: &rid[0], Epoch: 50},
+		{RecipientId: &rid[0], Epoch: 100},
+		{RecipientId: &rid[0], Epoch: 150},
+		{RecipientId: &rid[0], Epoch: 160},
+		{RecipientId: &rid[0], Epoch: 199},
+		{RecipientId: &rid[0], Epoch: 200},
+		{RecipientId: &rid[0], Epoch: 201},
+		{RecipientId: &rid[0], Epoch: 401},
+		{RecipientId: &rid[1], Epoch: 161},
+		{RecipientId: &rid[1], Epoch: 200},
+		{RecipientId: &rid[1], Epoch: 250},
+		{RecipientId: &rid[2], Epoch: 0},
+		{RecipientId: &rid[2], Epoch: 110},
+		{RecipientId: &rid[2], Epoch: 115},
+		{RecipientId: &rid[2], Epoch: 160},
+		{RecipientId: &rid[3], Epoch: 1},
 	}
 
 	// Initialize MapImpl with ClientBloomFilterList
@@ -1029,15 +1029,15 @@ func TestMapImpl_DeleteClientFiltersBeforeEpoch(t *testing.T) {
 func TestMapImpl_DeleteClientFiltersBeforeEpoch_NoFiltersError(t *testing.T) {
 	rid := rand.Int63()
 	filters := []*ClientBloomFilter{
-		{RecipientId: rid, Epoch: 50},
-		{RecipientId: rid, Epoch: 100},
-		{RecipientId: rid, Epoch: 150},
-		{RecipientId: rid, Epoch: 160},
-		{RecipientId: rid, Epoch: 199},
-		{RecipientId: rid, Epoch: 200},
-		{RecipientId: rid, Epoch: 201},
-		{RecipientId: rid, Epoch: 250},
-		{RecipientId: rid, Epoch: 401},
+		{RecipientId: &rid, Epoch: 50},
+		{RecipientId: &rid, Epoch: 100},
+		{RecipientId: &rid, Epoch: 150},
+		{RecipientId: &rid, Epoch: 160},
+		{RecipientId: &rid, Epoch: 199},
+		{RecipientId: &rid, Epoch: 200},
+		{RecipientId: &rid, Epoch: 201},
+		{RecipientId: &rid, Epoch: 250},
+		{RecipientId: &rid, Epoch: 401},
 	}
 
 	// Initialize MapImpl with ClientBloomFilterList

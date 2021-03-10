@@ -10,6 +10,7 @@ package storage
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
@@ -120,7 +121,7 @@ type ClientRound struct {
 // Represents a ClientBloomFilter
 type ClientBloomFilter struct {
 	Epoch       uint32 `gorm:"primaryKey"`
-	RecipientId int64  `gorm:"primaryKey"`
+	RecipientId *int64 `gorm:"primaryKey"` // Pointer to enforce zero-value reading in ORM
 	FirstRound  uint64 `gorm:"index;not null"`
 	RoundRange  uint32 `gorm:"not null"`
 	Filter      []byte `gorm:"not null"`
@@ -210,6 +211,18 @@ func newDatabase(username, password, dbName, address,
 
 		return database(mapImpl), nil
 	}
+
+	// Get and configure the internal database ConnPool
+	sqlDb, err := db.DB()
+	if err != nil {
+		return database(&DatabaseImpl{}), errors.Errorf("Unable to configure database connection pool: %+v", err)
+	}
+	// SetMaxIdleConns sets the maximum number of connections in the idle connection pool.
+	sqlDb.SetMaxIdleConns(10)
+	// SetMaxOpenConns sets the maximum number of open connections to the Database.
+	sqlDb.SetMaxOpenConns(100)
+	// SetConnMaxLifetime sets the maximum amount of time a connection may be reused.
+	sqlDb.SetConnMaxLifetime(24 * time.Hour)
 
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
