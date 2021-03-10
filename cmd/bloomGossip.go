@@ -140,6 +140,7 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 // Receive function for Gossip messages regarding bloom filters
 func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	gw.bloomFilterGossip.Lock()
+	defer gw.bloomFilterGossip.Unlock()
 
 	// Unmarshal the Recipients data
 	payloadMsg := &pb.Recipients{}
@@ -193,7 +194,6 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 		errReturn = errors.New(strings.Join(errs, errorDelimiter))
 	}
 
-	gw.bloomFilterGossip.Unlock()
 	return errReturn
 }
 
