@@ -155,7 +155,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 	if !bytes.Equal(clientMac, msg.MAC) {
 		return &pb.GatewaySlotResponse{
 			Accepted: false,
-		}, errors.New("Could not authenticate client. Please try again later")
+		}, errors.New("Could not authenticate client. Is the client registered with this node?")
 	}
 	thisRound := id.Round(msg.RoundID)
 
