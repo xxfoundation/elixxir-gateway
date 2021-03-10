@@ -18,7 +18,6 @@ import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
-	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/states"
@@ -63,9 +62,6 @@ type Instance struct {
 	// Map of leaky buckets for user IDs
 	rateLimitQuit chan struct{}
 	rateLimit     *rateLimiting.BucketMap
-
-	// struct for tracking notifications
-	un notifications.UserNotifications
 
 	// Tracker of the gateway's known rounds
 	knownRound *knownRounds.KnownRounds
@@ -130,9 +126,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message)
-	}
-	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
-		return instance.PollForNotifications(auth)
 	}
 	// Client -> Gateway historical round request
 	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {

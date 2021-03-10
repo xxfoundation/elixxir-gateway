@@ -167,5 +167,5 @@ func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e erro
 			auth.Sender.GetId(), auth.IsAuthenticated, id.NotificationBot)
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
-	return gw.un.Notified(), nil
+	return nil, nil
 }
