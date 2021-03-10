@@ -24,7 +24,7 @@ update_release:
 	GOFLAGS="" go get gitlab.com/xx_network/crypto@release
 	GOFLAGS="" go get gitlab.com/elixxir/crypto@release
 	GOFLAGS="" go get gitlab.com/xx_network/comms@release
-	GOFLAGS="" go get gitlab.com/elixxir/comms@"XX-3116/BloomFilterMessage"
+	GOFLAGS="" go get gitlab.com/elixxir/comms@release
 	GOFLAGS="" go get gitlab.com/elixxir/bloomfilter@release
 
 update_master:
