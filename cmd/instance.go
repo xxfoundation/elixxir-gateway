@@ -471,6 +471,10 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
+		// Enable authentication on gateway to gateway communications
+		gw.NetInf.SetGatewayAuthentication()
+
+		// Turn on gossiping
 		if !gw.Params.DisableGossip {
 			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
