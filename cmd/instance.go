@@ -471,6 +471,10 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
+		// Enable authentication on gateway to gateway communications
+		gw.NetInf.SetGatewayAuthentication()
+
+		// Turn on gossiping
 		if !gw.Params.DisableGossip {
 			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
@@ -480,7 +484,6 @@ func (gw *Instance) InitNetwork() error {
 		// This must be below the enabling of the gossip above because it uses
 		// components they initialize
 		jww.DEBUG.Printf("Updating instance")
-		gw.NetInf.SetGatewayAuthentication()
 		err = gw.UpdateInstance(serverResponse)
 		if err != nil {
 			jww.ERROR.Printf("Update instance error: %v", err)
