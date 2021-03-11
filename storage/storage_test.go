@@ -68,15 +68,17 @@ func TestOr_Length(t *testing.T) {
 // Happy path - New filter
 func TestClientBloomFilter_Combine_New(t *testing.T) {
 	testFilter := []byte("test")
+	recipientId := int64(10)
+	recipientId2 := int64(0)
 	oldFilter := &ClientBloomFilter{
-		RecipientId: 0,
+		RecipientId: &recipientId2,
 		Epoch:       0,
 		FirstRound:  0,
 		RoundRange:  0,
 		Filter:      testFilter,
 	}
 	newFilter := &ClientBloomFilter{
-		RecipientId: 10,
+		RecipientId: &recipientId,
 		Epoch:       10,
 		FirstRound:  10,
 		RoundRange:  0,
@@ -85,7 +87,7 @@ func TestClientBloomFilter_Combine_New(t *testing.T) {
 	newFilter.combine(oldFilter)
 
 	// Ensure some things did not change
-	if newFilter.RecipientId != 10 {
+	if *newFilter.RecipientId != recipientId {
 		t.Errorf("Unexpected recipient change: %d", newFilter.RecipientId)
 	}
 	if newFilter.Epoch != 10 {
@@ -107,15 +109,16 @@ func TestClientBloomFilter_Combine_New(t *testing.T) {
 // Happy path - Update filter
 func TestClientBloomFilter_Combine_Update(t *testing.T) {
 	testFilter := []byte("test")
+	recipientId := int64(10)
 	oldFilter := &ClientBloomFilter{
-		RecipientId: 10,
+		RecipientId: &recipientId,
 		Epoch:       10,
 		FirstRound:  10,
 		RoundRange:  0,
 		Filter:      testFilter,
 	}
 	newFilter := &ClientBloomFilter{
-		RecipientId: 10,
+		RecipientId: &recipientId,
 		Epoch:       10,
 		FirstRound:  20,
 		RoundRange:  0,
@@ -144,15 +147,16 @@ func TestClientBloomFilter_Combine_Update(t *testing.T) {
 // Happy path - Update filter with newer oldFilter
 func TestClientBloomFilter_Combine_UpdateOld(t *testing.T) {
 	testFilter := []byte("test")
+	recipientId := int64(10)
 	oldFilter := &ClientBloomFilter{
-		RecipientId: 10,
+		RecipientId: &recipientId,
 		Epoch:       10,
 		FirstRound:  10,
 		RoundRange:  50,
 		Filter:      testFilter,
 	}
 	newFilter := &ClientBloomFilter{
-		RecipientId: 10,
+		RecipientId: &recipientId,
 		Epoch:       10,
 		FirstRound:  20,
 		RoundRange:  0,

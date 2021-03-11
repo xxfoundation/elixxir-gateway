@@ -333,16 +333,16 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	m.bloomFilters.Lock()
 	defer m.bloomFilters.Unlock()
-	jww.DEBUG.Printf("Upserting filter for client %v at epoch %d", filter.RecipientId, filter.Epoch)
+	jww.DEBUG.Printf("Upserting filter for client %d at epoch %d", *filter.RecipientId, filter.Epoch)
 
 	// Initialize list if it does not exist
-	list := m.bloomFilters.RecipientId[filter.RecipientId]
+	list := m.bloomFilters.RecipientId[*filter.RecipientId]
 	if list == nil {
-		m.bloomFilters.RecipientId[filter.RecipientId] = &ClientBloomFilterList{
+		m.bloomFilters.RecipientId[*filter.RecipientId] = &ClientBloomFilterList{
 			list:  make([]*ClientBloomFilter, initialClientBloomFilterListSize),
 			start: filter.Epoch,
 		}
-		list = m.bloomFilters.RecipientId[filter.RecipientId]
+		list = m.bloomFilters.RecipientId[*filter.RecipientId]
 	}
 
 	// Expand the list if it is not large enough
