@@ -480,6 +480,7 @@ func (gw *Instance) InitNetwork() error {
 		// This must be below the enabling of the gossip above because it uses
 		// components they initialize
 		jww.DEBUG.Printf("Updating instance")
+		gw.NetInf.SetGatewayAuthentication()
 		err = gw.UpdateInstance(serverResponse)
 		if err != nil {
 			jww.ERROR.Printf("Update instance error: %v", err)
