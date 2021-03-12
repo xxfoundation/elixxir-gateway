@@ -9,7 +9,7 @@
 
 package notifications
 
-import "gitlab.com/elixxir/primitives/id"
+import "gitlab.com/xx_network/primitives/id"
 
 // UserNotifications stores the list of user ids to be notified
 type UserNotifications struct {

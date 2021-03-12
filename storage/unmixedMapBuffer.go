@@ -8,62 +8,121 @@
 package storage
 
 import (
+	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
+	"gitlab.com/xx_network/primitives/id"
 	"sync"
 )
 
-// UnmixedMapBuffer holds messages that have been received by gateway but have
+// UnmixedMessagesMap holds messages that have been received by gateway but have
 // yet to been submitted to the network for mixing.
-type UnmixedMapBuffer struct {
-	outgoingMessages pb.Batch
-	mux              sync.Mutex
+type UnmixedMessagesMap struct {
+	messages map[id.Round]*SendRound
+	mux      sync.RWMutex
 }
 
-// NewUnmixedMessageBuffer initialize a UnmixedMessageBuffer interface.
-func NewUnmixedMessageBuffer() UnmixedMessageBuffer {
-	// Build the UnmixedMapBuffer
-	buffer := &UnmixedMapBuffer{
-		outgoingMessages: pb.Batch{},
+type SendRound struct {
+	batch       *pb.Batch
+	maxElements uint32
+	sent        bool
+}
+
+// NewUnmixedMessagesMap initialize a UnmixedMessageBuffer interface.
+func NewUnmixedMessagesMap() UnmixedMessageBuffer {
+	// Build the UnmixedMessagesMap
+	buffer := &UnmixedMessagesMap{
+		messages: map[id.Round]*SendRound{},
 	}
 
 	return buffer
 }
 
 // AddUnmixedMessage adds a message to send to the cMix node.
-func (umb *UnmixedMapBuffer) AddUnmixedMessage(msg *pb.Slot) {
+func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round) error {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
-	umb.outgoingMessages.Slots = append(umb.outgoingMessages.Slots, msg)
+
+	retrievedBatch, ok := umb.messages[roundId]
+	if !ok {
+		return errors.New("cannot add message to unknown round")
+	}
+
+	if retrievedBatch.sent {
+		return errors.New("Cannot add message to already sent batch")
+	}
+
+	if len(retrievedBatch.batch.Slots) == int(retrievedBatch.maxElements) {
+		return errors.New("Cannot add message to full batch")
+	}
+
+	// If the batch for this round was already created, add another message
+	retrievedBatch.batch.Slots = append(retrievedBatch.batch.Slots, msg)
+	umb.messages[roundId] = retrievedBatch
+	return nil
 }
 
-// PopUnmixedMessages pops messages off the message buffer stack.
-func (umb *UnmixedMapBuffer) PopUnmixedMessages(minCnt, batchSize uint64) *pb.Batch {
+// GetRoundMessages returns the batch associated with the roundID
+func (umb *UnmixedMessagesMap) PopRound(roundId id.Round) *pb.Batch {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
-	// Handle batches too small to send
-	if numMessages := len(umb.outgoingMessages.Slots); numMessages == 0 {
-		return &pb.Batch{}
-	} else if uint64(numMessages) < minCnt {
+	retrievedBatch, ok := umb.messages[roundId]
+	if !ok {
 		return nil
 	}
 
-	var messagesToTake uint64
+	retrievedBatch.sent = true
 
-	// If the batch is under full or exactly full
-	if uint64(len(umb.outgoingMessages.Slots)) <= batchSize {
-		messagesToTake = uint64(len(umb.outgoingMessages.Slots))
-	} else {
-		messagesToTake = batchSize
-	}
-
-	slots := umb.outgoingMessages.Slots[:messagesToTake]
-	umb.outgoingMessages.Slots = umb.outgoingMessages.Slots[messagesToTake:]
-
-	return &pb.Batch{Slots: slots}
+	// Handle batches too small to send
+	batch := retrievedBatch.batch
+	retrievedBatch.batch = nil
+	umb.messages[roundId] = retrievedBatch
+	return batch
 }
 
-// LenUnmixed returns the number of messages in queue.
-func (umb *UnmixedMapBuffer) LenUnmixed() int {
-	return len(umb.outgoingMessages.Slots)
+// LenUnmixed return the number of messages within the requested round
+func (umb *UnmixedMessagesMap) LenUnmixed(rndId id.Round) int {
+	umb.mux.RLock()
+	defer umb.mux.RUnlock()
+	b, ok := umb.messages[rndId]
+	if !ok {
+		return 0
+	}
+
+	return len(b.batch.Slots)
+}
+
+func (umb *UnmixedMessagesMap) IsRoundFull(roundId id.Round) bool {
+	umb.mux.RLock()
+	defer umb.mux.RUnlock()
+	slots := umb.messages[roundId].batch.GetSlots()
+	return len(slots) == int(umb.messages[roundId].maxElements)
+}
+
+// SetAsRoundLeader initializes a round as our responsibility ny initializing
+//  marking that round as non-nil within the internal map
+func (umb *UnmixedMessagesMap) SetAsRoundLeader(roundId id.Round, batchsize uint32) {
+	umb.mux.Lock()
+	defer umb.mux.Unlock()
+
+	if _, ok := umb.messages[roundId]; ok {
+		jww.FATAL.Panicf("Can set as round leader for extant round %d",
+			roundId)
+	}
+	jww.INFO.Printf("Adding round buffer for round %d", roundId)
+	umb.messages[roundId] = &SendRound{
+		batch:       &pb.Batch{},
+		maxElements: batchsize,
+	}
+}
+
+// IsRoundLeader returns true if object mapped to this round has
+// been previously set
+func (umb *UnmixedMessagesMap) IsRoundLeader(roundId id.Round) bool {
+	umb.mux.RLock()
+	defer umb.mux.RUnlock()
+
+	_, ok := umb.messages[roundId]
+	return ok
 }
