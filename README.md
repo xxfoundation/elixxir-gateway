@@ -49,10 +49,9 @@ port: 22840
 # address without a port. (Default "0.0.0.0")
 listeningAddress: ""
 
-# The public IPv4 address of the Gateway, as reported to the network, to be
-# used instead of dynamically looking up Gateway's own IP address via pinging
-# external services. If a port is not included, then the port from the port flag
-# is used instead.
+# The public IPv4 address of the Gateway, as reported to the network. When not
+# set, external IP address lookup services are used to set this value. If a
+# port is not included, then the port from the port flag is used instead.
 overridePublicIP: ""
 
 # The IP address of the Node that the Gateway communicates with. Expects an IPv4
