@@ -368,7 +368,6 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	recipients := gw.processMessages(msgs, roundID, round)
 
 	// Share messages in the batch with the rest of the team
-	// TODO: Gateways must authenticate for the following to work
 	err = gw.sendShareMessages(msgs, round)
 	if err != nil {
 		// Print error but do not stop message processing

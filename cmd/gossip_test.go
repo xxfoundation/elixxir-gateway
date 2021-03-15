@@ -130,14 +130,12 @@ func TestInstance_GossipVerify(t *testing.T) {
 	_, err = gw.Comms.AddHost(&id.Permissioning,
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
-
 	privKey, err := testutils.LoadPrivateKeyTesting(t)
 	if err != nil {
 		t.Errorf("Could not load public key: %v", err)
 		t.FailNow()
 	}
 	publicKey := privKey.GetPublic()
-
 
 	originId := id.NewIdFromString("test", id.Gateway, t)
 
