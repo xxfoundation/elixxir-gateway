@@ -167,7 +167,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF, ers *st
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers)
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers, network.None)
 }
 
 // Start sets up the threads and network server to run the gateway
