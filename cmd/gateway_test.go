@@ -16,6 +16,7 @@ import (
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/comms/node"
 	"gitlab.com/elixxir/comms/testkeys"
+	"gitlab.com/elixxir/comms/testutils"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
@@ -1223,7 +1224,7 @@ func TestInstance_shareMessages(t *testing.T) {
 	}
 
 	// Sign the round info with the mock permissioning private key
-	err = signRoundInfo(ri)
+	err = testutils.SignRoundInfo(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
