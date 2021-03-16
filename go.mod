@@ -17,7 +17,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20210120224144-ac046983a17a
-	gitlab.com/elixxir/comms v0.0.4-0.20210316192645-36e23d019d12
+	gitlab.com/elixxir/comms v0.0.4-0.20210316200512-5b8f3a3ae545
 	gitlab.com/elixxir/crypto v0.0.7-0.20210309193114-8a6225c667e2
 	gitlab.com/elixxir/primitives v0.0.3-0.20210309193003-ef42ebb4800b
 	gitlab.com/xx_network/comms v0.0.4-0.20210309192940-6b7fb39b4d01
