@@ -39,8 +39,6 @@ func (gw *Instance) InitBloomGossip() {
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
 func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round) error {
-
-	jww.INFO.Printf("GossipBloom: %v", roundId)
 	var err error
 
 	// Retrieve gossip protocol
@@ -69,6 +67,8 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 
 	// Gossip the message
 	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
+
+	jww.INFO.Printf("Gossiping Blooms for round: %v", roundId)
 
 	// Return any errors up the stack
 	if len(errs) != 0 {
