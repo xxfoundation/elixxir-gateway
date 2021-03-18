@@ -516,10 +516,12 @@ func (gw *Instance) beginStorageCleanup() {
 	gw.lowestRound = &zeroRound
 	var earliestRound uint64
 	var err error
+	first := true
 	for earliestRound == 0 {
 		earliestRound, err = gw.storage.GetLowestBloomRound()
-		if err != nil {
-			jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
+		if err != nil && first {
+			first = false
+			jww.ERROR.Printf("Unable to GetLowestBloomRound: %+v", err)
 		}
 		time.Sleep(1 * time.Second)
 	}
