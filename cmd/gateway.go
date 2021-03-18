@@ -344,11 +344,11 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	}
 
 	if !gw.Params.DisableGossip {
-		// Gossip senders included in the batch to other gateways
+		/*// Gossip senders included in the batch to other gateways
 		err = gw.GossipBatch(batch)
 		if err != nil {
 			jww.WARN.Printf("Unable to gossip batch information: %+v", err)
-		}
+		}*/
 	}
 }
 

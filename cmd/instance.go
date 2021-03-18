@@ -476,7 +476,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {
-			gw.InitRateLimitGossip()
+			//gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
 

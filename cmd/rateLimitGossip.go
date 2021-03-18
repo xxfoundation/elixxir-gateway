@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/comms/network/dataStructures"
@@ -64,6 +65,7 @@ func verifyRateLimit(msg *gossip.GossipMsg, origin *id.ID, instance *network.Ins
 
 		ri = event.RoundInfo
 	}
+
 	// Parse the round topology
 	idList, err := id.NewIDListFromBytes(ri.Topology)
 	if err != nil {
@@ -137,11 +139,12 @@ func (gw *Instance) GossipBatch(batch *pb.Batch) error {
 	if !ok {
 		return errors.Errorf("Unable to get gossip protocol.")
 	}
-	_, errs := gossipProtocol.Gossip(gossipMsg)
+	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
 	// Return any errors up the stack
 	if len(errs) != 0 {
-		return errors.Errorf("Could not send to peers: %v", errs)
+		jww.TRACE.Printf("Failed to rate limit gossip to: %v", errs)
+		return errors.Errorf("Could not send to %d out of %d peers", len(errs), numPeers)
 	}
 	return nil
 }

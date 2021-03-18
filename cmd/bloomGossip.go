@@ -72,11 +72,9 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 
 	// Return any errors up the stack
 	if len(errs) != 0 {
-		return errors.Errorf("Could not send to peers: %v", errs)
+		jww.TRACE.Printf("Failed to rate limit gossip to: %v", errs)
+		return errors.Errorf("Could not send to %d out of %d peers", len(errs), numPeers)
 	}
-
-	jww.INFO.Printf("Gossipped to %d peers", numPeers)
-
 	return nil
 }
 
@@ -108,6 +106,13 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 
 		// Check if we recognize the round
 		event := <-eventChan
+
+		if ri == nil {
+			jww.WARN.Printf("Bailing on processing bloom goosip %d network "+
+				"round lookup returned nil without na error", r)
+			return errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
+		}
+
 		if event.TimedOut {
 			return errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
 		} else if states.Round(event.RoundInfo.State) == states.FAILED {
@@ -115,6 +120,10 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 		}
 
 		ri = event.RoundInfo
+	} else if ri == nil {
+		jww.WARN.Printf("Bailing on processing bloom goosip %d ram "+
+			"round lookup returned nil without na error", r)
+		return errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
 	}
 
 	// Parse the round topology
