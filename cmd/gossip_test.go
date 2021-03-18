@@ -254,7 +254,7 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
-	protocol, exists := gatewayInstance.Comms.Manager.Get(RateLimitGossip)
+	protocol, exists := gatewayInstance.Comms.Manager.Get(BloomFilterGossip)
 	if !exists {
 		t.Errorf("Unable to get gossip protocol!")
 		return
