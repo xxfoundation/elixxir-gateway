@@ -164,7 +164,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	if !gw.Params.DisableGossip {
+	/*if !gw.Params.DisableGossip {
 		err = gw.FilterMessage(senderId)
 		if err != nil {
 			jww.INFO.Printf("Rate limiting check failed on send message from "+
@@ -173,7 +173,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 				Accepted: false,
 			}, err
 		}
-	}
+	}*/
 
 	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
