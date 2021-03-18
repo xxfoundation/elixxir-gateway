@@ -107,7 +107,7 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 		// Check if we recognize the round
 		event := <-eventChan
 
-		if ri == nil {
+		if event.RoundInfo == nil {
 			jww.WARN.Printf("Bailing on processing bloom goosip %d network "+
 				"round lookup returned nil without na error", r)
 			return errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
