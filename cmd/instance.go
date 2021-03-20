@@ -256,6 +256,13 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
 			}
 		}
+
+		// get the earliest update and set the earliest known round to
+		// it if the earliest known round is zero (meaning we dont have one)
+		earliestRound := gw.NetInf.GetOldestRoundID()
+		atomic.CompareAndSwapUint64(gw.lowestRound, 0,
+			uint64(earliestRound))
+
 	}
 
 	// Send a new batch to the server when it asks for one
@@ -514,18 +521,15 @@ func (gw *Instance) beginStorageCleanup() {
 	// Set gw.lowestRound information
 	zeroRound := uint64(0)
 	gw.lowestRound = &zeroRound
-	var earliestRound uint64
-	var err error
-	first := true
-	for earliestRound == 0 {
-		earliestRound, err = gw.storage.GetLowestBloomRound()
-		if err != nil && first {
-			first = false
-			jww.ERROR.Printf("Unable to GetLowestBloomRound: %+v", err)
-		}
-		time.Sleep(1 * time.Second)
+
+	earliestRound, err := gw.storage.GetLowestBloomRound()
+	if err != nil {
+		jww.WARN.Printf("Unable to GetLowestBloomRound, will use the"+
+			" lowest round on the first poll: %+v", err)
 	}
 	atomic.StoreUint64(gw.lowestRound, earliestRound)
+
+	time.Sleep(1 * time.Second)
 
 	// Begin ticker for storage cleanup
 	ticker := time.NewTicker(gw.Params.cleanupInterval)
