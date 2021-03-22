@@ -95,6 +95,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 		CertPath:              testkeys.GetGatewayCertPath(),
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
+		DevMode:               true,
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
@@ -304,6 +305,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 		CertPath:              testkeys.GetGatewayCertPath(),
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
+		DevMode:               true,
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
@@ -410,6 +412,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		CertPath:              testkeys.GetGatewayCertPath(),
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
+		DevMode:               true,
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{

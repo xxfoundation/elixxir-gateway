@@ -23,6 +23,7 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
+		DevMode:        true,
 	}
 
 	gw := NewGatewayInstance(params)

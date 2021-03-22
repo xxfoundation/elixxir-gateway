@@ -105,6 +105,7 @@ func TestMain(m *testing.M) {
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 		KeyPath:        testkeys.GetGatewayKeyPath(),
+		DevMode:        true,
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
@@ -276,6 +277,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
+		DevMode:        true,
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
@@ -939,7 +941,7 @@ func TestCreateNetworkInstance(t *testing.T) {
 // Tests happy path of Instance.SaveKnownRounds and Instance.LoadKnownRounds.
 func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	// Build the gateway instance
-	params := Params{}
+	params := Params{DevMode: true}
 
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
@@ -974,7 +976,7 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 // Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
 func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 	// Build the gateway instance
-	params := Params{}
+	params := Params{DevMode: true}
 
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
@@ -997,7 +999,7 @@ func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
 func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 	// Build the gateway instance
 
-	params := Params{}
+	params := Params{DevMode: true}
 
 	// Create new gateway instance and modify lastUpdate
 	gw := NewGatewayInstance(params)
@@ -1038,6 +1040,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	gw := NewGatewayInstance(Params{
 		cleanupInterval: 250 * time.Millisecond,
 		retentionPeriod: retentionPeriodDefault,
+		DevMode:         true,
 	})
 
 	gw.period = 7
@@ -1124,7 +1127,7 @@ func TestGetEpochTimestamp(t *testing.T) {
 
 // Happy path
 func TestInstance_SetPeriod(t *testing.T) {
-	gw := NewGatewayInstance(Params{})
+	gw := NewGatewayInstance(Params{DevMode: true})
 	err := gw.SetPeriod()
 	if err != nil {
 		t.Errorf("Unable to set period: %+v", err)
@@ -1136,7 +1139,7 @@ func TestInstance_SetPeriod(t *testing.T) {
 
 // Handle existing period in storage path
 func TestInstance_SetPeriodExisting(t *testing.T) {
-	gw := NewGatewayInstance(Params{})
+	gw := NewGatewayInstance(Params{DevMode: true})
 	expected := int64(50)
 
 	err := gw.storage.UpsertState(&storage.State{
@@ -1165,6 +1168,7 @@ func TestInstance_shareMessages(t *testing.T) {
 		CertPath:              testkeys.GetGatewayCertPath(),
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
+		DevMode:               true,
 	}
 
 	gw := NewGatewayInstance(params)

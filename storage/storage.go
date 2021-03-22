@@ -24,8 +24,8 @@ type Storage struct {
 
 // Create a new Storage object wrapping a database interface
 // Returns a Storage object, close function, and error
-func NewStorage(username, password, dbName, address, port string) (*Storage, error) {
-	db, err := newDatabase(username, password, dbName, address, port)
+func NewStorage(username, password, dbName, address, port string, devmode bool) (*Storage, error) {
+	db, err := newDatabase(username, password, dbName, address, port, devmode)
 	storage := &Storage{db}
 	return storage, err
 }
