@@ -161,7 +161,7 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 // Initialize the database interface with database backend
 // Returns a database interface, close function, and error
 func newDatabase(username, password, dbName, address,
-	port string) (database, error) {
+	port string, devmode bool) (database, error) {
 
 	var err error
 	var db *gorm.DB
@@ -186,8 +186,18 @@ func newDatabase(username, password, dbName, address,
 
 		if err != nil {
 			jww.WARN.Printf("Unable to initialize database backend: %+v", err)
+			if !devmode {
+				jww.FATAL.Panicf("Gateway cannot run in production "+
+					"without a database: Unable to initialize database "+
+					"backend: %+v", err)
+			}
 		} else {
 			jww.WARN.Printf("Database backend connection information not provided")
+			if !devmode {
+				jww.FATAL.Panicf("Gateway cannot run in production " +
+					"without a database: Database backend connection " +
+					"information not provided")
+			}
 		}
 
 		defer jww.INFO.Println("Map backend initialized successfully!")

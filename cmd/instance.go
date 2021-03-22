@@ -92,6 +92,7 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DbName,
 		params.DbAddress,
 		params.DbPort,
+		params.DevMode,
 	)
 	if err != nil {
 		eMsg := fmt.Sprintf("Could not initialize database: "+
