@@ -22,6 +22,7 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
+		DevMode:        true,
 	}
 	gw := NewGatewayInstance(params)
 	rndId := id.Round(0)
@@ -93,6 +94,7 @@ func TestInstance_UpsertFilters(t *testing.T) {
 		NodeAddress:    NODE_ADDRESS,
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
+		DevMode:        true,
 	}
 	gw := NewGatewayInstance(params)
 	rndId := id.Round(0)
