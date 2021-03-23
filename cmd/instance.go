@@ -24,6 +24,7 @@ import (
 	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
+	"gitlab.com/xx_network/comms/messages"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
@@ -83,6 +84,13 @@ type Instance struct {
 	lowestRound *uint64 // Cache lowest known BloomFilter round for client retrieval
 
 	bloomFilterGossip sync.Mutex
+}
+
+// GatewayPing is th endpoint for SendGatewayPing, returning it's own ID
+func (gw *Instance) GatewayPing(msg *messages.Ping) (*pb.PingResponse, error) {
+	return &pb.PingResponse{
+		GatewayId: gw.Comms.Id.Bytes(),
+	}, nil
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
