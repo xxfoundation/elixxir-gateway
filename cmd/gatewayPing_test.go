@@ -108,8 +108,8 @@ func TestInstance_ReportGatewayPings(t *testing.T) {
 	}
 
 	request := &pb.GatewayPingRequest{
-		RoundId:    roundId,
-		GatewayIds: topology,
+		RoundId:  roundId,
+		Topology: topology,
 	}
 
 	report, err := gw.ReportGatewayPings(request)
@@ -216,8 +216,8 @@ func TestInstance_ReportGatewayPings_FailedPing(t *testing.T) {
 	}
 
 	request := &pb.GatewayPingRequest{
-		RoundId:    roundId,
-		GatewayIds: topology,
+		RoundId:  roundId,
+		Topology: topology,
 	}
 
 	report, err := gw.ReportGatewayPings(request)
