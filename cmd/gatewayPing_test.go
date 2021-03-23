@@ -112,7 +112,7 @@ func TestInstance_ReportGatewayPings(t *testing.T) {
 		Topology: topology,
 	}
 
-	report, err := gw.ReportGatewayPings(request)
+	report, err := gw.checkGatewayPings(request)
 	if err != nil {
 		t.Errorf("Failure in reporting gateway pings: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestInstance_ReportGatewayPings_FailedPing(t *testing.T) {
 		Topology: topology,
 	}
 
-	report, err := gw.ReportGatewayPings(request)
+	report, err := gw.checkGatewayPings(request)
 	if err != nil {
 		t.Errorf("Failure in reporting gateway pings: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestInstance_ReportGatewayPings_FailedPing(t *testing.T) {
 		t.Errorf("Failed to get report: %v", report)
 	}
 
-	if len(report.FailedGateways) != 1 {
+	if len(report.FailedGateways) == 0 {
 		t.Errorf("Did not received failed gateway in error path")
 	}
 

@@ -7,12 +7,11 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/messages"
 	"gitlab.com/xx_network/primitives/id"
-	"time"
 )
 
 // GatewayPingResponse returns to the main thread
@@ -25,9 +24,9 @@ type GatewayPingResponse struct {
 	success bool
 }
 
-// ReportGatewayPings asynchronously pings all gateways in the team (besides itself)
+// checkGatewayPings asynchronously pings all gateways in the team (besides itself)
 // It then reports the pinging results to it's node once all gateways pings have been attempted
-func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.GatewayPingReport, error) {
+func (gw *Instance) checkGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.GatewayPingReport, error) {
 	// Process round topology into IDs
 	idList, err := id.NewIDListFromBytes(pingRequest.Topology)
 	if err != nil {
@@ -38,10 +37,9 @@ func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.
 
 	// Send gatewayPing to other gateways in team, excluding self
 	for _, teamId := range idList {
-		err := gw.pingGateways(teamId, pingResponseChan)
-		if err != nil {
-			return nil, errors.Errorf("Error pinging gateways: %v", err)
-		}
+		go func(nodeId *id.ID) {
+			gw.pingGateway(nodeId, pingResponseChan)
+		}(teamId)
 
 	}
 
@@ -49,82 +47,90 @@ func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.
 		RoundId: pingRequest.RoundId,
 	}
 
-	// Allow time for comms to go through
-	time.Sleep(100 * time.Millisecond)
-
 	// Exhaust response channel
+	pingResponses := make([]*GatewayPingResponse, 0)
 	done := false
 	for !done {
 		select {
 		case response := <-pingResponseChan:
-			if !response.success {
-				// Mutate report message to report failed gateway
-				report.FailedGateways = append(report.FailedGateways, response.gwId.Bytes())
-			}
-		default:
-			done = true
+			pingResponses = append(pingResponses, response)
+			// If we've gotten responses from all other
+			// gateways, we are done
+			done = len(pingResponses) == len(idList)
+		}
+	}
+
+	// Process all the responses, sending to our node the gateway ID's
+	// that we could not ping
+	for _, response := range pingResponses {
+		if !response.success {
+			report.FailedGateways = append(report.FailedGateways, response.gwId.Bytes())
 		}
 	}
 
 	return report, nil
 }
 
-// pingGateways is a helper function which pings an individual gateway.
+// pingGateway is a helper function which pings an individual gateway.
 // Returns via the responseChan either:
 //  - failure if there is any error in the comm or
 //  	errors in processing the response
 //  - success otherwise
-func (gw *Instance) pingGateways(teamId *id.ID, responseChan chan *GatewayPingResponse) error {
+func (gw *Instance) pingGateway(teamId *id.ID, responseChan chan *GatewayPingResponse) {
+
+	// Preset a failed ping response
+	failedResponse := &GatewayPingResponse{
+		gwId:    teamId,
+		success: false,
+	}
+
+	fmt.Printf("sending to %v\n", teamId)
 
 	// Set the Id to a gateway (Id is defaulted to node type)
 	// Skip sending to ourselves
 	teamId.SetType(id.Gateway)
 	if teamId.Cmp(gw.Comms.Id) {
-		return nil
+		responseChan <- &GatewayPingResponse{
+			gwId:    teamId,
+			success: true,
+		}
+		return
 	}
 
 	// Get the gateway host
 	teamHost, exists := gw.Comms.GetHost(teamId)
 	if !exists {
-		return errors.Errorf("Unable to find host for gateway pinging: %s",
-			teamId.String())
+		responseChan <- failedResponse
+		return
 	}
 
-	// Make the sends non-blocking
-	go func(h *connect.Host) {
-		// Ping the individual gateway
-		pingResponse, err := gw.Comms.SendGatewayPing(h, &messages.Ping{})
-		// Attempt to process the response
-		failedResponse := &GatewayPingResponse{
-			gwId:    h.GetId(),
-			success: false,
-		}
+	// Ping the individual gateway
+	pingResponse, err := gw.Comms.SendGatewayPing(teamHost, &messages.Ping{})
+	// If comm returned error, mark as failure
+	if err != nil || pingResponse == nil {
+		fmt.Printf("failed to send for %v: %v", teamId, err)
+		responseChan <- failedResponse
+		return
+	}
 
-		// If comm returned error, mark as failure
-		if err != nil || pingResponse == nil {
-			responseChan <- failedResponse
-			return
-		}
+	// If we cannot process the returned ID, return a failure
+	responseId, err := id.Unmarshal(pingResponse.GatewayId)
+	if err != nil {
+		responseChan <- failedResponse
+		return
+	}
 
-		// If we cannot process the returned ID, return a failure
-		responseId, err := id.Unmarshal(pingResponse.GatewayId)
-		if err != nil {
-			responseChan <- failedResponse
-			return
-		}
+	// If the returned ID is not expected, return a failure
+	if !teamHost.GetId().Cmp(responseId) {
+		responseChan <- failedResponse
+		return
+	}
 
-		// If the returned ID is not expected, return a failure
-		if !h.GetId().Cmp(responseId) {
-			responseChan <- failedResponse
-			return
-		}
+	// If no errors, send a success
+	responseChan <- &GatewayPingResponse{
+		gwId:    teamId,
+		success: true,
+	}
 
-		// If no errors, send a success
-		responseChan <- &GatewayPingResponse{
-			gwId:    h.GetId(),
-			success: true,
-		}
-	}(teamHost)
-
-	return nil
+	return
 }

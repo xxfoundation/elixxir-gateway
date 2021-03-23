@@ -212,15 +212,15 @@ func (gw *Instance) Start() {
 			// and reporting back to the node
 			if msg.PingRequest != nil {
 				go func(pingRequest *pb.GatewayPingRequest) {
-					report, err := gw.ReportGatewayPings(pingRequest)
+					report, err := gw.checkGatewayPings(pingRequest)
 					if err != nil {
-						jww.ERROR.Printf("ReportGatewayPings: %v", err)
+						jww.ERROR.Printf("checkGatewayPings: %v", err)
 					}
 
 					// Report the pings back to server
 					err = gw.Comms.ReportGatewayPings(gw.ServerHost, report)
 					if err != nil {
-						jww.ERROR.Printf("ReportGatewayPings: Could not report "+
+						jww.ERROR.Printf("checkGatewayPings: Could not report "+
 							"gateway pings to node for round %d: %v", pingRequest.RoundId, err)
 					}
 
