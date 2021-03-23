@@ -54,8 +54,7 @@ func (gw *Instance) checkGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.G
 		select {
 		case response := <-pingResponseChan:
 			pingResponses = append(pingResponses, response)
-			// If we've gotten responses from all other
-			// gateways, we are done
+			// If we've gotten responses from all gateways, we are done
 			done = len(pingResponses) == len(idList)
 		}
 	}
