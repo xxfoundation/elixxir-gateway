@@ -102,7 +102,8 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 	if err != nil {
 		eventChan := make(chan dataStructures.EventReturn, 1)
 		instance.GetRoundEvents().AddRoundEventChan(r,
-			eventChan, 60*time.Second, states.COMPLETED, states.FAILED)
+			eventChan, 60*time.Second, states.PRECOMPUTING, states.QUEUED,
+			states.REALTIME, states.COMPLETED, states.FAILED)
 
 		// Check if we recognize the round
 		event := <-eventChan
@@ -122,7 +123,7 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 		ri = event.RoundInfo
 	} else if ri == nil {
 		jww.WARN.Printf("Bailing on processing bloom goosip %d ram "+
-			"round lookup returned nil without na error", r)
+			"round lookup returned nil without an error", r)
 		return errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
 	}
 
@@ -164,8 +165,31 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	roundID := id.Round(payloadMsg.RoundID)
 	jww.INFO.Printf("Gossip received for round %d", roundID)
 	round, err := gw.NetInf.GetRound(roundID)
-	if err != nil {
-		return err
+
+	//in the event that rounds are too early, wait until we get the update
+	if err != nil || states.Round(round.State) < states.QUEUED {
+		eventChan := make(chan dataStructures.EventReturn, 1)
+		gw.NetInf.GetRoundEvents().AddRoundEventChan(roundID,
+			eventChan, 3*time.Minute, states.QUEUED, states.REALTIME,
+			states.COMPLETED, states.FAILED)
+
+		// Check if we recognize the round
+		event := <-eventChan
+		round = event.RoundInfo
+	}
+
+	//check that we have a valid round
+	if round == nil {
+		// handle the potential race condition between the previous two round
+		// calls which would result in not getting the round
+		round, err = gw.NetInf.GetRound(roundID)
+		if err != nil {
+			return errors.WithMessagef(err, "Failed to find round %d to "+
+				"process gossip", roundID)
+		} else if states.Round(round.State) < states.QUEUED {
+			return errors.WithMessagef(err, "Failed to find round %d with "+
+				"enough info to process gossip", roundID)
+		}
 	}
 
 	epoch := GetEpoch(int64(round.Timestamps[states.QUEUED]), gw.period)

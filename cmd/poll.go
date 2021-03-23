@@ -101,11 +101,15 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		// Build ClientBloomFilter list for client
 		for _, f := range clientFilters {
 			index := f.Epoch - startEpoch
-			filtersMsg.Filters[index] = &pb.ClientBloom{
-				Filter:     f.Filter,
-				FirstRound: f.FirstRound,
-				RoundRange: f.RoundRange,
+			//todo- remove the if statement 1 week after 3/24/2021
+			if index < uint32(len(filtersMsg.Filters)) {
+				filtersMsg.Filters[index] = &pb.ClientBloom{
+					Filter:     f.Filter,
+					FirstRound: f.FirstRound,
+					RoundRange: f.RoundRange,
+				}
 			}
+
 		}
 	}
 
