@@ -158,6 +158,11 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.ShareMessages = func(msg *pb.RoundMessages, auth *connect.Auth) error {
 		return instance.ShareMessages(msg, auth)
 	}
+
+	impl.Functions.GatewayPing = func(ping *messages.Ping) (*pb.PingResponse, error) {
+		return instance.GatewayPing(ping)
+	}
+
 	return impl
 }
 
