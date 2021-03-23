@@ -29,12 +29,12 @@ type GatewayPingResponse struct {
 // It then reports the pinging results to it's node once all gateways pings have been attempted
 func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.GatewayPingReport, error) {
 	// Process round topology into IDs
-	idList, err := id.NewIDListFromBytes(pingRequest.NodeIds)
+	idList, err := id.NewIDListFromBytes(pingRequest.Topology)
 	if err != nil {
 		return nil, errors.Errorf("Could not read topology from round %d: %+v", pingRequest.RoundId, err)
 	}
 
-	pingResponseChan := make(chan *GatewayPingResponse, len(pingRequest.NodeIds)-1)
+	pingResponseChan := make(chan *GatewayPingResponse, len(pingRequest.Topology)-1)
 
 	// Send gatewayPing to other gateways in team, excluding self
 	for _, teamId := range idList {
