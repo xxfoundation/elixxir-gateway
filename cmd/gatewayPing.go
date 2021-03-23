@@ -28,18 +28,13 @@ type GatewayPingResponse struct {
 // ReportGatewayPings asynchronously pings all gateways in the team (besides itself)
 // It then reports the pinging results to it's node once all gateways pings have been attempted
 func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.GatewayPingReport, error) {
-	round, err := gw.NetInf.GetRound(id.Round(pingRequest.RoundId))
-	if err != nil {
-		return nil, errors.Errorf("Unable to get round: %+v", err)
-	}
-
 	// Process round topology into IDs
-	idList, err := id.NewIDListFromBytes(round.Topology)
+	idList, err := id.NewIDListFromBytes(pingRequest.NodeIds)
 	if err != nil {
-		return nil, errors.Errorf("Could not read topology from round %d: %+v", round.ID, err)
+		return nil, errors.Errorf("Could not read topology from round %d: %+v", pingRequest.RoundId, err)
 	}
 
-	pingResponseChan := make(chan *GatewayPingResponse, len(round.Topology)-1)
+	pingResponseChan := make(chan *GatewayPingResponse, len(pingRequest.NodeIds)-1)
 
 	// Send gatewayPing to other gateways in team, excluding self
 	for _, teamId := range idList {
@@ -51,7 +46,7 @@ func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.
 	}
 
 	report := &pb.GatewayPingReport{
-		RoundId: round.ID,
+		RoundId: pingRequest.RoundId,
 	}
 
 	// Allow time for comms to go through
