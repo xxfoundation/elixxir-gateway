@@ -194,6 +194,17 @@ func (gw *Instance) Start() {
 			if err != nil {
 				jww.WARN.Printf("Unable to update instance: %+v", err)
 			}
+
+			// Trigger handling of pinging gateways in round
+			// and reporting back to the node
+			if msg.PingRequest != nil {
+				go func(pingRequest *pb.GatewayPingRequest) {
+					err = gw.ReportGatewayPings(pingRequest)
+					if err != nil {
+						jww.ERROR.Printf("ReportGatewayPings: %v", err)
+					}
+				}(msg.PingRequest)
+			}
 		}
 	}()
 }

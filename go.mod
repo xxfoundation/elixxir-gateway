@@ -3,7 +3,7 @@ module gitlab.com/elixxir/gateway
 go 1.13
 
 require (
-	github.com/golang/protobuf v1.4.3
+	github.com/golang/protobuf v1.5.1
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
 	github.com/lib/pq v1.9.0 // indirect
 	github.com/magiconair/properties v1.8.4 // indirect
@@ -17,7 +17,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20210120224144-ac046983a17a
-	gitlab.com/elixxir/comms v0.0.4-0.20210322194725-bbb90528aeef
+	gitlab.com/elixxir/comms v0.0.4-0.20210323185757-340101bfeac9
 	gitlab.com/elixxir/crypto v0.0.7-0.20210319231554-b73b6e62ddbc
 	gitlab.com/elixxir/primitives v0.0.3-0.20210309193003-ef42ebb4800b
 	gitlab.com/xx_network/comms v0.0.4-0.20210322165028-cdccdaa5e11b
