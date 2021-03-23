@@ -12,6 +12,7 @@ import (
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/messages"
 	"gitlab.com/xx_network/primitives/id"
+	"time"
 )
 
 // GatewayPingResponse returns to the main thread
@@ -26,16 +27,16 @@ type GatewayPingResponse struct {
 
 // ReportGatewayPings asynchronously pings all gateways in the team (besides itself)
 // It then reports the pinging results to it's node once all gateways pings have been attempted
-func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) error {
+func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.GatewayPingReport, error) {
 	round, err := gw.NetInf.GetRound(id.Round(pingRequest.RoundId))
 	if err != nil {
-		return errors.Errorf("Unable to get round: %+v", err)
+		return nil, errors.Errorf("Unable to get round: %+v", err)
 	}
 
 	// Process round topology into IDs
 	idList, err := id.NewIDListFromBytes(round.Topology)
 	if err != nil {
-		return errors.Errorf("Could not read topology from round %d: %+v", round.ID, err)
+		return nil, errors.Errorf("Could not read topology from round %d: %+v", round.ID, err)
 	}
 
 	pingResponseChan := make(chan *GatewayPingResponse, len(round.Topology)-1)
@@ -44,13 +45,17 @@ func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) error
 	for _, teamId := range idList {
 		err := gw.pingGateways(teamId, pingResponseChan)
 		if err != nil {
-			return errors.Errorf("Error pinging gateways: %v", err)
+			return nil, errors.Errorf("Error pinging gateways: %v", err)
 		}
+
 	}
 
 	report := &pb.GatewayPingReport{
 		RoundId: round.ID,
 	}
+
+	// Allow time for comms to go through
+	time.Sleep(100 * time.Millisecond)
 
 	// Exhaust response channel
 	done := false
@@ -66,13 +71,7 @@ func (gw *Instance) ReportGatewayPings(pingRequest *pb.GatewayPingRequest) error
 		}
 	}
 
-	// Report the pings back to server
-	_, err = gw.Comms.ReportGatewayPings(gw.ServerHost, report)
-	if err != nil {
-		return errors.Errorf("Could not report gateway pings to node: %v", err)
-	}
-
-	return nil
+	return report, nil
 }
 
 // pingGateways is a helper function which pings an individual gateway.
@@ -100,7 +99,6 @@ func (gw *Instance) pingGateways(teamId *id.ID, responseChan chan *GatewayPingRe
 	go func(h *connect.Host) {
 		// Ping the individual gateway
 		pingResponse, err := gw.Comms.SendGatewayPing(h, &messages.Ping{})
-
 		// Attempt to process the response
 		failedResponse := &GatewayPingResponse{
 			gwId:    h.GetId(),
