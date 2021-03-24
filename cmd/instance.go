@@ -189,7 +189,7 @@ func (gw *Instance) Start() {
 	// Now that we're set up, run a thread that constantly
 	// polls for updates
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(100 * time.Millisecond)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,
