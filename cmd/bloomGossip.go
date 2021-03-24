@@ -166,6 +166,11 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	jww.INFO.Printf("Gossip received for round %d", roundID)
 	round, err := gw.NetInf.GetRound(roundID)
 
+	if err == nil && states.Round(round.State) == states.FAILED {
+		return errors.Errorf("Cannot add bloom filters for "+
+			"failed round %d", roundID)
+	}
+
 	//in the event that rounds are too early, wait until we get the update
 	if err != nil || states.Round(round.State) < states.QUEUED {
 		eventChan := make(chan dataStructures.EventReturn, 1)
@@ -190,6 +195,11 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 			return errors.WithMessagef(err, "Failed to find round %d with "+
 				"enough info to process gossip", roundID)
 		}
+	}
+
+	if len(round.Timestamps) != int(states.NUM_STATES) {
+		return errors.Errorf("Received improperly formed round object "+
+			"for round %d, cannot insert bloom filters", roundID)
 	}
 
 	epoch := GetEpoch(int64(round.Timestamps[states.QUEUED]), gw.period)
