@@ -9,6 +9,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/xx_network/comms/messages"
 	"gitlab.com/xx_network/primitives/id"
@@ -64,7 +65,12 @@ func (gw *Instance) checkGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.G
 	for _, response := range pingResponses {
 		if !response.success {
 			report.FailedGateways = append(report.FailedGateways, response.gwId.Bytes())
+			jww.TRACE.Printf("Failed gateway: %v", response.gwId.String())
 		}
+	}
+
+	if len(report.FailedGateways) != 0 {
+		jww.TRACE.Printf("Round %d had %d gateway failures", pingRequest.RoundId, len(report.FailedGateways))
 	}
 
 	return report, nil
@@ -82,8 +88,6 @@ func (gw *Instance) pingGateway(teamId *id.ID, responseChan chan *GatewayPingRes
 		gwId:    teamId,
 		success: false,
 	}
-
-	fmt.Printf("sending to %v\n", teamId)
 
 	// Set the Id to a gateway (Id is defaulted to node type)
 	// Skip sending to ourselves
