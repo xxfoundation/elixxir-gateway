@@ -38,7 +38,7 @@ func (gw *Instance) checkGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.G
 	// Send gatewayPing to other gateways in team, excluding self
 	for _, teamId := range idList {
 		go func(nodeId *id.ID) {
-			gw.pingGateway(nodeId, pingResponseChan)
+			gw.pingGateway(nodeId, id.Round(pingRequest.RoundId), pingResponseChan)
 		}(teamId)
 
 	}
@@ -80,7 +80,7 @@ func (gw *Instance) checkGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.G
 //  - failure if there is any error in the comm or
 //  	errors in processing the response
 //  - success otherwise
-func (gw *Instance) pingGateway(teamId *id.ID, responseChan chan *GatewayPingResponse) {
+func (gw *Instance) pingGateway(teamId *id.ID, roundId id.Round, responseChan chan *GatewayPingResponse) {
 
 	// Preset a failed ping response
 	failedResponse := &GatewayPingResponse{
@@ -107,7 +107,7 @@ func (gw *Instance) pingGateway(teamId *id.ID, responseChan chan *GatewayPingRes
 	}
 
 	// Ping the individual gateway
-	jww.TRACE.Printf("Pinging gateway %v", teamId)
+	jww.TRACE.Printf("Pinging gateway %v for round %d", teamId, roundId)
 	pingResponse, err := gw.Comms.SendGatewayPing(teamHost, &messages.Ping{})
 	// If comm returned error, mark as failure
 	if err != nil || pingResponse == nil {
@@ -115,7 +115,7 @@ func (gw *Instance) pingGateway(teamId *id.ID, responseChan chan *GatewayPingRes
 		return
 	}
 
-	jww.TRACE.Printf("Successfully pinged gateway %v", teamId)
+	jww.TRACE.Printf("Successfully pinged gateway %v for round %d", teamId, roundId)
 
 	// If we cannot process the returned ID, return a failure
 	responseId, err := id.Unmarshal(pingResponse.GatewayId)
