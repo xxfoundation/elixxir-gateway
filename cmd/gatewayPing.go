@@ -68,9 +68,8 @@ func (gw *Instance) checkGatewayPings(pingRequest *pb.GatewayPingRequest) (*pb.G
 		}
 	}
 
-	if len(report.FailedGateways) != 0 {
-		jww.TRACE.Printf("Round %d had %d gateway failures", pingRequest.RoundId, len(report.FailedGateways))
-	}
+	jww.TRACE.Printf("Round %d had %d gateway failures", pingRequest.RoundId, len(report.FailedGateways))
+
 
 	return report, nil
 }
