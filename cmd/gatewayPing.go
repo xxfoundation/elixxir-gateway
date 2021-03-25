@@ -7,7 +7,6 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -108,13 +107,15 @@ func (gw *Instance) pingGateway(teamId *id.ID, responseChan chan *GatewayPingRes
 	}
 
 	// Ping the individual gateway
+	jww.TRACE.Printf("Pinging gateway %v", teamId)
 	pingResponse, err := gw.Comms.SendGatewayPing(teamHost, &messages.Ping{})
 	// If comm returned error, mark as failure
 	if err != nil || pingResponse == nil {
-		fmt.Printf("failed to send for %v: %v", teamId, err)
 		responseChan <- failedResponse
 		return
 	}
+
+	jww.TRACE.Printf("Successfully pinged gateway %v", teamId)
 
 	// If we cannot process the returned ID, return a failure
 	responseId, err := id.Unmarshal(pingResponse.GatewayId)
