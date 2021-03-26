@@ -65,9 +65,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() - Valid ReceptionID required: %+v", err)
 	}
 
-	// Get the range of updates from the network instance
-	updates := gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
-
 	kr, err := gw.knownRound.Marshal()
 	if err != nil {
 		errStr := fmt.Sprintf("couldn't get known rounds for client "+
@@ -114,9 +111,13 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	var netDef *pb.NDF
+	var updates []*pb.RoundInfo
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
 	if !isSame {
 		netDef = gw.NetInf.GetPartialNdf().GetPb()
+	} else {
+		// Get the range of updates from the network instance
+		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
 	}
 
 	return &pb.GatewayPollResponse{
