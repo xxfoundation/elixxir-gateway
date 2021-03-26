@@ -347,6 +347,10 @@ func (gw *Instance) InitNetwork() error {
 	gw.Comms = gateway.StartGateway(&id.TempGateway, gw.Params.ListeningAddress,
 		gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
 
+	// Set gw.lowestRound information
+	zeroRound := uint64(0)
+	gw.lowestRound = &zeroRound
+
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
 	dummyServerID := id.DummyUser.DeepCopy()
@@ -519,9 +523,6 @@ func (gw *Instance) InitNetwork() error {
 // Async function for cleaning up gateway storage
 // and managing variables that need updated after cleanup
 func (gw *Instance) beginStorageCleanup() {
-	// Set gw.lowestRound information
-	zeroRound := uint64(0)
-	gw.lowestRound = &zeroRound
 
 	earliestRound, err := gw.storage.GetLowestBloomRound()
 	if err != nil {
