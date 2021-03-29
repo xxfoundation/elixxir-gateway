@@ -67,7 +67,7 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	if err != nil {
 		return errors.Errorf("Unable to build gossip signature: %+v", err)
 	}
-
+	gossipMsg.Timestamp = time.Now().UnixNano()
 	// Gossip the message
 	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 

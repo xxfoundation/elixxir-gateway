@@ -10,6 +10,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/golang/protobuf/proto"
+	"github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
@@ -333,7 +334,16 @@ func TestInstance_GossipBatch(t *testing.T) {
 		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
 	}
 
-	gw.InitRateLimitGossip()
+	// Initialize leaky bucket
+	gw.rateLimitQuit = make(chan struct{}, 1)
+	gw.rateLimit = rateLimiting.CreateBucketMapFromParams(gw.Params.rateLimitParams, nil, gw.rateLimitQuit)
+	fmt.Printf("gwComms: %v\n", gw.Comms)
+	fmt.Printf("gwManager: %v\n", gw.Comms.Manager)
+	flags := gossip.DefaultProtocolFlags()
+	flags.SelfGossip = true
+	// Register gossip protocol for client rate limiting
+	gw.Comms.Manager.NewGossip(RateLimitGossip, flags,
+		gw.gossipRateLimitReceive, gw.gossipVerify, nil)
 	defer gw.KillRateLimiter()
 
 	// Add permissioning as a host
@@ -361,10 +371,12 @@ func TestInstance_GossipBatch(t *testing.T) {
 	nodeID.SetType(id.Node)
 	topology := [][]byte{nodeID.Bytes()}
 	// Create a fake round info to store
+	ts := uint64(time.Now().UnixNano())
 	ri := &pb.RoundInfo{
-		ID:       10,
-		UpdateID: 10,
-		Topology: topology,
+		ID:         10,
+		UpdateID:   10,
+		Topology:   topology,
+		Timestamps: []uint64{ts, ts, ts, ts, ts, ts, ts},
 	}
 	fmt.Printf("nodeID: %v\n", nodeID)
 
@@ -405,6 +417,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 }
 
 func TestInstance_GossipBloom(t *testing.T) {
+	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelDebug)
 	//Build the gateway instance
 	params := Params{
 		NodeAddress:           NODE_ADDRESS,
@@ -444,7 +457,14 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 
 	rndId := uint64(10)
-	gw.InitBloomGossip()
+	flags := gossip.DefaultProtocolFlags()
+	flags.FanOut = 25
+	flags.MaximumReSends = 2
+	flags.NumParallelSends = 150
+	flags.SelfGossip = true
+	// Register gossip protocol for bloom filters
+	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
+		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
 
 	// Add permissioning as a host
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
@@ -471,11 +491,12 @@ func TestInstance_GossipBloom(t *testing.T) {
 	nodeID.SetType(id.Node)
 	topology := [][]byte{nodeID.Bytes()}
 	// Create a fake round info to store
+	ts := uint64(time.Now().UnixNano())
 	ri := &pb.RoundInfo{
 		ID:         rndId,
 		UpdateID:   10,
 		Topology:   topology,
-		Timestamps: make([]uint64, states.NUM_STATES),
+		Timestamps: []uint64{ts, ts, ts, ts, ts, ts, ts},
 	}
 
 	// Sign the round info with the mock permissioning private key
@@ -548,7 +569,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	testEpoch := GetEpoch(int64(round.Timestamps[states.REALTIME]), gw.period)
+	testEpoch := GetEpoch(int64(round.Timestamps[states.QUEUED]), gw.period)
 	for clientId := range ephIds {
 		// Check that the first five IDs are known clients, and thus
 		// in the user bloom filter
