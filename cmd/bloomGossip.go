@@ -184,7 +184,19 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	// look up the round
 	roundID := id.Round(payloadMsg.RoundID)
-	jww.INFO.Printf("Gossip received for round %d", roundID)
+	if len(payloadMsg.RecipientIds) == 0 {
+		jww.INFO.Printf("Gossip received for round %d, did not process "+
+			"due to lack of recipients", roundID)
+		gw.knownRound.ForceCheck(roundID)
+		if err := gw.SaveKnownRounds(); err != nil {
+			jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
+		}
+		return nil
+	}
+
+	jww.INFO.Printf("Gossip received for round %d with %d recipients",
+		roundID, len(payloadMsg.RecipientIds))
+
 	round, err := gw.NetInf.GetRound(roundID)
 
 	if err == nil && states.Round(round.State) == states.FAILED {
