@@ -95,17 +95,23 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 			"format: %s", err)
 	}
 
-	// Create channel to receive round info when it is available
+	// Try to get the round from ram
 	r := id.Round(payloadMsg.RoundID)
 	var ri *pb.RoundInfo
 	ri, err = instance.GetRound(r)
+
+	// Try to get the round from the database
+	if err != nil {
+		ri, err = instance.GetHistoricalRound(r)
+	}
+
 	//if we cant find the round, wait unill we have an update
 	//fixme: there is a potential race codnition if the round comes in after the
 	//above call and before the below
 	if err != nil {
 		eventChan := make(chan dataStructures.EventReturn, 1)
 		instance.GetRoundEvents().AddRoundEventChan(r,
-			eventChan, 60*time.Second, states.PRECOMPUTING, states.QUEUED,
+			eventChan, 5*time.Minute, states.PRECOMPUTING, states.QUEUED,
 			states.REALTIME, states.COMPLETED, states.FAILED)
 
 		// Check if we recognize the round
@@ -114,21 +120,32 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 		if event.RoundInfo == nil {
 			jww.WARN.Printf("Bailing on processing bloom goosip %d network "+
 				"round lookup returned nil without na error", r)
-			return errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
+			err = errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
 		}
 
 		if event.TimedOut {
-			return errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
+			err = errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
 		} else if states.Round(event.RoundInfo.State) == states.FAILED {
-			return errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
+			err = errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
 		}
 
 		ri = event.RoundInfo
 	} else if ri == nil {
 		jww.WARN.Printf("Bailing on processing bloom goosip %d ram "+
 			"round lookup returned nil without an error", r)
-		return errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
+		err = errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
 	}
+
+	//do a second lookup in ram to handle any race conditions
+	if err != nil {
+		ri, err = instance.GetRound(r)
+		if err != nil {
+			return err
+		}
+	}
+
+	roundEnd := time.Unix(0, int64(ri.Timestamps[states.COMPLETED]))
+	jww.INFO.Printf("Gossip for round %d was received with a delay of %s", ri.ID, time.Now().Sub(roundEnd))
 
 	// Parse the round topology
 	idList, err := id.NewIDListFromBytes(ri.Topology)
@@ -165,6 +182,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	var errs []string
 	var wg sync.WaitGroup
 
+	// look up the round
 	roundID := id.Round(payloadMsg.RoundID)
 	jww.INFO.Printf("Gossip received for round %d", roundID)
 	round, err := gw.NetInf.GetRound(roundID)
@@ -174,11 +192,16 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 			"failed round %d", roundID)
 	}
 
+	// Check if the round is in historical rounds
+	if err != nil {
+		round, err = gw.NetInf.GetHistoricalRound(roundID)
+	}
+
 	//in the event that rounds are too early, wait until we get the update
 	if err != nil || states.Round(round.State) < states.QUEUED {
 		eventChan := make(chan dataStructures.EventReturn, 1)
 		gw.NetInf.GetRoundEvents().AddRoundEventChan(roundID,
-			eventChan, 3*time.Minute, states.QUEUED, states.REALTIME,
+			eventChan, 5*time.Minute, states.QUEUED, states.REALTIME,
 			states.COMPLETED, states.FAILED)
 
 		// Check if we recognize the round
