@@ -144,8 +144,8 @@ func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instanc
 		}
 	}
 
-	roundEnd := time.Unix(0, int64(ri.Timestamps[states.COMPLETED]))
-	jww.INFO.Printf("Gossip for round %d was received with a delay of %s", ri.ID, time.Now().Sub(roundEnd))
+	//roundEnd := time.Unix(0, int64(ri.Timestamps[states.COMPLETED]))
+	//jww.INFO.Printf("Gossip for round %d was received with a delay of %s", ri.ID, time.Now().Sub(roundEnd))
 
 	// Parse the round topology
 	idList, err := id.NewIDListFromBytes(ri.Topology)
