@@ -315,7 +315,8 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	batch := gw.UnmixedBuffer.PopRound(rid)
 
 	if batch == nil {
-		jww.FATAL.Panicf("Batch for %v not found!", roundInfo.ID)
+		jww.ERROR.Printf("Batch for %v not found!", roundInfo.ID)
+		return
 	}
 
 	batch.Round = roundInfo
