@@ -45,7 +45,7 @@ const (
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
-const knownRoundsSize = 1048576
+const knownRoundsSize = 4096
 
 type Instance struct {
 	// Storage buffer for messages to be submitted to the network
@@ -458,7 +458,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.Comms = gateway.StartGateway(gatewayId, gw.Params.ListeningAddress,
 			gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
 
-		jww.DEBUG.Printf("Creating instance!")
+		jww.INFO.Printf("Creating instance!")
 		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
 			serverResponse.FullNDF,
 			serverResponse.PartialNDF, gw.storage)
@@ -495,7 +495,7 @@ func (gw *Instance) InitNetwork() error {
 		// Update the network instance
 		// This must be below the enabling of the gossip above because it uses
 		// components they initialize
-		jww.DEBUG.Printf("Updating instance")
+		jww.INFO.Printf("Updating instance")
 		err = gw.UpdateInstance(serverResponse)
 		if err != nil {
 			jww.ERROR.Printf("Update instance error: %v", err)
