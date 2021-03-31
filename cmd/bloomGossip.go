@@ -48,13 +48,12 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 
 	// Build the message
 	gossipMsg := &gossip.GossipMsg{
-		Tag:       BloomFilterGossip,
-		Origin:    gw.Comms.Id.Marshal(),
-		Timestamp: roundTimestamp,
+		Tag:    BloomFilterGossip,
+		Origin: gw.Comms.Id.Marshal(),
 	}
 
 	// Add the GossipMsg payload
-	gossipMsg.Payload, err = buildGossipPayloadBloom(recipients, roundId)
+	gossipMsg.Payload, err = buildGossipPayloadBloom(recipients, roundId, uint64(roundTimestamp))
 	if err != nil {
 		return errors.Errorf("Unable to build gossip payload: %+v", err)
 	}
@@ -93,7 +92,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	var errs []string
 	var wg sync.WaitGroup
 
-	epoch := GetEpoch(int64(msg.Timestamp), gw.period)
+	epoch := GetEpoch(int64(payloadMsg.RoundTS), gw.period)
 
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
@@ -106,7 +105,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, id.Round(msg.Timestamp), epoch)
+			err = gw.UpsertFilter(recipientId, id.Round(payloadMsg.RoundID), epoch)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -132,7 +131,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
-func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId id.Round) ([]byte, error) {
+func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId id.Round, roundTS uint64) ([]byte, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
 	i := 0
@@ -147,6 +146,7 @@ func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId 
 	payloadMsg := &pb.Recipients{
 		RecipientIds: recipients,
 		RoundID:      uint64(roundId),
+		RoundTS:      roundTS,
 	}
 	return proto.Marshal(payloadMsg)
 }
