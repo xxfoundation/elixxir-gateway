@@ -385,7 +385,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		}
 
 		go func() {
-			err = gw.GossipBloom(recipients, roundID)
+			err = gw.GossipBloom(recipients, roundID, int64(round.Timestamps[states.QUEUED]))
 			if err != nil {
 				jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
 			}

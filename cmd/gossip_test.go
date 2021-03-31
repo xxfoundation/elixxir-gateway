@@ -554,7 +554,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		rnd := dataStructures.NewRound(ri, publicKey)
 		gw.NetInf.GetRoundEvents().TriggerRoundEvent(rnd)
 	}()
-	err = gw.GossipBloom(ephIds, id.Round(rndId))
+	err = gw.GossipBloom(ephIds, id.Round(rndId), int64(ts))
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
