@@ -14,10 +14,6 @@ import (
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/comms/network/dataStructures"
-	"gitlab.com/elixxir/primitives/states"
-	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
@@ -41,7 +37,7 @@ func (gw *Instance) InitBloomGossip() {
 
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
-func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round) error {
+func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round, roundTimestamp int64) error {
 	var err error
 
 	// Retrieve gossip protocol
@@ -52,8 +48,9 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 
 	// Build the message
 	gossipMsg := &gossip.GossipMsg{
-		Tag:    BloomFilterGossip,
-		Origin: gw.Comms.Id.Marshal(),
+		Tag:       BloomFilterGossip,
+		Origin:    gw.Comms.Id.Marshal(),
+		Timestamp: roundTimestamp,
 	}
 
 	// Add the GossipMsg payload
@@ -81,92 +78,6 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	return nil
 }
 
-// Verify bloom is some additional logic to determine if the
-// gateway gossiping a message is responsible for the round
-// it has gossiped about.
-func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instance) error {
-	jww.DEBUG.Printf("Verifying gossip message from %+v", origin)
-
-	// Parse the payload message
-	payloadMsg := &pb.Recipients{}
-	err := proto.Unmarshal(msg.Payload, payloadMsg)
-	if err != nil {
-		return errors.Errorf("Could not unmarshal message into expected "+
-			"format: %s", err)
-	}
-
-	// Try to get the round from ram
-	r := id.Round(payloadMsg.RoundID)
-	var ri *pb.RoundInfo
-	ri, err = instance.GetRound(r)
-
-	// Try to get the round from the database
-	if err != nil {
-		ri, err = instance.GetHistoricalRound(r)
-	}
-
-	//if we cant find the round, wait unill we have an update
-	//fixme: there is a potential race codnition if the round comes in after the
-	//above call and before the below
-	if err != nil {
-		eventChan := make(chan dataStructures.EventReturn, 1)
-		instance.GetRoundEvents().AddRoundEventChan(r,
-			eventChan, 5*time.Minute, states.PRECOMPUTING, states.QUEUED,
-			states.REALTIME, states.COMPLETED, states.FAILED)
-
-		// Check if we recognize the round
-		event := <-eventChan
-
-		if event.RoundInfo == nil {
-			jww.WARN.Printf("Bailing on processing bloom goosip %d network "+
-				"round lookup returned nil without na error", r)
-			err = errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
-		}
-
-		if event.TimedOut {
-			err = errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
-		} else if states.Round(event.RoundInfo.State) == states.FAILED {
-			err = errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
-		}
-
-		ri = event.RoundInfo
-	} else if ri == nil {
-		jww.WARN.Printf("Bailing on processing bloom goosip %d ram "+
-			"round lookup returned nil without an error", r)
-		err = errors.Errorf("Round %v sent out by gossip message failed lookup", payloadMsg.RoundID)
-	}
-
-	//do a second lookup in ram to handle any race conditions
-	if err != nil {
-		ri, err = instance.GetRound(r)
-		if err != nil {
-			return err
-		}
-	}
-
-	//roundEnd := time.Unix(0, int64(ri.Timestamps[states.COMPLETED]))
-	//jww.INFO.Printf("Gossip for round %d was received with a delay of %s", ri.ID, time.Now().Sub(roundEnd))
-
-	// Parse the round topology
-	idList, err := id.NewIDListFromBytes(ri.Topology)
-	if err != nil {
-		return errors.Errorf("Could not read topology from gossip message: %s",
-			err)
-	}
-	topology := connect.NewCircuit(idList)
-
-	// Check if the sender is in the round that we have tracked
-	senderIdCopy := origin.DeepCopy()
-	senderIdCopy.SetType(id.Node)
-	if topology.GetNodeLocation(senderIdCopy) < 0 {
-		return errors.Errorf("Origin gateway (%s) is not in round "+
-			"it's gossiping about (rid: %d)", senderIdCopy, ri.ID)
-	}
-	jww.DEBUG.Printf("Verified gossip message from %+v", origin)
-
-	return nil
-}
-
 // Receive function for Gossip messages regarding bloom filters
 func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	gw.bloomFilterGossip.Lock()
@@ -182,65 +93,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	var errs []string
 	var wg sync.WaitGroup
 
-	// look up the round
-	roundID := id.Round(payloadMsg.RoundID)
-	if len(payloadMsg.RecipientIds) == 0 {
-		jww.INFO.Printf("Gossip received for round %d, did not process "+
-			"due to lack of recipients", roundID)
-		gw.knownRound.ForceCheck(roundID)
-		if err := gw.SaveKnownRounds(); err != nil {
-			jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
-		}
-		return nil
-	}
-
-	jww.INFO.Printf("Gossip received for round %d with %d recipients",
-		roundID, len(payloadMsg.RecipientIds))
-
-	round, err := gw.NetInf.GetRound(roundID)
-
-	if err == nil && states.Round(round.State) == states.FAILED {
-		return errors.Errorf("Cannot add bloom filters for "+
-			"failed round %d", roundID)
-	}
-
-	// Check if the round is in historical rounds
-	if err != nil {
-		round, err = gw.NetInf.GetHistoricalRound(roundID)
-	}
-
-	//in the event that rounds are too early, wait until we get the update
-	if err != nil || states.Round(round.State) < states.QUEUED {
-		eventChan := make(chan dataStructures.EventReturn, 1)
-		gw.NetInf.GetRoundEvents().AddRoundEventChan(roundID,
-			eventChan, 5*time.Minute, states.QUEUED, states.REALTIME,
-			states.COMPLETED, states.FAILED)
-
-		// Check if we recognize the round
-		event := <-eventChan
-		round = event.RoundInfo
-	}
-
-	//check that we have a valid round
-	if round == nil {
-		// handle the potential race condition between the previous two round
-		// calls which would result in not getting the round
-		round, err = gw.NetInf.GetRound(roundID)
-		if err != nil {
-			return errors.WithMessagef(err, "Failed to find round %d to "+
-				"process gossip", roundID)
-		} else if states.Round(round.State) < states.QUEUED {
-			return errors.WithMessagef(err, "Failed to find round %d with "+
-				"enough info to process gossip", roundID)
-		}
-	}
-
-	if len(round.Timestamps) != int(states.NUM_STATES) {
-		return errors.Errorf("Received improperly formed round object "+
-			"for round %d, cannot insert bloom filters", roundID)
-	}
-
-	epoch := GetEpoch(int64(round.Timestamps[states.QUEUED]), gw.period)
+	epoch := GetEpoch(int64(msg.Timestamp), gw.period)
 
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
@@ -253,7 +106,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, roundID, epoch)
+			err = gw.UpsertFilter(recipientId, id.Round(msg.Timestamp), epoch)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -264,7 +117,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	wg.Wait()
 
 	//denote the reception in known rounds
-	gw.knownRound.ForceCheck(roundID)
+	gw.knownRound.ForceCheck(id.Round(msg.Timestamp))
 	if err := gw.SaveKnownRounds(); err != nil {
 		jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
 	}

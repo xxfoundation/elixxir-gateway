@@ -116,7 +116,7 @@ func (gw *Instance) gossipVerify(msg *gossip.GossipMsg, _ []byte) error {
 	if msg.Tag == RateLimitGossip {
 		return verifyRateLimit(msg, origin, gw.NetInf)
 	} else if msg.Tag == BloomFilterGossip {
-		return verifyBloom(msg, origin, gw.NetInf)
+		return nil
 	}
 
 	return errors.Errorf("Unrecognized tag: %s", msg.Tag)
