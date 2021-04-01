@@ -93,7 +93,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	roundID := id.Round(payloadMsg.RoundID)
 
 	jww.INFO.Printf("Gossip received for round %d with %d recipients "+
-		"at ts %d", roundID, len(payloadMsg.RecipientIds),
+		"at ts %s", roundID, len(payloadMsg.RecipientIds),
 		time.Unix(0, int64(payloadMsg.RoundTS)))
 
 	var errs []string
