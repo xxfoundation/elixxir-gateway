@@ -67,7 +67,7 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	// Gossip the message
 	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
-	jww.INFO.Printf("Gossiping Blooms for round: %v", roundId)
+	jww.INFO.Printf("Gossiping Blooms for round %v at ts %d", roundId, roundTimestamp)
 
 	// Return any errors up the stack
 	if len(errs) != 0 {
@@ -89,6 +89,11 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 		return errors.Errorf("Could not unmarshal message into expected format: %s", err)
 	}
 
+	roundID := id.Round(payloadMsg.RoundID)
+
+	jww.INFO.Printf("Gossip received for round %d with %d recipients "+
+		"at ts %d", roundID, len(payloadMsg.RecipientIds), payloadMsg.RoundTS)
+
 	var errs []string
 	var wg sync.WaitGroup
 
@@ -105,7 +110,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, id.Round(payloadMsg.RoundID), epoch)
+			err = gw.UpsertFilter(recipientId, roundID, epoch)
 			if err != nil {
 				errs = append(errs, err.Error())
 			}
@@ -116,7 +121,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	wg.Wait()
 
 	//denote the reception in known rounds
-	gw.knownRound.ForceCheck(id.Round(msg.Timestamp))
+	gw.knownRound.ForceCheck(roundID)
 	if err := gw.SaveKnownRounds(); err != nil {
 		jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
 	}
