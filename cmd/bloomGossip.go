@@ -67,7 +67,8 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	// Gossip the message
 	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
-	jww.INFO.Printf("Gossiping Blooms for round %v at ts %d", roundId, roundTimestamp)
+	jww.INFO.Printf("Gossiping Blooms for round %v at ts %s", roundId,
+		time.Unix(0, roundTimestamp))
 
 	// Return any errors up the stack
 	if len(errs) != 0 {
@@ -92,7 +93,8 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	roundID := id.Round(payloadMsg.RoundID)
 
 	jww.INFO.Printf("Gossip received for round %d with %d recipients "+
-		"at ts %d", roundID, len(payloadMsg.RecipientIds), payloadMsg.RoundTS)
+		"at ts %d", roundID, len(payloadMsg.RecipientIds),
+		time.Unix(0, int64(payloadMsg.RoundTS)))
 
 	var errs []string
 	var wg sync.WaitGroup
