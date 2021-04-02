@@ -23,7 +23,7 @@ import (
 //	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
 //	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
 //
-//	db, err := newDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432")
+//	db, err := newDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432", false)
 //	if err != nil {
 //		t.Errorf(err.Error())
 //		return
@@ -50,6 +50,14 @@ import (
 //	err = db.UpsertClient(&Client{
 //		Id:      testClient2.Marshal(),
 //		Key:     []byte("keystring1"),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertState(&State{
+//		Key:   "test",
+//		Value: "test",
 //	})
 //	if err != nil {
 //		t.Errorf(err.Error())

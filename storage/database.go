@@ -21,6 +21,9 @@ import (
 	"time"
 )
 
+// Determines maximum runtime (in seconds) of specific DB queries
+const DbTimeout = 1
+
 // Interface declaration for storage methods
 type database interface {
 	UpsertState(state *State) error
@@ -40,8 +43,8 @@ type database interface {
 	deleteMixedMessages(ts time.Time) error
 
 	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
-	GetLowestBloomRound() (uint64, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error
+	GetLowestBloomRound() (uint64, error)
 	DeleteClientFiltersBeforeEpoch(epoch uint32) error
 }
 
