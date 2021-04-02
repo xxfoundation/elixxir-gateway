@@ -366,7 +366,16 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		return
 	}
 
-	recipients := gw.processMessages(msgs, roundID, round)
+	recipients, clientRound := gw.processMessages(msgs, roundID, round)
+
+	//upsert messages to the database
+	go func() {
+		errMsg := gw.storage.InsertMixedMessages(clientRound)
+		if errMsg != nil {
+			jww.ERROR.Printf("Inserting new mixed messages failed in "+
+				"ProcessCompletedBatch: %+v", errMsg)
+		}
+	}()
 
 	// Share messages in the batch with the rest of the team
 	err = gw.sendShareMessages(msgs, round)
@@ -378,16 +387,18 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
 	if !gw.Params.DisableGossip {
-		// Update filters in our storage system
-		err = gw.UpsertFilters(recipients, roundID)
-		if err != nil {
-			jww.ERROR.Printf("Unable to update local bloom filters: %+v", err)
-		}
+		go func() {
+			errGossip := gw.GossipBloom(recipients, roundID, int64(round.Timestamps[states.QUEUED]))
+			if err != nil {
+				jww.ERROR.Printf("Unable to gossip bloom information: %+v", errGossip)
+			}
+		}()
 
 		go func() {
-			err = gw.GossipBloom(recipients, roundID, int64(round.Timestamps[states.QUEUED]))
+			// Update filters in our storage system
+			errFilters := gw.UpsertFilters(recipients, roundID)
 			if err != nil {
-				jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
+				jww.ERROR.Printf("Unable to update local bloom filters: %+v", errFilters)
 			}
 		}()
 	}
@@ -398,7 +409,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 // Helper function which takes passed in messages from a round and
 // stores these as mixedMessages
 func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
-	round *pb.RoundInfo) map[ephemeral.Id]interface{} {
+	round *pb.RoundInfo) (map[ephemeral.Id]interface{}, *storage.ClientRound) {
 	numReal := 0
 
 	// Build a ClientRound object around the client messages
@@ -447,17 +458,12 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 
 	// Perform the message insertion into Storage
 	clientRound.Messages = msgsToInsert[:numReal]
-	err := gw.storage.InsertMixedMessages(clientRound)
-	if err != nil {
-		jww.ERROR.Printf("Inserting new mixed messages failed in "+
-			"ProcessCompletedBatch: %+v", err)
-	}
 
 	jww.INFO.Printf("Round %d received, %d real messages "+
 		"processed, %d dummies ignored", clientRound.Id, numReal,
 		len(msgs)-numReal)
 
-	return recipients
+	return recipients, clientRound
 }
 
 // FilterMessage determines if the message should be kept or discarded based on
