@@ -19,6 +19,14 @@ import (
 	"time"
 )
 
+// Helper for forcing panics in the event of a CDE, otherwise acts as a pass-through
+func catchCde(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		jww.FATAL.Panicf("Database call timed out: %+v", err.Error())
+	}
+	return err
+}
+
 // Inserts the given State into Database if it does not exist
 // Or updates the Database State if its value does not match the given State
 func (d *DatabaseImpl) UpsertState(state *State) error {
@@ -26,7 +34,7 @@ func (d *DatabaseImpl) UpsertState(state *State) error {
 	defer cancel()
 
 	// Build a transaction to prevent race conditions
-	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Make a copy of the provided state
 		newState := *state
 
@@ -45,6 +53,7 @@ func (d *DatabaseImpl) UpsertState(state *State) error {
 		// Commit
 		return nil
 	})
+	return catchCde(err)
 }
 
 // Returns a State's value from Database with the given key
@@ -55,7 +64,7 @@ func (d *DatabaseImpl) GetStateValue(key string) (string, error) {
 
 	result := &State{Key: key}
 	err := d.db.WithContext(ctx).Take(result).Error
-	return result.Value, err
+	return result.Value, catchCde(err)
 }
 
 // Returns a Client from database with the given id
@@ -66,7 +75,7 @@ func (d *DatabaseImpl) GetClient(id *id.ID) (*Client, error) {
 
 	result := &Client{}
 	err := d.db.WithContext(ctx).Take(&result, "id = ?", id.Marshal()).Error
-	return result, err
+	return result, catchCde(err)
 }
 
 // Upsert client into the database - replace key field if it differs so interrupted reg doesn't fail
@@ -78,7 +87,7 @@ func (d *DatabaseImpl) UpsertClient(client *Client) error {
 	newClient := *client
 
 	// Build a transaction to prevent race conditions
-	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Attempt to insert the client into the database,
 		// or if it already exists, replace client with the database value
 		err := tx.FirstOrCreate(client, &Client{Id: client.Id}).Error
@@ -95,6 +104,7 @@ func (d *DatabaseImpl) UpsertClient(client *Client) error {
 		// Commit
 		return nil
 	})
+	return catchCde(err)
 }
 
 // Returns a Round from database with the given id
@@ -161,7 +171,7 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, erro
 
 	var count int64
 	err := d.db.WithContext(ctx).Model(&MixedMessage{}).Where("round_id = ?", uint64(roundId)).Count(&count).Error
-	return uint64(count), err
+	return uint64(count), catchCde(err)
 }
 
 // Returns a slice of MixedMessages from database
@@ -175,7 +185,7 @@ func (d *DatabaseImpl) getMixedMessages(recipientId ephemeral.Id, roundId id.Rou
 	err := d.db.WithContext(ctx).Find(&results,
 		&MixedMessage{RecipientId: recipientId.Int64(),
 			RoundId: uint64(roundId)}).Error
-	return results, err
+	return results, catchCde(err)
 }
 
 // Inserts the given list of MixedMessage into database
@@ -184,7 +194,8 @@ func (d *DatabaseImpl) InsertMixedMessages(cr *ClientRound) error {
 	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
 	defer cancel()
 
-	return d.db.WithContext(ctx).Create(cr).Error
+	err := d.db.WithContext(ctx).Create(cr).Error
+	return catchCde(err)
 }
 
 // Deletes all MixedMessages before the given timestamp from database
@@ -206,7 +217,7 @@ func (d *DatabaseImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoc
 		Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Error
 	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
 
-	return results, err
+	return results, catchCde(err)
 }
 
 // Inserts the given ClientBloomFilter into database if it does not exist
@@ -217,7 +228,7 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 	defer cancel()
 
 	// Build a transaction to prevent race conditions
-	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Initialize variable for returning existing value from the database
 		oldFilter := &ClientBloomFilter{
 			Filter: make([]byte, len(filter.Filter)),
@@ -230,7 +241,7 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 			RecipientId: filter.RecipientId,
 		}).FirstOrCreate(oldFilter).Error
 		if err != nil {
-			return errors.Errorf("Failed to get/create filter for client %d at epoch %d: %+v", *filter.RecipientId, filter.Epoch, err)
+			return err
 		}
 
 		// Combine oldFilter with filter
@@ -239,10 +250,11 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 		// Commit to the database
 		err = tx.Save(filter).Error
 		if err != nil {
-			return errors.Errorf("Failed to save filter for client %d at epoch %d: %+v", *filter.RecipientId, filter.Epoch, err)
+			return err
 		}
 		return nil
 	})
+	return catchCde(err)
 }
 
 // Returns the lowest FirstRound value from ClientBloomFilter

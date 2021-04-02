@@ -21,8 +21,8 @@ import (
 	"time"
 )
 
-// Determines maximum runtime of specific DB queries
-const DbTimeout = 10
+// Determines maximum runtime (in seconds) of specific DB queries
+const DbTimeout = 1
 
 // Interface declaration for storage methods
 type database interface {
