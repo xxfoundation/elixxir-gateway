@@ -225,8 +225,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	if newInfo.Updates != nil {
 
 		for _, update := range newInfo.Updates {
-			jww.DEBUG.Printf("Processing Round Update: %s",
-				sprintRoundInfo(update))
 			if update.UpdateID > gw.lastUpdate {
 				gw.lastUpdate = update.UpdateID
 
