@@ -75,6 +75,9 @@ type Instance struct {
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
 	NetInf        *network.Instance
+	// Filtered network updates for updating the client
+	// as clients do not need to be informed of all network updates
+	filteredUpdates *network.FilteredUpdates
 	addGateway    chan network.NodeGateway
 	removeGateway chan *id.ID
 
@@ -243,7 +246,14 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			if err != nil {
 				// do not return on round update failure, that will cause the
 				// gateway to cease to process further updates, just warn
-				jww.WARN.Printf("failed to insert round update: %s", err)
+				jww.WARN.Printf("failed to insert round update for consensus: %s", err)
+			}
+
+			err = gw.filteredUpdates.RoundUpdate(update)
+			if err != nil {
+				// do not return on round update failure, that will cause the
+				// gateway to cease to process further updates, just warn
+				jww.WARN.Printf("failed to insert round update for client updates: %s", err)
 			}
 
 			// Convert the ID list to a circuit
@@ -465,6 +475,8 @@ func (gw *Instance) InitNetwork() error {
 				" instance: %v", err)
 			continue
 		}
+
+		gw.filteredUpdates = network.NewFilteredUpdates(gw.Comms.ProtoComms)
 
 		// Add permissioning as a host
 		params := connect.GetDefaultHostParams()

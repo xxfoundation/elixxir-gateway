@@ -116,8 +116,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	if !isSame {
 		netDef = gw.NetInf.GetPartialNdf().GetPb()
 	} else {
-		// Get the range of updates from the network instance
-		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
+		// Get the range of updates from the filtered updates structure for client
+		updates = gw.filteredUpdates.GetRoundUpdates(int(clientRequest.LastUpdate))
 	}
 
 	return &pb.GatewayPollResponse{

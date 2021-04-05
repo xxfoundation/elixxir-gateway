@@ -42,6 +42,7 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 	var err error
 	ers := &storage.Storage{}
 	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers, network.Lazy)
+	gw.filteredUpdates = network.NewFilteredUpdates(gatewayInstance.Comms.ProtoComms)
 
 	_, err = gw.Poll(clientReq)
 	if err == nil {
