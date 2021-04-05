@@ -242,6 +242,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				return err
 			}
 
+			// Add the updates to the consensus object
 			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				// do not return on round update failure, that will cause the
@@ -249,6 +250,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				jww.WARN.Printf("failed to insert round update for consensus: %s", err)
 			}
 
+			// Add the updates that need to be reported to client
 			err = gw.filteredUpdates.RoundUpdate(update)
 			if err != nil {
 				// do not return on round update failure, that will cause the
@@ -476,6 +478,7 @@ func (gw *Instance) InitNetwork() error {
 			continue
 		}
 
+		// Initialize the update tracker for client polling
 		gw.filteredUpdates = network.NewFilteredUpdates(gw.Comms.ProtoComms)
 
 		// Add permissioning as a host
