@@ -115,9 +115,13 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
 	if !isSame {
 		netDef = gw.NetInf.GetPartialNdf().GetPb()
-	} else {
+	} else if clientRequest.FastPolling  {
 		// Get the range of updates from the filtered updates structure for client
 		updates = gw.filteredUpdates.GetRoundUpdates(int(clientRequest.LastUpdate))
+	} else {
+		// Get the range of updates from the consensus object
+		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
+
 	}
 
 	return &pb.GatewayPollResponse{
