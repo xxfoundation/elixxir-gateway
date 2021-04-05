@@ -243,7 +243,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			if err != nil {
 				// do not return on round update failure, that will cause the
 				// gateway to cease to process further updates, just warn
-				jww.WARN.Printf("failed to insert round update: %s", err)
+				jww.WARN.Printf("failed to insert round update for %d: %s", update.ID, err)
 			}
 
 			// Convert the ID list to a circuit

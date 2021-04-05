@@ -73,7 +73,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			}, errors.Errorf("Could not find any MixedMessages with "+
 				"recipient ID %v and round ID %v: %+v", userId, roundID, err)
 	} else if !isValidGateway {
-		jww.WARN.Printf("A client (%s) has requested messages for a "+
+		jww.WARN.Printf("A client (%v) has requested messages for a "+
 			"round (%v) which is not recorded with messages", userId, roundID)
 		return &pb.GetMessagesResponse{
 			HasRound: false,
@@ -362,7 +362,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	// At this point, the returned batch and its fields should be non-nil
 	round, err := gw.NetInf.GetRound(roundID)
 	if err != nil {
-		jww.ERROR.Printf("ProcessCompleted - Unable to get round: %+v", err)
+		jww.ERROR.Printf("ProcessCompleted - Unable to get "+
+			"round %d: %+v", roundID, err)
 		return
 	}
 
@@ -373,32 +374,38 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		errMsg := gw.storage.InsertMixedMessages(clientRound)
 		if errMsg != nil {
 			jww.ERROR.Printf("Inserting new mixed messages failed in "+
-				"ProcessCompletedBatch: %+v", errMsg)
+				"ProcessCompletedBatch for round %d: %+v", roundID, errMsg)
 		}
 	}()
-
+	jww.INFO.Printf("Shairing Messages with teamates for round %d", roundID)
 	// Share messages in the batch with the rest of the team
 	err = gw.sendShareMessages(msgs, round)
 	if err != nil {
 		// Print error but do not stop message processing
-		jww.ERROR.Printf("Message sharing failed: %+v", err)
+		jww.ERROR.Printf("Message sharing failed for "+
+			"round %d: %+v", roundID, err)
 	}
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
 	if !gw.Params.DisableGossip {
+		jww.INFO.Printf("Sending bloom gossip (source thread) for round %d", roundID)
 		go func() {
+			jww.INFO.Printf("Sending bloom gossip (new thread) for round %d", roundID)
 			errGossip := gw.GossipBloom(recipients, roundID, int64(round.Timestamps[states.QUEUED]))
 			if err != nil {
-				jww.ERROR.Printf("Unable to gossip bloom information: %+v", errGossip)
+				jww.ERROR.Printf("Unable to gossip bloom information "+
+					"for round %d: %+v", roundID, errGossip)
 			}
+			jww.INFO.Printf("Sent bloom gossip for round %d", roundID)
 		}()
 
 		go func() {
 			// Update filters in our storage system
 			errFilters := gw.UpsertFilters(recipients, roundID)
 			if err != nil {
-				jww.ERROR.Printf("Unable to update local bloom filters: %+v", errFilters)
+				jww.ERROR.Printf("Unable to update local bloom filters "+
+					"for round %d: %+v", roundID, errFilters)
 			}
 		}()
 	}

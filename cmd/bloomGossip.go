@@ -29,7 +29,7 @@ func (gw *Instance) InitBloomGossip() {
 	flags := gossip.DefaultProtocolFlags()
 	flags.FanOut = 25
 	flags.MaximumReSends = 2
-	flags.NumParallelSends = 150
+	flags.NumParallelSends = 255
 	// Register gossip protocol for bloom filters
 	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
