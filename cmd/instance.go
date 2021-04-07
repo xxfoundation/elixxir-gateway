@@ -12,6 +12,12 @@ package cmd
 import (
 	"encoding/base64"
 	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
@@ -24,16 +30,12 @@ import (
 	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
+	"gitlab.com/xx_network/primitives/hw"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
 	"gorm.io/gorm"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 // Errors to suppress
@@ -109,6 +111,11 @@ func NewGatewayInstance(params Params) *Instance {
 		Params:        params,
 		storage:       newDatabase,
 		knownRound:    knownRounds.NewKnownRound(knownRoundsSize),
+	}
+
+	err = hw.LogHardware()
+	if err != nil {
+		jww.ERROR.Print(err)
 	}
 
 	// There is no round 0
