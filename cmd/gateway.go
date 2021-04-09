@@ -157,26 +157,28 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 
 // PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
-
-	// Unmarshal target ID
-	targetID, err := id.Unmarshal(msg.GetTarget())
-	if err != nil {
-		return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
-	}
-
-	// Check if the target is not itself
-	if !gw.Comms.Id.Cmp(targetID) {
-		// Check if the host exists and is connected
-		host, exists := gw.Comms.GetHost(targetID)
-		if !exists {
-			return nil, errors.Errorf("unable to find target host %s.", targetID)
-		}
-		connected, _ := host.Connected()
-		if !connected {
-			return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
 		}
 
-		return gw.Comms.SendPutMessage(host, msg)
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendPutMessage(host, msg)
+		}
 	}
 
 	// Construct Client ID for database lookup
@@ -265,25 +267,28 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 
 // Pass-through for Registration Nonce Communication
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
-	// Unmarshal target ID
-	targetID, err := id.Unmarshal(msg.GetTarget())
-	if err != nil {
-		return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
-	}
-
-	// Check if the target is not itself
-	if !gw.Comms.Id.Cmp(targetID) {
-		// Check if the host exists and is connected
-		host, exists := gw.Comms.GetHost(targetID)
-		if !exists {
-			return nil, errors.Errorf("unable to find target host %s.", targetID)
-		}
-		connected, _ := host.Connected()
-		if !connected {
-			return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
 		}
 
-		return gw.Comms.SendRequestNonce(host, msg)
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendRequestNonce(host, msg)
+		}
 	}
 
 	jww.INFO.Print("Passing on registration nonce request")
@@ -295,25 +300,28 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
 // Pass-through for Registration Nonce Confirmation
 func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.RegistrationConfirmation, error) {
 
-	// Unmarshal target ID
-	targetID, err := id.Unmarshal(msg.GetTarget())
-	if err != nil {
-		return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
-	}
-
-	// Check if the target is not itself
-	if !gw.Comms.Id.Cmp(targetID) {
-		// Check if the host exists and is connected
-		host, exists := gw.Comms.GetHost(targetID)
-		if !exists {
-			return nil, errors.Errorf("unable to find target host %s.", targetID)
-		}
-		connected, _ := host.Connected()
-		if !connected {
-			return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
 		}
 
-		return gw.Comms.SendConfirmNonce(host, msg)
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendConfirmNonce(host, msg)
+		}
 	}
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
