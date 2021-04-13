@@ -61,16 +61,19 @@ func (gw *Instance) sendShareMessages(msgs []*pb.Slot, round *pb.RoundInfo) erro
 func (gw *Instance) ShareMessages(msg *pb.RoundMessages, auth *connect.Auth) error {
 	// At this point, the returned batch and its fields should be non-nil
 	roundId := id.Round(msg.RoundId)
+
+	jww.INFO.Printf("Received Share messages for Round %d", roundId)
+
 	round, err := gw.NetInf.GetRound(roundId)
 	if err != nil {
-		return errors.Errorf("Unable to get round: %+v", err)
+		return errors.Errorf("Unable to get round %d: %+v", roundId, err)
 	}
 
 	// Parse the round topology
 	idList, err := id.NewIDListFromBytes(round.Topology)
 	if err != nil {
-		return errors.Errorf("Could not read topology from round messages: %s",
-			err)
+		return errors.Errorf("Could not read topology from round %d messages: %s",
+			roundId, err)
 	}
 
 	topology := connect.NewCircuit(idList)

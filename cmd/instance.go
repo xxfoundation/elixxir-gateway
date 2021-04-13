@@ -246,7 +246,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			if err != nil {
 				// do not return on round update failure, that will cause the
 				// gateway to cease to process further updates, just warn
-				jww.WARN.Printf("failed to insert round update for consensus: %s", err)
+				jww.WARN.Printf("failed to insert round update for %d: %s", update.ID, err)
 			}
 
 			// Add updates to filter for fast client polling
@@ -254,11 +254,11 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			if err != nil {
 				// do not return on round update failure, that will cause the
 				// gateway to cease to process further updates, just warn
-				jww.WARN.Printf("failed to insert round update for client updates: %s", err)
+				jww.WARN.Printf("failed to insert filtered round update for %d: %s", update.ID, err)
 			}
 
 			// Convert the ID list to a circuit
-			topology := ds.NewCircuit(idList)
+			topology := ds.Nhttps://gitlab.com/elixxir/gateway/-/merge_requests/252ewCircuit(idList)
 
 			// Chek if our node is the entry point fo the circuit
 			if states.Round(update.State) == states.PRECOMPUTING &&

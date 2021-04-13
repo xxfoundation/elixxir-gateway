@@ -29,7 +29,7 @@ func (gw *Instance) InitBloomGossip() {
 	flags := gossip.DefaultProtocolFlags()
 	flags.FanOut = 25
 	flags.MaximumReSends = 2
-	flags.NumParallelSends = 150
+	flags.NumParallelSends = 1000
 	// Register gossip protocol for bloom filters
 	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
@@ -63,7 +63,6 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	if err != nil {
 		return errors.Errorf("Unable to build gossip signature: %+v", err)
 	}
-	gossipMsg.Timestamp = time.Now().UnixNano()
 	// Gossip the message
 	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 

@@ -54,6 +54,30 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			"Please try again with a properly crafted message!")
 	}
 
+	// If the target is nil or empty, consider the target itself
+	if req.GetTarget() != nil && len(req.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(req.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendRequestMessages(host, req)
+		}
+	}
+
 	// Parse the requested clientID within the message for the database request
 	userId, err := ephemeral.Marshal(req.ClientID)
 	if err != nil {
@@ -73,7 +97,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			}, errors.Errorf("Could not find any MixedMessages with "+
 				"recipient ID %v and round ID %v: %+v", userId, roundID, err)
 	} else if !isValidGateway {
-		jww.WARN.Printf("A client (%s) has requested messages for a "+
+		jww.WARN.Printf("A client (%v) has requested messages for a "+
 			"round (%v) which is not recorded with messages", userId, roundID)
 		return &pb.GetMessagesResponse{
 			HasRound: false,
@@ -133,6 +157,30 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 
 // PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendPutMessage(host, msg)
+		}
+	}
+
 	// Construct Client ID for database lookup
 	clientID, err := id.Unmarshal(msg.Message.SenderID)
 	if err != nil {
@@ -219,13 +267,62 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 
 // Pass-through for Registration Nonce Communication
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendRequestNonce(host, msg)
+		}
+	}
+
 	jww.INFO.Print("Passing on registration nonce request")
+
 	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
 
 }
 
 // Pass-through for Registration Nonce Confirmation
 func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.RegistrationConfirmation, error) {
+
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendConfirmNonce(host, msg)
+		}
+	}
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
 
@@ -245,6 +342,9 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.R
 	if err != nil {
 		return resp, nil
 	}
+
+	// Clear client gateway key so the proxy gateway cannot see it
+	resp.ClientGatewayKey = make([]byte, 0)
 
 	return resp, nil
 }
@@ -362,7 +462,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	// At this point, the returned batch and its fields should be non-nil
 	round, err := gw.NetInf.GetRound(roundID)
 	if err != nil {
-		jww.ERROR.Printf("ProcessCompleted - Unable to get round: %+v", err)
+		jww.ERROR.Printf("ProcessCompleted - Unable to get "+
+			"round %d: %+v", roundID, err)
 		return
 	}
 
@@ -373,32 +474,38 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		errMsg := gw.storage.InsertMixedMessages(clientRound)
 		if errMsg != nil {
 			jww.ERROR.Printf("Inserting new mixed messages failed in "+
-				"ProcessCompletedBatch: %+v", errMsg)
+				"ProcessCompletedBatch for round %d: %+v", roundID, errMsg)
 		}
 	}()
-
+	jww.INFO.Printf("Shairing Messages with teamates for round %d", roundID)
 	// Share messages in the batch with the rest of the team
 	err = gw.sendShareMessages(msgs, round)
 	if err != nil {
 		// Print error but do not stop message processing
-		jww.ERROR.Printf("Message sharing failed: %+v", err)
+		jww.ERROR.Printf("Message sharing failed for "+
+			"round %d: %+v", roundID, err)
 	}
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
 	if !gw.Params.DisableGossip {
+		jww.INFO.Printf("Sending bloom gossip (source thread) for round %d", roundID)
 		go func() {
+			jww.INFO.Printf("Sending bloom gossip (new thread) for round %d", roundID)
 			errGossip := gw.GossipBloom(recipients, roundID, int64(round.Timestamps[states.QUEUED]))
 			if err != nil {
-				jww.ERROR.Printf("Unable to gossip bloom information: %+v", errGossip)
+				jww.ERROR.Printf("Unable to gossip bloom information "+
+					"for round %d: %+v", roundID, errGossip)
 			}
+			jww.INFO.Printf("Sent bloom gossip for round %d", roundID)
 		}()
 
 		go func() {
 			// Update filters in our storage system
 			errFilters := gw.UpsertFilters(recipients, roundID)
 			if err != nil {
-				jww.ERROR.Printf("Unable to update local bloom filters: %+v", errFilters)
+				jww.ERROR.Printf("Unable to update local bloom filters "+
+					"for round %d: %+v", roundID, errFilters)
 			}
 		}()
 	}
