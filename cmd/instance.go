@@ -74,12 +74,11 @@ type Instance struct {
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
-	NetInf        *network.Instance
-	// Filtered network updates for updating the client
-	// as clients do not need to be informed of all network updates
-	filteredUpdates *network.FilteredUpdates
-	addGateway    chan network.NodeGateway
-	removeGateway chan *id.ID
+	NetInf *network.Instance
+	// Filtered network updates for fast updates for client
+	filteredUpdates *FilteredUpdates
+	addGateway      chan network.NodeGateway
+	removeGateway   chan *id.ID
 
 	lastUpdate  uint64
 	period      int64   // Defines length of validity for ClientBloomFilter
@@ -171,7 +170,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF, ers *st
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers, network.None)
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers, network.None, false)
 }
 
 // Start sets up the threads and network server to run the gateway
@@ -250,7 +249,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				jww.WARN.Printf("failed to insert round update for consensus: %s", err)
 			}
 
-			// Add the updates that need to be reported to client
+			// Add updates to filter for fast client polling
 			err = gw.filteredUpdates.RoundUpdate(update)
 			if err != nil {
 				// do not return on round update failure, that will cause the
@@ -478,8 +477,8 @@ func (gw *Instance) InitNetwork() error {
 			continue
 		}
 
-		// Initialize the update tracker for client polling
-		gw.filteredUpdates = network.NewFilteredUpdates(gw.Comms.ProtoComms)
+		// Initialize the update tracker for fast client polling
+		gw.filteredUpdates = NewFilteredUpdates(gw.NetInf)
 
 		// Add permissioning as a host
 		params := connect.GetDefaultHostParams()

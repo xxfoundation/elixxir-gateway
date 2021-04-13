@@ -45,7 +45,7 @@ func TestInstance_GossipReceive_RateLimit(t *testing.T) {
 	}
 
 	// Sign the round info with the mock permissioning private key
-	err = testutils.SignRoundInfo(ri, t)
+	err = testutils.SignRoundInfoRsa(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
@@ -154,7 +154,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 	}
 
 	// Sign the round info with the mock permissioning private key
-	err = testutils.SignRoundInfo(ri, t)
+	err = testutils.SignRoundInfoRsa(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
@@ -223,8 +223,8 @@ func TestInstance_GossipVerify(t *testing.T) {
 	go func() {
 		time.Sleep(time.Millisecond)
 		ri.State = uint32(states.COMPLETED)
-		err = testutils.SignRoundInfo(ri, t)
-		rnd := dataStructures.NewRound(ri, publicKey)
+		err = testutils.SignRoundInfoRsa(ri, t)
+		rnd := dataStructures.NewRound(ri, publicKey, nil)
 		gw.NetInf.GetRoundEvents().TriggerRoundEvent(rnd)
 	}()
 
@@ -381,7 +381,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	fmt.Printf("nodeID: %v\n", nodeID)
 
 	// Sign the round info with the mock permissioning private key
-	err = testutils.SignRoundInfo(ri, t)
+	err = testutils.SignRoundInfoRsa(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
@@ -500,7 +500,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 
 	// Sign the round info with the mock permissioning private key
-	err = testutils.SignRoundInfo(ri, t)
+	err = testutils.SignRoundInfoRsa(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
@@ -550,8 +550,8 @@ func TestInstance_GossipBloom(t *testing.T) {
 	go func() {
 		time.Sleep(250 * time.Millisecond)
 		ri.State = uint32(states.COMPLETED)
-		testutils.SignRoundInfo(ri, t)
-		rnd := dataStructures.NewRound(ri, publicKey)
+		testutils.SignRoundInfoRsa(ri, t)
+		rnd := dataStructures.NewRound(ri, publicKey, nil)
 		gw.NetInf.GetRoundEvents().TriggerRoundEvent(rnd)
 	}()
 	err = gw.GossipBloom(ephIds, id.Round(rndId), int64(ts))
@@ -567,7 +567,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 	round, err := gw.NetInf.GetRound(id.Round(rndId))
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Fatalf(err.Error())
 	}
 	testEpoch := GetEpoch(int64(round.Timestamps[states.QUEUED]), gw.period)
 	for clientId := range ephIds {

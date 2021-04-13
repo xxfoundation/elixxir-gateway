@@ -41,8 +41,8 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
 	ers := &storage.Storage{}
-	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers, network.Lazy)
-	gw.filteredUpdates = network.NewFilteredUpdates(gatewayInstance.Comms.ProtoComms)
+	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers, network.Lazy, false)
+	gw.filteredUpdates = NewFilteredUpdates(gw.NetInf)
 
 	_, err = gw.Poll(clientReq)
 	if err == nil {

@@ -1228,7 +1228,7 @@ func TestInstance_shareMessages(t *testing.T) {
 	}
 
 	// Sign the round info with the mock permissioning private key
-	err = testutils.SignRoundInfo(ri, t)
+	err = testutils.SignRoundInfoRsa(ri, t)
 	if err != nil {
 		t.Errorf("Error signing round info: %s", err)
 	}
