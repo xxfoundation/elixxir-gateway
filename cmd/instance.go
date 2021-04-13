@@ -258,7 +258,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			}
 
 			// Convert the ID list to a circuit
-			topology := ds.Nhttps://gitlab.com/elixxir/gateway/-/merge_requests/252ewCircuit(idList)
+			topology := ds.NewCircuit(idList)
 
 			// Chek if our node is the entry point fo the circuit
 			if states.Round(update.State) == states.PRECOMPUTING &&
@@ -380,6 +380,10 @@ func (gw *Instance) InitNetwork() error {
 			"server: %+v", err)
 	}
 
+	// Initialize the update tracker for fast client polling
+	gw.filteredUpdates = NewFilteredUpdates(gw.NetInf)
+
+
 	// Add permissioning host
 	permissioningParams := connect.GetDefaultHostParams()
 	permissioningParams.MaxRetries = 0
@@ -476,9 +480,6 @@ func (gw *Instance) InitNetwork() error {
 				" instance: %v", err)
 			continue
 		}
-
-		// Initialize the update tracker for fast client polling
-		gw.filteredUpdates = NewFilteredUpdates(gw.NetInf)
 
 		// Add permissioning as a host
 		params := connect.GetDefaultHostParams()
