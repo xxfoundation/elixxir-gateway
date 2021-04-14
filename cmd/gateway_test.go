@@ -10,6 +10,14 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
+	"math/rand"
+	"os"
+	"reflect"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
+
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -32,13 +40,6 @@ import (
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
-	"math/rand"
-	"os"
-	"reflect"
-	"strconv"
-	"sync"
-	"testing"
-	"time"
 )
 
 const GW_ADDRESS = "0.0.0.0:5555"
@@ -1101,7 +1102,7 @@ func TestCreateNetworkInstance(t *testing.T) {
 	if err != nil {
 		t.Errorf("%v", err)
 	}
-	err = signature.Sign(ndfMsg, pKey)
+	err = signature.SignRsa(ndfMsg, pKey)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
