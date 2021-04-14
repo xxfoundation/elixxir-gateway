@@ -380,10 +380,6 @@ func (gw *Instance) InitNetwork() error {
 			"server: %+v", err)
 	}
 
-	// Initialize the update tracker for fast client polling
-	gw.filteredUpdates = NewFilteredUpdates(gw.NetInf)
-
-
 	// Add permissioning host
 	permissioningParams := connect.GetDefaultHostParams()
 	permissioningParams.MaxRetries = 0
@@ -479,6 +475,12 @@ func (gw *Instance) InitNetwork() error {
 			jww.ERROR.Printf("Unable to create network"+
 				" instance: %v", err)
 			continue
+		}
+
+		// Initialize the update tracker for fast client polling
+		gw.filteredUpdates, err = NewFilteredUpdates(gw.NetInf)
+		if err != nil {
+			return errors.Errorf("Failed to create filtered update: %+v", err)
 		}
 
 		// Add permissioning as a host

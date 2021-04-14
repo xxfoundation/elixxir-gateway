@@ -43,8 +43,10 @@ func TestFilteredUpdates_RoundUpdate(t *testing.T) {
 	}
 
 	netInf, err := network.NewInstance(gatewayInstance.Comms.ProtoComms, fullNdf.Get(), fullNdf.Get(), nil, network.Lazy, true)
-	testFilter := NewFilteredUpdates(netInf)
-
+	testFilter, err := NewFilteredUpdates(netInf)
+	if err != nil {
+		t.Fatalf("Failed to create filtered update: %v", err)
+	}
 	err = testutils.SignRoundInfoEddsa(validMsg, ecPrivKey, t)
 	if err != nil {
 		t.Fatalf("Failed to sign message: %v", err)
@@ -114,8 +116,10 @@ func TestFilteredUpdates_RoundUpdates(t *testing.T) {
 		t.Fatalf("Failed to generate instance: %v", err)
 	}
 
-	testFilter := NewFilteredUpdates(netInf)
-
+	testFilter, err := NewFilteredUpdates(netInf)
+	if err != nil {
+		t.Fatalf("Failed to create filtered update: %v", err)
+	}
 	invalidUpdateId := uint64(5)
 	invalidMsg := &mixmessages.RoundInfo{
 		ID:        2,
@@ -174,8 +178,10 @@ func TestFilteredUpdates_GetRoundUpdate(t *testing.T) {
 		t.Fatalf("Failed to generate instance: %v", err)
 	}
 
-	testFilter := NewFilteredUpdates(netInf)
-
+	testFilter, err := NewFilteredUpdates(netInf)
+	if err != nil {
+		t.Fatalf("Failed to create filtered update: %v", err)
+	}
 	ri := &mixmessages.RoundInfo{
 		ID:       uint64(1),
 		UpdateID: uint64(1),
@@ -211,8 +217,10 @@ func TestFilteredUpdates_GetRoundUpdates(t *testing.T) {
 		t.Fatalf("Failed to generate instance: %v", err)
 	}
 
-	testFilter := NewFilteredUpdates(netInf)
-
+	testFilter, err := NewFilteredUpdates(netInf)
+	if err != nil {
+		t.Fatalf("Failed to create filtered update: %v", err)
+	}
 	roundInfoOne := &mixmessages.RoundInfo{
 		ID:       uint64(1),
 		UpdateID: uint64(2),

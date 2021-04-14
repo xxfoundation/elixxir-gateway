@@ -8,6 +8,7 @@
 package cmd
 
 import (
+	"github.com/katzenpost/core/crypto/eddsa"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
@@ -18,13 +19,20 @@ import (
 type FilteredUpdates struct {
 	updates  *ds.Updates
 	instance *network.Instance
+	ecPubKey *eddsa.PublicKey
 }
 
-func NewFilteredUpdates(instance *network.Instance) *FilteredUpdates {
+func NewFilteredUpdates(instance *network.Instance) (*FilteredUpdates, error) {
+	ecPubKey, err := ec.LoadPublicKeyFromString(instance.GetEllipticPublicKey())
+	if err != nil {
+		return nil, err
+	}
+
 	return &FilteredUpdates{
 		updates:  ds.NewUpdates(),
 		instance: instance,
-	}
+		ecPubKey: ecPubKey,
+	}, nil
 }
 
 // Get an update ID
@@ -69,15 +77,10 @@ func (fu *FilteredUpdates) RoundUpdate(info *pb.RoundInfo) error {
 		// only for FilteredUpdates
 		roundCopy.Signature = nil
 
-		ecPubKey, err := ec.LoadPublicKeyFromString(fu.instance.GetEllipticPublicKey())
-		if err != nil {
-			return err
-		}
-
 		// Create a wrapped round object and store it
-		rnd := ds.NewRound(roundCopy, nil, ecPubKey)
+		rnd := ds.NewRound(roundCopy, nil, fu.ecPubKey)
 
-		err = fu.updates.AddRound(rnd)
+		err := fu.updates.AddRound(rnd)
 		if err != nil {
 			return err
 		}
