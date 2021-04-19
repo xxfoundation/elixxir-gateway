@@ -18,6 +18,7 @@ import (
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
+	"gitlab.com/elixxir/crypto/fingerprint"
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
@@ -467,7 +468,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		return
 	}
 
-	recipients, clientRound := gw.processMessages(msgs, roundID, round)
+	recipients, clientRound, notifications := gw.processMessages(msgs, roundID, round)
 
 	//upsert messages to the database
 	go func() {
@@ -511,21 +512,45 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	}
 
 	go PrintProfilingStatistics()
+
+	// Send notification data to notification bot
+	if gw.NetInf.GetFullNdf().Get().Notification.Address != "" {
+		go func(notificationBatch *pb.NotificationBatch, round *pb.RoundInfo) {
+			host, exists := gw.Comms.GetHost(&id.NotificationBot)
+			if !exists {
+				jww.WARN.Printf("Unable to find host for notification bot: %s",
+					id.NotificationBot)
+				return
+			}
+
+			err := gw.Comms.SendNotificationBatch(host, notificationBatch)
+			if err != nil {
+				jww.ERROR.Printf("Unable to send notification data: %s", notificationBatch)
+			}
+		}(notifications, round)
+	} else {
+		jww.INFO.Print("Notification bot not found in NDF. Skipping sending of " +
+			"notifications.")
+	}
 }
 
 // Helper function which takes passed in messages from a round and
 // stores these as mixedMessages
 func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
-	round *pb.RoundInfo) (map[ephemeral.Id]interface{}, *storage.ClientRound) {
+	round *pb.RoundInfo) (map[ephemeral.Id]interface{}, *storage.ClientRound, *pb.NotificationBatch) {
 	numReal := 0
 
 	// Build a ClientRound object around the client messages
 	clientRound := &storage.ClientRound{
 		Id:        uint64(roundID),
 		Timestamp: time.Unix(0, int64(round.Timestamps[states.QUEUED])),
+		Messages:  make([]storage.MixedMessage, 0, len(msgs)),
 	}
-	msgsToInsert := make([]storage.MixedMessage, len(msgs))
 	recipients := make(map[ephemeral.Id]interface{})
+	notifications := &pb.NotificationBatch{
+		RoundID:       uint64(roundID),
+		Notifications: make([]*pb.NotificationData, 0, len(msgs)),
+	}
 	// Process the messages into the ClientRound object
 	for _, msg := range msgs {
 		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
@@ -547,30 +572,34 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 				recipients[recipientId] = nil
 			}
 
+			// Only print debug statement if debug logging is enabled to avoid
+			// wasted resources calculating debug print
 			if jww.GetStdoutThreshold() <= jww.LevelDebug {
-				msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-				msgFmt.SetPayloadA(msg.PayloadA)
-				msgFmt.SetPayloadB(msg.PayloadB)
-
 				jww.DEBUG.Printf("Message received for: %d[%d] in "+
 					"round: %d, msgDigest: %s", recipientId.Int64(),
-					round.AddressSpaceSize, roundID, msgFmt.Digest())
+					round.AddressSpaceSize, roundID, serialMsg.Digest())
 			}
 
 			// Create new message and add it to the list for insertion
-			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
+			newMixedMessage := *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
+			clientRound.Messages = append(clientRound.Messages, newMixedMessage)
+
 			numReal++
+
+			// Add new NotificationData for the message
+			notifications.Notifications = append(notifications.Notifications, &pb.NotificationData{
+				EphemeralID: recipientId.Int64(),
+				IdentityFP:  serialMsg.GetIdentityFP(),
+				MessageHash: fingerprint.GetMessageHash(serialMsg.GetContents()),
+			})
 		}
 	}
-
-	// Perform the message insertion into Storage
-	clientRound.Messages = msgsToInsert[:numReal]
 
 	jww.INFO.Printf("Round %d received, %d real messages "+
 		"processed, %d dummies ignored", clientRound.Id, numReal,
 		len(msgs)-numReal)
 
-	return recipients, clientRound
+	return recipients, clientRound, notifications
 }
 
 // FilterMessage determines if the message should be kept or discarded based on
