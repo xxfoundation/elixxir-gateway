@@ -16,13 +16,17 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gorm.io/gorm"
+	"strings"
 	"time"
 )
 
 // Helper for forcing panics in the event of a CDE, otherwise acts as a pass-through
-func catchCde(err error) error {
+func catchErrors(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		jww.FATAL.Panicf("Database call timed out: %+v", err.Error())
+	}
+	if strings.Contains(err.Error(), "No space left on device") {
+		jww.FATAL.Panicf("Storage device full: %+v", err.Error())
 	}
 	return err
 }
@@ -53,7 +57,7 @@ func (d *DatabaseImpl) UpsertState(state *State) error {
 		// Commit
 		return nil
 	})
-	return catchCde(err)
+	return catchErrors(err)
 }
 
 // Returns a State's value from Database with the given key
@@ -64,7 +68,7 @@ func (d *DatabaseImpl) GetStateValue(key string) (string, error) {
 
 	result := &State{Key: key}
 	err := d.db.WithContext(ctx).Take(result).Error
-	return result.Value, catchCde(err)
+	return result.Value, catchErrors(err)
 }
 
 // Returns a Client from database with the given id
@@ -75,7 +79,7 @@ func (d *DatabaseImpl) GetClient(id *id.ID) (*Client, error) {
 
 	result := &Client{}
 	err := d.db.WithContext(ctx).Take(&result, "id = ?", id.Marshal()).Error
-	return result, catchCde(err)
+	return result, catchErrors(err)
 }
 
 // Upsert client into the database - replace key field if it differs so interrupted reg doesn't fail
@@ -104,7 +108,7 @@ func (d *DatabaseImpl) UpsertClient(client *Client) error {
 		// Commit
 		return nil
 	})
-	return catchCde(err)
+	return catchErrors(err)
 }
 
 // Returns a Round from database with the given id
@@ -112,7 +116,7 @@ func (d *DatabaseImpl) UpsertClient(client *Client) error {
 func (d *DatabaseImpl) GetRound(id id.Round) (*Round, error) {
 	result := &Round{}
 	err := d.db.Take(&result, "id = ?", uint64(id)).Error
-	return result, err
+	return result, catchErrors(err)
 }
 
 // Returns multiple Rounds from database with the given ids
@@ -128,14 +132,14 @@ func (d *DatabaseImpl) GetRounds(ids []id.Round) ([]*Round, error) {
 	results := make([]*Round, 0)
 	err := d.db.Where("id IN (?)", plainIds).Find(&results).Error
 
-	return results, err
+	return results, catchErrors(err)
 }
 
 // Inserts the given Round into database if it does not exist
 // Or updates the given Round if the provided Round UpdateId is greater
 func (d *DatabaseImpl) UpsertRound(round *Round) error {
 	// Build a transaction to prevent race conditions
-	return d.db.Transaction(func(tx *gorm.DB) error {
+	err := d.db.Transaction(func(tx *gorm.DB) error {
 		oldRound := &Round{
 			LastUpdated: time.Now(),
 		}
@@ -157,11 +161,12 @@ func (d *DatabaseImpl) UpsertRound(round *Round) error {
 		// Commit
 		return nil
 	})
+	return catchErrors(err)
 }
 
 // Deletes all Round objects before the given timestamp from database
 func (d *DatabaseImpl) deleteRound(ts time.Time) error {
-	return d.db.Where("last_updated <= ?", ts).Delete(Round{}).Error
+	return catchErrors(d.db.Where("last_updated <= ?", ts).Delete(Round{}).Error)
 }
 
 // Count the number of MixedMessage in the database for the given roundId
@@ -171,7 +176,7 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, erro
 
 	var count int64
 	err := d.db.WithContext(ctx).Model(&MixedMessage{}).Where("round_id = ?", uint64(roundId)).Count(&count).Error
-	return uint64(count), catchCde(err)
+	return uint64(count), catchErrors(err)
 }
 
 // Returns a slice of MixedMessages from database
@@ -185,7 +190,7 @@ func (d *DatabaseImpl) getMixedMessages(recipientId ephemeral.Id, roundId id.Rou
 	err := d.db.WithContext(ctx).Find(&results,
 		&MixedMessage{RecipientId: recipientId.Int64(),
 			RoundId: uint64(roundId)}).Error
-	return results, catchCde(err)
+	return results, catchErrors(err)
 }
 
 // Inserts the given list of MixedMessage into database
@@ -195,7 +200,7 @@ func (d *DatabaseImpl) InsertMixedMessages(cr *ClientRound) error {
 	defer cancel()
 
 	err := d.db.WithContext(ctx).Create(cr).Error
-	return catchCde(err)
+	return catchErrors(err)
 }
 
 // Deletes all MixedMessages before the given timestamp from database
@@ -217,7 +222,7 @@ func (d *DatabaseImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoc
 		Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Error
 	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
 
-	return results, catchCde(err)
+	return results, catchErrors(err)
 }
 
 // Inserts the given ClientBloomFilter into database if it does not exist
@@ -254,7 +259,7 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 		}
 		return nil
 	})
-	return catchCde(err)
+	return catchErrors(err)
 }
 
 // Returns the lowest FirstRound value from ClientBloomFilter
@@ -263,7 +268,7 @@ func (d *DatabaseImpl) GetLowestBloomRound() (uint64, error) {
 	result := &ClientBloomFilter{}
 	err := d.db.Order("first_round asc").Take(result).Error
 	if err != nil {
-		return 0, err
+		return 0, catchErrors(err)
 	}
 	jww.TRACE.Printf("Obtained lowest ClientBloomFilter FirstRound from DB: %d", result.FirstRound)
 	return result.FirstRound, nil
@@ -272,5 +277,5 @@ func (d *DatabaseImpl) GetLowestBloomRound() (uint64, error) {
 // Deletes all ClientBloomFilter with Epoch <= the given epoch
 // Returns an error if no matching ClientBloomFilter exist
 func (d *DatabaseImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
-	return d.db.Delete(ClientBloomFilter{}, "epoch <= ?", epoch).Error
+	return catchErrors(d.db.Delete(ClientBloomFilter{}, "epoch <= ?", epoch).Error)
 }
