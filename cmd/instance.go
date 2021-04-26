@@ -114,7 +114,7 @@ func NewGatewayInstance(params Params) *Instance {
 	// There is no round 0
 	i.knownRound.Check(0)
 	jww.DEBUG.Printf("Initial KnownRound State: %+v", i.knownRound)
-	msh, _ := i.knownRound.Marshal()
+	msh := i.knownRound.Marshal()
 	jww.DEBUG.Printf("Initial KnownRound Marshal: %s",
 		string(msh))
 
@@ -604,10 +604,7 @@ func (gw *Instance) SetPeriod() error {
 // SaveKnownRounds saves the KnownRounds to a file.
 func (gw *Instance) SaveKnownRounds() error {
 	// Serialize knownRounds
-	data, err := gw.knownRound.Marshal()
-	if err != nil {
-		return errors.Errorf("Failed to marshal KnownRounds: %v", err)
-	}
+	data := gw.knownRound.Marshal()
 
 	// Store knownRounds data
 	return gw.storage.UpsertState(&storage.State{

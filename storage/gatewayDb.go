@@ -22,11 +22,13 @@ import (
 
 // Helper for forcing panics in the event of a CDE, otherwise acts as a pass-through
 func catchErrors(err error) error {
-	if errors.Is(err, context.DeadlineExceeded) {
-		jww.FATAL.Panicf("Database call timed out: %+v", err.Error())
-	}
-	if strings.Contains(err.Error(), "No space left on device") {
-		jww.FATAL.Panicf("Storage device full: %+v", err.Error())
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			jww.FATAL.Panicf("Database call timed out: %+v", err.Error())
+		}
+		if strings.Contains(err.Error(), "No space left on device") {
+			jww.FATAL.Panicf("Storage device full: %+v", err.Error())
+		}
 	}
 	return err
 }
