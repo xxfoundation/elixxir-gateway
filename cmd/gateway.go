@@ -470,13 +470,12 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	recipients, clientRound := gw.processMessages(msgs, roundID, round)
 
 	//upsert messages to the database
-	go func() {
-		errMsg := gw.storage.InsertMixedMessages(clientRound)
-		if errMsg != nil {
-			jww.ERROR.Printf("Inserting new mixed messages failed in "+
-				"ProcessCompletedBatch for round %d: %+v", roundID, errMsg)
-		}
-	}()
+	errMsg := gw.storage.InsertMixedMessages(clientRound)
+	if errMsg != nil {
+		jww.ERROR.Printf("Inserting new mixed messages failed in "+
+			"ProcessCompletedBatch for round %d: %+v", roundID, errMsg)
+	}
+
 	jww.INFO.Printf("Shairing Messages with teamates for round %d", roundID)
 	// Share messages in the batch with the rest of the team
 	err = gw.sendShareMessages(msgs, round)
