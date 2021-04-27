@@ -525,7 +525,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 
 			err := gw.Comms.SendNotificationBatch(host, notificationBatch)
 			if err != nil {
-				jww.ERROR.Printf("Unable to send notification data: %s", notificationBatch)
+				jww.ERROR.Printf("Unable to send notification data %s: %+v", notificationBatch, err)
 			}
 		}(notifications, round)
 	} else {

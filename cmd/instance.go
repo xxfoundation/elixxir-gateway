@@ -132,9 +132,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message)
 	}
-	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
-		return instance.PollForNotifications(auth)
-	}
 	// Client -> Gateway historical round request
 	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
 		return instance.RequestHistoricalRounds(msg)

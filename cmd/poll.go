@@ -21,7 +21,6 @@ import (
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/primitives/version"
 	"gitlab.com/xx_network/comms/connect"
-	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
 )
@@ -162,15 +161,4 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 
 	resp, err := conn.SendPoll(pollee, pollMsg)
 	return resp, err
-}
-
-// Notification Server polls Gateway for mobile notifications at this endpoint
-func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e error) {
-	// Check that authentication is good and the sender is our gateway, otherwise error
-	if !auth.IsAuthenticated || auth.Sender.GetId() != &id.NotificationBot || auth.Sender.IsDynamicHost() {
-		jww.WARN.Printf("PollForNotifications failed auth (sender ID: %s, auth: %v, expected: %s)",
-			auth.Sender.GetId(), auth.IsAuthenticated, id.NotificationBot)
-		return nil, connect.AuthError(auth.Sender.GetId())
-	}
-	return gw.un.Notified(), nil
 }
