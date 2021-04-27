@@ -10,7 +10,6 @@
 package cmd
 
 import (
-	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -64,14 +63,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() - Valid ReceptionID required: %+v", err)
 	}
 
-	kr, err := gw.knownRound.Marshal()
-	if err != nil {
-		errStr := fmt.Sprintf("couldn't get known rounds for client "+
-			"%d's request: %v", receptionId.Int64(), err)
-		jww.WARN.Printf(errStr)
-		return &pb.GatewayPollResponse{}, errors.New(errStr)
-	}
-
+	kr := gw.knownRound.Marshal()
 	// Determine Client epoch range
 	startEpoch := GetEpoch(time.Unix(0, clientRequest.StartTimestamp).UnixNano(), gw.period)
 	endEpoch := GetEpoch(time.Unix(0, clientRequest.EndTimestamp).UnixNano(), gw.period)
