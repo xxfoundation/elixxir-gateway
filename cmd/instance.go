@@ -606,10 +606,12 @@ func (gw *Instance) SaveKnownRounds() error {
 	// Serialize knownRounds
 	data := gw.knownRound.Marshal()
 
+	dateEncode := base64.StdEncoding.EncodeToString(data)
+
 	// Store knownRounds data
 	return gw.storage.UpsertState(&storage.State{
 		Key:   storage.KnownRoundsKey,
-		Value: string(data),
+		Value: dateEncode,
 	})
 
 }
@@ -624,8 +626,13 @@ func (gw *Instance) LoadKnownRounds() error {
 		return err
 	}
 
+	dataDecode, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return err
+	}
+
 	// Parse the data and store in the instance
-	err = gw.knownRound.Unmarshal([]byte(data))
+	err = gw.knownRound.Unmarshal(dataDecode)
 	if err != nil {
 		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
 	}
