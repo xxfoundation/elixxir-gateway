@@ -476,7 +476,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 			"ProcessCompletedBatch for round %d: %+v", roundID, errMsg)
 	}
 
-	jww.INFO.Printf("Shairing Messages with teamates for round %d", roundID)
+	jww.INFO.Printf("Sharing Messages with teammates for round %d", roundID)
 	// Share messages in the batch with the rest of the team
 	err = gw.sendShareMessages(msgs, round)
 	if err != nil {
