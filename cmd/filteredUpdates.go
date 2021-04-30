@@ -8,7 +8,6 @@
 package cmd
 
 import (
-	"github.com/katzenpost/core/crypto/eddsa"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
@@ -19,11 +18,11 @@ import (
 type FilteredUpdates struct {
 	updates  *ds.Updates
 	instance *network.Instance
-	ecPubKey *eddsa.PublicKey
+	ecPubKey *ec.PublicKey
 }
 
 func NewFilteredUpdates(instance *network.Instance) (*FilteredUpdates, error) {
-	ecPubKey, err := ec.LoadPublicKeyFromString(instance.GetEllipticPublicKey())
+	ecPubKey, err := ec.LoadPublicKey(instance.GetEllipticPublicKey())
 	if err != nil {
 		return nil, err
 	}

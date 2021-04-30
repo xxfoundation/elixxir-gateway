@@ -9,12 +9,12 @@ package cmd
 
 import (
 	"crypto/rand"
-	"github.com/katzenpost/core/crypto/eddsa"
 	"gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/comms/testutils"
 	"gitlab.com/elixxir/primitives/states"
+	"gitlab.com/xx_network/crypto/signature/ec"
 	"gitlab.com/xx_network/primitives/ndf"
 	"testing"
 )
@@ -28,15 +28,15 @@ func TestFilteredUpdates_RoundUpdate(t *testing.T) {
 		BatchSize: 8,
 	}
 
-	ecPrivKey, err := eddsa.NewKeypair(rand.Reader)
+	ecPrivKey, err := ec.NewKeyPair(rand.Reader)
 	if err != nil {
 		t.Fatalf("Failed to generate test key: %v", err)
 	}
 
-	pubKey := ecPrivKey.PublicKey()
+	pubKey := ecPrivKey.GetPublic()
 
 	fullNdf, err := ds.NewNdf(&ndf.NetworkDefinition{
-		Registration: ndf.Registration{EllipticPubKey: pubKey.String()},
+		Registration: ndf.Registration{EllipticPubKey: pubKey.MarshalText()},
 	})
 	if err != nil {
 		t.Fatalf("Failed to generate a mock ndf: %v", err)
@@ -97,14 +97,14 @@ func TestFilteredUpdates_RoundUpdates(t *testing.T) {
 		BatchSize: 8,
 	}
 
-	ellipticKey, err := eddsa.NewKeypair(rand.Reader)
+	ellipticKey, err := ec.NewKeyPair(rand.Reader)
 	if err != nil {
 		t.Fatalf("Failed to generate test ellitpic key: %v", err)
 	}
 
 	fullNdf, err := ds.NewNdf(&ndf.NetworkDefinition{
 		Registration: ndf.Registration{
-			EllipticPubKey: ellipticKey.PublicKey().String(),
+			EllipticPubKey: ellipticKey.GetPublic().MarshalText(),
 		},
 	})
 	if err != nil {
@@ -159,14 +159,14 @@ func TestFilteredUpdates_RoundUpdates(t *testing.T) {
 }
 
 func TestFilteredUpdates_GetRoundUpdate(t *testing.T) {
-	ellipticKey, err := eddsa.NewKeypair(rand.Reader)
+	ellipticKey, err := ec.NewKeyPair(rand.Reader)
 	if err != nil {
 		t.Fatalf("Failed to generate test ellitpic key: %v", err)
 	}
 
 	fullNdf, err := ds.NewNdf(&ndf.NetworkDefinition{
 		Registration: ndf.Registration{
-			EllipticPubKey: ellipticKey.PublicKey().String(),
+			EllipticPubKey: ellipticKey.GetPublic().MarshalText(),
 		},
 	})
 	if err != nil {
@@ -188,7 +188,7 @@ func TestFilteredUpdates_GetRoundUpdate(t *testing.T) {
 		State:    uint32(states.QUEUED),
 	}
 	testutils.SignRoundInfoEddsa(ri, ellipticKey, t)
-	rnd := ds.NewRound(ri, nil, ellipticKey.PublicKey())
+	rnd := ds.NewRound(ri, nil, ellipticKey.GetPublic())
 
 	_ = testFilter.updates.AddRound(rnd)
 	r, err := testFilter.GetRoundUpdate(1)
@@ -198,14 +198,14 @@ func TestFilteredUpdates_GetRoundUpdate(t *testing.T) {
 }
 
 func TestFilteredUpdates_GetRoundUpdates(t *testing.T) {
-	ellipticKey, err := eddsa.NewKeypair(rand.Reader)
+	ellipticKey, err := ec.NewKeyPair(rand.Reader)
 	if err != nil {
 		t.Fatalf("Failed to generate test ellitpic key: %v", err)
 	}
 
 	fullNdf, err := ds.NewNdf(&ndf.NetworkDefinition{
 		Registration: ndf.Registration{
-			EllipticPubKey: ellipticKey.PublicKey().String(),
+			EllipticPubKey: ellipticKey.GetPublic().MarshalText(),
 		},
 	})
 	if err != nil {
@@ -237,8 +237,8 @@ func TestFilteredUpdates_GetRoundUpdates(t *testing.T) {
 	if err = testutils.SignRoundInfoEddsa(roundInfoTwo, ellipticKey, t); err != nil {
 		t.Fatalf("Failed to sign round info: %v", err)
 	}
-	roundOne := ds.NewRound(roundInfoOne, nil, ellipticKey.PublicKey())
-	roundTwo := ds.NewRound(roundInfoTwo, nil, ellipticKey.PublicKey())
+	roundOne := ds.NewRound(roundInfoOne, nil, ellipticKey.GetPublic())
+	roundTwo := ds.NewRound(roundInfoTwo, nil, ellipticKey.GetPublic())
 
 	_ = testFilter.updates.AddRound(roundOne)
 	_ = testFilter.updates.AddRound(roundTwo)
