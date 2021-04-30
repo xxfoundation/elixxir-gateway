@@ -1129,10 +1129,7 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	gw := NewGatewayInstance(params)
 	_ = gw.InitNetwork()
 	gw.knownRound.Check(4)
-	expectedData, err := gw.knownRound.Marshal()
-	if err != nil {
-		t.Fatalf("Marshal() failed to marshal knownRounds: %v", err)
-	}
+	expectedData := gw.knownRound.Marshal()
 
 	// Attempt to save knownRounds to file
 	if err := gw.SaveKnownRounds(); err != nil {
@@ -1145,10 +1142,7 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	}
 
 	// Ensure that the data loaded from file matches the expected data
-	testData, err := gw.knownRound.Marshal()
-	if err != nil {
-		t.Fatalf("Marshal() failed to marshal knownRounds: %v", err)
-	}
+	testData := gw.knownRound.Marshal()
 	if !reflect.DeepEqual(expectedData, testData) {
 		t.Errorf("Failed to load correct KnownRounds."+
 			"\n\texpected: %s\n\treceived: %s", expectedData, testData)

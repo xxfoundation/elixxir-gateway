@@ -91,7 +91,11 @@ func (gw *Instance) ShareMessages(msg *pb.RoundMessages, auth *connect.Auth) err
 		return connect.AuthError(auth.Sender.GetId())
 	}
 
-	gw.processMessages(msg.Messages, roundId, round)
-
+	_, clientRound := gw.processMessages(msg.Messages, roundId, round)
+	errMsg := gw.storage.InsertMixedMessages(clientRound)
+	if errMsg != nil {
+		jww.ERROR.Printf("Inserting new mixed messages failed in "+
+			"ProcessCompletedBatch for round %d: %+v", roundId, errMsg)
+	}
 	return nil
 }
