@@ -132,9 +132,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message)
 	}
-	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
-		return instance.PollForNotifications(auth)
-	}
 	// Client -> Gateway historical round request
 	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
 		return instance.RequestHistoricalRounds(msg)
@@ -480,6 +477,17 @@ func (gw *Instance) InitNetwork() error {
 		gw.removeGateway = make(chan *id.ID, gwChanLen)
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
+
+		// Add notification bot as a host
+		_, err = gw.Comms.AddHost(
+			&id.NotificationBot,
+			gw.NetInf.GetFullNdf().Get().Notification.Address,
+			[]byte(gw.NetInf.GetFullNdf().Get().Notification.TlsCertificate),
+			connect.GetDefaultHostParams(),
+		)
+		if err != nil {
+			return errors.Errorf("failed to add notification bot host to comms: %v", err)
+		}
 
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
