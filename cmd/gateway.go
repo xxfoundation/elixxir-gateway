@@ -29,14 +29,33 @@ import (
 // Zeroed identity fingerprint identifies dummy messages
 var dummyIdFp = make([]byte, format.IdentityFPLen)
 
-// Determines the Epoch value of the given timestamp with the given period
-func GetEpoch(ts int64, period int64) uint32 {
+// Determines the Epoch value of the given timestamp with the given period while
+// returning an error. To be used when either of the inputs come from the
+// network.
+func GetEpochEdge(ts int64, period int64) (uint32, error) {
 	if period == 0 {
-		jww.FATAL.Panicf("GetEpoch: Divide by zero")
-	} else if ts < 0 || period < 0 {
-		jww.FATAL.Panicf("GetEpoch: Negative input")
+		return 0, errors.New("GetEpochEdge: Period length is 0, " +
+			"cannot divide by zero")
+	} else if ts < 0 {
+		return 0, errors.Errorf("GetEpochEdge: Cannot calculate "+
+			"epoch with a negative timestamp: %d", ts)
+	} else if period < 0 {
+		return 0, errors.Errorf("GetEpochEdge: Cannot calculate "+
+			"epoch with a negative period size: %d", period)
 	}
-	return uint32(ts / period)
+	return uint32(ts / period), nil
+}
+
+// Determines the Epoch value of the given timestamp with the given period.
+// Panics on error. For internal use
+func GetEpoch(ts int64, period int64) uint32 {
+	epoch, err := GetEpochEdge(ts, period)
+
+	if err != nil {
+		jww.FATAL.Panicf("%+v", err)
+	}
+
+	return epoch
 }
 
 // Determines the timestamp value of the given epoch

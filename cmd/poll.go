@@ -65,9 +65,18 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	kr := gw.knownRound.Marshal()
+
 	// Determine Client epoch range
-	startEpoch := GetEpoch(time.Unix(0, clientRequest.StartTimestamp).UnixNano(), gw.period)
-	endEpoch := GetEpoch(time.Unix(0, clientRequest.EndTimestamp).UnixNano(), gw.period)
+	startEpoch, err := GetEpochEdge(time.Unix(0, clientRequest.StartTimestamp).UnixNano(), gw.period)
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.WithMessage(err, "Failed to "+
+			"handle client poll due to invalid start timestamp")
+	}
+	endEpoch, err := GetEpochEdge(time.Unix(0, clientRequest.EndTimestamp).UnixNano(), gw.period)
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.WithMessage(err, "Failed to "+
+			"handle client poll due to invalid end timestamp")
+	}
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
