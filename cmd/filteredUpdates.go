@@ -36,9 +36,6 @@ func NewFilteredUpdates(instance *network.Instance) (*FilteredUpdates, error) {
 
 // Get an update ID
 func (fu *FilteredUpdates) GetRoundUpdate(updateID int) (*pb.RoundInfo, error) {
-	// todo: update deps for the ec and rsa optional sig
-	//  ensure key isn't passed to new round for filtered updates
-
 	return fu.updates.GetUpdate(updateID)
 }
 
