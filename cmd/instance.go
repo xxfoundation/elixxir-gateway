@@ -74,9 +74,11 @@ type Instance struct {
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
-	NetInf        *network.Instance
-	addGateway    chan network.NodeGateway
-	removeGateway chan *id.ID
+	NetInf *network.Instance
+	// Filtered network updates for fast updates for client
+	filteredUpdates *FilteredUpdates
+	addGateway      chan network.NodeGateway
+	removeGateway   chan *id.ID
 
 	lastUpdate  uint64
 	period      int64   // Defines length of validity for ClientBloomFilter
@@ -165,7 +167,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF, ers *st
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers, network.None)
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers, network.None, false)
 }
 
 // Start sets up the threads and network server to run the gateway
@@ -236,11 +238,20 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				return err
 			}
 
+			// Add the updates to the consensus object
 			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				// do not return on round update failure, that will cause the
 				// gateway to cease to process further updates, just warn
 				jww.WARN.Printf("failed to insert round update for %d: %s", update.ID, err)
+			}
+
+			// Add updates to filter for fast client polling
+			err = gw.filteredUpdates.RoundUpdate(update)
+			if err != nil {
+				// do not return on round update failure, that will cause the
+				// gateway to cease to process further updates, just warn
+				jww.WARN.Printf("failed to insert filtered round update for %d: %s", update.ID, err)
 			}
 
 			// Convert the ID list to a circuit
@@ -461,6 +472,12 @@ func (gw *Instance) InitNetwork() error {
 			jww.ERROR.Printf("Unable to create network"+
 				" instance: %v", err)
 			continue
+		}
+
+		// Initialize the update tracker for fast client polling
+		gw.filteredUpdates, err = NewFilteredUpdates(gw.NetInf)
+		if err != nil {
+			return errors.Errorf("Failed to create filtered update: %+v", err)
 		}
 
 		// Add permissioning as a host
