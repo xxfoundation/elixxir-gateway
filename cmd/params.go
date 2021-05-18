@@ -136,7 +136,7 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	// Time to keep messages, rounds and filters in storage
-	viper.SetDefault("keepAlive", retentionPeriodDefault)
+	viper.SetDefault("retentionPeriod", retentionPeriodDefault)
 	retentionPeriod := viper.GetDuration("retentionPeriod")
 
 	// Time to periodically check for old objects in storage

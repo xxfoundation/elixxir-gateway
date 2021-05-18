@@ -18,6 +18,7 @@ import (
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
+	"gitlab.com/elixxir/crypto/fingerprint"
 	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
@@ -29,14 +30,33 @@ import (
 // Zeroed identity fingerprint identifies dummy messages
 var dummyIdFp = make([]byte, format.IdentityFPLen)
 
-// Determines the Epoch value of the given timestamp with the given period
-func GetEpoch(ts int64, period int64) uint32 {
+// Determines the Epoch value of the given timestamp with the given period while
+// returning an error. To be used when either of the inputs come from the
+// network.
+func GetEpochEdge(ts int64, period int64) (uint32, error) {
 	if period == 0 {
-		jww.FATAL.Panicf("GetEpoch: Divide by zero")
-	} else if ts < 0 || period < 0 {
-		jww.FATAL.Panicf("GetEpoch: Negative input")
+		return 0, errors.New("GetEpochEdge: Period length is 0, " +
+			"cannot divide by zero")
+	} else if ts < 0 {
+		return 0, errors.Errorf("GetEpochEdge: Cannot calculate "+
+			"epoch with a negative timestamp: %d", ts)
+	} else if period < 0 {
+		return 0, errors.Errorf("GetEpochEdge: Cannot calculate "+
+			"epoch with a negative period size: %d", period)
 	}
-	return uint32(ts / period)
+	return uint32(ts / period), nil
+}
+
+// Determines the Epoch value of the given timestamp with the given period.
+// Panics on error. For internal use
+func GetEpoch(ts int64, period int64) uint32 {
+	epoch, err := GetEpochEdge(ts, period)
+
+	if err != nil {
+		jww.FATAL.Panicf("%+v", err)
+	}
+
+	return epoch
 }
 
 // Determines the timestamp value of the given epoch
@@ -52,6 +72,30 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	if req == nil || req.ClientID == nil || req.RoundID == 0 {
 		return &pb.GetMessagesResponse{}, errors.New("Could not parse message! " +
 			"Please try again with a properly crafted message!")
+	}
+
+	// If the target is nil or empty, consider the target itself
+	if req.GetTarget() != nil && len(req.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(req.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendRequestMessages(host, req)
+		}
 	}
 
 	// Parse the requested clientID within the message for the database request
@@ -73,7 +117,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			}, errors.Errorf("Could not find any MixedMessages with "+
 				"recipient ID %v and round ID %v: %+v", userId, roundID, err)
 	} else if !isValidGateway {
-		jww.WARN.Printf("A client (%s) has requested messages for a "+
+		jww.WARN.Printf("A client (%v) has requested messages for a "+
 			"round (%v) which is not recorded with messages", userId, roundID)
 		return &pb.GetMessagesResponse{
 			HasRound: false,
@@ -133,6 +177,30 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 
 // PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendPutMessage(host, msg)
+		}
+	}
+
 	// Construct Client ID for database lookup
 	clientID, err := id.Unmarshal(msg.Message.SenderID)
 	if err != nil {
@@ -164,7 +232,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	if !gw.Params.DisableGossip {
+	/*if !gw.Params.DisableGossip {
 		err = gw.FilterMessage(senderId)
 		if err != nil {
 			jww.INFO.Printf("Rate limiting check failed on send message from "+
@@ -173,7 +241,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 				Accepted: false,
 			}, err
 		}
-	}
+	}*/
 
 	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
@@ -219,13 +287,62 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 
 // Pass-through for Registration Nonce Communication
 func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendRequestNonce(host, msg)
+		}
+	}
+
 	jww.INFO.Print("Passing on registration nonce request")
+
 	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
 
 }
 
 // Pass-through for Registration Nonce Confirmation
 func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.RegistrationConfirmation, error) {
+
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
+			return gw.Comms.SendConfirmNonce(host, msg)
+		}
+	}
 
 	jww.INFO.Print("Passing on registration nonce confirmation")
 
@@ -245,6 +362,9 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.R
 	if err != nil {
 		return resp, nil
 	}
+
+	// Clear client gateway key so the proxy gateway cannot see it
+	resp.ClientGatewayKey = make([]byte, 0)
 
 	return resp, nil
 }
@@ -315,7 +435,8 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	batch := gw.UnmixedBuffer.PopRound(rid)
 
 	if batch == nil {
-		jww.FATAL.Panicf("Batch for %v not found!", roundInfo.ID)
+		jww.ERROR.Printf("Batch for %v not found!", roundInfo.ID)
+		return
 	}
 
 	batch.Round = roundInfo
@@ -344,11 +465,11 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 	}
 
 	if !gw.Params.DisableGossip {
-		// Gossip senders included in the batch to other gateways
+		/*// Gossip senders included in the batch to other gateways
 		err = gw.GossipBatch(batch)
 		if err != nil {
 			jww.WARN.Printf("Unable to gossip batch information: %+v", err)
-		}
+		}*/
 	}
 }
 
@@ -361,52 +482,93 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 	// At this point, the returned batch and its fields should be non-nil
 	round, err := gw.NetInf.GetRound(roundID)
 	if err != nil {
-		jww.ERROR.Printf("ProcessCompleted - Unable to get round: %+v", err)
+		jww.ERROR.Printf("ProcessCompleted - Unable to get "+
+			"round %d: %+v", roundID, err)
 		return
 	}
 
-	recipients := gw.processMessages(msgs, roundID, round)
+	recipients, clientRound, notifications := gw.processMessages(msgs, roundID, round)
 
+	//upsert messages to the database
+	errMsg := gw.storage.InsertMixedMessages(clientRound)
+	if errMsg != nil {
+		jww.ERROR.Printf("Inserting new mixed messages failed in "+
+			"ProcessCompletedBatch for round %d: %+v", roundID, errMsg)
+	}
+
+	jww.INFO.Printf("Sharing Messages with teammates for round %d", roundID)
 	// Share messages in the batch with the rest of the team
 	err = gw.sendShareMessages(msgs, round)
 	if err != nil {
 		// Print error but do not stop message processing
-		jww.ERROR.Printf("Message sharing failed: %+v", err)
+		jww.ERROR.Printf("Message sharing failed for "+
+			"round %d: %+v", roundID, err)
 	}
 
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
 	if !gw.Params.DisableGossip {
-		// Update filters in our storage system
-		err = gw.UpsertFilters(recipients, roundID)
-		if err != nil {
-			jww.ERROR.Printf("Unable to update local bloom filters: %+v", err)
-		}
+		jww.INFO.Printf("Sending bloom gossip (source thread) for round %d", roundID)
+		go func() {
+			jww.INFO.Printf("Sending bloom gossip (new thread) for round %d", roundID)
+			errGossip := gw.GossipBloom(recipients, roundID, int64(round.Timestamps[states.QUEUED]))
+			if err != nil {
+				jww.ERROR.Printf("Unable to gossip bloom information "+
+					"for round %d: %+v", roundID, errGossip)
+			}
+			jww.INFO.Printf("Sent bloom gossip for round %d", roundID)
+		}()
 
 		go func() {
-			err = gw.GossipBloom(recipients, roundID)
+			// Update filters in our storage system
+			errFilters := gw.UpsertFilters(recipients, roundID)
 			if err != nil {
-				jww.ERROR.Printf("Unable to gossip bloom information: %+v", err)
+				jww.ERROR.Printf("Unable to update local bloom filters "+
+					"for round %d: %+v", roundID, errFilters)
 			}
 		}()
 	}
 
 	go PrintProfilingStatistics()
+
+	// Send notification data to notification bot
+	if gw.NetInf.GetFullNdf().Get().Notification.Address != "" {
+		go func(notificationBatch *pb.NotificationBatch, round *pb.RoundInfo) {
+			host, exists := gw.Comms.GetHost(&id.NotificationBot)
+			if !exists {
+				jww.WARN.Printf("Unable to find host for notification bot: %s",
+					id.NotificationBot)
+				return
+			}
+
+			err := gw.Comms.SendNotificationBatch(host, notificationBatch)
+			if err != nil {
+				jww.ERROR.Printf("Unable to send notification data %s: %+v", notificationBatch, err)
+			}
+		}(notifications, round)
+	} else {
+		jww.INFO.Print("Notification bot not found in NDF. Skipping sending of " +
+			"notifications.")
+	}
 }
 
 // Helper function which takes passed in messages from a round and
 // stores these as mixedMessages
 func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
-	round *pb.RoundInfo) map[ephemeral.Id]interface{} {
+	round *pb.RoundInfo) (map[ephemeral.Id]interface{}, *storage.ClientRound, *pb.NotificationBatch) {
 	numReal := 0
 
 	// Build a ClientRound object around the client messages
 	clientRound := &storage.ClientRound{
 		Id:        uint64(roundID),
 		Timestamp: time.Unix(0, int64(round.Timestamps[states.QUEUED])),
+		Messages:  make([]storage.MixedMessage, 0, len(msgs)),
 	}
-	msgsToInsert := make([]storage.MixedMessage, len(msgs))
 	recipients := make(map[ephemeral.Id]interface{})
+	notifications := &pb.NotificationBatch{
+		RoundID:       uint64(roundID),
+		Notifications: make([]*pb.NotificationData, 0, len(msgs)),
+	}
 	// Process the messages into the ClientRound object
 	for _, msg := range msgs {
 		serialMsg := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
@@ -428,35 +590,34 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 				recipients[recipientId] = nil
 			}
 
+			// Only print debug statement if debug logging is enabled to avoid
+			// wasted resources calculating debug print
 			if jww.GetStdoutThreshold() <= jww.LevelDebug {
-				msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-				msgFmt.SetPayloadA(msg.PayloadA)
-				msgFmt.SetPayloadB(msg.PayloadB)
-
 				jww.DEBUG.Printf("Message received for: %d[%d] in "+
 					"round: %d, msgDigest: %s", recipientId.Int64(),
-					round.AddressSpaceSize, roundID, msgFmt.Digest())
+					round.AddressSpaceSize, roundID, serialMsg.Digest())
 			}
 
 			// Create new message and add it to the list for insertion
-			msgsToInsert[numReal] = *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
-			numReal++
-		}
-	}
+			newMixedMessage := *storage.NewMixedMessage(roundID, recipientId, msg.PayloadA, msg.PayloadB)
+			clientRound.Messages = append(clientRound.Messages, newMixedMessage)
 
-	// Perform the message insertion into Storage
-	clientRound.Messages = msgsToInsert[:numReal]
-	err := gw.storage.InsertMixedMessages(clientRound)
-	if err != nil {
-		jww.ERROR.Printf("Inserting new mixed messages failed in "+
-			"ProcessCompletedBatch: %+v", err)
+			numReal++
+
+			// Add new NotificationData for the message
+			notifications.Notifications = append(notifications.Notifications, &pb.NotificationData{
+				EphemeralID: recipientId.Int64(),
+				IdentityFP:  serialMsg.GetIdentityFP(),
+				MessageHash: fingerprint.GetMessageHash(serialMsg.GetContents()),
+			})
+		}
 	}
 
 	jww.INFO.Printf("Round %d received, %d real messages "+
 		"processed, %d dummies ignored", clientRound.Id, numReal,
 		len(msgs)-numReal)
 
-	return recipients
+	return recipients, clientRound, notifications
 }
 
 // FilterMessage determines if the message should be kept or discarded based on

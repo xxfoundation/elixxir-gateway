@@ -45,7 +45,7 @@ const (
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
-const knownRoundsSize = 1024
+const knownRoundsSize = 65536
 
 type Instance struct {
 	// Storage buffer for messages to be submitted to the network
@@ -92,6 +92,7 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DbName,
 		params.DbAddress,
 		params.DbPort,
+		params.DevMode,
 	)
 	if err != nil {
 		eMsg := fmt.Sprintf("Could not initialize database: "+
@@ -113,7 +114,7 @@ func NewGatewayInstance(params Params) *Instance {
 	// There is no round 0
 	i.knownRound.Check(0)
 	jww.DEBUG.Printf("Initial KnownRound State: %+v", i.knownRound)
-	msh, _ := i.knownRound.Marshal()
+	msh := i.knownRound.Marshal()
 	jww.DEBUG.Printf("Initial KnownRound Marshal: %s",
 		string(msh))
 
@@ -130,9 +131,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message)
-	}
-	impl.Functions.PollForNotifications = func(auth *connect.Auth) (i []*id.ID, e error) {
-		return instance.PollForNotifications(auth)
 	}
 	// Client -> Gateway historical round request
 	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
@@ -175,7 +173,7 @@ func (gw *Instance) Start() {
 	// Now that we're set up, run a thread that constantly
 	// polls for updates
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(100 * time.Millisecond)
 		for range ticker.C {
 			msg, err := PollServer(gw.Comms,
 				gw.ServerHost,
@@ -224,8 +222,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	if newInfo.Updates != nil {
 
 		for _, update := range newInfo.Updates {
-			jww.DEBUG.Printf("Processing Round Update: %s",
-				sprintRoundInfo(update))
 			if update.UpdateID > gw.lastUpdate {
 				gw.lastUpdate = update.UpdateID
 
@@ -244,7 +240,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			if err != nil {
 				// do not return on round update failure, that will cause the
 				// gateway to cease to process further updates, just warn
-				jww.WARN.Printf("failed to insert round update: %s", err)
+				jww.WARN.Printf("failed to insert round update for %d: %s", update.ID, err)
 			}
 
 			// Convert the ID list to a circuit
@@ -256,6 +252,13 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
 			}
 		}
+
+		// get the earliest update and set the earliest known round to
+		// it if the earliest known round is zero (meaning we dont have one)
+		earliestRound := gw.NetInf.GetOldestRoundID()
+		atomic.CompareAndSwapUint64(gw.lowestRound, 0,
+			uint64(earliestRound))
+
 	}
 
 	// Send a new batch to the server when it asks for one
@@ -338,6 +341,10 @@ func (gw *Instance) InitNetwork() error {
 	gatewayHandler := NewImplementation(gw)
 	gw.Comms = gateway.StartGateway(&id.TempGateway, gw.Params.ListeningAddress,
 		gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
+
+	// Set gw.lowestRound information
+	zeroRound := uint64(0)
+	gw.lowestRound = &zeroRound
 
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
@@ -446,7 +453,7 @@ func (gw *Instance) InitNetwork() error {
 		gw.Comms = gateway.StartGateway(gatewayId, gw.Params.ListeningAddress,
 			gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
 
-		jww.DEBUG.Printf("Creating instance!")
+		jww.INFO.Printf("Creating instance!")
 		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
 			serverResponse.FullNDF,
 			serverResponse.PartialNDF, gw.storage)
@@ -471,19 +478,30 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
+		// Add notification bot as a host
+		_, err = gw.Comms.AddHost(
+			&id.NotificationBot,
+			gw.NetInf.GetFullNdf().Get().Notification.Address,
+			[]byte(gw.NetInf.GetFullNdf().Get().Notification.TlsCertificate),
+			connect.GetDefaultHostParams(),
+		)
+		if err != nil {
+			return errors.Errorf("failed to add notification bot host to comms: %v", err)
+		}
+
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {
-			gw.InitRateLimitGossip()
+			//gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
 
 		// Update the network instance
 		// This must be below the enabling of the gossip above because it uses
 		// components they initialize
-		jww.DEBUG.Printf("Updating instance")
+		jww.INFO.Printf("Updating instance")
 		err = gw.UpdateInstance(serverResponse)
 		if err != nil {
 			jww.ERROR.Printf("Update instance error: %v", err)
@@ -511,19 +529,15 @@ func (gw *Instance) InitNetwork() error {
 // Async function for cleaning up gateway storage
 // and managing variables that need updated after cleanup
 func (gw *Instance) beginStorageCleanup() {
-	// Set gw.lowestRound information
-	zeroRound := uint64(0)
-	gw.lowestRound = &zeroRound
-	var earliestRound uint64
-	var err error
-	for earliestRound == 0 {
-		earliestRound, err = gw.storage.GetLowestBloomRound()
-		if err != nil {
-			jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
-		}
-		time.Sleep(1 * time.Second)
+
+	earliestRound, err := gw.storage.GetLowestBloomRound()
+	if err != nil {
+		jww.WARN.Printf("Unable to GetLowestBloomRound, will use the"+
+			" lowest round on the first poll: %+v", err)
 	}
 	atomic.StoreUint64(gw.lowestRound, earliestRound)
+
+	time.Sleep(1 * time.Second)
 
 	// Begin ticker for storage cleanup
 	ticker := time.NewTicker(gw.Params.cleanupInterval)
@@ -598,15 +612,14 @@ func (gw *Instance) SetPeriod() error {
 // SaveKnownRounds saves the KnownRounds to a file.
 func (gw *Instance) SaveKnownRounds() error {
 	// Serialize knownRounds
-	data, err := gw.knownRound.Marshal()
-	if err != nil {
-		return errors.Errorf("Failed to marshal KnownRounds: %v", err)
-	}
+	data := gw.knownRound.Marshal()
+
+	dateEncode := base64.StdEncoding.EncodeToString(data)
 
 	// Store knownRounds data
 	return gw.storage.UpsertState(&storage.State{
 		Key:   storage.KnownRoundsKey,
-		Value: string(data),
+		Value: dateEncode,
 	})
 
 }
@@ -621,8 +634,13 @@ func (gw *Instance) LoadKnownRounds() error {
 		return err
 	}
 
+	dataDecode, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return err
+	}
+
 	// Parse the data and store in the instance
-	err = gw.knownRound.Unmarshal([]byte(data))
+	err = gw.knownRound.Unmarshal(dataDecode)
 	if err != nil {
 		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
 	}

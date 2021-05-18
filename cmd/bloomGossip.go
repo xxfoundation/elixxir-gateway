@@ -14,10 +14,6 @@ import (
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/comms/network/dataStructures"
-	"gitlab.com/elixxir/primitives/states"
-	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
@@ -31,6 +27,9 @@ const errorDelimiter = "; "
 // Initialize fields required for the gossip protocol specialized to bloom filters
 func (gw *Instance) InitBloomGossip() {
 	flags := gossip.DefaultProtocolFlags()
+	flags.FanOut = 25
+	flags.MaximumReSends = 2
+	flags.NumParallelSends = 1000
 	// Register gossip protocol for bloom filters
 	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
@@ -38,9 +37,7 @@ func (gw *Instance) InitBloomGossip() {
 
 // GossipBloom builds a gossip message containing all of the recipient IDs
 // within the bloom filter and gossips it to all peers
-func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round) error {
-
-	jww.INFO.Printf("GossipBloom: %v", roundId)
+func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round, roundTimestamp int64) error {
 	var err error
 
 	// Retrieve gossip protocol
@@ -56,7 +53,7 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	}
 
 	// Add the GossipMsg payload
-	gossipMsg.Payload, err = buildGossipPayloadBloom(recipients, roundId)
+	gossipMsg.Payload, err = buildGossipPayloadBloom(recipients, roundId, uint64(roundTimestamp))
 	if err != nil {
 		return errors.Errorf("Unable to build gossip payload: %+v", err)
 	}
@@ -66,74 +63,17 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	if err != nil {
 		return errors.Errorf("Unable to build gossip signature: %+v", err)
 	}
-
 	// Gossip the message
 	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
+	jww.INFO.Printf("Gossiping Blooms for round %v at ts %s", roundId,
+		time.Unix(0, roundTimestamp))
+
 	// Return any errors up the stack
 	if len(errs) != 0 {
-		return errors.Errorf("Could not send to peers: %v", errs)
+		jww.TRACE.Printf("Failed to rate limit gossip to: %v", errs)
+		return errors.Errorf("Could not send to %d out of %d peers", len(errs), numPeers)
 	}
-
-	jww.INFO.Printf("Gossipped to %d peers", numPeers)
-
-	return nil
-}
-
-// Verify bloom is some additional logic to determine if the
-// gateway gossiping a message is responsible for the round
-// it has gossiped about.
-func verifyBloom(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instance) error {
-	jww.DEBUG.Printf("Verifying gossip message from %+v", origin)
-
-	// Parse the payload message
-	payloadMsg := &pb.Recipients{}
-	err := proto.Unmarshal(msg.Payload, payloadMsg)
-	if err != nil {
-		return errors.Errorf("Could not unmarshal message into expected "+
-			"format: %s", err)
-	}
-
-	// Create channel to receive round info when it is available
-	r := id.Round(payloadMsg.RoundID)
-	var ri *pb.RoundInfo
-	ri, err = instance.GetRound(r)
-	//if we cant find the round, wait unill we have an update
-	//fixme: there is a potential race codnition if the round comes in after the
-	//above call and before the below
-	if err != nil {
-		eventChan := make(chan dataStructures.EventReturn, 1)
-		instance.GetRoundEvents().AddRoundEventChan(r,
-			eventChan, 60*time.Second, states.COMPLETED, states.FAILED)
-
-		// Check if we recognize the round
-		event := <-eventChan
-		if event.TimedOut {
-			return errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
-		} else if states.Round(event.RoundInfo.State) == states.FAILED {
-			return errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
-		}
-
-		ri = event.RoundInfo
-	}
-
-	// Parse the round topology
-	idList, err := id.NewIDListFromBytes(ri.Topology)
-	if err != nil {
-		return errors.Errorf("Could not read topology from gossip message: %s",
-			err)
-	}
-	topology := connect.NewCircuit(idList)
-
-	// Check if the sender is in the round that we have tracked
-	senderIdCopy := origin.DeepCopy()
-	senderIdCopy.SetType(id.Node)
-	if topology.GetNodeLocation(senderIdCopy) < 0 {
-		return errors.Errorf("Origin gateway (%s) is not in round "+
-			"it's gossiping about (rid: %d)", senderIdCopy, ri.ID)
-	}
-	jww.DEBUG.Printf("Verified gossip message from %+v", origin)
-
 	return nil
 }
 
@@ -149,17 +89,16 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 		return errors.Errorf("Could not unmarshal message into expected format: %s", err)
 	}
 
+	roundID := id.Round(payloadMsg.RoundID)
+
+	jww.INFO.Printf("Gossip received for round %d with %d recipients "+
+		"at ts %s", roundID, len(payloadMsg.RecipientIds),
+		time.Unix(0, int64(payloadMsg.RoundTS)))
+
 	var errs []string
 	var wg sync.WaitGroup
 
-	roundID := id.Round(payloadMsg.RoundID)
-	jww.INFO.Printf("Gossip received for round %d", roundID)
-	round, err := gw.NetInf.GetRound(roundID)
-	if err != nil {
-		return err
-	}
-
-	epoch := GetEpoch(int64(round.Timestamps[states.QUEUED]), gw.period)
+	epoch := GetEpoch(int64(payloadMsg.RoundTS), gw.period)
 
 	// Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
@@ -198,7 +137,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
-func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId id.Round) ([]byte, error) {
+func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId id.Round, roundTS uint64) ([]byte, error) {
 	// Iterate over the map, placing keys back in a list
 	// without any duplicates
 	i := 0
@@ -213,6 +152,7 @@ func buildGossipPayloadBloom(recipientIDs map[ephemeral.Id]interface{}, roundId 
 	payloadMsg := &pb.Recipients{
 		RecipientIds: recipients,
 		RoundID:      uint64(roundId),
+		RoundTS:      roundTS,
 	}
 	return proto.Marshal(payloadMsg)
 }

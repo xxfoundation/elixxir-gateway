@@ -21,6 +21,9 @@ import (
 	"time"
 )
 
+// Determines maximum runtime (in seconds) of specific DB queries
+const DbTimeout = 1
+
 // Interface declaration for storage methods
 type database interface {
 	UpsertState(state *State) error
@@ -40,8 +43,8 @@ type database interface {
 	deleteMixedMessages(ts time.Time) error
 
 	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
-	GetLowestBloomRound() (uint64, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error
+	GetLowestBloomRound() (uint64, error)
 	DeleteClientFiltersBeforeEpoch(epoch uint32) error
 }
 
@@ -161,7 +164,7 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 // Initialize the database interface with database backend
 // Returns a database interface, close function, and error
 func newDatabase(username, password, dbName, address,
-	port string) (database, error) {
+	port string, devmode bool) (database, error) {
 
 	var err error
 	var db *gorm.DB
@@ -184,10 +187,18 @@ func newDatabase(username, password, dbName, address,
 	// in the event there is a database error or information is not provided
 	if (address == "" || port == "") || err != nil {
 
+		var failReason string
 		if err != nil {
-			jww.WARN.Printf("Unable to initialize database backend: %+v", err)
+			failReason = fmt.Sprintf("Unable to initialize database backend: %+v", err)
+			jww.WARN.Printf(failReason)
 		} else {
-			jww.WARN.Printf("Database backend connection information not provided")
+			failReason = "Database backend connection information not provided"
+			jww.WARN.Printf(failReason)
+		}
+
+		if !devmode {
+			jww.FATAL.Panicf("Gateway cannot run in production "+
+				"without a database: %s", failReason)
 		}
 
 		defer jww.INFO.Println("Map backend initialized successfully!")
