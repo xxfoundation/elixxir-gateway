@@ -96,7 +96,7 @@ type State struct {
 const (
 	PeriodKey      = "Period"
 	LastUpdateKey  = "LastUpdateId"
-	KnownRoundsKey = "KnownRounds"
+	KnownRoundsKey = "KnownRoundsV2"
 )
 
 // Represents a Client and its associated keys
