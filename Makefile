@@ -36,6 +36,6 @@ update_master:
 	GOFLAGS="" go get gitlab.com/elixxir/comms@master
 	GOFLAGS="" go get gitlab.com/elixxir/bloomfilter@master
 
-master: clean update_master build version
+master: update_master clean build version
 
-release: clean update_release build version
+release: update_release clean build version
