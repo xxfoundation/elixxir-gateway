@@ -423,19 +423,22 @@ func (gw *Instance) InitNetwork() error {
 		}
 
 		// Install the NDF once we get it
-		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			netDef, err := ndf.Unmarshal(serverResponse.FullNDF.Ndf)
-			if err != nil {
-				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
-				return err
-			}
-			err = gw.setupIDF(serverResponse.Id, netDef)
-			nodeId = serverResponse.Id
-			if err != nil {
-				jww.WARN.Printf("failed to update node information: %+v", err)
-				return err
-			}
+		if serverResponse.FullNDF == nil || serverResponse.Id == nil {
+			continue
 		}
+
+		netDef, err := ndf.Unmarshal(serverResponse.FullNDF.Ndf)
+		if err != nil {
+			jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
+			return err
+		}
+		err = gw.setupIDF(serverResponse.Id, netDef)
+		nodeId = serverResponse.Id
+		if err != nil {
+			jww.WARN.Printf("failed to update node information: %+v", err)
+			return err
+		}
+
 		jww.INFO.Printf("Successfully obtained NDF!")
 
 		// Replace the comms server with the newly-signed certificate
