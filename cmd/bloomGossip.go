@@ -82,6 +82,8 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	gw.bloomFilterGossip.Lock()
 	defer gw.bloomFilterGossip.Unlock()
 
+	received := time.Now()
+
 	// Unmarshal the Recipients data
 	payloadMsg := &pb.Recipients{}
 	err := proto.Unmarshal(msg.Payload, payloadMsg)
@@ -90,10 +92,6 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	}
 
 	roundID := id.Round(payloadMsg.RoundID)
-
-	jww.INFO.Printf("Gossip received for round %d with %d recipients "+
-		"at ts %s", roundID, len(payloadMsg.RecipientIds),
-		time.Unix(0, int64(payloadMsg.RoundTS)))
 
 	var errs []string
 	var wg sync.WaitGroup
@@ -121,11 +119,18 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	}
 	wg.Wait()
 
+	finishedInsert := time.Now()
+
 	//denote the reception in known rounds
 	gw.knownRound.ForceCheck(roundID)
 	if err := gw.SaveKnownRounds(); err != nil {
 		jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
 	}
+
+	jww.INFO.Printf("Gossip received for round %d with %d recipients at %s: "+
+		"\n\t inserts finished at %s, KR insert finished at %s, "+
+		"\n]t round started at ts %s", roundID, len(payloadMsg.RecipientIds), received, finishedInsert, time.Now(),
+		time.Unix(0, int64(payloadMsg.RoundTS)))
 
 	// Parse through the errors returned from the worker pool
 	var errReturn error
