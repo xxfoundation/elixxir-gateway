@@ -422,8 +422,9 @@ func (gw *Instance) InitNetwork() error {
 			}
 		}
 
-		// Install the NDF once we get it
+		// Make sure the NDF is ready
 		if serverResponse.FullNDF == nil || serverResponse.Id == nil {
+			serverResponse = nil
 			continue
 		}
 
