@@ -358,6 +358,8 @@ gitlab.com/elixxir/comms v0.0.4-0.20210526002834-a1bcf83670ce h1:aMaMqzBhLT3Ug3F
 gitlab.com/elixxir/comms v0.0.4-0.20210526002834-a1bcf83670ce/go.mod h1:RyA3YVhyPRTxE+jjf6CV8elwQiFr8QuS54LcdLWw97E=
 gitlab.com/elixxir/comms v0.0.4-0.20210526162037-5fc5b5633ccf h1:aICCHX2ADeVIjxEm1cT4W06tu4t4r0Akcba67msGlAU=
 gitlab.com/elixxir/comms v0.0.4-0.20210526162037-5fc5b5633ccf/go.mod h1:RyA3YVhyPRTxE+jjf6CV8elwQiFr8QuS54LcdLWw97E=
+gitlab.com/elixxir/comms v0.0.4-0.20210526170645-e7a77c41f345 h1:FvCaE82edqf1Ovl/5xHZmejlQwRukNL4hwOm1sfGKvc=
+gitlab.com/elixxir/comms v0.0.4-0.20210526170645-e7a77c41f345/go.mod h1:7+fK1U++g5zbbDh1kCSd+LUf7ikWfD+1lM44rWUm0F4=
 gitlab.com/elixxir/crypto v0.0.0-20200804182833-984246dea2c4 h1:28ftZDeYEko7xptCZzeFWS1Iam95dj46TWFVVlKmw6A=
 gitlab.com/elixxir/crypto v0.0.0-20200804182833-984246dea2c4/go.mod h1:ucm9SFKJo+K0N2GwRRpaNr+tKXMIOVWzmyUD0SbOu2c=
 gitlab.com/elixxir/crypto v0.0.3 h1:znCt/x2bL4y8czTPaaFkwzdgSgW3BJc/1+dxyf1jqVw=
@@ -418,6 +420,8 @@ gitlab.com/xx_network/ring v0.0.2 h1:TlPjlbFdhtJrwvRgIg4ScdngMTaynx/ByHBRZiXCoL0
 gitlab.com/xx_network/ring v0.0.2/go.mod h1:aLzpP2TiZTQut/PVHR40EJAomzugDdHXetbieRClXIM=
 gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1 h1:yqXC/naXN6Hw1fmfI6qOOMmBbmZGsYXsESVSwf6IEdM=
 gitlab.com/xx_network/ring v0.0.3-0.20201120004140-b0e268db06d1/go.mod h1:aLzpP2TiZTQut/PVHR40EJAomzugDdHXetbieRClXIM=
+gitlab.com/xx_network/ring v0.0.3-0.20210525230516-6a1185d19af8 h1:QUmZ2KyTquOjLygap91CU5p+MSRqq6Ssse8v6xGWw60=
+gitlab.com/xx_network/ring v0.0.3-0.20210525230516-6a1185d19af8/go.mod h1:aLzpP2TiZTQut/PVHR40EJAomzugDdHXetbieRClXIM=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
