@@ -20,7 +20,6 @@ import (
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
@@ -68,7 +67,7 @@ type Instance struct {
 	un notifications.UserNotifications
 
 	// Tracker of the gateway's known rounds
-	knownRound *knownRounds.KnownRounds
+	krw *knownRoundsWrapper
 
 	storage *storage.Storage
 	// TODO: Integrate and remove duplication with the stuff above.
@@ -106,19 +105,18 @@ func NewGatewayInstance(params Params) *Instance {
 			jww.FATAL.Panicf(eMsg)
 		}
 	}
+
+	krw, err := newKnownRoundsWrapper(knownRoundsSize, newDatabase)
+	if err != nil {
+		jww.FATAL.Panicf("failed to create new KnownRounds wrapper: %+v", err)
+	}
+
 	i := &Instance{
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		storage:       newDatabase,
-		knownRound:    knownRounds.NewKnownRound(knownRoundsSize),
+		krw:           krw,
 	}
-
-	// There is no round 0
-	i.knownRound.Check(0)
-	jww.DEBUG.Printf("Initial KnownRound State: %+v", i.knownRound)
-	msh := i.knownRound.Marshal()
-	jww.DEBUG.Printf("Initial KnownRound Marshal: %s",
-		string(msh))
 
 	return i
 }
@@ -222,8 +220,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	if newInfo.Updates != nil {
-
-		for _, update := range newInfo.Updates {
+		for i := len(newInfo.Updates) - 1; i >= 0; i-- {
+			update := newInfo.Updates[i]
 			if update.UpdateID > gw.lastUpdate {
 				gw.lastUpdate = update.UpdateID
 
@@ -261,6 +259,12 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			if states.Round(update.State) == states.PRECOMPUTING &&
 				topology.IsFirstNode(gw.ServerHost.GetId()) {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
+			} else if states.Round(update.State) == states.FAILED {
+				err = gw.krw.forceCheck(id.Round(update.ID), gw.storage)
+				if err != nil {
+					return errors.Errorf("failed to forceChech round %d: %+v",
+						update.ID, err)
+				}
 			}
 		}
 
@@ -632,41 +636,13 @@ func (gw *Instance) SetPeriod() error {
 
 // SaveKnownRounds saves the KnownRounds to a file.
 func (gw *Instance) SaveKnownRounds() error {
-	// Serialize knownRounds
-	data := gw.knownRound.Marshal()
-
-	dateEncode := base64.StdEncoding.EncodeToString(data)
-
-	// Store knownRounds data
-	return gw.storage.UpsertState(&storage.State{
-		Key:   storage.KnownRoundsKey,
-		Value: dateEncode,
-	})
-
+	return gw.krw.save(gw.storage)
 }
 
 // LoadKnownRounds loads the KnownRounds from storage into the Instance, if a
 // stored value exists.
 func (gw *Instance) LoadKnownRounds() error {
-
-	// Get an existing knownRounds value from storage
-	data, err := gw.storage.GetStateValue(storage.KnownRoundsKey)
-	if err != nil {
-		return err
-	}
-
-	dataDecode, err := base64.StdEncoding.DecodeString(data)
-	if err != nil {
-		return err
-	}
-
-	// Parse the data and store in the instance
-	err = gw.knownRound.Unmarshal(dataDecode)
-	if err != nil {
-		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
-	}
-
-	return nil
+	return gw.krw.load(gw.storage)
 }
 
 // SaveLastUpdateID saves the Instance.lastUpdate value to storage

@@ -28,7 +28,6 @@ import (
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
@@ -1128,8 +1127,11 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
 	_ = gw.InitNetwork()
-	gw.knownRound.Check(4)
-	expectedData := gw.knownRound.Marshal()
+	err := gw.krw.check(4, gw.storage)
+	if err != nil {
+		t.Errorf("Failed to check round %d: %v", 4, err)
+	}
+	expectedData := gw.krw.getMarshal()
 
 	// Attempt to save knownRounds to file
 	if err := gw.SaveKnownRounds(); err != nil {
@@ -1142,32 +1144,10 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	}
 
 	// Ensure that the data loaded from file matches the expected data
-	testData := gw.knownRound.Marshal()
+	testData := gw.krw.getMarshal()
 	if !reflect.DeepEqual(expectedData, testData) {
 		t.Errorf("Failed to load correct KnownRounds."+
 			"\n\texpected: %s\n\treceived: %s", expectedData, testData)
-	}
-}
-
-// Tests that Instance.LoadKnownRounds returns nil if the file does not exist.
-func TestInstance_LoadKnownRounds_UnmarshalError(t *testing.T) {
-	// Build the gateway instance
-	params := Params{DevMode: true}
-
-	// Create new gateway instance and modify knownRounds
-	gw := NewGatewayInstance(params)
-	gw.knownRound.Check(67)
-
-	if err := gw.SaveKnownRounds(); err != nil {
-		t.Fatalf("SaveKnownRounds() produced an error: %v", err)
-	}
-
-	gw.knownRound = knownRounds.NewKnownRound(1)
-
-	err := gw.LoadKnownRounds()
-	if err == nil {
-		t.Error("LoadKnownRounds() did not return an error when unmarshalling " +
-			"should have failed.")
 	}
 }
 
