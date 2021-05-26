@@ -122,8 +122,8 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	finishedInsert := time.Now()
 
 	//denote the reception in known rounds
-	gw.knownRound.ForceCheck(roundID)
-	if err := gw.SaveKnownRounds(); err != nil {
+	err = gw.krw.forceCheck(roundID, gw.storage)
+	if err != nil {
 		jww.ERROR.Printf("Failed to store updated known rounds: %s", err)
 	}
 
