@@ -20,8 +20,11 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
 	"os"
+	"os/signal"
+	"runtime/pprof"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -53,8 +56,17 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
 		initLog()
-		params := InitParams(viper.GetViper())
 
+		profileOut := viper.GetString("profile-cpu")
+		if profileOut != "" {
+			f, err := os.Create(profileOut)
+			if err != nil {
+				jww.FATAL.Panicf("%+v", err)
+			}
+			pprof.StartCPUProfile(f)
+		}
+
+		params := InitParams(viper.GetViper())
 		// Build gateway implementation object
 		gateway := NewGatewayInstance(params)
 		err := gateway.SetPeriod()
@@ -100,9 +112,33 @@ var rootCmd = &cobra.Command{
 
 		gateway.Start()
 
-		// Wait forever
-		select {}
+		// Block forever on Signal Handler for safe program exit
+		stopCh := ReceiveExitSignal()
+
+		// Block forever to prevent the program ending
+		// Block until a signal is received, then call the function
+		// provided
+		select {
+		case <-stopCh:
+			jww.INFO.Printf(
+				"Received Exit (SIGTERM or SIGINT) signal...\n")
+			if profileOut != "" {
+				pprof.StopCPUProfile()
+			}
+		}
+
 	},
+}
+
+// ReceiveExitSignal signals a stop chan when it receives
+// SIGTERM or SIGINT
+func ReceiveExitSignal() chan os.Signal {
+	// Set up channel on which to send signal notifications.
+	// We must use a buffered channel or risk missing the signal
+	// if we're not ready to receive when the signal is sent.
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	return c
 }
 
 func addPrecannedIDs(gateway *Instance) {
@@ -264,6 +300,10 @@ func init() {
 	err = viper.BindPFlag("devMode", rootCmd.Flags().Lookup("devMode"))
 	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
 	_ = rootCmd.Flags().MarkHidden("devMode")
+
+	rootCmd.Flags().String("profile-cpu", "",
+		"Enable cpu profiling to this file")
+	viper.BindPFlag("profile-cpu", rootCmd.Flags().Lookup("profile-cpu"))
 
 }
 
