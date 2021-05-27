@@ -23,7 +23,6 @@ require (
 	gitlab.com/xx_network/comms v0.0.4-0.20210526002311-2b5a66af0eac
 	gitlab.com/xx_network/crypto v0.0.5-0.20210526002149-9c08ccb202be
 	gitlab.com/xx_network/primitives v0.0.4-0.20210525232109-3f99a04adcfd
-	gitlab.com/xx_network/ring v0.0.3-0.20210525230516-6a1185d19af8 // indirect
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
 	google.golang.org/genproto v0.0.0-20210105202744-fe13368bc0e1 // indirect
 	google.golang.org/grpc v1.34.0 // indirect
