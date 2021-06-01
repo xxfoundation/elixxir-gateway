@@ -3,7 +3,7 @@ module gitlab.com/elixxir/gateway
 go 1.13
 
 require (
-	github.com/golang/protobuf v1.4.3
+	github.com/golang/protobuf v1.5.2
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
 	github.com/lib/pq v1.9.0 // indirect
 	github.com/magiconair/properties v1.8.4 // indirect
@@ -17,19 +17,15 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20210120224144-ac046983a17a
-	gitlab.com/elixxir/comms v0.0.4-0.20210527192434-4f4f53730861
-	gitlab.com/elixxir/crypto v0.0.7-0.20210526002540-1fb51df5b4b2
-	gitlab.com/elixxir/primitives v0.0.3-0.20210526002350-b9c947fec050
-	gitlab.com/xx_network/comms v0.0.4-0.20210526002311-2b5a66af0eac
-	gitlab.com/xx_network/crypto v0.0.5-0.20210526002149-9c08ccb202be
-	gitlab.com/xx_network/primitives v0.0.4-0.20210525232109-3f99a04adcfd
-	gitlab.com/xx_network/ring v0.0.3-0.20210527191221-ce3f170aabd5 // indirect
-	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
+	gitlab.com/elixxir/comms v0.0.4-0.20210601203030-66682d6e5941
+	gitlab.com/elixxir/crypto v0.0.7-0.20210601193549-039f62f2d81a
+	gitlab.com/elixxir/primitives v0.0.3-0.20210601193429-3279a7c13c83
+	gitlab.com/xx_network/comms v0.0.4-0.20210601202447-1054921961b7
+	gitlab.com/xx_network/crypto v0.0.5-0.20210601193257-27ba5d088733
+	gitlab.com/xx_network/primitives v0.0.4-0.20210601193218-658388fcaa81
 	google.golang.org/genproto v0.0.0-20210105202744-fe13368bc0e1 // indirect
-	google.golang.org/grpc v1.34.0 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gorm.io/driver/postgres v1.0.7
 	gorm.io/gorm v1.20.12
 )
-
-replace google.golang.org/grpc => github.com/grpc/grpc-go v1.27.1
