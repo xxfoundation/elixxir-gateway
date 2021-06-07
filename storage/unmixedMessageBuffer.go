@@ -17,13 +17,17 @@ type UnmixedMessageBuffer interface {
 	// AddUnmixedMessage adds an unmixed message to send to the cMix node.
 	AddUnmixedMessage(msg *pb.Slot, round id.Round) error
 
+	// AddManyUnmixedMessage adds many unmixed messages to send to the cMix node.
+	AddManyUnmixedMessages(msg []*pb.GatewaySlot, round id.Round) error
+
 	// GetRoundMessages returns the batch associated with the roundID
 	PopRound(rndId id.Round) *pb.Batch
 
 	// LenUnmixed return the number of messages within the requested round
 	LenUnmixed(rndId id.Round) int
 
-	// SetAsRoundLeader initializes a round as our responsibility
+	// SetAsRoundLeader initializes a round as our responsibility	batchSize := 4
+
 	SetAsRoundLeader(rndId id.Round, batchSize uint32)
 
 	// IsRoundFull returns true if the number of slots associated with

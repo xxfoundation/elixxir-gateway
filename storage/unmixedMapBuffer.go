@@ -8,6 +8,7 @@
 package storage
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -58,6 +59,41 @@ func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)
 
 	// If the batch for this round was already created, add another message
 	retrievedBatch.batch.Slots = append(retrievedBatch.batch.Slots, msg)
+	umb.messages[roundId] = retrievedBatch
+	return nil
+}
+
+// AddManyUnmixedMessage adds many unmixed messages to send to the cMix node.
+func (umb *UnmixedMessagesMap) AddManyUnmixedMessages(msgs []*pb.GatewaySlot, roundId id.Round) error {
+	umb.mux.Lock()
+	defer umb.mux.Unlock()
+
+	// Pull batch from store (map)
+	retrievedBatch, ok := umb.messages[roundId]
+	if !ok {
+		return errors.New("cannot add message to unknown round")
+	}
+
+	// Check that the batch has not
+	if retrievedBatch.sent {
+		return errors.New("Cannot add message to already sent batch")
+	}
+
+	// Check that adding these message wil not exceed the batch size
+	resultingSlots := len(retrievedBatch.batch.Slots) + len(msgs)
+	if resultingSlots >= int(retrievedBatch.maxElements) {
+		fmt.Printf("resulting Slots: %d\nmax %d\n", resultingSlots, int(retrievedBatch.maxElements))
+		return errors.New("Cannot add messages to full batch")
+	}
+
+	// Collect all slots into a list
+	slots := make([]*pb.Slot, len(msgs))
+	for i := 0; i < len(msgs); i++ {
+		slots[i] = msgs[i].Message
+	}
+
+	// If the batch for this round was already created, add another message
+	retrievedBatch.batch.Slots = append(retrievedBatch.batch.Slots, slots...)
 	umb.messages[roundId] = retrievedBatch
 	return nil
 }
