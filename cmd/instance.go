@@ -129,6 +129,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message)
 	}
+	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
+		return instance.PutManyMessages(messages)
+	}
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message)
 	}

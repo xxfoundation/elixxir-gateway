@@ -926,8 +926,8 @@ func TestInstance_PutMessage_NonLeader(t *testing.T) {
 	_, err := gatewayInstance.PutMessage(slotMsg)
 	if err == nil {
 		t.Errorf("Expected error path. Should not be able to put a message into a round when not the leader!")
-
 	}
+
 }
 
 // Tests that messages can get through even when their bucket is full.
@@ -999,6 +999,204 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 		t.Errorf("PutMessage: Could not put any messages when user " +
 			"ID bucket is full but user ID is on whitelist")
 	}
+}
+
+// Happy path
+func TestInstance_PutManyMessages(t *testing.T) {
+	// Business logic to set up test
+	rndId := uint64(7)
+	numMessage := 10
+
+	// Construct client information for database
+	senderId := id.NewIdFromUInt(174, id.User, t).Marshal()
+	newClient := &storage.Client{
+		Id:  senderId,
+		Key: []byte("test"),
+	}
+
+	// Construct messages to try to put in buffer
+	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
+	for i := 0; i < numMessage; i++ {
+		msg := &pb.Slot{
+			SenderID: senderId,
+			PayloadA: []byte("test" + strconv.Itoa(i)),
+		}
+
+		slotMsg := &pb.GatewaySlot{
+			RoundID: rndId,
+			Message: msg,
+			Target:  gatewayInstance.Comms.Id.Marshal(),
+		}
+
+		slotMsg.MAC = generateClientMac(newClient, slotMsg)
+		gatewaySlots[i] = slotMsg
+
+	}
+
+	// Insert client into database
+	err := gatewayInstance.storage.UpsertClient(newClient)
+	if err != nil {
+		t.Fatalf("Failed in set up: could not upsert client: %v", err)
+	}
+
+	// Set ourselves as round leader
+	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
+	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
+
+	// Build slots message
+	manyMessages := &pb.GatewaySlots{
+		Messages: gatewaySlots,
+		RoundID:  rndId,
+		Target:   gatewayInstance.Comms.Id.Marshal(),
+	}
+
+	// Try to put message
+	_, err = gatewayInstance.PutManyMessages(manyMessages)
+	if err != nil {
+		t.Errorf("PutManyMessages: Could not put any messages in happy path: %v", err)
+	}
+}
+
+// Error path: Test that a message is denied when the batch is full
+func TestInstance_PutManyMessage_FullRound(t *testing.T) {
+	// Business logic to set up test
+	rndId := uint64(9)
+	batchSize := 4
+	numMessage := 10
+
+	// Construct client information for database
+	senderId := id.NewIdFromUInt(174, id.User, t).Marshal()
+	newClient := &storage.Client{
+		Id:  senderId,
+		Key: []byte("test"),
+	}
+
+	// Construct messages to try to put in buffer
+	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
+	for i := 0; i < numMessage; i++ {
+		msg := &pb.Slot{
+			SenderID: senderId,
+			PayloadA: []byte("test" + strconv.Itoa(i)),
+		}
+
+		slotMsg := &pb.GatewaySlot{
+			RoundID: rndId,
+			Message: msg,
+			Target:  gatewayInstance.Comms.Id.Marshal(),
+		}
+
+		slotMsg.MAC = generateClientMac(newClient, slotMsg)
+		gatewaySlots[i] = slotMsg
+
+	}
+
+	// Insert client into database
+	err := gatewayInstance.storage.UpsertClient(newClient)
+	if err != nil {
+		t.Fatalf("Failed in set up: could not upsert client: %v", err)
+	}
+
+	// Mark this as a round in which the gateway is the leader
+	ri := &pb.RoundInfo{ID: rndId, BatchSize: uint32(batchSize)}
+	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
+
+	// Ensure that the numMessage length would not fit into the batch
+	// Batch would be filled up to (max - numMessages) + 1, so numMessages would overflow
+	for i := 0; i < batchSize-numMessage+1; i++ {
+		_, err := gatewayInstance.PutMessage(gatewaySlots[0])
+		if err != nil {
+			t.Errorf("Failed to put message number %d into gateway's buffer: %v", i, err)
+		}
+	}
+
+	// Build slots message
+	manyMessages := &pb.GatewaySlots{
+		Messages: gatewaySlots,
+		RoundID:  rndId,
+		Target:   gatewayInstance.Comms.Id.Marshal(),
+	}
+
+	// Try to put message
+	_, err = gatewayInstance.PutManyMessages(manyMessages)
+	if err == nil {
+		t.Errorf("Expected error path. Should not be able to put a message into a full round!")
+
+	}
+}
+
+// Tests the proxy path.
+func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
+	// Create instances
+	gw1 := makeGatewayInstance("0.0.0.0:5697", t)
+	gw2 := makeGatewayInstance("0.0.0.0:5698", t)
+
+	_, err := gw1.Comms.AddHost(gw2.Comms.Id, "0.0.0.0:5680", gatewayCert,
+		connect.GetDefaultHostParams())
+	if err != nil {
+		t.Fatalf("Failed to add host: %+v", err)
+	}
+
+	// Business logic to set up test
+	rndId := uint64(23)
+	numMessage := 10
+
+	// Construct client information for database
+	senderId := id.NewIdFromUInt(174, id.User, t).Marshal()
+	newClient := &storage.Client{
+		Id:  senderId,
+		Key: []byte("test"),
+	}
+
+	// Construct messages to try to put in buffer
+	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
+	for i := 0; i < numMessage; i++ {
+		msg := &pb.Slot{
+			SenderID: senderId,
+			PayloadA: []byte("test" + strconv.Itoa(i)),
+		}
+
+		slotMsg := &pb.GatewaySlot{
+			RoundID: rndId,
+			Message: msg,
+			Target:  gatewayInstance.Comms.Id.Marshal(),
+		}
+
+		slotMsg.MAC = generateClientMac(newClient, slotMsg)
+		gatewaySlots[i] = slotMsg
+
+	}
+
+	// Insert client into database
+	err = gatewayInstance.storage.UpsertClient(newClient)
+	if err != nil {
+		t.Fatalf("Failed in set up: could not upsert client: %v", err)
+	}
+
+	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
+	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
+
+	// Build slots message
+	manyMessages := &pb.GatewaySlots{
+		Messages: gatewaySlots,
+		RoundID:  rndId,
+		Target:   gatewayInstance.Comms.Id.Marshal(),
+	}
+
+	receivedMsg, err := gatewayInstance.PutManyMessages(manyMessages)
+	if err != nil {
+		t.Errorf("PutMessage returned an error: %+v", err)
+	}
+
+	expectedMsg := &pb.GatewaySlotResponse{
+		Accepted: true,
+		RoundID:  rndId,
+	}
+
+	if !reflect.DeepEqual(expectedMsg, receivedMsg) {
+		t.Errorf("PutMessage did not return the expected response."+
+			"\nexpected: %+v\nreceived: %+v", expectedMsg, receivedMsg)
+	}
+
 }
 
 // Tests the proxy path.
