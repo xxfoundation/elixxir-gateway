@@ -109,7 +109,7 @@ func TestMain(m *testing.M) {
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
-		Capacity:     10,
+		Capacity:     40,
 		LeakedTokens: 1,
 		LeakDuration: 10 * time.Second,
 		PollDuration: 10 * time.Second,
