@@ -203,6 +203,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 
 	// Process all messages to be queued
 	for i := 0; i < len(messages.Messages); i++ {
+		// todo: how do we want to handle group chat with rate limiting?
 		if result, err := gw.processPutMessage(messages.Messages[i]); err != nil {
 			return result, err
 		}
@@ -333,17 +334,16 @@ func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotR
 		}, errors.New("Could not authenticate client. Is the client registered with this node?")
 	}
 
-	// fixme: enable once gossip is not broken
-	/*if !gw.Params.DisableGossip {
-		err = gw.FilterMessage(senderId)
+	if !gw.Params.DisableGossip {
+		err = gw.FilterMessage(clientID)
 		if err != nil {
 			jww.INFO.Printf("Rate limiting check failed on send message from "+
-				"%v", msg.Message.GetSenderID())
+				"%v", message.Message.GetSenderID())
 			return &pb.GatewaySlotResponse{
 				Accepted: false,
 			}, err
 		}
-	}*/
+	}
 
 	return nil, nil
 }

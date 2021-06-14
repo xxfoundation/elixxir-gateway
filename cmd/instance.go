@@ -522,7 +522,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {
-			//gw.InitRateLimitGossip()
+			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
 
@@ -536,14 +536,14 @@ func (gw *Instance) InitNetwork() error {
 			continue
 		}
 
-		// newNdf := gw.NetInf.GetPartialNdf().Get()
+		newNdf := gw.NetInf.GetPartialNdf().Get()
 
-		// Add notification bot as a host
-		// _, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
-		// 	[]byte(newNdf.Notification.TlsCertificate), false, true)
-		// if err != nil {
-		// 	return errors.Errorf("Unable to add notifications host: %+v", err)
-		// }
+		//Add notification bot as a host
+		_, err = gw.Comms.AddHost(&id.NotificationBot, newNdf.Notification.Address,
+			[]byte(newNdf.Notification.TlsCertificate), params)
+		if err != nil {
+			return errors.Errorf("Unable to add notifications host: %+v", err)
+		}
 	}
 
 	// Start storage cleanup thread

@@ -27,11 +27,11 @@ const BloomFilterGossip = "bloomFilter"
 // Starts a thread for monitoring and handling changes to gossip peers
 func (gw *Instance) StartPeersThread() {
 	go func() {
-		/*rateLimitProtocol, exists := gw.Comms.Manager.Get(RateLimitGossip)
+		rateLimitProtocol, exists := gw.Comms.Manager.Get(RateLimitGossip)
 		if !exists {
 			jww.WARN.Printf("Unable to get gossip rateLimitProtocol!")
 			return
-		}*/
+		}
 		bloomProtocol, exists := gw.Comms.Manager.Get(BloomFilterGossip)
 		if !exists {
 			jww.WARN.Printf("Unable to get gossip BloomFilter!")
@@ -39,7 +39,7 @@ func (gw *Instance) StartPeersThread() {
 		}
 
 		//add all previously present gateways
-		/*for _, gateway := range gw.NetInf.GetFullNdf().Get().Gateways{
+		for _, gateway := range gw.NetInf.GetFullNdf().Get().Gateways{
 			gwId, err := id.Unmarshal(gateway.ID)
 			if err != nil {
 				jww.WARN.Printf("Unable to unmarshal gossip peer: %+v", err)
@@ -54,20 +54,22 @@ func (gw *Instance) StartPeersThread() {
 			if err != nil {
 				jww.WARN.Printf("Unable to add bloom gossip peer: %+v", err)
 			}
-		}*/
+		}
 
 		for {
 			select {
 			// TODO: Add kill case?
 			case removeId := <-gw.removeGateway:
 				jww.INFO.Printf("Removed %s to gossip peers list", removeId)
-				/*err := rateLimitProtocol.RemoveGossipPeer(removeId)
-				if err != nil {
-					jww.WARN.Printf("Unable to remove rate limit gossip peer: %+v", err)
-				}*/
+
 				err := bloomProtocol.RemoveGossipPeer(removeId)
 				if err != nil {
 					jww.WARN.Printf("Unable to remove bloom gossip peer: %+v", err)
+				}
+
+				err = rateLimitProtocol.RemoveGossipPeer(removeId)
+				if err != nil {
+					jww.WARN.Printf("Unable to remove rate limit gossip peer: %+v", err)
 				}
 			case add := <-gw.addGateway:
 				gwId, err := id.Unmarshal(add.Gateway.ID)
@@ -76,10 +78,10 @@ func (gw *Instance) StartPeersThread() {
 					continue
 				}
 				jww.INFO.Printf("Added %s to gossip peers list", gwId)
-				/*err = rateLimitProtocol.AddGossipPeer(gwId)
+				err = rateLimitProtocol.AddGossipPeer(gwId)
 				if err != nil {
 					jww.WARN.Printf("Unable to add rate limit gossip peer: %+v", err)
-				}*/
+				}
 				err = bloomProtocol.AddGossipPeer(gwId)
 				if err != nil {
 					jww.WARN.Printf("Unable to add bloom gossip peer: %+v", err)

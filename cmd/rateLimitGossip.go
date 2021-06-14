@@ -151,7 +151,7 @@ func (gw *Instance) GossipBatch(batch *pb.Batch) error {
 
 // Helper function used to convert Batch into a GossipMsg payload
 func buildGossipPayloadRateLimit(batch *pb.Batch) ([]byte, error) {
-	// Nil check for the received back
+	// Nil check for the received batch
 	if batch == nil || batch.Round == nil {
 		return nil, errors.New("Batch does not contain necessary round info needed to gossip")
 	}
