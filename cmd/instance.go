@@ -506,12 +506,16 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
+		notificationParams := connect.GetDefaultHostParams()
+		notificationParams.MaxRetries = 3
+		notificationParams.EnableCoolOff = true
+
 		// Add notification bot as a host
 		_, err = gw.Comms.AddHost(
 			&id.NotificationBot,
 			gw.NetInf.GetFullNdf().Get().Notification.Address,
 			[]byte(gw.NetInf.GetFullNdf().Get().Notification.TlsCertificate),
-			connect.GetDefaultHostParams(),
+			notificationParams,
 		)
 		if err != nil {
 			return errors.Errorf("failed to add notification bot host to comms: %v", err)

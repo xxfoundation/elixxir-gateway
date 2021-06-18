@@ -115,7 +115,6 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 			}
 			wg.Done()
 		}(recipient)
-
 	}
 	wg.Wait()
 
