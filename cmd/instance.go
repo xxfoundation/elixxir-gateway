@@ -474,6 +474,7 @@ func (gw *Instance) InitNetwork() error {
 		gatewayId.SetType(id.Gateway)
 		gw.Comms = gateway.StartGateway(gatewayId, gw.Params.ListeningAddress,
 			gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
+		gw.Comms.StartConnectionReport()
 
 		jww.INFO.Printf("Creating instance!")
 		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
