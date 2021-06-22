@@ -351,6 +351,8 @@ gitlab.com/xx_network/comms v0.0.0-20200805174823-841427dd5023/go.mod h1:owEcxTR
 gitlab.com/xx_network/comms v0.0.4-0.20210617183321-d5f4fd71033c h1:qrdft99RsCaXuMOlMBZaQm6JHySt4M+kGBofUyW/RU8=
 gitlab.com/xx_network/comms v0.0.4-0.20210617183321-d5f4fd71033c/go.mod h1:ehwxZxcAQHkJjP5BNkwPNK8/o6avUn0j0iDDiu+nMFc=
 gitlab.com/xx_network/comms v0.0.4-0.20210622173957-3c81ba16a735/go.mod h1:ehwxZxcAQHkJjP5BNkwPNK8/o6avUn0j0iDDiu+nMFc=
+gitlab.com/xx_network/comms v0.0.4-0.20210622182250-860b11fa7af0 h1:dC1A0dA5MD1gQ5lQQePegwZNT09L2awz6tWie5SJ0PQ=
+gitlab.com/xx_network/comms v0.0.4-0.20210622182250-860b11fa7af0/go.mod h1:ehwxZxcAQHkJjP5BNkwPNK8/o6avUn0j0iDDiu+nMFc=
 gitlab.com/xx_network/crypto v0.0.3/go.mod h1:DF2HYvvCw9wkBybXcXAgQMzX+MiGbFPjwt3t17VRqRE=
 gitlab.com/xx_network/crypto v0.0.4/go.mod h1:+lcQEy+Th4eswFgQDwT0EXKp4AXrlubxalwQFH5O0Mk=
 gitlab.com/xx_network/crypto v0.0.5-0.20210614155554-8c333814205b h1:X2Hhg9/IYowxMdI6TTnWj6WW3pnO2vMB/7f4mnu6Muw=
