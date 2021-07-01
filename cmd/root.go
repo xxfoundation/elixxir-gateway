@@ -19,6 +19,7 @@ import (
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/utils"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -320,6 +321,8 @@ func initConfig() {
 	if cfgFile == "" {
 		jww.FATAL.Panicf("No config file provided.")
 	}
+
+	cfgFile, _ = utils.ExpandPath(cfgFile)
 	viper.SetConfigFile(cfgFile)
 	viper.AutomaticEnv() // read in environment variables that match
 
