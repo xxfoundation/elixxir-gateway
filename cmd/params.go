@@ -21,7 +21,7 @@ import (
 )
 
 type Params struct {
-	NodeAddress      string
+	NodeAddress      string `yaml:"cmixAddress"`
 	Port             int
 	PublicAddress    string // Gateway's public IP address (with port)
 	ListeningAddress string // Gateway's local IP address (with port)
@@ -34,9 +34,9 @@ type Params struct {
 	DbAddress  string
 	DbPort     string
 
-	ServerCertPath        string
+	ServerCertPath        string `yaml:"cmixCertPath"`
 	IDFPath               string
-	PermissioningCertPath string
+	PermissioningCertPath string `yaml:"schedulingCertPath"`
 
 	rateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
@@ -76,11 +76,11 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml idfPath is required, path provided is empty.")
 	}
 	keyPath = viper.GetString("keyPath")
-	nodeAddress := viper.GetString("nodeAddress")
+	nodeAddress := viper.GetString("cmixAddress")
 	if nodeAddress == "" {
 		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
 	}
-	permissioningCertPath = viper.GetString("permissioningCertPath")
+	permissioningCertPath = viper.GetString("schedulingCertPath")
 	if permissioningCertPath == "" {
 		jww.FATAL.Panicf("Gateway.yaml permissioningCertPath is required, path provided is empty.")
 	}
@@ -88,7 +88,7 @@ func InitParams(vip *viper.Viper) Params {
 	if gwPort == 0 {
 		jww.FATAL.Panicf("Gateway.yaml port is required, provided port is empty/not set.")
 	}
-	serverCertPath = viper.GetString("serverCertPath")
+	serverCertPath = viper.GetString("cmixCertPath")
 	if serverCertPath == "" {
 		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
 	}
