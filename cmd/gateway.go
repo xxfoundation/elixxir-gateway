@@ -30,40 +30,6 @@ import (
 // Zeroed identity fingerprint identifies dummy messages
 var dummyIdFp = make([]byte, format.IdentityFPLen)
 
-// Determines the Epoch value of the given timestamp with the given period while
-// returning an error. To be used when either of the inputs come from the
-// network.
-func GetEpochEdge(ts int64, period int64) (uint32, error) {
-	if period == 0 {
-		return 0, errors.New("GetEpochEdge: Period length is 0, " +
-			"cannot divide by zero")
-	} else if ts < 0 {
-		return 0, errors.Errorf("GetEpochEdge: Cannot calculate "+
-			"epoch with a negative timestamp: %d", ts)
-	} else if period < 0 {
-		return 0, errors.Errorf("GetEpochEdge: Cannot calculate "+
-			"epoch with a negative period size: %d", period)
-	}
-	return uint32(ts / period), nil
-}
-
-// Determines the Epoch value of the given timestamp with the given period.
-// Panics on error. For internal use
-func GetEpoch(ts int64, period int64) uint32 {
-	epoch, err := GetEpochEdge(ts, period)
-
-	if err != nil {
-		jww.FATAL.Panicf("%+v", err)
-	}
-
-	return epoch
-}
-
-// Determines the timestamp value of the given epoch
-func GetEpochTimestamp(epoch uint32, period int64) int64 {
-	return period * int64(epoch)
-}
-
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
@@ -175,7 +141,7 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 
 }
 
-// PutMessage adds many messages to the outgoing queue
+// PutManyMessages adds many messages to the outgoing queue
 func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
 	// If the target is nil or empty, consider the target itself
 	if messages.GetMessages()[0].GetTarget() != nil && len(messages.GetTarget()) > 0 {
