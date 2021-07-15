@@ -38,8 +38,8 @@ Note: YAML prohibits the use of tabs because whitespace has meaning.
 # Level of debugging to print (0 = info, 1 = debug, >1 = trace). (Default info)
 logLevel: 1
 
-# Path where log file will be saved. (Default "log/gateway.log")
-log: "/opt/xxnetwork/log/gateway.log"
+# Path where log file will be saved. (Default "./gateway.log")
+log: "/opt/xxnetwork/gateway-logs/gateway.log"
 
 # Port for Gateway to listen on. Gateway must be the only listener on this port.
 # (Required)
@@ -54,29 +54,30 @@ listeningAddress: ""
 # port is not included, then the port from the port flag is used instead.
 overridePublicIP: ""
 
-# The IP address of the machine running cMix that the Gateway communicates with.
-# Expects an IPv4 address with a port. (Required)
-cmixAddress: "0.0.0.0:11420"
+# The IP address of the Node that the Gateway communicates with. Expects an IPv4
+# address with a port. (Required)
+nodeAddress: "0.0.0.0:11420"
 
 # Path to where the identity file (IDF) is saved. The IDF stores the Gateway's
-# network identity. This is used by the wrapper management script. (Required)
-idfPath: "/opt/xxnetwork/log/gateway-IDF.json"
+# Node's network identity. This is used by the wrapper management script.
+# (Required)
+idfPath: "/opt/xxnetwork/gateway-logs/gatewayIDF.json"
 
 # Path to the private key associated with the self-signed TLS certificate.
 # (Required)
-keyPath: "/opt/xxnetwork/cred/gateway-key.key"
+keyPath: "/opt/xxnetwork/creds/gateway_key.key"
 
 # Path to the self-signed TLS certificate for Gateway. Expects PEM format.
 # (Required)
-certPath: "/opt/xxnetwork/cred/gateway-cert.crt"
+certPath: "/opt/xxnetwork/creds/gateway_cert.crt"
 
-# Path to the self-signed TLS certificate for cMix. Expects PEM format.
+# Path to the self-signed TLS certificate for Node. Expects PEM format.
 # (Required)
-cmixCertPath: "/opt/xxnetwork/cred/cmix-cert.crt"
+serverCertPath: "/opt/xxnetwork/creds/node_cert.crt"
 
-# Path to the self-signed TLS certificate for the Scheduling server. Expects
+# Path to the self-signed TLS certificate for the Permissioning server. Expects
 # PEM format. (Required)
-schedulingCertPath: "/opt/xxnetwork/cred/scheduling-cert.crt"
+permissioningCertPath: "/opt/xxnetwork/creds/permissioning_cert.crt"
 
 # Database connection information. (Required)
 dbName: "cmix_gateway"
@@ -155,14 +156,14 @@ Flags:
       --kr int                            Amount of rounds to keep track of in kr (default 1024)
       --leakDuration duration             How often the number of leaked tokens is leaked from the bucket. (default 1ms)
       --leakedTokens uint32               The rate that the rate limiting bucket leaks tokens at [tokens/ns]. (default 3)
-      --log string                        Path where log file will be saved. (default "log/gateway.log")
+      --log string                        Path where log file will be saved. (default "./gateway.log")
   -l, --logLevel uint                     Level of debugging to print (0 = info, 1 = debug, >1 = trace).
       --monitorThreadFrequency duration   Frequency with which to check the gossip buffer. (default 2m30s)
-      --cmixAddress string                The IP address of the machine running cMix that the Gateway communicates with. Expects an IPv4 address with a port. (Required)
-      --schedulingCertPath string         Path to the self-signed TLS certificate for the Scheduling server. Expects PEM format. (Required)
+      --nodeAddress string                The IP address of the Node that the Gateway communicates with. Expects an IPv4 address with a port. (Required)
+      --permissioningCertPath string      Path to the self-signed TLS certificate for the Permissioning server. Expects PEM format. (Required)
       --pollDuration duration             How often inactive buckets are removed. (default 10s)
   -p, --port int                          Port for Gateway to listen on.Gateway must be the only listener on this port. (Required) (default -1)
-      --cmixCertPath string               Path to the self-signed TLS certificate for cMix. Expects PEM format. (Required)
+      --serverCertPath string             Path to the self-signed TLS certificate for Server. Expects PEM format. (Required)
 
 Use "gateway [command] --help" for more information about a command.
 ```

@@ -210,16 +210,16 @@ func init() {
 	err = viper.BindPFlag("logLevel", rootCmd.Flags().Lookup("logLevel"))
 	handleBindingError(err, "logLevel")
 
-	rootCmd.Flags().StringVar(&logPath, "log", "log/gateway.log",
+	rootCmd.Flags().StringVar(&logPath, "log", "./gateway.log",
 		"Path where log file will be saved.")
 	err = viper.BindPFlag("log", rootCmd.Flags().Lookup("log"))
 	handleBindingError(err, "log")
 
-	rootCmd.Flags().String("cmixAddress", "",
-		"The IP address of the machine running cMix that the Gateway "+
-			"communicates with. Expects an IPv4 address with a port. (Required)")
-	err = viper.BindPFlag("cmixAddress", rootCmd.Flags().Lookup("cmixAddress"))
-	handleBindingError(err, "cmixAddress")
+	rootCmd.Flags().String("nodeAddress", "",
+		"The IP address of the Node that the Gateway communicates with. "+
+			"Expects an IPv4 address with a port. (Required)")
+	err = viper.BindPFlag("nodeAddress", rootCmd.Flags().Lookup("nodeAddress"))
+	handleBindingError(err, "nodeAddress")
 
 	rootCmd.Flags().StringVar(&certPath, "certPath", "",
 		"Path to the self-signed TLS certificate for Gateway. Expects PEM "+
@@ -233,17 +233,17 @@ func init() {
 	err = viper.BindPFlag("keyPath", rootCmd.Flags().Lookup("keyPath"))
 	handleBindingError(err, "keyPath")
 
-	rootCmd.Flags().StringVar(&serverCertPath, "cmixCertPath", "",
-		"Path to the self-signed TLS certificate for cMix. Expects PEM "+
+	rootCmd.Flags().StringVar(&serverCertPath, "serverCertPath", "",
+		"Path to the self-signed TLS certificate for Server. Expects PEM "+
 			"format. (Required)")
-	err = viper.BindPFlag("cmixCertPath", rootCmd.Flags().Lookup("cmixCertPath"))
-	handleBindingError(err, "cmixCertPath")
+	err = viper.BindPFlag("serverCertPath", rootCmd.Flags().Lookup("serverCertPath"))
+	handleBindingError(err, "serverCertPath")
 
-	rootCmd.Flags().StringVar(&permissioningCertPath, "schedulingCertPath", "",
-		"Path to the self-signed TLS certificate for the Scheduling server. "+
+	rootCmd.Flags().StringVar(&permissioningCertPath, "permissioningCertPath", "",
+		"Path to the self-signed TLS certificate for the Permissioning server. "+
 			"Expects PEM format. (Required)")
-	err = viper.BindPFlag("schedulingCertPath", rootCmd.Flags().Lookup("schedulingCertPath"))
-	handleBindingError(err, "schedulingCertPath")
+	err = viper.BindPFlag("permissioningCertPath", rootCmd.Flags().Lookup("permissioningCertPath"))
+	handleBindingError(err, "permissioningCertPath")
 
 	// RATE LIMITING FLAGS
 	rootCmd.Flags().Uint32Var(&capacity, "capacity", 20,
