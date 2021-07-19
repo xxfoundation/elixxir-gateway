@@ -115,10 +115,9 @@ func TestUnmixedMessagesMap_AddManyUnmixedMessages(t *testing.T) {
 
 	// Insert slots up to a full batch
 	slots := make([]*pb.GatewaySlot, 0)
-	for i := 0; i < maxSlots - 1; i++ {
+	for i := 0; i < maxSlots-1; i++ {
 		slot := &pb.GatewaySlot{
-			Message:              &pb.Slot{SenderID: id.ZeroUser.Marshal()},
-
+			Message: &pb.Slot{SenderID: id.ZeroUser.Marshal()},
 		}
 		slots = append(slots, slot)
 	}
@@ -130,8 +129,7 @@ func TestUnmixedMessagesMap_AddManyUnmixedMessages(t *testing.T) {
 
 	// Construct an extra slot and attempt to insert
 	slot := &pb.GatewaySlot{
-		Message:              &pb.Slot{SenderID: id.ZeroUser.Marshal()},
-
+		Message: &pb.Slot{SenderID: id.ZeroUser.Marshal()},
 	}
 	extraSlots := []*pb.GatewaySlot{slot}
 	err = unmixedMessageBuf.AddManyUnmixedMessages(extraSlots, rnd)
@@ -139,6 +137,5 @@ func TestUnmixedMessagesMap_AddManyUnmixedMessages(t *testing.T) {
 		t.Fatalf("AddManyUnmixedMessages error: " +
 			"Should not be able to insert into already full batch")
 	}
-
 
 }
