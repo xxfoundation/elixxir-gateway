@@ -10,6 +10,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
+	"gitlab.com/xx_network/comms/messages"
+	"io"
 	"math/rand"
 	"os"
 	"reflect"
@@ -173,8 +175,18 @@ func buildTestNodeImpl() *node.Implementation {
 		int, error) {
 		return 1, nil
 	}
-	nodeHandler.Functions.PostNewBatch = func(batch *pb.Batch,
+	nodeHandler.Functions.UploadUnmixedBatch = func(stream pb.Node_UploadUnmixedBatchServer,
 		auth *connect.Auth) error {
+		batch := &pb.Batch{}
+		for {
+			slot, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			batch.Slots = append(batch.Slots, slot)
+
+		}
+		stream.SendAndClose(&messages.Ack{})
 		nodeIncomingBatch = batch
 		return nil
 	}
@@ -254,7 +266,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 
 	ri = &pb.RoundInfo{ID: 1, BatchSize: 4}
-	gatewayInstance.SendBatch(ri)
+	gatewayInstance.StreamBatch(ri)
 
 	time.Sleep(1 * time.Second)
 
@@ -358,7 +370,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
-	gw.SendBatch(si)
+	gw.StreamBatch(si)
 
 }
 
