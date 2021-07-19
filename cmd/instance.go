@@ -281,7 +281,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 	// Send a new batch to the server when it asks for one
 	if newInfo.BatchRequest != nil {
-		gw.SendBatch(newInfo.BatchRequest)
+		gw.StreamBatch(newInfo.BatchRequest)
 	}
 	// Process a batch that has been completed by this server
 	if newInfo.Batch != nil {
