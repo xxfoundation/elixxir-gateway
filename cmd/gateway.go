@@ -513,11 +513,13 @@ func (gw *Instance) StreamBatch(roundInfo *pb.RoundInfo) {
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
-	err := gw.Comms.StreamUnmixedBatch(gw.ServerHost, header, batch)
+	jww.DEBUG.Printf("Uploading batch to server")
+	err := gw.Comms.UploadUnmixedBatch(gw.ServerHost, header, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error streaming unmixed batch: %v", err)
 	}
+	jww.DEBUG.Printf("Upload complete")
 
 	if !gw.Params.DisableGossip {
 		/*// Gossip senders included in the batch to other gateways
