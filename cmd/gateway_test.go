@@ -266,7 +266,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 
 	ri = &pb.RoundInfo{ID: 1, BatchSize: 4}
-	gatewayInstance.StreamBatch(ri)
+	gatewayInstance.UploadUnmixedBatch(ri)
 
 	time.Sleep(1 * time.Second)
 
@@ -370,7 +370,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
-	gw.StreamBatch(si)
+	gw.UploadUnmixedBatch(si)
 
 }
 
