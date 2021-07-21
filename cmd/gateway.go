@@ -531,7 +531,7 @@ func (gw *Instance) DownloadMixedBatch(server pb.Gateway_DownloadMixedBatchServe
 
 // StreamBatch polls sends whatever messages are in the batch associated with the
 // requested round to the server
-func (gw *Instance) StreamBatch(roundInfo *pb.RoundInfo) {
+func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 
 	batchSize := uint64(roundInfo.BatchSize)
 	if batchSize == 0 {

@@ -285,7 +285,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 	// Send a new batch to the server when it asks for one
 	if newInfo.BatchRequest != nil {
-		gw.StreamBatch(newInfo.BatchRequest)
+		gw.UploadUnmixedBatch(newInfo.BatchRequest)
 	}
 
 	return nil
