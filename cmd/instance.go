@@ -18,19 +18,16 @@ import (
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/elixxir/comms/network"
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
-	"gitlab.com/elixxir/comms/node"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
-	"gitlab.com/xx_network/comms/messages"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
 	"gorm.io/gorm"
-	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -156,7 +153,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.DownloadMixedBatch = func(server pb.Gateway_DownloadMixedBatchServer, auth *connect.Auth) error {
 		return instance.DownloadMixedBatch(server, auth)
 	}
-
 
 	return impl
 }
@@ -291,11 +287,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	if newInfo.BatchRequest != nil {
 		gw.StreamBatch(newInfo.BatchRequest)
 	}
-	// Process a batch that has been completed by this server
-	// todo: place this in the handler for downloadMixedBatch
-	//if newInfo.Batch != nil {
-	//	gw.ProcessCompletedBatch(newInfo.Batch.Slots, id.Round(newInfo.Batch.RoundID))
-	//}
 
 	return nil
 }
@@ -691,58 +682,4 @@ func (gw *Instance) LoadLastUpdateID() error {
 
 	gw.lastUpdate = lastUpdate
 	return nil
-}
-
-// DownloadMixedBatch is the handler for the node streaming a completed (mixed) batch
-func (gw *Instance) DownloadMixedBatch(server pb.Gateway_DownloadMixedBatchServer,
-	auth *connect.Auth) error {
-	// Check that authentication is good and the sender is our node, otherwise error
-	if !auth.IsAuthenticated || !auth.Sender.GetId().Cmp(gw.ServerHost.GetId()) {
-		jww.WARN.Printf("ReceiveDownloadMixedBatch failed auth (sender ID: %s, auth: %v, expected: %s)",
-			auth.Sender.GetId(), auth.IsAuthenticated, gw.ServerHost.GetId().String())
-		return connect.AuthError(auth.Sender.GetId())
-	}
-
-	// Extract header information
-	batchInfo, err := node.GetUnmixedBatchStreamHeader(server)
-	if err != nil {
-		return errors.WithMessage(err, "Could not get unmixed batch stream header")
-	}
-	batchSize := batchInfo.GetBatchSize()
-	roundId := batchInfo.Round.ID
-
-
-	completedBatch := &pb.CompletedBatch{RoundID: batchInfo.Round.ID}
-
-	// Receive slots from stream
-	slot, err := server.Recv()
-	slots := make([]*pb.Slot, 0)
-	slotsReceived := uint32(0)
-	for ; err == nil; slot, err = server.Recv() {
-		slots = append(slots, slot)
-		slotsReceived++
-	}
-
-	// Handle any errors
-	completedBatch.Slots = slots
-	ack := &messages.Ack{Error: ""}
-	if err != io.EOF {
-		ack.Error = fmt.Sprintf("errors occurred, %v/%v slots "+
-			"recived: %s", slotsReceived, batchSize, err.Error())
-	} else if slotsReceived != batchSize {
-		ack.Error = fmt.Sprintf("Mismatch between batch size %v "+
-			"and received num slots %v, no error", slotsReceived, batchSize)
-	}
-
-	// Close the stream by sending ack and returning success or failure
-	errClose := server.SendAndClose(ack)
-	if errClose != nil && ack.Error != "" {
-		return errors.WithMessage(errClose, ack.Error)
-	} else if errClose == nil && ack.Error != "" {
-		return errors.New(ack.Error)
-	} else {
-		gw.ProcessCompletedBatch(slots, id.Round(roundId))
-		return errClose
-	}
-
 }

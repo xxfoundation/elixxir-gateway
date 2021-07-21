@@ -94,7 +94,7 @@ func TestMain(m *testing.M) {
 	gComm = gateway.StartGateway(&id.TempGateway, GW_ADDRESS,
 		gatewayInstance, gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	// Start mock node
+	// Start mock nodeStreamBa
 	nodeHandler := buildTestNodeImpl()
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
@@ -189,21 +189,6 @@ func buildTestNodeImpl() *node.Implementation {
 		stream.SendAndClose(&messages.Ack{})
 		nodeIncomingBatch = batch
 		return nil
-	}
-	nodeHandler.Functions.GetCompletedBatch = func(auth *connect.Auth) (
-		*pb.Batch, error) {
-		// build a batch
-		b := pb.Batch{
-			Round: &pb.RoundInfo{
-				ID: 42, // meaning of life
-			},
-			FromPhase: 0,
-			Slots: []*pb.Slot{
-				mockMessage,
-			},
-		}
-
-		return &b, nil
 	}
 
 	nodeHandler.Functions.Poll = func(p *pb.ServerPoll,
