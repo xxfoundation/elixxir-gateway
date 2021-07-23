@@ -280,13 +280,16 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 	}
 
+	// If batch is non-nil, then server is reporting that there is a batch to stream
 	if newInfo.Batch != nil {
+		// Request the batch
 		slots, err := gw.Comms.DownloadMixedBatch(newInfo.Batch, gw.ServerHost)
 		if err != nil {
 			return errors.Errorf("failed to retrieve mixed batch for round %d: %v",
 				newInfo.Batch.RoundId, err)
 		}
 
+		// Process the batch
 		gw.ProcessCompletedBatch(slots, id.Round(newInfo.Batch.RoundId))
 
 	}

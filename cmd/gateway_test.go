@@ -94,7 +94,7 @@ func TestMain(m *testing.M) {
 	gComm = gateway.StartGateway(&id.TempGateway, GW_ADDRESS,
 		gatewayInstance, gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	// Start mock nodeStreamBa
+	// Start mock nodeStream
 	nodeHandler := buildTestNodeImpl()
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
