@@ -490,38 +490,36 @@ func (gw *Instance) DownloadMixedBatch(server pb.Gateway_DownloadMixedBatchServe
 	if err != nil {
 		return errors.WithMessage(err, "Could not get unmixed batch stream header")
 	}
-	batchSize := batchInfo.GetBatchSize()
 	roundId := batchInfo.Round.ID
-
 	completedBatch := &pb.CompletedBatch{RoundID: batchInfo.Round.ID}
+
+
+	jww.INFO.Printf("Received batch for round: %d", roundId)
+
 
 	// Receive slots from stream
 	slot, err := server.Recv()
 	slots := make([]*pb.Slot, 0)
-	slotsReceived := uint32(0)
 	for ; err == nil; slot, err = server.Recv() {
 		slots = append(slots, slot)
-		slotsReceived++
 	}
 
 	// Handle any errors
 	completedBatch.Slots = slots
 	ack := &messages.Ack{Error: ""}
 	if err != io.EOF {
-		ack.Error = fmt.Sprintf("errors occurred, %v/%v slots "+
-			"recived: %s", slotsReceived, batchSize, err.Error())
-	} else if slotsReceived != batchSize {
-		ack.Error = fmt.Sprintf("Mismatch between batch size %v "+
-			"and received num slots %v, no error", slotsReceived, batchSize)
+		ack.Error = fmt.Sprintf("errors occurred: %v", err.Error())
 	}
 
 	// Close the stream by sending ack and returning success or failure
 	errClose := server.SendAndClose(ack)
 	if errClose != nil && ack.Error != "" {
+		jww.WARN.Printf("Failed to close stream")
 		return errors.WithMessage(errClose, ack.Error)
 	} else if errClose == nil && ack.Error != "" {
 		return errors.New(ack.Error)
 	} else {
+		jww.DEBUG.Printf("Processing batch for round %d", roundId)
 		// Process a batch that has been completed by this server
 		gw.ProcessCompletedBatch(slots, id.Round(roundId))
 		return errClose

@@ -283,6 +283,15 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 	}
 
+	if newInfo.Batch != nil {
+		jww.INFO.Printf("Requesting mixed batch for round: %d", newInfo.Batch.RoundId)
+		err := gw.Comms.StartDownloadMixedBatch(gw.ServerHost, newInfo.Batch)
+		if err != nil {
+			return errors.Errorf("failed to request the download of a " +
+				"mixed batch for round %d: %v", newInfo.Batch.RoundId, err)
+		}
+	}
+
 	// Send a new batch to the server when it asks for one
 	if newInfo.BatchRequest != nil {
 		gw.UploadUnmixedBatch(newInfo.BatchRequest)
