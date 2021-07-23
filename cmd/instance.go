@@ -28,7 +28,6 @@ import (
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
 	"gorm.io/gorm"
-	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -282,23 +281,9 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	if newInfo.Batch != nil {
-		jww.INFO.Printf("Requesting mixed batch for round: %d", newInfo.Batch.RoundId)
-		stream, err := gw.Comms.DownloadMixedBatch(newInfo.Batch, gw.ServerHost)
+		slots, err := gw.Comms.DownloadMixedBatch(newInfo.Batch, gw.ServerHost)
 		if err != nil {
-			return errors.Errorf("failed to request the download of a " +
-				"mixed batch for round %d: %v", newInfo.Batch.RoundId, err)
-		}
-
-		jww.INFO.Printf("Receiving batch for round %d", newInfo.Batch.RoundId)
-
-		slots := make([]*pb.Slot, 0)
-		slot, err := stream.Recv()
-		for ; err == nil; slot, err = stream.Recv() {
-			slots = append(slots, slot)
-		}
-
-		if err != io.EOF {
-			return errors.Errorf("Error receiving mixed batch via stream for round %d: %v",
+			return errors.Errorf("failed to retrieve mixed batch for round %d: %v",
 				newInfo.Batch.RoundId, err)
 		}
 
