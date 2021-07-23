@@ -150,9 +150,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.ShareMessages = func(msg *pb.RoundMessages, auth *connect.Auth) error {
 		return instance.ShareMessages(msg, auth)
 	}
-	impl.Functions.DownloadMixedBatch = func(server pb.Gateway_DownloadMixedBatchServer, auth *connect.Auth) error {
-		return instance.DownloadMixedBatch(server, auth)
-	}
 
 	return impl
 }
@@ -284,12 +281,14 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	if newInfo.Batch != nil {
-		jww.INFO.Printf("Requesting mixed batch for round: %d", newInfo.Batch.RoundId)
-		err := gw.Comms.StartDownloadMixedBatch(gw.ServerHost, newInfo.Batch)
+		slots, err := gw.Comms.DownloadMixedBatch(newInfo.Batch, gw.ServerHost)
 		if err != nil {
-			return errors.Errorf("failed to request the download of a " +
-				"mixed batch for round %d: %v", newInfo.Batch.RoundId, err)
+			return errors.Errorf("failed to retrieve mixed batch for round %d: %v",
+				newInfo.Batch.RoundId, err)
 		}
+
+		gw.ProcessCompletedBatch(slots, id.Round(newInfo.Batch.RoundId))
+
 	}
 
 	// Send a new batch to the server when it asks for one
