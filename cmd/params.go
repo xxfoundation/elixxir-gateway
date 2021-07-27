@@ -76,24 +76,35 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml idfPath is required, path provided is empty.")
 	}
 	keyPath = viper.GetString("keyPath")
-	viper.RegisterAlias("nodeAddress", "cmixAddress")
-	nodeAddress := viper.GetString("cmixAddress")
-	if nodeAddress == "" {
-		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
+
+	var nodeAddress string
+	if viper.IsSet("cmixAddress") {
+		nodeAddress = viper.GetString("cmixAddress")
+	} else if viper.IsSet("nodeAddress") {
+		nodeAddress = viper.GetString("nodeAddress")
+	} else {
+		jww.FATAL.Panicf("Gateway.yaml cmixAddress is required, address provided is empty.")
 	}
-	viper.RegisterAlias("permissioningCertPath", "schedulingCertPath")
-	permissioningCertPath = viper.GetString("schedulingCertPath")
-	if permissioningCertPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml permissioningCertPath is required, path provided is empty.")
+
+	if viper.IsSet("schedulingCertPath") {
+		permissioningCertPath = viper.GetString("schedulingCertPath")
+	} else if viper.IsSet("permissioningCertPath") {
+		permissioningCertPath = viper.GetString("permissioningCertPath")
+	} else {
+		jww.FATAL.Panicf("Gateway.yaml schedulingCertPath is required, path provided is empty.")
 	}
+
 	gwPort = viper.GetInt("port")
 	if gwPort == 0 {
 		jww.FATAL.Panicf("Gateway.yaml port is required, provided port is empty/not set.")
 	}
-	viper.RegisterAlias("serverCertPath", "cmixCertPath")
-	serverCertPath = viper.GetString("cmixCertPath")
-	if serverCertPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
+
+	if viper.IsSet("cmixCertPath") {
+		serverCertPath = viper.GetString("cmixCertPath")
+	} else if viper.IsSet("serverCertPath") {
+		serverCertPath = viper.GetString("serverCertPath")
+	} else {
+		jww.FATAL.Panicf("Gateway.yaml cmixCertPath is required, path provided is empty.")
 	}
 
 	// Get gateway's public IP or use the IP override
