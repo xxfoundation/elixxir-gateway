@@ -17,12 +17,12 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20210120224144-ac046983a17a
-	gitlab.com/elixxir/comms v0.0.4-0.20210714201329-5efcbdfac3ca
-	gitlab.com/elixxir/crypto v0.0.7-0.20210714201100-45fb778a00fb
-	gitlab.com/elixxir/primitives v0.0.3-0.20210714200942-a908050c230c
-	gitlab.com/xx_network/comms v0.0.4-0.20210714165756-8e3b40d71db1
-	gitlab.com/xx_network/crypto v0.0.5-0.20210714165656-1ed326047ba9
-	gitlab.com/xx_network/primitives v0.0.4-0.20210714200905-f386ca29a132
+	gitlab.com/elixxir/comms v0.0.4-0.20210727193005-77b7208dbebb
+	gitlab.com/elixxir/crypto v0.0.7-0.20210727192727-d801dea28fcf
+	gitlab.com/elixxir/primitives v0.0.3-0.20210727192608-609254eca789
+	gitlab.com/xx_network/comms v0.0.4-0.20210727192538-2e78b803c7fc
+	gitlab.com/xx_network/crypto v0.0.5-0.20210727192439-c1ce10d60b7e
+	gitlab.com/xx_network/primitives v0.0.4-0.20210727191551-5fe750830811
 	google.golang.org/genproto v0.0.0-20210105202744-fe13368bc0e1 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
