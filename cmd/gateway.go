@@ -10,11 +10,6 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
-	"gitlab.com/elixxir/comms/node"
-	"gitlab.com/xx_network/comms/connect"
-	"gitlab.com/xx_network/comms/messages"
-	"io"
 	"time"
 
 	"github.com/pkg/errors"
@@ -475,59 +470,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round
 	}
 }
 
-// DownloadMixedBatch is the handler for the node streaming a completed (mixed) batch
-func (gw *Instance) DownloadMixedBatch(server pb.Gateway_DownloadMixedBatchServer,
-	auth *connect.Auth) error {
-	// Check that authentication is good and the sender is our node, otherwise error
-	if !auth.IsAuthenticated || !auth.Sender.GetId().Cmp(gw.ServerHost.GetId()) {
-		jww.WARN.Printf("ReceiveDownloadMixedBatch failed auth (sender ID: %s, auth: %v, expected: %s)",
-			auth.Sender.GetId(), auth.IsAuthenticated, gw.ServerHost.GetId().String())
-		return connect.AuthError(auth.Sender.GetId())
-	}
-
-	// Extract header information
-	batchInfo, err := node.GetUnmixedBatchStreamHeader(server)
-	if err != nil {
-		return errors.WithMessage(err, "Could not get unmixed batch stream header")
-	}
-	roundId := batchInfo.Round.ID
-	completedBatch := &pb.CompletedBatch{RoundID: batchInfo.Round.ID}
-
-
-	jww.INFO.Printf("Received batch for round: %d", roundId)
-
-
-	// Receive slots from stream
-	slot, err := server.Recv()
-	slots := make([]*pb.Slot, 0)
-	for ; err == nil; slot, err = server.Recv() {
-		slots = append(slots, slot)
-	}
-
-	// Handle any errors
-	completedBatch.Slots = slots
-	ack := &messages.Ack{Error: ""}
-	if err != io.EOF {
-		ack.Error = fmt.Sprintf("errors occurred: %v", err.Error())
-	}
-
-	// Close the stream by sending ack and returning success or failure
-	errClose := server.SendAndClose(ack)
-	if errClose != nil && ack.Error != "" {
-		jww.WARN.Printf("Failed to close stream")
-		return errors.WithMessage(errClose, ack.Error)
-	} else if errClose == nil && ack.Error != "" {
-		return errors.New(ack.Error)
-	} else {
-		jww.DEBUG.Printf("Processing batch for round %d", roundId)
-		// Process a batch that has been completed by this server
-		gw.ProcessCompletedBatch(slots, id.Round(roundId))
-		return errClose
-	}
-
-}
-
-// StreamBatch polls sends whatever messages are in the batch associated with the
+// UploadUnmixedBatch polls sends whatever messages are in the batch associated with the
 // requested round to the server
 func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 
@@ -570,13 +513,13 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
-	jww.DEBUG.Printf("Uploading batch to server")
+	jww.INFO.Printf("Uploading batch to server")
 	err := gw.Comms.UploadUnmixedBatch(gw.ServerHost, header, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error streaming unmixed batch: %v", err)
 	}
-	jww.DEBUG.Printf("Upload complete")
+	jww.INFO.Printf("Upload complete")
 
 	if !gw.Params.DisableGossip {
 		/*// Gossip senders included in the batch to other gateways
