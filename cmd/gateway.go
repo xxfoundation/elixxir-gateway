@@ -470,7 +470,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round
 	}
 }
 
-// StreamBatch polls sends whatever messages are in the batch associated with the
+// UploadUnmixedBatch polls sends whatever messages are in the batch associated with the
 // requested round to the server
 func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 
@@ -513,13 +513,13 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
-	jww.DEBUG.Printf("Uploading batch to server")
+	jww.INFO.Printf("Uploading batch to server")
 	err := gw.Comms.UploadUnmixedBatch(gw.ServerHost, header, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
 		jww.WARN.Printf("Error streaming unmixed batch: %v", err)
 	}
-	jww.DEBUG.Printf("Upload complete")
+	jww.INFO.Printf("Upload complete")
 
 	if !gw.Params.DisableGossip {
 		/*// Gossip senders included in the batch to other gateways

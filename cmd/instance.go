@@ -150,6 +150,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.ShareMessages = func(msg *pb.RoundMessages, auth *connect.Auth) error {
 		return instance.ShareMessages(msg, auth)
 	}
+
 	return impl
 }
 
@@ -279,13 +280,23 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 	}
 
+	// If batch is non-nil, then server is reporting that there is a batch to stream
+	if newInfo.Batch != nil {
+		// Request the batch
+		slots, err := gw.Comms.DownloadMixedBatch(newInfo.Batch, gw.ServerHost)
+		if err != nil {
+			return errors.Errorf("failed to retrieve mixed batch for round %d: %v",
+				newInfo.Batch.RoundId, err)
+		}
+
+		// Process the batch
+		gw.ProcessCompletedBatch(slots, id.Round(newInfo.Batch.RoundId))
+
+	}
+
 	// Send a new batch to the server when it asks for one
 	if newInfo.BatchRequest != nil {
 		gw.UploadUnmixedBatch(newInfo.BatchRequest)
-	}
-	// Process a batch that has been completed by this server
-	if newInfo.Batch != nil {
-		gw.ProcessCompletedBatch(newInfo.Batch.Slots, id.Round(newInfo.Batch.RoundID))
 	}
 
 	return nil
