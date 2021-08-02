@@ -41,8 +41,11 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 	// This is bad. It needs to be fixed (Ben's fault for not fixing correctly)
 	var err error
 	ers := &storage.Storage{}
-	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers, network.Lazy)
-
+	gw.NetInf, err = network.NewInstance(gatewayInstance.Comms.ProtoComms, testNDF, testNDF, ers, network.Lazy, false)
+	gw.filteredUpdates, err = NewFilteredUpdates(gw.NetInf)
+	if err != nil {
+		t.Fatalf("Failed to create filtered update: %v", err)
+	}
 	_, err = gw.Poll(clientReq)
 	if err == nil {
 		t.Errorf("Expected error path. Should error when passing a nil clientID")

@@ -21,7 +21,7 @@ import (
 )
 
 type Params struct {
-	NodeAddress      string
+	NodeAddress      string `yaml:"cmixAddress"`
 	Port             int
 	PublicAddress    string // Gateway's public IP address (with port)
 	ListeningAddress string // Gateway's local IP address (with port)
@@ -34,9 +34,9 @@ type Params struct {
 	DbAddress  string
 	DbPort     string
 
-	ServerCertPath        string
+	ServerCertPath        string `yaml:"cmixCertPath"`
 	IDFPath               string
-	PermissioningCertPath string
+	PermissioningCertPath string `yaml:"schedulingCertPath"`
 
 	rateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
@@ -76,21 +76,35 @@ func InitParams(vip *viper.Viper) Params {
 		jww.FATAL.Panicf("Gateway.yaml idfPath is required, path provided is empty.")
 	}
 	keyPath = viper.GetString("keyPath")
-	nodeAddress := viper.GetString("nodeAddress")
-	if nodeAddress == "" {
-		jww.FATAL.Panicf("Gateway.yaml nodeAddress is required, address provided is empty.")
+
+	var nodeAddress string
+	if viper.IsSet("cmixAddress") {
+		nodeAddress = viper.GetString("cmixAddress")
+	} else if viper.IsSet("nodeAddress") {
+		nodeAddress = viper.GetString("nodeAddress")
+	} else {
+		jww.FATAL.Panicf("Gateway.yaml cmixAddress is required, address provided is empty.")
 	}
-	permissioningCertPath = viper.GetString("permissioningCertPath")
-	if permissioningCertPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml permissioningCertPath is required, path provided is empty.")
+
+	if viper.IsSet("schedulingCertPath") {
+		permissioningCertPath = viper.GetString("schedulingCertPath")
+	} else if viper.IsSet("permissioningCertPath") {
+		permissioningCertPath = viper.GetString("permissioningCertPath")
+	} else {
+		jww.FATAL.Panicf("Gateway.yaml schedulingCertPath is required, path provided is empty.")
 	}
+
 	gwPort = viper.GetInt("port")
 	if gwPort == 0 {
 		jww.FATAL.Panicf("Gateway.yaml port is required, provided port is empty/not set.")
 	}
-	serverCertPath = viper.GetString("serverCertPath")
-	if serverCertPath == "" {
-		jww.FATAL.Panicf("Gateway.yaml serverCertPath is required, path provided is empty.")
+
+	if viper.IsSet("cmixCertPath") {
+		serverCertPath = viper.GetString("cmixCertPath")
+	} else if viper.IsSet("serverCertPath") {
+		serverCertPath = viper.GetString("serverCertPath")
+	} else {
+		jww.FATAL.Panicf("Gateway.yaml cmixCertPath is required, path provided is empty.")
 	}
 
 	// Get gateway's public IP or use the IP override

@@ -22,7 +22,7 @@ import (
 )
 
 // Determines maximum runtime (in seconds) of specific DB queries
-const DbTimeout = 1
+const DbTimeout = 3
 
 // Interface declaration for storage methods
 type database interface {
@@ -96,7 +96,7 @@ type State struct {
 const (
 	PeriodKey      = "Period"
 	LastUpdateKey  = "LastUpdateId"
-	KnownRoundsKey = "KnownRounds"
+	KnownRoundsKey = "KnownRoundsV3"
 )
 
 // Represents a Client and its associated keys
@@ -231,9 +231,11 @@ func newDatabase(username, password, dbName, address,
 	// SetMaxIdleConns sets the maximum number of connections in the idle connection pool.
 	sqlDb.SetMaxIdleConns(10)
 	// SetMaxOpenConns sets the maximum number of open connections to the Database.
-	sqlDb.SetMaxOpenConns(100)
+	sqlDb.SetMaxOpenConns(50)
+	// SetConnMaxLifetime sets the maximum amount of time a connection may be idle.
+	sqlDb.SetConnMaxIdleTime(10 * time.Minute)
 	// SetConnMaxLifetime sets the maximum amount of time a connection may be reused.
-	sqlDb.SetConnMaxLifetime(24 * time.Hour)
+	sqlDb.SetConnMaxLifetime(12 * time.Hour)
 
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing

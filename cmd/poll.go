@@ -10,7 +10,6 @@
 package cmd
 
 import (
-	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/primitives/version"
 	"gitlab.com/xx_network/comms/connect"
-	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
 )
@@ -65,17 +63,17 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() - Valid ReceptionID required: %+v", err)
 	}
 
-	kr, err := gw.knownRound.Marshal()
-	if err != nil {
-		errStr := fmt.Sprintf("couldn't get known rounds for client "+
-			"%d's request: %v", receptionId.Int64(), err)
-		jww.WARN.Printf(errStr)
-		return &pb.GatewayPollResponse{}, errors.New(errStr)
-	}
-
 	// Determine Client epoch range
-	startEpoch := GetEpoch(time.Unix(0, clientRequest.StartTimestamp).UnixNano(), gw.period)
-	endEpoch := GetEpoch(time.Unix(0, clientRequest.EndTimestamp).UnixNano(), gw.period)
+	startEpoch, err := GetEpochEdge(time.Unix(0, clientRequest.StartTimestamp).UnixNano(), gw.period)
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.WithMessage(err, "Failed to "+
+			"handle client poll due to invalid start timestamp")
+	}
+	endEpoch, err := GetEpochEdge(time.Unix(0, clientRequest.EndTimestamp).UnixNano(), gw.period)
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.WithMessage(err, "Failed to "+
+			"handle client poll due to invalid end timestamp")
+	}
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
@@ -115,15 +113,22 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
 	if !isSame {
 		netDef = gw.NetInf.GetPartialNdf().GetPb()
+	} else if clientRequest.FastPolling {
+		// Get the range of updates from the filtered updates structure for client
+		// and with an EDDSA signature
+		updates = gw.filteredUpdates.GetRoundUpdates(int(clientRequest.LastUpdate))
+
 	} else {
-		// Get the range of updates from the network instance
+		// Get the range of updates from the consensus object, with all updates
+		// and the RSA Signature
 		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
+
 	}
 
 	return &pb.GatewayPollResponse{
 		PartialNDF:    netDef,
 		Updates:       updates,
-		KnownRounds:   kr,
+		KnownRounds:   gw.krw.getMarshal(),
 		Filters:       filtersMsg,
 		EarliestRound: atomic.LoadUint64(gw.lowestRound),
 	}, nil
@@ -162,15 +167,4 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 
 	resp, err := conn.SendPoll(pollee, pollMsg)
 	return resp, err
-}
-
-// Notification Server polls Gateway for mobile notifications at this endpoint
-func (gw *Instance) PollForNotifications(auth *connect.Auth) (i []*id.ID, e error) {
-	// Check that authentication is good and the sender is our gateway, otherwise error
-	if !auth.IsAuthenticated || auth.Sender.GetId() != &id.NotificationBot || auth.Sender.IsDynamicHost() {
-		jww.WARN.Printf("PollForNotifications failed auth (sender ID: %s, auth: %v, expected: %s)",
-			auth.Sender.GetId(), auth.IsAuthenticated, id.NotificationBot)
-		return nil, connect.AuthError(auth.Sender.GetId())
-	}
-	return gw.un.Notified(), nil
 }

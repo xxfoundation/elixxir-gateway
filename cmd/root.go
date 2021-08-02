@@ -19,9 +19,13 @@ import (
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/utils"
 	"os"
+	"os/signal"
+	"runtime/pprof"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -53,8 +57,17 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
 		initLog()
-		params := InitParams(viper.GetViper())
 
+		profileOut := viper.GetString("profile-cpu")
+		if profileOut != "" {
+			f, err := os.Create(profileOut)
+			if err != nil {
+				jww.FATAL.Panicf("%+v", err)
+			}
+			pprof.StartCPUProfile(f)
+		}
+
+		params := InitParams(viper.GetViper())
 		// Build gateway implementation object
 		gateway := NewGatewayInstance(params)
 		err := gateway.SetPeriod()
@@ -100,9 +113,33 @@ var rootCmd = &cobra.Command{
 
 		gateway.Start()
 
-		// Wait forever
-		select {}
+		// Block forever on Signal Handler for safe program exit
+		stopCh := ReceiveExitSignal()
+
+		// Block forever to prevent the program ending
+		// Block until a signal is received, then call the function
+		// provided
+		select {
+		case <-stopCh:
+			jww.INFO.Printf(
+				"Received Exit (SIGTERM or SIGINT) signal...\n")
+			if profileOut != "" {
+				pprof.StopCPUProfile()
+			}
+		}
+
 	},
+}
+
+// ReceiveExitSignal signals a stop chan when it receives
+// SIGTERM or SIGINT
+func ReceiveExitSignal() chan os.Signal {
+	// Set up channel on which to send signal notifications.
+	// We must use a buffered channel or risk missing the signal
+	// if we're not ready to receive when the signal is sent.
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	return c
 }
 
 func addPrecannedIDs(gateway *Instance) {
@@ -173,16 +210,16 @@ func init() {
 	err = viper.BindPFlag("logLevel", rootCmd.Flags().Lookup("logLevel"))
 	handleBindingError(err, "logLevel")
 
-	rootCmd.Flags().StringVar(&logPath, "log", "./gateway.log",
+	rootCmd.Flags().StringVar(&logPath, "log", "log/gateway.log",
 		"Path where log file will be saved.")
 	err = viper.BindPFlag("log", rootCmd.Flags().Lookup("log"))
 	handleBindingError(err, "log")
 
-	rootCmd.Flags().String("nodeAddress", "",
-		"The IP address of the Node that the Gateway communicates with. "+
-			"Expects an IPv4 address with a port. (Required)")
-	err = viper.BindPFlag("nodeAddress", rootCmd.Flags().Lookup("nodeAddress"))
-	handleBindingError(err, "nodeAddress")
+	rootCmd.Flags().String("cmixAddress", "",
+		"The IP address of the machine running cMix that the Gateway "+
+			"communicates with. Expects an IPv4 address with a port. (Required)")
+	err = viper.BindPFlag("cmixAddress", rootCmd.Flags().Lookup("cmixAddress"))
+	handleBindingError(err, "cmixAddress")
 
 	rootCmd.Flags().StringVar(&certPath, "certPath", "",
 		"Path to the self-signed TLS certificate for Gateway. Expects PEM "+
@@ -196,17 +233,17 @@ func init() {
 	err = viper.BindPFlag("keyPath", rootCmd.Flags().Lookup("keyPath"))
 	handleBindingError(err, "keyPath")
 
-	rootCmd.Flags().StringVar(&serverCertPath, "serverCertPath", "",
-		"Path to the self-signed TLS certificate for Server. Expects PEM "+
+	rootCmd.Flags().StringVar(&serverCertPath, "cmixCertPath", "",
+		"Path to the self-signed TLS certificate for cMix. Expects PEM "+
 			"format. (Required)")
-	err = viper.BindPFlag("serverCertPath", rootCmd.Flags().Lookup("serverCertPath"))
-	handleBindingError(err, "serverCertPath")
+	err = viper.BindPFlag("cmixCertPath", rootCmd.Flags().Lookup("cmixCertPath"))
+	handleBindingError(err, "cmixCertPath")
 
-	rootCmd.Flags().StringVar(&permissioningCertPath, "permissioningCertPath", "",
-		"Path to the self-signed TLS certificate for the Permissioning server. "+
+	rootCmd.Flags().StringVar(&permissioningCertPath, "schedulingCertPath", "",
+		"Path to the self-signed TLS certificate for the Scheduling server. "+
 			"Expects PEM format. (Required)")
-	err = viper.BindPFlag("permissioningCertPath", rootCmd.Flags().Lookup("permissioningCertPath"))
-	handleBindingError(err, "permissioningCertPath")
+	err = viper.BindPFlag("schedulingCertPath", rootCmd.Flags().Lookup("schedulingCertPath"))
+	handleBindingError(err, "schedulingCertPath")
 
 	// RATE LIMITING FLAGS
 	rootCmd.Flags().Uint32Var(&capacity, "capacity", 20,
@@ -265,6 +302,10 @@ func init() {
 	handleBindingError(err, "Rate_Limiting_MonitorThreadFrequency")
 	_ = rootCmd.Flags().MarkHidden("devMode")
 
+	rootCmd.Flags().String("profile-cpu", "",
+		"Enable cpu profiling to this file")
+	viper.BindPFlag("profile-cpu", rootCmd.Flags().Lookup("profile-cpu"))
+
 }
 
 // Handle flag binding errors
@@ -280,6 +321,8 @@ func initConfig() {
 	if cfgFile == "" {
 		jww.FATAL.Panicf("No config file provided.")
 	}
+
+	cfgFile, _ = utils.ExpandPath(cfgFile)
 	viper.SetConfigFile(cfgFile)
 	viper.AutomaticEnv() // read in environment variables that match
 
