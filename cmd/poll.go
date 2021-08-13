@@ -15,13 +15,13 @@ import (
 
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"gitlab.com/elixxir/comms/gateway"
-	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/primitives/version"
-	"gitlab.com/xx_network/comms/connect"
-	"gitlab.com/xx_network/primitives/id/ephemeral"
-	"gitlab.com/xx_network/primitives/ndf"
+	"git.xx.network/elixxir/comms/gateway"
+	pb "git.xx.network/elixxir/comms/mixmessages"
+	"git.xx.network/elixxir/comms/network"
+	"git.xx.network/elixxir/primitives/version"
+	"git.xx.network/xx_network/comms/connect"
+	"git.xx.network/xx_network/primitives/id/ephemeral"
+	"git.xx.network/xx_network/primitives/ndf"
 )
 
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds

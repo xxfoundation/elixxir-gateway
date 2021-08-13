@@ -14,17 +14,17 @@ import (
 
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/crypto/cmix"
-	"gitlab.com/elixxir/crypto/cyclic"
-	"gitlab.com/elixxir/crypto/fingerprint"
-	"gitlab.com/elixxir/crypto/hash"
-	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/elixxir/primitives/states"
-	"gitlab.com/xx_network/primitives/id"
-	"gitlab.com/xx_network/primitives/id/ephemeral"
+	pb "git.xx.network/elixxir/comms/mixmessages"
+	"git.xx.network/elixxir/comms/network"
+	"git.xx.network/elixxir/crypto/cmix"
+	"git.xx.network/elixxir/crypto/cyclic"
+	"git.xx.network/elixxir/crypto/fingerprint"
+	"git.xx.network/elixxir/crypto/hash"
+	"git.xx.network/elixxir/gateway/storage"
+	"git.xx.network/elixxir/primitives/format"
+	"git.xx.network/elixxir/primitives/states"
+	"git.xx.network/xx_network/primitives/id"
+	"git.xx.network/xx_network/primitives/id/ephemeral"
 )
 
 // Zeroed identity fingerprint identifies dummy messages

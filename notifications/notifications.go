@@ -9,7 +9,7 @@
 
 package notifications
 
-import "gitlab.com/xx_network/primitives/id"
+import "git.xx.network/xx_network/primitives/id"
 
 // UserNotifications stores the list of user ids to be notified
 type UserNotifications struct {

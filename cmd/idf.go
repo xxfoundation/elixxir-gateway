@@ -11,9 +11,9 @@ import (
 	"bytes"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"gitlab.com/xx_network/primitives/id"
-	"gitlab.com/xx_network/primitives/id/idf"
-	"gitlab.com/xx_network/primitives/ndf"
+	"git.xx.network/xx_network/primitives/id"
+	"git.xx.network/xx_network/primitives/id/idf"
+	"git.xx.network/xx_network/primitives/ndf"
 )
 
 // Helper that updates parses the NDF in order to create our IDF

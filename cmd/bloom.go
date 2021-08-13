@@ -10,10 +10,10 @@ import (
 	"encoding/binary"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	bloom "gitlab.com/elixxir/bloomfilter"
-	"gitlab.com/elixxir/primitives/states"
-	"gitlab.com/xx_network/primitives/id"
-	"gitlab.com/xx_network/primitives/id/ephemeral"
+	bloom "git.xx.network/elixxir/bloomfilter"
+	"git.xx.network/elixxir/primitives/states"
+	"git.xx.network/xx_network/primitives/id"
+	"git.xx.network/xx_network/primitives/id/ephemeral"
 	"strings"
 )
 

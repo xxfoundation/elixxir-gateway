@@ -10,8 +10,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/base64"
-	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/knownRounds"
+	"git.xx.network/elixxir/gateway/storage"
+	"git.xx.network/elixxir/primitives/knownRounds"
 	"reflect"
 	"strings"
 	"testing"

@@ -7,10 +7,10 @@
 package cmd
 
 import (
-	"gitlab.com/elixxir/comms/testkeys"
-	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/xx_network/primitives/id"
-	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"git.xx.network/elixxir/comms/testkeys"
+	"git.xx.network/elixxir/gateway/storage"
+	"git.xx.network/xx_network/primitives/id"
+	"git.xx.network/xx_network/primitives/id/ephemeral"
 	"testing"
 	"time"
 )

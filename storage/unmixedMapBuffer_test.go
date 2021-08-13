@@ -8,8 +8,8 @@
 package storage
 
 import (
-	pb "gitlab.com/elixxir/comms/mixmessages"
-	id "gitlab.com/xx_network/primitives/id"
+	pb "git.xx.network/elixxir/comms/mixmessages"
+	id "git.xx.network/xx_network/primitives/id"
 	"testing"
 )
 

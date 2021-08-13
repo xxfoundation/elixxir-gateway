@@ -9,13 +9,13 @@ package cmd
 
 import (
 	"crypto/rand"
-	"gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/network"
-	ds "gitlab.com/elixxir/comms/network/dataStructures"
-	"gitlab.com/elixxir/comms/testutils"
-	"gitlab.com/elixxir/primitives/states"
-	"gitlab.com/xx_network/crypto/signature/ec"
-	"gitlab.com/xx_network/primitives/ndf"
+	"git.xx.network/elixxir/comms/mixmessages"
+	"git.xx.network/elixxir/comms/network"
+	ds "git.xx.network/elixxir/comms/network/dataStructures"
+	"git.xx.network/elixxir/comms/testutils"
+	"git.xx.network/elixxir/primitives/states"
+	"git.xx.network/xx_network/crypto/signature/ec"
+	"git.xx.network/xx_network/primitives/ndf"
 	"testing"
 )
 

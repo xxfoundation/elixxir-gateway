@@ -12,9 +12,9 @@ package cmd
 import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	"gitlab.com/elixxir/comms/publicAddress"
-	"gitlab.com/xx_network/comms/gossip"
-	"gitlab.com/xx_network/primitives/rateLimiting"
+	"git.xx.network/elixxir/comms/publicAddress"
+	"git.xx.network/xx_network/comms/gossip"
+	"git.xx.network/xx_network/primitives/rateLimiting"
 	"net"
 	"strconv"
 	"time"

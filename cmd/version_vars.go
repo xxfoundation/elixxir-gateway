@@ -5,7 +5,7 @@ package cmd
 
 const GITVERSION = `16a1f39 Fix YAML comments and values`
 const SEMVER = "3.0.0"
-const DEPENDENCIES = `module gitlab.com/elixxir/gateway
+const DEPENDENCIES = `module git.xx.network/elixxir/gateway
 
 go 1.13
 
@@ -23,13 +23,13 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
-	gitlab.com/elixxir/bloomfilter v0.0.0-20210120224144-ac046983a17a
-	gitlab.com/elixxir/comms v0.0.4-0.20210803232329-325c64a4b51a
-	gitlab.com/elixxir/crypto v0.0.7-0.20210803232056-ba3ff44cc618
-	gitlab.com/elixxir/primitives v0.0.3-0.20210803231939-7b924f78eaac
-	gitlab.com/xx_network/comms v0.0.4-0.20210803231911-ff226b003be3
-	gitlab.com/xx_network/crypto v0.0.5-0.20210803231814-b18476a2257c
-	gitlab.com/xx_network/primitives v0.0.4-0.20210803222745-e898d5e546e9
+	git.xx.network/elixxir/bloomfilter v0.0.0-20210120224144-ac046983a17a
+	git.xx.network/elixxir/comms v0.0.4-0.20210803232329-325c64a4b51a
+	git.xx.network/elixxir/crypto v0.0.7-0.20210803232056-ba3ff44cc618
+	git.xx.network/elixxir/primitives v0.0.3-0.20210803231939-7b924f78eaac
+	git.xx.network/xx_network/comms v0.0.4-0.20210803231911-ff226b003be3
+	git.xx.network/xx_network/crypto v0.0.5-0.20210803231814-b18476a2257c
+	git.xx.network/xx_network/primitives v0.0.4-0.20210803222745-e898d5e546e9
 	google.golang.org/genproto v0.0.0-20210105202744-fe13368bc0e1 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

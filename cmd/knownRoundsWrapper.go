@@ -16,9 +16,9 @@ import (
 	"encoding/base64"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/knownRounds"
-	"gitlab.com/xx_network/primitives/id"
+	"git.xx.network/elixxir/gateway/storage"
+	"git.xx.network/elixxir/primitives/knownRounds"
+	"git.xx.network/xx_network/primitives/id"
 	"sync"
 )
 

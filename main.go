@@ -7,7 +7,7 @@
 
 package main
 
-import "gitlab.com/elixxir/gateway/cmd"
+import "git.xx.network/elixxir/gateway/cmd"
 
 func main() {
 	cmd.Execute()

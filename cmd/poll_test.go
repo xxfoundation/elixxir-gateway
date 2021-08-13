@@ -8,11 +8,11 @@
 package cmd
 
 import (
-	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/comms/testkeys"
-	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/xx_network/primitives/ndf"
+	pb "git.xx.network/elixxir/comms/mixmessages"
+	"git.xx.network/elixxir/comms/network"
+	"git.xx.network/elixxir/comms/testkeys"
+	"git.xx.network/elixxir/gateway/storage"
+	"git.xx.network/xx_network/primitives/ndf"
 	"testing"
 )
 
