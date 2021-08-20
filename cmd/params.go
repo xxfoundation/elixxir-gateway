@@ -123,7 +123,7 @@ func InitParams(vip *viper.Viper) Params {
 	}
 	listeningAddress := net.JoinHostPort(listeningIP, strconv.Itoa(gwPort))
 
-	dbpass = viper.GetString("dbPassword")
+	dbpass := viper.GetString("dbPassword")
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	ps := fmt.Sprintf("Params: \n %+v", vip.AllSettings())
 	ps = strings.ReplaceAll(ps,
