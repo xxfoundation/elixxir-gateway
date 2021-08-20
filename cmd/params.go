@@ -122,7 +122,11 @@ func InitParams(vip *viper.Viper) Params {
 	listeningAddress := net.JoinHostPort(listeningIP, strconv.Itoa(gwPort))
 
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
-	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
+	ps := fmt.Sprintf("Params: \n %+v", vip.AllSettings())
+	ps = strings.ReplaceAll(ps,
+		"dbpassword:"+params.Database.Password,
+		"dbpassword:[dbpass]")
+	jww.INFO.Printf(ps)
 	jww.INFO.Printf("Gateway port: %d", gwPort)
 	jww.INFO.Printf("Gateway public IP: %s", gwAddress)
 	jww.INFO.Printf("Gateway listening address: %s", listeningAddress)
