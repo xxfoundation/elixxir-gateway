@@ -10,6 +10,7 @@
 package cmd
 
 import (
+	"fmt"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/publicAddress"
@@ -17,6 +18,7 @@ import (
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -124,7 +126,7 @@ func InitParams(vip *viper.Viper) Params {
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
 	ps := fmt.Sprintf("Params: \n %+v", vip.AllSettings())
 	ps = strings.ReplaceAll(ps,
-		"dbpassword:"+params.Database.Password,
+		"dbpassword:"+DbPassword,
 		"dbpassword:[dbpass]")
 	jww.INFO.Printf(ps)
 	jww.INFO.Printf("Gateway port: %d", gwPort)
