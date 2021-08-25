@@ -9,6 +9,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"time"
 
@@ -239,6 +240,8 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 	}
 
 	if result, err := gw.processPutMessage(msg); err != nil {
+		jww.WARN.Printf("Failed to put message from %s for round %d: %+v",
+			base64.StdEncoding.EncodeToString(msg.Message.SenderID), msg.RoundID, err)
 		return result, err
 	}
 
