@@ -12,24 +12,13 @@ log: "/opt/xxnetwork/log/gateway.log"
 # (Required)
 port: 22840
 
-# Local IP address of the Gateway, used for internal listening. Expects an IPv4
-# address without a port. (Default "0.0.0.0")
-# WARNING: Do not modify this option unless explicitly required.
-#listeningAddress: "0.0.0.0"
-
-# The public IPv4 address of the Gateway, as reported to the network. When not
-# set, external IP address lookup services are used to set this value. If a
-# port is not included, then the port from the port flag is used instead.
-# WARNING: Do not modify this option unless explicitly required.
-#overridePublicIP: "1.2.3.4"
-
 # The IP address of the machine running cMix that the Gateway communicates with.
 # Expects an IPv4 address with a port. (Required)
 cmixAddress: "0.0.0.0:11420"
 
 # Path to where the identity file (IDF) is saved. The IDF stores the Gateway's
 # network identity. This is used by the wrapper management script. (Required)
-idfPath: "/opt/xxnetwork/log/gateway-IDF.json"
+idfPath: "/opt/xxnetwork/cred/gateway-IDF.json"
 
 # Path to the private key associated with the self-signed TLS certificate.
 # (Required)
@@ -52,3 +41,16 @@ dbName: "cmix_gateway"
 dbAddress: "0.0.0.0:5432"
 dbUsername: "cmix"
 dbPassword: "[password for database]"
+
+##
+# WARNING: Do not modify the options below unless explicitly required.
+##
+
+# Local IP address of the Gateway, used for internal listening. Expects an IPv4
+# address without a port. (Default "0.0.0.0")
+#listeningAddress: "0.0.0.0"
+
+# The public IPv4 address of the Gateway, as reported to the network. When not
+# set, external IP address lookup services are used to set this value. If a
+# port is not included, then the port from the port flag is used instead.
+#overridePublicIP: "1.2.3.4"

@@ -60,7 +60,7 @@ cmixAddress: "0.0.0.0:11420"
 
 # Path to where the identity file (IDF) is saved. The IDF stores the Gateway's
 # network identity. This is used by the wrapper management script. (Required)
-idfPath: "/opt/xxnetwork/log/gateway-IDF.json"
+idfPath: "/opt/xxnetwork/cred/gateway-IDF.json"
 
 # Path to the private key associated with the self-signed TLS certificate.
 # (Required)

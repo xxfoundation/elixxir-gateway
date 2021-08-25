@@ -10,6 +10,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
+	"gitlab.com/xx_network/comms/messages"
+	"io"
 	"math/rand"
 	"os"
 	"reflect"
@@ -92,7 +94,7 @@ func TestMain(m *testing.M) {
 	gComm = gateway.StartGateway(&id.TempGateway, GW_ADDRESS,
 		gatewayInstance, gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
 
-	// Start mock node
+	// Start mock nodeStream
 	nodeHandler := buildTestNodeImpl()
 
 	nodeCert, _ = utils.ReadFile(testkeys.GetNodeCertPath())
@@ -173,25 +175,20 @@ func buildTestNodeImpl() *node.Implementation {
 		int, error) {
 		return 1, nil
 	}
-	nodeHandler.Functions.PostNewBatch = func(batch *pb.Batch,
+	nodeHandler.Functions.UploadUnmixedBatch = func(stream pb.Node_UploadUnmixedBatchServer,
 		auth *connect.Auth) error {
+		batch := &pb.Batch{}
+		for {
+			slot, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			batch.Slots = append(batch.Slots, slot)
+
+		}
+		stream.SendAndClose(&messages.Ack{})
 		nodeIncomingBatch = batch
 		return nil
-	}
-	nodeHandler.Functions.GetCompletedBatch = func(auth *connect.Auth) (
-		*pb.Batch, error) {
-		// build a batch
-		b := pb.Batch{
-			Round: &pb.RoundInfo{
-				ID: 42, // meaning of life
-			},
-			FromPhase: 0,
-			Slots: []*pb.Slot{
-				mockMessage,
-			},
-		}
-
-		return &b, nil
 	}
 
 	nodeHandler.Functions.Poll = func(p *pb.ServerPoll,
@@ -254,7 +251,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	}
 
 	ri = &pb.RoundInfo{ID: 1, BatchSize: 4}
-	gatewayInstance.SendBatch(ri)
+	gatewayInstance.UploadUnmixedBatch(ri)
 
 	time.Sleep(1 * time.Second)
 
@@ -358,7 +355,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	si := &pb.RoundInfo{ID: 1, BatchSize: 4}
-	gw.SendBatch(si)
+	gw.UploadUnmixedBatch(si)
 
 }
 

@@ -473,9 +473,9 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round
 	}
 }
 
-// SendBatch polls sends whatever messages are in the batch associated with the
+// UploadUnmixedBatch polls sends whatever messages are in the batch associated with the
 // requested round to the server
-func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
+func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 
 	batchSize := uint64(roundInfo.BatchSize)
 	if batchSize == 0 {
@@ -503,6 +503,12 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.ERROR.Println("Round topology empty, sending bad messages!")
 	}
 
+	header := pb.BatchInfo{
+		BatchSize: uint32(batchSize),
+		Round:     roundInfo,
+		FromPhase: batch.FromPhase,
+	}
+
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
 		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
@@ -510,12 +516,13 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
-	// Send the completed batch
-	err := gw.Comms.PostNewBatch(gw.ServerHost, batch)
+	jww.INFO.Printf("Uploading batch to server")
+	err := gw.Comms.UploadUnmixedBatch(gw.ServerHost, header, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
-		jww.WARN.Printf("Error while sending batch: %v", err)
+		jww.WARN.Printf("Error streaming unmixed batch: %v", err)
 	}
+	jww.INFO.Printf("Upload complete")
 
 	if !gw.Params.DisableGossip {
 		/*// Gossip senders included in the batch to other gateways
