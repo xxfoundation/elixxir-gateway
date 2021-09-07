@@ -10,6 +10,7 @@
 package cmd
 
 import (
+	"fmt"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/publicAddress"
@@ -17,6 +18,7 @@ import (
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -121,8 +123,13 @@ func InitParams(vip *viper.Viper) Params {
 	}
 	listeningAddress := net.JoinHostPort(listeningIP, strconv.Itoa(gwPort))
 
+	dbpass := viper.GetString("dbPassword")
 	jww.INFO.Printf("config: %+v", viper.ConfigFileUsed())
-	jww.INFO.Printf("Params: \n %+v", vip.AllSettings())
+	ps := fmt.Sprintf("Params: \n %+v", vip.AllSettings())
+	ps = strings.ReplaceAll(ps,
+		"dbpassword:"+dbpass,
+		"dbpassword:[dbpass]")
+	jww.INFO.Printf(ps)
 	jww.INFO.Printf("Gateway port: %d", gwPort)
 	jww.INFO.Printf("Gateway public IP: %s", gwAddress)
 	jww.INFO.Printf("Gateway listening address: %s", listeningAddress)
