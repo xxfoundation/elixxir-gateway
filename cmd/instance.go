@@ -120,10 +120,7 @@ func NewGatewayInstance(params Params) *Instance {
 		krw:           krw,
 	}
 
-	err = hw.LogHardware()
-	if err != nil {
-		jww.ERROR.Print(err)
-	}
+	hw.LogHardware()
 
 	return i
 }
