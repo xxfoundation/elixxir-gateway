@@ -71,15 +71,15 @@ tag:
         - master
     image: $DOCKER_IMAGE
     script:
-        - git remote add origin_tags git@gitlab.com:elixxir/gateway.git || true
-        - git remote set-url origin_tags git@gitlab.com:elixxir/gateway.git || true
+        - git remote add origin_tags git@git.xx.network:elixxir/gateway.git || true
+        - git remote set-url origin_tags git@git.xx.network:elixxir/gateway.git || true
         - git tag $(./release/gateway.linux64 version | grep "xx network Gateway v"| cut -d ' ' -f4) -f
         - git push origin_tags -f --tags
 
 trigger_integration:
   stage: trigger_integration
   script:
-    - "curl -X POST -F token=e34aa19ef1530e579c5d590873d3c6 -F ref=master https://gitlab.com/api/v4/projects/5615854/trigger/pipeline"
-    - "curl -X POST -F token=d1888aeb7d0e1e6573b313a59ff16e -F ref=master https://gitlab.com/api/v4/projects/5681102/trigger/pipeline"
+    - "curl -X POST -F token=e34aa19ef1530e579c5d590873d3c6 -F ref=master https://gitlab.com/api/v4/projects/28/trigger/pipeline"
+    - "curl -X POST -F token=d1888aeb7d0e1e6573b313a59ff16e -F ref=master https://gitlab.com/api/v4/projects/28/trigger/pipeline"
   only:
     - master
