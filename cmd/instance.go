@@ -12,6 +12,12 @@ package cmd
 import (
 	"encoding/base64"
 	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/gateway"
@@ -20,20 +26,15 @@ import (
 	ds "gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/gateway/notifications"
 	"gitlab.com/elixxir/gateway/storage"
-	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
+	"gitlab.com/xx_network/primitives/hw"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/ndf"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"gitlab.com/xx_network/primitives/utils"
 	"gorm.io/gorm"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 // Errors to suppress
@@ -68,15 +69,17 @@ type Instance struct {
 	un notifications.UserNotifications
 
 	// Tracker of the gateway's known rounds
-	knownRound *knownRounds.KnownRounds
+	krw *knownRoundsWrapper
 
 	storage *storage.Storage
 	// TODO: Integrate and remove duplication with the stuff above.
 	// NetInf is the network interface for working with the NDF poll
 	// functionality in comms.
-	NetInf        *network.Instance
-	addGateway    chan network.NodeGateway
-	removeGateway chan *id.ID
+	NetInf *network.Instance
+	// Filtered network updates for fast updates for client
+	filteredUpdates *FilteredUpdates
+	addGateway      chan network.NodeGateway
+	removeGateway   chan *id.ID
 
 	lastUpdate  uint64
 	period      int64   // Defines length of validity for ClientBloomFilter
@@ -104,19 +107,20 @@ func NewGatewayInstance(params Params) *Instance {
 			jww.FATAL.Panicf(eMsg)
 		}
 	}
+
+	krw, err := newKnownRoundsWrapper(knownRoundsSize, newDatabase)
+	if err != nil {
+		jww.FATAL.Panicf("failed to create new KnownRounds wrapper: %+v", err)
+	}
+
 	i := &Instance{
 		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
 		Params:        params,
 		storage:       newDatabase,
-		knownRound:    knownRounds.NewKnownRound(knownRoundsSize),
+		krw:           krw,
 	}
 
-	// There is no round 0
-	i.knownRound.Check(0)
-	jww.DEBUG.Printf("Initial KnownRound State: %+v", i.knownRound)
-	msh := i.knownRound.Marshal()
-	jww.DEBUG.Printf("Initial KnownRound Marshal: %s",
-		string(msh))
+	hw.LogHardware()
 
 	return i
 }
@@ -128,6 +132,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message)
+	}
+	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
+		return instance.PutManyMessages(messages)
 	}
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
 		return instance.RequestNonce(message)
@@ -147,6 +154,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.ShareMessages = func(msg *pb.RoundMessages, auth *connect.Auth) error {
 		return instance.ShareMessages(msg, auth)
 	}
+
 	return impl
 }
 
@@ -165,7 +173,7 @@ func CreateNetworkInstance(conn *gateway.Comms, ndf, partialNdf *pb.NDF, ers *st
 		return nil, err
 	}
 	pc := conn.ProtoComms
-	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers, network.None)
+	return network.NewInstance(pc, newNdf.Get(), newPartialNdf.Get(), ers, network.None, false)
 }
 
 // Start sets up the threads and network server to run the gateway
@@ -220,8 +228,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	if newInfo.Updates != nil {
-
-		for _, update := range newInfo.Updates {
+		for i := len(newInfo.Updates) - 1; i >= 0; i-- {
+			update := newInfo.Updates[i]
 			if update.UpdateID > gw.lastUpdate {
 				gw.lastUpdate = update.UpdateID
 
@@ -236,11 +244,20 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				return err
 			}
 
+			// Add the updates to the consensus object
 			err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				// do not return on round update failure, that will cause the
 				// gateway to cease to process further updates, just warn
 				jww.WARN.Printf("failed to insert round update for %d: %s", update.ID, err)
+			}
+
+			// Add updates to filter for fast client polling
+			err = gw.filteredUpdates.RoundUpdate(update)
+			if err != nil {
+				// do not return on round update failure, that will cause the
+				// gateway to cease to process further updates, just warn
+				jww.WARN.Printf("failed to insert filtered round update for %d: %s", update.ID, err)
 			}
 
 			// Convert the ID list to a circuit
@@ -250,6 +267,12 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			if states.Round(update.State) == states.PRECOMPUTING &&
 				topology.IsFirstNode(gw.ServerHost.GetId()) {
 				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
+			} else if states.Round(update.State) == states.FAILED {
+				err = gw.krw.forceCheck(id.Round(update.ID), gw.storage)
+				if err != nil {
+					return errors.Errorf("failed to forceChech round %d: %+v",
+						update.ID, err)
+				}
 			}
 		}
 
@@ -261,13 +284,23 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 	}
 
+	// If batch is non-nil, then server is reporting that there is a batch to stream
+	if newInfo.Batch != nil {
+		// Request the batch
+		slots, err := gw.Comms.DownloadMixedBatch(newInfo.Batch, gw.ServerHost)
+		if err != nil {
+			return errors.Errorf("failed to retrieve mixed batch for round %d: %v",
+				newInfo.Batch.RoundId, err)
+		}
+
+		// Process the batch
+		gw.ProcessCompletedBatch(slots, id.Round(newInfo.Batch.RoundId))
+
+	}
+
 	// Send a new batch to the server when it asks for one
 	if newInfo.BatchRequest != nil {
-		gw.SendBatch(newInfo.BatchRequest)
-	}
-	// Process a batch that has been completed by this server
-	if newInfo.Batch != nil {
-		gw.ProcessCompletedBatch(newInfo.Batch.Slots, id.Round(newInfo.Batch.RoundID))
+		gw.UploadUnmixedBatch(newInfo.BatchRequest)
 	}
 
 	return nil
@@ -411,20 +444,24 @@ func (gw *Instance) InitNetwork() error {
 			}
 		}
 
-		// Install the NDF once we get it
-		if serverResponse.FullNDF != nil && serverResponse.Id != nil {
-			netDef, err := ndf.Unmarshal(serverResponse.FullNDF.Ndf)
-			if err != nil {
-				jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
-				return err
-			}
-			err = gw.setupIDF(serverResponse.Id, netDef)
-			nodeId = serverResponse.Id
-			if err != nil {
-				jww.WARN.Printf("failed to update node information: %+v", err)
-				return err
-			}
+		// Make sure the NDF is ready
+		if serverResponse.FullNDF == nil || serverResponse.Id == nil {
+			serverResponse = nil
+			continue
 		}
+
+		netDef, err := ndf.Unmarshal(serverResponse.FullNDF.Ndf)
+		if err != nil {
+			jww.WARN.Printf("failed to unmarshal the ndf: %+v", err)
+			return err
+		}
+		err = gw.setupIDF(serverResponse.Id, netDef)
+		nodeId = serverResponse.Id
+		if err != nil {
+			jww.WARN.Printf("failed to update node information: %+v", err)
+			return err
+		}
+
 		jww.INFO.Printf("Successfully obtained NDF!")
 
 		// Replace the comms server with the newly-signed certificate
@@ -452,6 +489,7 @@ func (gw *Instance) InitNetwork() error {
 		gatewayId.SetType(id.Gateway)
 		gw.Comms = gateway.StartGateway(gatewayId, gw.Params.ListeningAddress,
 			gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
+		gw.Comms.StartConnectionReport()
 
 		jww.INFO.Printf("Creating instance!")
 		gw.NetInf, err = CreateNetworkInstance(gw.Comms,
@@ -461,6 +499,12 @@ func (gw *Instance) InitNetwork() error {
 			jww.ERROR.Printf("Unable to create network"+
 				" instance: %v", err)
 			continue
+		}
+
+		// Initialize the update tracker for fast client polling
+		gw.filteredUpdates, err = NewFilteredUpdates(gw.NetInf)
+		if err != nil {
+			return errors.Errorf("Failed to create filtered update: %+v", err)
 		}
 
 		// Add permissioning as a host
@@ -478,12 +522,16 @@ func (gw *Instance) InitNetwork() error {
 		gw.NetInf.SetAddGatewayChan(gw.addGateway)
 		gw.NetInf.SetRemoveGatewayChan(gw.removeGateway)
 
+		notificationParams := connect.GetDefaultHostParams()
+		notificationParams.MaxRetries = 3
+		notificationParams.EnableCoolOff = true
+
 		// Add notification bot as a host
 		_, err = gw.Comms.AddHost(
 			&id.NotificationBot,
 			gw.NetInf.GetFullNdf().Get().Notification.Address,
 			[]byte(gw.NetInf.GetFullNdf().Get().Notification.TlsCertificate),
-			connect.GetDefaultHostParams(),
+			notificationParams,
 		)
 		if err != nil {
 			return errors.Errorf("failed to add notification bot host to comms: %v", err)
@@ -611,41 +659,13 @@ func (gw *Instance) SetPeriod() error {
 
 // SaveKnownRounds saves the KnownRounds to a file.
 func (gw *Instance) SaveKnownRounds() error {
-	// Serialize knownRounds
-	data := gw.knownRound.Marshal()
-
-	dateEncode := base64.StdEncoding.EncodeToString(data)
-
-	// Store knownRounds data
-	return gw.storage.UpsertState(&storage.State{
-		Key:   storage.KnownRoundsKey,
-		Value: dateEncode,
-	})
-
+	return gw.krw.save(gw.storage)
 }
 
 // LoadKnownRounds loads the KnownRounds from storage into the Instance, if a
 // stored value exists.
 func (gw *Instance) LoadKnownRounds() error {
-
-	// Get an existing knownRounds value from storage
-	data, err := gw.storage.GetStateValue(storage.KnownRoundsKey)
-	if err != nil {
-		return err
-	}
-
-	dataDecode, err := base64.StdEncoding.DecodeString(data)
-	if err != nil {
-		return err
-	}
-
-	// Parse the data and store in the instance
-	err = gw.knownRound.Unmarshal(dataDecode)
-	if err != nil {
-		return errors.Errorf("Failed to unmarshal KnownRounds: %v", err)
-	}
-
-	return nil
+	return gw.krw.load(gw.storage)
 }
 
 // SaveLastUpdateID saves the Instance.lastUpdate value to storage

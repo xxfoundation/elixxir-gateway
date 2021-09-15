@@ -103,3 +103,39 @@ func TestUnmixedMessagesMap_IsRoundLeader(t *testing.T) {
 	}
 
 }
+
+// Unit test
+func TestUnmixedMessagesMap_AddManyUnmixedMessages(t *testing.T) {
+	testMap := make(map[id.Round]*SendRound)
+	unmixedMessageBuf := &UnmixedMessagesMap{
+		messages: testMap,
+	}
+	maxSlots := 5
+	unmixedMessageBuf.SetAsRoundLeader(id.Round(0), uint32(maxSlots))
+
+	// Insert slots up to a full batch
+	slots := make([]*pb.GatewaySlot, 0)
+	for i := 0; i < maxSlots-1; i++ {
+		slot := &pb.GatewaySlot{
+			Message: &pb.Slot{SenderID: id.ZeroUser.Marshal()},
+		}
+		slots = append(slots, slot)
+	}
+	rnd := id.Round(0)
+	err := unmixedMessageBuf.AddManyUnmixedMessages(slots, rnd)
+	if err != nil {
+		t.Fatalf("AddManyUnmixedMessages error: %v", err)
+	}
+
+	// Construct an extra slot and attempt to insert
+	slot := &pb.GatewaySlot{
+		Message: &pb.Slot{SenderID: id.ZeroUser.Marshal()},
+	}
+	extraSlots := []*pb.GatewaySlot{slot}
+	err = unmixedMessageBuf.AddManyUnmixedMessages(extraSlots, rnd)
+	if err == nil {
+		t.Fatalf("AddManyUnmixedMessages error: " +
+			"Should not be able to insert into already full batch")
+	}
+
+}

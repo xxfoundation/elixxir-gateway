@@ -63,8 +63,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"Poll() - Valid ReceptionID required: %+v", err)
 	}
 
-	kr := gw.knownRound.Marshal()
-
 	// Determine Client epoch range
 	startEpoch, err := GetEpochEdge(time.Unix(0, clientRequest.StartTimestamp).UnixNano(), gw.period)
 	if err != nil {
@@ -115,15 +113,22 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
 	if !isSame {
 		netDef = gw.NetInf.GetPartialNdf().GetPb()
+	} else if clientRequest.FastPolling {
+		// Get the range of updates from the filtered updates structure for client
+		// and with an EDDSA signature
+		updates = gw.filteredUpdates.GetRoundUpdates(int(clientRequest.LastUpdate))
+
 	} else {
-		// Get the range of updates from the network instance
+		// Get the range of updates from the consensus object, with all updates
+		// and the RSA Signature
 		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
+
 	}
 
 	return &pb.GatewayPollResponse{
 		PartialNDF:    netDef,
 		Updates:       updates,
-		KnownRounds:   kr,
+		KnownRounds:   gw.krw.getMarshal(),
 		Filters:       filtersMsg,
 		EarliestRound: atomic.LoadUint64(gw.lowestRound),
 	}, nil

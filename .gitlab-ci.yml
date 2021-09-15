@@ -3,7 +3,7 @@
 variables:
   REPO_DIR: gitlab.com/elixxir
   REPO_NAME: gateway
-  DOCKER_IMAGE: elixxirlabs/cuda-go:go1.13-cuda11.1-mc
+  DOCKER_IMAGE: elixxirlabs/cuda-go:go1.16-cuda11.1
   MIN_CODE_COVERAGE: "65.0"
 
 before_script:
@@ -18,10 +18,10 @@ before_script:
   - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
-  - ssh-keyscan -t rsa gitlab.com > ~/.ssh/known_hosts
-  - git config --global url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+  - ssh-keyscan -t rsa $GITLAB_SERVER > ~/.ssh/known_hosts
+  - git config --global url."git@$GITLAB_SERVER:".insteadOf "https://gitlab.com/"
+  - git config --global url."git@$GITLAB_SERVER:".insteadOf "https://git.xx.network/"
   - export PATH=$HOME/go/bin:$PATH
-  - export GOPRIVATE=gitlab.com/elixxir/*,gitlab.com/xx_network/*
 
 stages:
   - build
@@ -58,6 +58,7 @@ build:
 #    - GOOS=windows GOARCH=386 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.win32 main.go
     - GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/gateway.darwin64 main.go
     - /upload-artifacts.sh release/
+    - /upload-artifact.sh gateway release/gateway.linux64
   artifacts:
     paths:
       - vendor/

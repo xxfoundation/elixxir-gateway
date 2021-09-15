@@ -9,6 +9,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"time"
 
@@ -29,40 +30,6 @@ import (
 
 // Zeroed identity fingerprint identifies dummy messages
 var dummyIdFp = make([]byte, format.IdentityFPLen)
-
-// Determines the Epoch value of the given timestamp with the given period while
-// returning an error. To be used when either of the inputs come from the
-// network.
-func GetEpochEdge(ts int64, period int64) (uint32, error) {
-	if period == 0 {
-		return 0, errors.New("GetEpochEdge: Period length is 0, " +
-			"cannot divide by zero")
-	} else if ts < 0 {
-		return 0, errors.Errorf("GetEpochEdge: Cannot calculate "+
-			"epoch with a negative timestamp: %d", ts)
-	} else if period < 0 {
-		return 0, errors.Errorf("GetEpochEdge: Cannot calculate "+
-			"epoch with a negative period size: %d", period)
-	}
-	return uint32(ts / period), nil
-}
-
-// Determines the Epoch value of the given timestamp with the given period.
-// Panics on error. For internal use
-func GetEpoch(ts int64, period int64) uint32 {
-	epoch, err := GetEpochEdge(ts, period)
-
-	if err != nil {
-		jww.FATAL.Panicf("%+v", err)
-	}
-
-	return epoch
-}
-
-// Determines the timestamp value of the given epoch
-func GetEpochTimestamp(epoch uint32, period int64) int64 {
-	return period * int64(epoch)
-}
 
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
@@ -175,12 +142,12 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 
 }
 
-// PutMessage adds a message to the outgoing queue
-func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
+// PutManyMessages adds many messages to the outgoing queue
+func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
 	// If the target is nil or empty, consider the target itself
-	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+	if messages.GetMessages()[0].GetTarget() != nil && len(messages.GetTarget()) > 0 {
 		// Unmarshal target ID
-		targetID, err := id.Unmarshal(msg.GetTarget())
+		targetID, err := id.Unmarshal(messages.GetTarget())
 		if err != nil {
 			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
 		}
@@ -197,33 +164,87 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
 			}
 
+			return gw.Comms.SendPutManyMessages(host, messages)
+		}
+	}
+
+	// Process all messages to be queued
+	for i := 0; i < len(messages.Messages); i++ {
+		if result, err := gw.processPutMessage(messages.Messages[i]); err != nil {
+			return result, err
+		}
+	}
+
+	// Add messages to buffer
+	thisRound := id.Round(messages.RoundID)
+	err := gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
+	if err != nil {
+		return &pb.GatewaySlotResponse{Accepted: false},
+			errors.WithMessage(err, "could not add to round. "+
+				"Please try a different round.")
+	}
+
+	// Report message addition to log (on DEBUG)
+	senderId, err := id.Unmarshal(messages.Messages[0].GetMessage().GetSenderID())
+	if err != nil {
+		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
+	}
+
+	// Print out message if in debug mode
+	for i := 0; i < len(messages.Messages); i++ {
+		msg := messages.Messages[i]
+
+		if jww.GetLogThreshold() <= jww.LevelDebug {
+			msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
+			msgFmt.SetPayloadA(msg.Message.PayloadA)
+			msgFmt.SetPayloadB(msg.Message.PayloadB)
+			jww.DEBUG.Printf("Putting message from user %s (msgDigest: %s) "+
+				"in outgoing queue for round %d...", senderId.String(),
+				msgFmt.Digest(), thisRound)
+		}
+	}
+
+	return &pb.GatewaySlotResponse{
+		Accepted: true,
+		RoundID:  messages.GetRoundID(),
+	}, nil
+
+}
+
+// PutMessage adds a message to the outgoing queue
+func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
+
+	// If the target is nil or empty, consider the target itself
+	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(msg.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself (ie this gateway is a proxy to the
+		// intended recipient)
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+			}
+
 			return gw.Comms.SendPutMessage(host, msg)
 		}
 	}
 
-	// Construct Client ID for database lookup
-	clientID, err := id.Unmarshal(msg.Message.SenderID)
-	if err != nil {
-		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, errors.Errorf("Could not parse message: Unrecognized ID")
+	if result, err := gw.processPutMessage(msg); err != nil {
+		jww.WARN.Printf("Failed to put message from %s for round %d: %+v",
+			base64.StdEncoding.EncodeToString(msg.Message.SenderID), msg.RoundID, err)
+		return result, err
 	}
 
-	// Retrieve the client from the database
-	cl, err := gw.storage.GetClient(clientID)
-	if err != nil {
-		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, errors.New("Did not recognize ID. Have you registered successfully?")
-	}
-
-	// Generate the MAC and check against the message's MAC
-	clientMac := generateClientMac(cl, msg)
-	if !bytes.Equal(clientMac, msg.MAC) {
-		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, errors.New("Could not authenticate client. Is the client registered with this node?")
-	}
 	thisRound := id.Round(msg.RoundID)
 
 	// Rate limit messages
@@ -232,18 +253,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	/*if !gw.Params.DisableGossip {
-		err = gw.FilterMessage(senderId)
-		if err != nil {
-			jww.INFO.Printf("Rate limiting check failed on send message from "+
-				"%v", msg.Message.GetSenderID())
-			return &pb.GatewaySlotResponse{
-				Accepted: false,
-			}, err
-		}
-	}*/
-
-	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
+	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
 				"Please try a different round.")
@@ -262,6 +272,49 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		Accepted: true,
 		RoundID:  msg.GetRoundID(),
 	}, nil
+}
+
+// Helper function which processes a single gateway slot. Checks the mac for
+// a singular message
+func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
+
+	// Construct Client ID for database lookup
+	clientID, err := id.Unmarshal(message.Message.SenderID)
+	if err != nil {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.Errorf("Could not parse message: Unrecognized ID")
+	}
+
+	// Retrieve the client from the database
+	cl, err := gw.storage.GetClient(clientID)
+	if err != nil {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.New("Did not recognize ID. Have you registered successfully?")
+	}
+
+	// Generate the MAC and check against the message's MAC
+	clientMac := generateClientMac(cl, message)
+	if !bytes.Equal(clientMac, message.MAC) {
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.New("Could not authenticate client. Is the client registered with this node?")
+	}
+
+	// fixme: enable once gossip is not broken
+	/*if !gw.Params.DisableGossip {
+		err = gw.FilterMessage(senderId)
+		if err != nil {
+			jww.INFO.Printf("Rate limiting check failed on send message from "+
+				"%v", msg.Message.GetSenderID())
+			return &pb.GatewaySlotResponse{
+				Accepted: false,
+			}, err
+		}
+	}*/
+
+	return nil, nil
 }
 
 // Helper function which generates the client MAC for checking the clients
@@ -420,9 +473,9 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round
 	}
 }
 
-// SendBatch polls sends whatever messages are in the batch associated with the
+// UploadUnmixedBatch polls sends whatever messages are in the batch associated with the
 // requested round to the server
-func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
+func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 
 	batchSize := uint64(roundInfo.BatchSize)
 	if batchSize == 0 {
@@ -450,6 +503,12 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		jww.ERROR.Println("Round topology empty, sending bad messages!")
 	}
 
+	header := pb.BatchInfo{
+		BatchSize: uint32(batchSize),
+		Round:     roundInfo,
+		FromPhase: batch.FromPhase,
+	}
+
 	// Now fill with junk and send
 	for i := uint64(len(batch.Slots)); i < batchSize; i++ {
 		junkMsg := GenJunkMsg(gw.NetInf.GetCmixGroup(), numNodes,
@@ -457,12 +516,13 @@ func (gw *Instance) SendBatch(roundInfo *pb.RoundInfo) {
 		batch.Slots = append(batch.Slots, junkMsg)
 	}
 
-	// Send the completed batch
-	err := gw.Comms.PostNewBatch(gw.ServerHost, batch)
+	jww.INFO.Printf("Uploading batch to server")
+	err := gw.Comms.UploadUnmixedBatch(gw.ServerHost, header, batch)
 	if err != nil {
 		// TODO: handle failure sending batch
-		jww.WARN.Printf("Error while sending batch: %v", err)
+		jww.WARN.Printf("Error streaming unmixed batch: %v", err)
 	}
+	jww.INFO.Printf("Upload complete")
 
 	if !gw.Params.DisableGossip {
 		/*// Gossip senders included in the batch to other gateways
