@@ -17,6 +17,7 @@ import (
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"golang.org/x/crypto/blake2b"
 	"strings"
 	"sync"
 	"time"
@@ -30,12 +31,22 @@ func (gw *Instance) InitBloomGossip() {
 	flags.FanOut = 25
 	flags.MaximumReSends = 2
 	flags.NumParallelSends = 1000
+	flags.Fingerprinter = func(msg *gossip.GossipMsg) gossip.Fingerprint {
+		preSum := append([]byte(msg.Tag), msg.Payload...)
+		hasher, err := blake2b.New256(nil)
+		if err != nil {
+			jww.FATAL.Panicf("Gossip protocol could not get blake2b Hash: %+v", err)
+		}
+		hasher.Reset()
+		hasher.Write(preSum)
+		return gossip.NewFingerprint(hasher.Sum(nil))
+	}
 	// Register gossip protocol for bloom filters
 	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
 }
 
-// GossipBloom builds a gossip message containing all of the recipient IDs
+// GossipBloom builds a gossip message containing all the recipient IDs
 // within the bloom filter and gossips it to all peers
 func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round, roundTimestamp int64) error {
 	var err error
