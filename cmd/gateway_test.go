@@ -26,11 +26,9 @@ import (
 	"gitlab.com/elixxir/comms/network"
 	"gitlab.com/elixxir/comms/node"
 	"gitlab.com/elixxir/comms/testkeys"
-	"gitlab.com/elixxir/comms/testutils"
 	"gitlab.com/elixxir/crypto/cyclic"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/elixxir/primitives/states"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/comms/signature"
@@ -1471,106 +1469,6 @@ func TestInstance_SetPeriodExisting(t *testing.T) {
 	if gw.period != expected {
 		t.Errorf("Period set incorrectly, got %d", gw.period)
 	}
-}
-
-func TestInstance_shareMessages(t *testing.T) {
-	var err error
-	//Build the gateway instance
-	params := Params{
-		NodeAddress:           NODE_ADDRESS,
-		ServerCertPath:        testkeys.GetNodeCertPath(),
-		CertPath:              testkeys.GetGatewayCertPath(),
-		KeyPath:               testkeys.GetGatewayKeyPath(),
-		PermissioningCertPath: testkeys.GetNodeCertPath(),
-		DevMode:               true,
-	}
-
-	gw := NewGatewayInstance(params)
-	gw2 := NewGatewayInstance(params)
-
-	p := large.NewIntFromString(prime, 16)
-	g := large.NewIntFromString(generator, 16)
-	grp2 := cyclic.NewGroup(p, g)
-	addr := "0.0.0.0:1234"
-	gw.Comms = gateway.StartGateway(&id.TempGateway, addr, gw,
-		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
-
-	addr2 := "0.0.0.0:5678"
-	gw2.Comms = gateway.StartGateway(&id.TempGateway, addr2, gw2,
-		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
-
-	testNDF, _ := ndf.Unmarshal(ExampleJSON)
-
-	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
-	if err != nil {
-		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
-	}
-
-	gw2.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
-	if err != nil {
-		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
-	}
-
-	// Add permissioning as a host
-	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
-	_, err = gw.Comms.AddHost(&id.Permissioning,
-		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
-
-	// Init comms and host
-	_, err = gw.Comms.AddHost(gw.Comms.Id, addr, gatewayCert, connect.GetDefaultHostParams())
-	if err != nil {
-		t.Errorf("Unable to add test host: %+v", err)
-	}
-	_, err = gw.Comms.AddHost(gw2.Comms.Id, addr, gatewayCert, connect.GetDefaultHostParams())
-	if err != nil {
-		t.Errorf("Unable to add test host: %+v", err)
-	}
-
-	// Build a mock node ID for a topology
-	nodeID := gw.Comms.Id.DeepCopy()
-	nodeID.SetType(id.Node)
-	nodeId2 := gw2.Comms.Id.DeepCopy()
-	nodeId2.SetType(id.Node)
-	topology := [][]byte{nodeID.Bytes(), nodeId2.Bytes()}
-	// Create a fake round info to store
-	roundId := uint64(10)
-	ri := &pb.RoundInfo{
-		ID:         roundId,
-		UpdateID:   10,
-		Topology:   topology,
-		Timestamps: make([]uint64, states.NUM_STATES),
-	}
-
-	// Sign the round info with the mock permissioning private key
-	err = testutils.SignRoundInfoRsa(ri, t)
-	if err != nil {
-		t.Errorf("Error signing round info: %s", err)
-	}
-
-	// Insert the mock round into the network instance
-	err = gw.NetInf.RoundUpdate(ri)
-	if err != nil {
-		t.Errorf("Could not place mock round: %v", err)
-	}
-	err = gw2.NetInf.RoundUpdate(ri)
-	if err != nil {
-		t.Errorf("Could not place mock round: %v", err)
-	}
-
-	// build a single mock message
-	data := format.NewMessage(grp2.GetP().ByteLen())
-	senderId := id.NewIdFromUInt(666, id.User, t).Marshal()
-	msg := &pb.Slot{
-		SenderID: senderId,
-		PayloadA: data.GetPayloadA(),
-		PayloadB: data.GetPayloadB(),
-	}
-
-	err = gw.sendShareMessages([]*pb.Slot{msg}, ri)
-	if err != nil {
-		t.Errorf("Error with send share message: %v", err)
-	}
-
 }
 
 // TODO: Readd test
