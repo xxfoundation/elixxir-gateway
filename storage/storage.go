@@ -102,27 +102,36 @@ func or(existingBuffer, additionalBuffer []byte) []byte {
 // Used in upsertFilter functionality in order to ensure atomicity
 // Kept in business logic layer because functionality is shared
 func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
+
 	// Initialize FirstRound variable if needed
 	if oldFilter.FirstRound == uint64(0) {
 		oldFilter.FirstRound = f.FirstRound
 	}
 
-	// Store variables before modifications
-	oldLastRound := oldFilter.FirstRound + uint64(oldFilter.RoundRange)
-	newLastRound := f.FirstRound + uint64(f.RoundRange)
-
-	// Get earliest FirstRound Value
-	if f.FirstRound > oldFilter.FirstRound {
-		f.FirstRound = oldFilter.FirstRound
+	// calculate what the first round should be
+	firstRound :=  oldFilter.FirstRound
+	if f.FirstRound<oldFilter.FirstRound{
+		firstRound = f.FirstRound
 	}
 
-	// Get latest LastRound value, and calculate the maximum RoundRange
-	if oldLastRound > newLastRound {
-		f.RoundRange = uint32(oldLastRound - f.FirstRound)
-	} else {
-		f.RoundRange = uint32(newLastRound - f.FirstRound)
+	// calculate what the last round should be
+	lastRound := oldFilter.lastRound()
+	if f.lastRound()>lastRound{
+		lastRound = f.lastRound()
 	}
+
+	// set the first round
+	// note this MUST be after last round is calculated
+	// becasue the value in f is used in the last round calculation
+	f.FirstRound = firstRound
+
+	// calculate the round range based upon the first and last round
+	f.RoundRange = uint32(lastRound - firstRound)
 
 	// Combine the filters
 	f.Filter = or(oldFilter.Filter, f.Filter)
+}
+
+func (f *ClientBloomFilter) lastRound()uint64{
+	return f.FirstRound + uint64(f.RoundRange)
 }
