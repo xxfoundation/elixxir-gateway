@@ -557,15 +557,6 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 			"ProcessCompletedBatch for round %d: %+v", roundID, errMsg)
 	}
 
-	jww.INFO.Printf("Sharing Messages with teammates for round %d", roundID)
-	// Share messages in the batch with the rest of the team
-	err = gw.sendShareMessages(msgs, round)
-	if err != nil {
-		// Print error but do not stop message processing
-		jww.ERROR.Printf("Message sharing failed for "+
-			"round %d: %+v", roundID, err)
-	}
-
 	// Gossip recipients included in the completed batch to other gateways
 	// in a new thread
 	if !gw.Params.DisableGossip {

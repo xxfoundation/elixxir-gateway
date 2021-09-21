@@ -151,10 +151,6 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.Poll(msg)
 	}
 
-	impl.Functions.ShareMessages = func(msg *pb.RoundMessages, auth *connect.Auth) error {
-		return instance.ShareMessages(msg, auth)
-	}
-
 	return impl
 }
 
