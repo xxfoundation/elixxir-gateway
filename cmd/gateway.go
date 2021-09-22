@@ -552,7 +552,8 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)erro
 				"waiting to 3s for data ", roundID)
 		}else{
 			jww.WARN.Printf("Failed to up to date data about round %d for storage and gossip, " +
-				"waiting to 3s for data ", roundID)
+				"round in incorrect state (%s vs %s), waiting to 3s for data ", roundID,
+				states.Round(round.State),states.QUEUED)
 		}
 		roundUpdateCh := make (chan *pb.RoundInfo)
 		gw.NetInf.GetRoundEvents().AddRoundEvent(roundID, func(ri *pb.RoundInfo, timedOut bool) {
