@@ -534,17 +534,36 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 }
 
 // ProcessCompletedBatch handles messages coming out of the mixnet
-func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
+func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)error {
 	if len(msgs) == 0 {
-		return
+		return nil
 	}
 
-	// At this point, the returned batch and its fields should be non-nil
-	round, err := gw.NetInf.GetRound(roundID)
-	if err != nil {
-		jww.ERROR.Printf("ProcessCompleted - Unable to get "+
-			"round %d: %+v", roundID, err)
-		return
+	var round *pb.RoundInfo
+	var err error
+
+	//get the round with a retry. retry for up to 3 seconds
+	for i:=0;i<30;i++ {
+		round, err = gw.NetInf.GetRound(roundID)
+		if err != nil {
+			jww.ERROR.Printf("ProcessCompleted - Unable to get "+
+				"round %d: %+v", roundID, err)
+		}else if states.Round(round.State)>=states.QUEUED{
+			break
+		}
+		time.Sleep(100*time.Millisecond)
+	}
+
+	if round==nil||states.Round(round.State)>=states.QUEUED{
+		if round==nil{
+			return errors.Errorf("Failed to get the data about round %d, " +
+				"could nto store data or gossip", roundID)
+		}else{
+			return errors.Errorf("Failed to get up to date data about " +
+				"round %d, could not store data or gossip. Last update is: %s",
+				roundID, states.Round(round.State))
+		}
+
 	}
 
 	recipients, clientRound, notifications := gw.processMessages(msgs, roundID, round)
@@ -610,6 +629,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		jww.INFO.Print("Notification bot not found in NDF. Skipping sending of " +
 			"notifications.")
 	}
+	return nil
 }
 
 // Helper function which takes passed in messages from a round and

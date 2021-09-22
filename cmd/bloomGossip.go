@@ -17,7 +17,6 @@ import (
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
-	"strings"
 	"sync"
 	"time"
 )
@@ -93,7 +92,6 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	roundID := id.Round(payloadMsg.RoundID)
 
-	var errs []string
 	var wg sync.WaitGroup
 
 	epoch := GetEpoch(int64(payloadMsg.RoundTS), gw.period)
@@ -102,18 +100,22 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	for _, recipient := range payloadMsg.RecipientIds {
 		wg.Add(1)
 		go func(localRecipient []byte) {
+			defer wg.Done()
 			// Marshal the id
-			recipientId, err := ephemeral.Marshal(localRecipient)
-			if err != nil {
-				errs = append(errs, err.Error())
+			recipientId, localErr := ephemeral.Marshal(localRecipient)
+			if localErr != nil {
+				jww.WARN.Printf("Failed to unmarshal recipient %v for " +
+					"bloom gossip for round %d: %s", localRecipient, roundID, localErr)
 				return
 			}
 
-			err = gw.UpsertFilter(recipientId, roundID, epoch)
-			if err != nil {
-				errs = append(errs, err.Error())
+			localErr = gw.UpsertFilter(recipientId, roundID, epoch)
+			if localErr != nil {
+				jww.WARN.Printf("Failed to upsert filter for recipient %d (%v) " +
+					"bloom gossip for round %d: %s", recipientId, localRecipient,
+					roundID, localErr)
 			}
-			wg.Done()
+
 		}(recipient)
 	}
 	wg.Wait()
@@ -131,13 +133,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 		"\n]t round started at ts %s", roundID, len(payloadMsg.RecipientIds), received, finishedInsert, time.Now(),
 		time.Unix(0, int64(payloadMsg.RoundTS)))
 
-	// Parse through the errors returned from the worker pool
-	var errReturn error
-	if len(errs) > 0 {
-		errReturn = errors.New(strings.Join(errs, errorDelimiter))
-	}
-
-	return errReturn
+	return nil
 }
 
 // Helper function used to convert recipientIds into a GossipMsg payload
