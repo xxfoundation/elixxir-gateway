@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
+	"gitlab.com/elixxir/comms/network/dataStructures"
 	"time"
 
 	"github.com/pkg/errors"
@@ -555,12 +556,14 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)erro
 				"round in incorrect state (%s vs %s), waiting to 3s for data ", roundID,
 				states.Round(round.State),states.QUEUED)
 		}
-		roundUpdateCh := make (chan *pb.RoundInfo)
-		gw.NetInf.GetRoundEvents().AddRoundEvent(roundID, func(ri *pb.RoundInfo, timedOut bool) {
-			roundUpdateCh<-ri}, 3*time.Second, states.QUEUED, states.REALTIME, states.COMPLETED)
-		round = <- roundUpdateCh
-		if round==nil{
-			return errors.Errorf("Failed to get round %d after 3 second wait, cannot process batch", roundID)
+		roundUpdateCh := make (chan dataStructures.EventReturn)
+		gw.NetInf.GetRoundEvents().AddRoundEventChan(roundID, roundUpdateCh, 3*time.Second,
+			states.QUEUED, states.REALTIME, states.COMPLETED)
+		roundEvent := <- roundUpdateCh
+		round = roundEvent.RoundInfo
+		if roundEvent.TimedOut || round==nil{
+			return errors.Errorf("Failed to get round %d after 3 second wait, " +
+				"cannot process batch, timed out: %t", roundID, roundEvent.TimedOut)
 		}
 	}
 
