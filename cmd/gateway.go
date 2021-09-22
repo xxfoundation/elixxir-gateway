@@ -535,7 +535,8 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 	}
 }
 
-//Amount of time process batch will wait until round data is available
+// Amount of time process batch will wait until round data is available
+// Will bail otherwise
 const roundLookupTimeout = 3*time.Second
 
 // ProcessCompletedBatch handles messages coming out of the mixnet
@@ -568,8 +569,9 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)erro
 		roundEvent := <- roundUpdateCh
 		round = roundEvent.RoundInfo
 		if roundEvent.TimedOut || round==nil{
-			return errors.Errorf("Failed to get round %d after 3 second wait, " +
-				"cannot process batch, timed out: %t", roundID, roundEvent.TimedOut)
+			return errors.Errorf("Failed to get round %d after %s second wait, " +
+				"cannot process batch, timed out: %t", roundID, roundLookupTimeout,
+				roundEvent.TimedOut)
 		}
 	}
 
