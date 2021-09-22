@@ -29,12 +29,16 @@ func (gw *Instance) InitBloomGossip() {
 	flags.FanOut = 25
 	flags.MaximumReSends = 2
 	flags.NumParallelSends = 1000
+	flags.Fingerprinter = func(msg *gossip.GossipMsg) gossip.Fingerprint {
+		preSum := append([]byte(msg.Tag), msg.Payload...)
+		return gossip.NewFingerprint(preSum)
+	}
 	// Register gossip protocol for bloom filters
 	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipBloomFilterReceive, gw.gossipVerify, nil)
 }
 
-// GossipBloom builds a gossip message containing all of the recipient IDs
+// GossipBloom builds a gossip message containing all the recipient IDs
 // within the bloom filter and gossips it to all peers
 func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId id.Round, roundTimestamp int64) error {
 	var err error

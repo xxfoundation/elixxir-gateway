@@ -31,6 +31,7 @@ import (
 
 // Zeroed identity fingerprint identifies dummy messages
 var dummyIdFp = make([]byte, format.IdentityFPLen)
+var noConnectionErr = "unable to connect to target host %s."
 
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
@@ -59,7 +60,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			}
 			connected, _ := host.Connected()
 			if !connected {
-				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
 			return gw.Comms.SendRequestMessages(host, req)
@@ -162,7 +163,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 			}
 			connected, _ := host.Connected()
 			if !connected {
-				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
 			return gw.Comms.SendPutManyMessages(host, messages)
@@ -233,7 +234,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 			}
 			connected, _ := host.Connected()
 			if !connected {
-				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
 			return gw.Comms.SendPutMessage(host, msg)
@@ -358,7 +359,7 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
 			}
 			connected, _ := host.Connected()
 			if !connected {
-				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
 			return gw.Comms.SendRequestNonce(host, msg)
@@ -391,7 +392,7 @@ func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.R
 			}
 			connected, _ := host.Connected()
 			if !connected {
-				return nil, errors.Errorf("unable to connect to target host %s.", targetID)
+				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
 			return gw.Comms.SendConfirmNonce(host, msg)
@@ -580,15 +581,6 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)erro
 	if errMsg != nil {
 		jww.ERROR.Printf("Inserting new mixed messages failed in "+
 			"ProcessCompletedBatch for round %d: %+v", roundID, errMsg)
-	}
-
-	jww.INFO.Printf("Sharing Messages with teammates for round %d", roundID)
-	// Share messages in the batch with the rest of the team
-	err = gw.sendShareMessages(msgs, round)
-	if err != nil {
-		// Print error but do not stop message processing
-		jww.ERROR.Printf("Message sharing failed for "+
-			"round %d: %+v", roundID, err)
 	}
 
 	// Gossip recipients included in the completed batch to other gateways
