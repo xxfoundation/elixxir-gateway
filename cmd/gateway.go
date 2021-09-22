@@ -539,33 +539,31 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)erro
 		return nil
 	}
 
-	var round *pb.RoundInfo
-	var err error
-
-	//get the round with a retry. retry for up to 3 seconds
-	for i:=0;i<30;i++ {
-		round, err = gw.NetInf.GetRound(roundID)
-		if err != nil {
-			jww.ERROR.Printf("ProcessCompleted - Unable to get "+
-				"round %d: %+v", roundID, err)
-		}else if states.Round(round.State)>=states.QUEUED{
-			break
-		}
-		time.Sleep(100*time.Millisecond)
+	//get the round for processing
+	round, err := gw.NetInf.GetRound(roundID)
+	if err != nil {
+		jww.ERROR.Printf("ProcessCompleted - Unable to get "+
+			"round %d: %+v", roundID, err)
 	}
-
-	if round==nil||states.Round(round.State)>=states.QUEUED{
+	//if the round was not retrieved, wait for it to become available up to 3 seconds
+	if round==nil||states.Round(round.State)<states.QUEUED{
 		if round==nil{
-			return errors.Errorf("Failed to get the data about round %d, " +
-				"could nto store data or gossip", roundID)
+			jww.WARN.Printf("Failed to get the data about round %d for storage and gossip, " +
+				"waiting to 3s for data ", roundID)
 		}else{
-			return errors.Errorf("Failed to get up to date data about " +
-				"round %d, could not store data or gossip. Last update is: %s",
-				roundID, states.Round(round.State))
+			jww.WARN.Printf("Failed to up to date data about round %d for storage and gossip, " +
+				"waiting to 3s for data ", roundID)
 		}
-
+		roundUpdateCh := make (chan *pb.RoundInfo)
+		gw.NetInf.GetRoundEvents().AddRoundEvent(roundID, func(ri *pb.RoundInfo, timedOut bool) {
+			roundUpdateCh<-ri}, 3*time.Second, states.QUEUED, states.REALTIME, states.COMPLETED)
+		round = <- roundUpdateCh
+		if round==nil{
+			return errors.Errorf("Failed to get round %d after 3 second wait, cannot process batch", roundID)
+		}
 	}
 
+	//process the messages
 	recipients, clientRound, notifications := gw.processMessages(msgs, roundID, round)
 
 	//upsert messages to the database
