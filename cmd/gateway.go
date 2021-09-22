@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
+	"gitlab.com/elixxir/comms/network/dataStructures"
 	"time"
 
 	"github.com/pkg/errors"
@@ -534,20 +535,47 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 	}
 }
 
+// Amount of time process batch will wait until round data is available
+// Will bail otherwise
+const roundLookupTimeout = 3*time.Second
+
 // ProcessCompletedBatch handles messages coming out of the mixnet
-func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
+func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)error {
 	if len(msgs) == 0 {
-		return
+		return nil
 	}
 
-	// At this point, the returned batch and its fields should be non-nil
+	//get the round for processing
 	round, err := gw.NetInf.GetRound(roundID)
 	if err != nil {
 		jww.ERROR.Printf("ProcessCompleted - Unable to get "+
 			"round %d: %+v", roundID, err)
-		return
+	}
+	//if the round was not retrieved, wait for it to become available up to 3 seconds
+	if round==nil||states.Round(round.State)<states.QUEUED{
+		if round==nil{
+			jww.WARN.Printf("Failed to get the data about round %d for storage and gossip, " +
+				"waiting to %s for data ", roundID, roundLookupTimeout)
+		}else{
+			jww.WARN.Printf("Failed to up to date data about round %d for storage and gossip, " +
+				"round in incorrect state (%s vs %s), waiting to %s for data ", roundID,
+				states.Round(round.State),states.QUEUED, roundLookupTimeout)
+		}
+		roundUpdateCh := make (chan dataStructures.EventReturn)
+
+		//use round events to wait for the update
+		gw.NetInf.GetRoundEvents().AddRoundEventChan(roundID, roundUpdateCh, roundLookupTimeout,
+			states.QUEUED, states.REALTIME, states.COMPLETED)
+		roundEvent := <- roundUpdateCh
+		round = roundEvent.RoundInfo
+		if roundEvent.TimedOut || round==nil{
+			return errors.Errorf("Failed to get round %d after %s second wait, " +
+				"cannot process batch, timed out: %t", roundID, roundLookupTimeout,
+				roundEvent.TimedOut)
+		}
 	}
 
+	//process the messages
 	recipients, clientRound, notifications := gw.processMessages(msgs, roundID, round)
 
 	//upsert messages to the database
@@ -602,6 +630,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) {
 		jww.INFO.Print("Notification bot not found in NDF. Skipping sending of " +
 			"notifications.")
 	}
+	return nil
 }
 
 // Helper function which takes passed in messages from a round and
