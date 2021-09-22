@@ -534,6 +534,9 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 	}
 }
 
+//Amount of time process batch will wait until round data is available
+const roundLookupTimeout = 3*time.Second
+
 // ProcessCompletedBatch handles messages coming out of the mixnet
 func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)error {
 	if len(msgs) == 0 {
@@ -550,14 +553,16 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round)erro
 	if round==nil||states.Round(round.State)<states.QUEUED{
 		if round==nil{
 			jww.WARN.Printf("Failed to get the data about round %d for storage and gossip, " +
-				"waiting to 3s for data ", roundID)
+				"waiting to %s for data ", roundID, roundLookupTimeout)
 		}else{
 			jww.WARN.Printf("Failed to up to date data about round %d for storage and gossip, " +
-				"round in incorrect state (%s vs %s), waiting to 3s for data ", roundID,
-				states.Round(round.State),states.QUEUED)
+				"round in incorrect state (%s vs %s), waiting to %s for data ", roundID,
+				states.Round(round.State),states.QUEUED, roundLookupTimeout)
 		}
 		roundUpdateCh := make (chan dataStructures.EventReturn)
-		gw.NetInf.GetRoundEvents().AddRoundEventChan(roundID, roundUpdateCh, 3*time.Second,
+
+		//use round events to wait for the update
+		gw.NetInf.GetRoundEvents().AddRoundEventChan(roundID, roundUpdateCh, roundLookupTimeout,
 			states.QUEUED, states.REALTIME, states.COMPLETED)
 		roundEvent := <- roundUpdateCh
 		round = roundEvent.RoundInfo
