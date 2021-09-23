@@ -290,8 +290,10 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		}
 
 		// Process the batch
-		gw.ProcessCompletedBatch(slots, id.Round(newInfo.Batch.RoundId))
-
+		err = gw.ProcessCompletedBatch(slots, id.Round(newInfo.Batch.RoundId))
+		if err != nil {
+			return err
+		}
 	}
 
 	// Send a new batch to the server when it asks for one
