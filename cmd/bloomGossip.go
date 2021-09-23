@@ -108,14 +108,14 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 			// Marshal the id
 			recipientId, localErr := ephemeral.Marshal(localRecipient)
 			if localErr != nil {
-				jww.WARN.Printf("Failed to unmarshal recipient %v for " +
+				jww.WARN.Printf("Failed to unmarshal recipient %v for "+
 					"bloom gossip for round %d: %s", localRecipient, roundID, localErr)
 				return
 			}
 
 			localErr = gw.UpsertFilter(recipientId, roundID, epoch)
 			if localErr != nil {
-				jww.WARN.Printf("Failed to upsert filter for recipient %d (%v) " +
+				jww.WARN.Printf("Failed to upsert filter for recipient %d (%v) "+
 					"bloom gossip for round %d: %s", recipientId, localRecipient,
 					roundID, localErr)
 			}

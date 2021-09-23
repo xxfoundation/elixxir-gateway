@@ -109,14 +109,14 @@ func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	}
 
 	// calculate what the first round should be
-	firstRound :=  oldFilter.FirstRound
-	if f.FirstRound<oldFilter.FirstRound{
+	firstRound := oldFilter.FirstRound
+	if f.FirstRound < oldFilter.FirstRound {
 		firstRound = f.FirstRound
 	}
 
 	// calculate what the last round should be
 	lastRound := oldFilter.lastRound()
-	if f.lastRound()>lastRound{
+	if f.lastRound() > lastRound {
 		lastRound = f.lastRound()
 	}
 
@@ -132,6 +132,6 @@ func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	f.Filter = or(oldFilter.Filter, f.Filter)
 }
 
-func (f *ClientBloomFilter) lastRound()uint64{
+func (f *ClientBloomFilter) lastRound() uint64 {
 	return f.FirstRound + uint64(f.RoundRange)
 }
