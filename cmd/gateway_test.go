@@ -1206,7 +1206,7 @@ func TestGatewayImpl_RequestNonce_Proxy(t *testing.T) {
 		t.Fatalf("Failed to add host: %+v", err)
 	}
 
-	msg := &pb.NonceRequest{
+	msg := &pb.SignedClientKeyRequest{
 		Target: gw2.Comms.Id.Marshal(),
 	}
 

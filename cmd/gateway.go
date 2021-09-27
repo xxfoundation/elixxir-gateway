@@ -341,7 +341,7 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 }
 
 // Pass-through for Registration Nonce Communication
-func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
+func (gw *Instance) RequestNonce(msg *pb.SignedClientKeyRequest) (*pb.SignedKeyResponse, error) {
 	// If the target is nil or empty, consider the target itself
 	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
 		// Unmarshal target ID
@@ -362,13 +362,13 @@ func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
 				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
-			return gw.Comms.SendRequestNonce(host, msg)
+			return gw.Comms.SendRequestClientKey(host, msg)
 		}
 	}
 
 	jww.INFO.Print("Passing on registration nonce request")
 
-	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
+	return gw.Comms.SendRequestClientKey(gw.ServerHost, msg)
 
 }
 

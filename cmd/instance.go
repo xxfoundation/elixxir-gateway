@@ -136,7 +136,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
 		return instance.PutManyMessages(messages)
 	}
-	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (nonce *pb.Nonce, e error) {
+	impl.Functions.RequestNonce = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
 		return instance.RequestNonce(message)
 	}
 	// Client -> Gateway historical round request
