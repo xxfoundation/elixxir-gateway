@@ -128,13 +128,20 @@ func NewGatewayInstance(params Params) *Instance {
 func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl := gateway.NewImplementation()
 
+	// ---------------------- Start of deprecated fields ----------- //
 	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (*pb.Nonce, error) {
-
+		return instance.RequestNonce(message)
 	}
 
 	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation) (confirmation *pb.RegistrationConfirmation, e error) {
 		return instance.ConfirmNonce(message)
 	}
+	// ---------------------- End of deprecated fields ----------- //
+
+	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (*pb.SignedKeyResponse, error) {
+		return instance.RequestClientKey(message)
+	}
+
 	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message)
 	}

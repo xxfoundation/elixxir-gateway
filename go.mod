@@ -24,7 +24,7 @@ require (
 	gitlab.com/xx_network/crypto v0.0.5-0.20210920180047-4dd4aed4a942
 	gitlab.com/xx_network/primitives v0.0.4-0.20210915220237-70cb4551d6f3
 	google.golang.org/genproto v0.0.0-20210105202744-fe13368bc0e1 // indirect
-	google.golang.org/protobuf v1.26.0 // indirect
+	google.golang.org/protobuf v1.26.0
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gorm.io/driver/postgres v1.0.7
