@@ -127,6 +127,11 @@ func NewGatewayInstance(params Params) *Instance {
 
 func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl := gateway.NewImplementation()
+
+	impl.Functions.RequestNonce = func(message *pb.NonceRequest) (*pb.Nonce, error) {
+
+	}
+
 	impl.Functions.ConfirmNonce = func(message *pb.RequestRegistrationConfirmation) (confirmation *pb.RegistrationConfirmation, e error) {
 		return instance.ConfirmNonce(message)
 	}
@@ -136,8 +141,8 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
 		return instance.PutManyMessages(messages)
 	}
-	impl.Functions.RequestNonce = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
-		return instance.RequestNonce(message)
+	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
+		return instance.RequestClientKey(message)
 	}
 	// Client -> Gateway historical round request
 	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {

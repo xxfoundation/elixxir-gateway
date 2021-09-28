@@ -1210,9 +1210,9 @@ func TestGatewayImpl_RequestNonce_Proxy(t *testing.T) {
 		Target: gw2.Comms.Id.Marshal(),
 	}
 
-	_, err = gatewayInstance.RequestNonce(msg)
+	_, err = gatewayInstance.RequestClientKey(msg)
 	if err != nil {
-		t.Errorf("RequestNonce returned an error: %+v", err)
+		t.Errorf("RequestClientKey returned an error: %+v", err)
 	}
 }
 
