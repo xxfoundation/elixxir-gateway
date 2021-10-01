@@ -35,7 +35,8 @@ import (
 var dummyIdFp = make([]byte, format.IdentityFPLen)
 var noConnectionErr = "unable to connect to target host %s."
 
-const RequestKeyThreshold = 3 * time.Minute
+const RequestKeyThresholdMax = 3 * time.Minute
+const RequestKeyThresholdMix = -3 * time.Minute
 
 // RequestClientKey is the endpoint for a client trying to register with a node.
 // It checks if the request made is valid. If valid, it sends the request to
@@ -67,8 +68,6 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 		}
 	}
 
-	jww.INFO.Print("Passing on client key request")
-
 	// Parse serialized data into message
 	request := &pb.ClientKeyRequest{}
 	err := proto.Unmarshal(msg.ClientKeyRequest, request)
@@ -78,10 +77,13 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 
 	// Check if the request timestamp is within a valid threshold
 	requestTime := time.Unix(0, request.RequestTimestamp)
-	if time.Since(requestTime) < RequestKeyThreshold ||
-		time.Until(requestTime) > RequestKeyThreshold {
-		return nil, errors.WithMessagef(err, "Request timestamp is beyond acceptable threshold")
+	if time.Since(requestTime) > RequestKeyThresholdMax ||
+		time.Until(requestTime) < RequestKeyThresholdMix {
+		errMsg := errors.WithMessagef(err, "Request timestamp is beyond acceptable threshold")
+		return &pb.SignedKeyResponse{Error: errMsg.Error()}, errMsg
 	}
+
+	jww.INFO.Print("Passing on client key request")
 
 	// Send request to the node
 	resp, err := gw.Comms.SendRequestClientKeyMessage(gw.ServerHost, msg)
