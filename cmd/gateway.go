@@ -9,6 +9,7 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"github.com/pkg/errors"
@@ -23,6 +24,7 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/states"
+	"gitlab.com/xx_network/comms/messages"
 	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/crypto/xx"
 	"gitlab.com/xx_network/primitives/id"
@@ -90,6 +92,27 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 	if err != nil {
 		return &pb.SignedKeyResponse{Error: err.Error()}, err
 	}
+
+	opts := rsa.NewDefaultOptions()
+	h := opts.Hash.New()
+
+	// Hash serialized response
+	h.Reset()
+	h.Write(resp.KeyResponse)
+	hashedResponse := h.Sum(nil)
+
+	// Sign the response
+	signedResponse, err := rsa.Sign(rand.Reader,
+		gw.Comms.GetPrivateKey(), opts.Hash, hashedResponse, opts)
+	if err != nil {
+		errMsg := errors.Errorf("Could not sign key response: %v", err)
+		return &pb.SignedKeyResponse{Error: errMsg.Error()}, errMsg
+	}
+
+	// Populate signed response with signature by gateway
+	// so client can verify it. Client does not have a node's key information,
+	// so signature must be performed by gateway.
+	resp.KeyResponseSignedByNode = &messages.RSASignature{Signature: signedResponse}
 
 	// Unmarshal response
 	keyResp := &pb.ClientKeyResponse{}
@@ -544,7 +567,7 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round) *pb.Slot {
 
 	baseKey := grp.NewIntFromBytes(id.DummyUser[:])
-
+	jww.ERROR.Printf("FUCKity baseKey for dummy: %v", base64.StdEncoding.EncodeToString(baseKey.Bytes()))
 	var baseKeys []*cyclic.Int
 
 	for i := 0; i < numNodes; i++ {
