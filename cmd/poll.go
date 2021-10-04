@@ -27,6 +27,7 @@ import (
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
 func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	*pb.GatewayPollResponse, error) {
+	return nil, errors.New("test error")
 	// Nil check to check for valid clientRequest
 	if clientRequest == nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
