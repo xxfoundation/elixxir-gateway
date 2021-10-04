@@ -99,9 +99,20 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 		return &pb.SignedKeyResponse{Error: errMsg.Error()}, errMsg
 	}
 
-	// Assemble Client public key
-	clientPubKey := request.GetClientDHPubKey()
-	userPublicKey, err := rsa.LoadPublicKeyFromPem(clientPubKey)
+	// Parse serialized transmission confirmation into message
+	clientTransmissionConfirmation := &pb.ClientRegistrationConfirmation{}
+	err = proto.Unmarshal(request.ClientTransmissionConfirmation.
+		ClientRegistrationConfirmation, clientTransmissionConfirmation)
+	if err != nil {
+		errMsg := errors.Errorf("Couldn't parse client registration confirmation: %v", err)
+		return &pb.SignedKeyResponse{Error: errMsg.Error()}, errMsg
+	}
+
+	// Extract RSA pubkey
+	clientRsaPub := clientTransmissionConfirmation.RSAPubKey
+
+	// Assemble Client public key into rsa.PublicKey
+	userPublicKey, err := rsa.LoadPublicKeyFromPem([]byte(clientRsaPub))
 	if err != nil {
 		errMsg := errors.Errorf("Unable to decode client RSA Pub Key: %+v", err)
 		return &pb.SignedKeyResponse{Error: errMsg.Error()}, errMsg
