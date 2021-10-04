@@ -567,7 +567,6 @@ func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
 func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round) *pb.Slot {
 
 	baseKey := grp.NewIntFromBytes(id.DummyUser[:])
-	jww.ERROR.Printf("FUCKity baseKey for dummy: %v", base64.StdEncoding.EncodeToString(baseKey.Bytes()))
 	var baseKeys []*cyclic.Int
 
 	for i := 0; i < numNodes; i++ {
