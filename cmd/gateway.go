@@ -112,7 +112,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 	// Populate signed response with signature by gateway
 	// so client can verify it. Client does not have a node's key information,
 	// so signature must be performed by gateway.
-	resp.KeyResponseSignedByNode = &messages.RSASignature{Signature: signedResponse}
+	resp.KeyResponseSignedByGateway = &messages.RSASignature{Signature: signedResponse}
 
 	// Unmarshal response
 	keyResp := &pb.ClientKeyResponse{}
@@ -165,96 +165,6 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 
 	return resp, nil
 }
-
-// ---------------------- Start of deprecated fields ----------- //
-
-// TODO: Remove comm once RequestClientKey is properly tested
-// Pass-through for Registration Nonce Communication
-func (gw *Instance) RequestNonce(msg *pb.NonceRequest) (*pb.Nonce, error) {
-	// If the target is nil or empty, consider the target itself
-	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
-		// Unmarshal target ID
-		targetID, err := id.Unmarshal(msg.GetTarget())
-		if err != nil {
-			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
-		}
-
-		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
-			// Check if the host exists and is connected
-			host, exists := gw.Comms.GetHost(targetID)
-			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
-			}
-			connected, _ := host.Connected()
-			if !connected {
-				return nil, errors.Errorf(noConnectionErr, targetID)
-			}
-
-			return gw.Comms.SendRequestNonce(host, msg)
-		}
-	}
-
-	jww.INFO.Print("Passing on registration nonce request")
-
-	return gw.Comms.SendRequestNonceMessage(gw.ServerHost, msg)
-
-}
-
-// TODO: Remove comm once RequestClientKey is properly tested
-// Pass-through for Registration Nonce Confirmation
-func (gw *Instance) ConfirmNonce(msg *pb.RequestRegistrationConfirmation) (*pb.RegistrationConfirmation, error) {
-
-	// If the target is nil or empty, consider the target itself
-	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
-		// Unmarshal target ID
-		targetID, err := id.Unmarshal(msg.GetTarget())
-		if err != nil {
-			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
-		}
-
-		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
-			// Check if the host exists and is connected
-			host, exists := gw.Comms.GetHost(targetID)
-			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
-			}
-			connected, _ := host.Connected()
-			if !connected {
-				return nil, errors.Errorf(noConnectionErr, targetID)
-			}
-
-			return gw.Comms.SendConfirmNonce(host, msg)
-		}
-	}
-
-	jww.INFO.Print("Passing on registration nonce confirmation")
-
-	resp, err := gw.Comms.SendConfirmNonceMessage(gw.ServerHost, msg)
-
-	if err != nil {
-		return resp, err
-	}
-
-	// Insert client information to database
-	newClient := &storage.Client{
-		Id:  msg.UserID,
-		Key: resp.ClientGatewayKey,
-	}
-
-	err = gw.storage.UpsertClient(newClient)
-	if err != nil {
-		return resp, nil
-	}
-
-	// Clear client gateway key so the proxy gateway cannot see it
-	resp.ClientGatewayKey = make([]byte, 0)
-
-	return resp, nil
-}
-
-// ---------------------- End of deprecated fields ----------- //
 
 // Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,

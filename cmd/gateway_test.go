@@ -1194,29 +1194,6 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 
 }
 
-// Tests the proxy path.
-func TestGatewayImpl_ConfirmNonce_Proxy(t *testing.T) {
-	// Create instances
-	gw1 := makeGatewayInstance("0.0.0.0:5683", t)
-	gw2 := makeGatewayInstance("0.0.0.0:5684", t)
-
-	_, err := gw1.Comms.AddHost(gw2.Comms.Id, "0.0.0.0:5684", gatewayCert,
-		connect.GetDefaultHostParams())
-	if err != nil {
-		t.Fatalf("Failed to add host: %+v", err)
-	}
-
-	msg := &pb.RequestRegistrationConfirmation{
-		UserID: id.NewIdFromString("user ID", id.User, t).Marshal(),
-		Target: gw1.Comms.Id.Marshal(),
-	}
-
-	_, err = gatewayInstance.ConfirmNonce(msg)
-	if err != nil {
-		t.Errorf("ConfirmNonce returned an error: %+v", err)
-	}
-}
-
 func buildMockNdf(nodeId *id.ID, nodeAddress, gwAddress string, cert,
 	key []byte) *ndf.NetworkDefinition {
 	node := ndf.Node{
