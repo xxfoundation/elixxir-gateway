@@ -20,6 +20,7 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/utils"
+	"google.golang.org/grpc/grpclog"
 	"os"
 	"os/signal"
 	"runtime/pprof"
@@ -336,20 +337,25 @@ func initConfig() {
 
 // initLog initializes logging thresholds and the log path.
 func initLog() {
-	vipLogLevel := viper.GetUint("logLevel")
+	// Set log file
+	logPath = viper.GetString("log")
+	logFile, err := os.OpenFile(logPath,
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND,
+		0644)
+	if err != nil {
+		fmt.Printf("Could not open log file %s!\n", logPath)
+	} else {
+		jww.SetLogOutput(logFile)
+	}
 
 	// Check the level of logs to display
+	vipLogLevel := viper.GetUint("logLevel")
 	if vipLogLevel > 1 {
-		// Set the GRPC log level
-		err := os.Setenv("GRPC_GO_LOG_SEVERITY_LEVEL", "info")
-		if err != nil {
-			jww.ERROR.Printf("Could not set GRPC_GO_LOG_SEVERITY_LEVEL: %+v", err)
-		}
+		// Set GRPC trace logging
+		grpcLogger := grpclog.NewLoggerV2WithVerbosity(
+			logFile, logFile, logFile, 99)
+		grpclog.SetLoggerV2(grpcLogger)
 
-		err = os.Setenv("GRPC_GO_LOG_VERBOSITY_LEVEL", "99")
-		if err != nil {
-			jww.ERROR.Printf("Could not set GRPC_GO_LOG_VERBOSITY_LEVEL: %+v", err)
-		}
 		// Turn on trace logs
 		jww.SetLogThreshold(jww.LevelTrace)
 		jww.SetStdoutThreshold(jww.LevelTrace)
@@ -363,16 +369,5 @@ func initLog() {
 		// Turn on info logs
 		jww.SetLogThreshold(jww.LevelInfo)
 		jww.SetStdoutThreshold(jww.LevelInfo)
-	}
-
-	logPath = viper.GetString("log")
-
-	logFile, err := os.OpenFile(logPath,
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND,
-		0644)
-	if err != nil {
-		fmt.Printf("Could not open log file %s!\n", logPath)
-	} else {
-		jww.SetLogOutput(logFile)
 	}
 }
