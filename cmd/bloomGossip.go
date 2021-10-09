@@ -122,7 +122,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 			i:=0
 			for ;i<bloomUploadRetries && localErr!= nil; i++ {
 				localErr = gw.UpsertFilter(recipientId, roundID, epoch)
-				if err!=nil{
+				if localErr!=nil{
 					jww.WARN.Printf("Failed to upsert recipient %d bloom on " +
 						"round %d on attempt %d: %s", localRecipient, roundID, i, localErr.Error())
 				}
