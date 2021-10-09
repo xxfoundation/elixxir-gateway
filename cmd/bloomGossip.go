@@ -129,7 +129,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 			}
 
 			atomic.AddUint32(&totalNumAttempts, 1 + uint32(i))
-			if err!=nil{
+			if localErr!=nil{
 				jww.ERROR.Printf("Failed to upsert recipient %d bloom on " +
 					"round %d on all attemps(%d/%d): %+v", localRecipient, roundID, i, i, localErr)
 				atomic.AddUint32(&failedInsert, 1)
@@ -141,7 +141,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	finishedInsert := time.Now()
 	averageAttempts := float32(totalNumAttempts)/float32(len(payloadMsg.RecipientIds))
 
-	if failedInsert!=0{
+	if failedInsert==0{
 		//denote the reception in known rounds
 		err = gw.krw.forceCheck(roundID, gw.storage)
 		if err != nil {
