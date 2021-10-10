@@ -162,7 +162,7 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 }
 
 // Initialize the database interface with database backend
-// Returns a database interface, close function, and error
+// Returns a database interface and error
 func newDatabase(username, password, dbName, address,
 	port string, devmode bool) (database, error) {
 
