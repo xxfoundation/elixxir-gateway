@@ -98,6 +98,13 @@ func TestInstance_GossipVerify(t *testing.T) {
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 		DevMode:               true,
 	}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{
 		Capacity:     capacity,
@@ -309,6 +316,13 @@ func TestInstance_GossipBatch(t *testing.T) {
 		DevMode:               true,
 	}
 
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
 	params.rateLimitParams = &rateLimiting.MapParams{
 		Capacity:     capacity,
 		LeakedTokens: leakedTokens,
@@ -426,6 +440,14 @@ func TestInstance_GossipBloom(t *testing.T) {
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 		DevMode:               true,
+	}
+
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
 	}
 
 	params.rateLimitParams = &rateLimiting.MapParams{

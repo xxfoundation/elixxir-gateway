@@ -86,6 +86,10 @@ type Instance struct {
 	lowestRound *uint64 // Cache lowest known BloomFilter round for client retrieval
 
 	bloomFilterGossip sync.Mutex
+
+	// Rate limiting
+	messageRateLimiting  *rateLimiting.BucketMap // map[string]*ratelimitng.Bucket
+	messageRateLimitQuit chan struct{}
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -113,11 +117,16 @@ func NewGatewayInstance(params Params) *Instance {
 		jww.FATAL.Panicf("failed to create new KnownRounds wrapper: %+v", err)
 	}
 
+	msgRateLimitQuit := make(chan struct{}, 1)
+	msgRateLimit := rateLimiting.CreateBucketMapFromParams(params.messageRateLimitParams, nil, msgRateLimitQuit)
+
 	i := &Instance{
-		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
-		Params:        params,
-		storage:       newDatabase,
-		krw:           krw,
+		UnmixedBuffer:        storage.NewUnmixedMessagesMap(),
+		Params:               params,
+		storage:              newDatabase,
+		krw:                  krw,
+		messageRateLimiting:  msgRateLimit,
+		messageRateLimitQuit: msgRateLimitQuit,
 	}
 
 	hw.LogHardware()
@@ -212,6 +221,16 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		if err != nil {
 			return err
 		}
+
+		// Unmarshal NDF
+		newNdf, err := ndf.Unmarshal(newInfo.FullNDF.Ndf)
+		if err != nil {
+			return err
+		}
+
+		// Update the whitelisted rate limiting IDs
+		gw.messageRateLimiting.AddToWhitelist(newNdf.PreApprovedIds)
+
 	}
 	if newInfo.PartialNDF != nil {
 		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)

@@ -303,6 +303,12 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 		}
 	}
 
+	// Report message addition to log (on DEBUG)
+	senderId, err := id.Unmarshal(messages.Messages[0].GetMessage().GetSenderID())
+	if err != nil {
+		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
+	}
+
 	// Process all messages to be queued
 	for i := 0; i < len(messages.Messages); i++ {
 		if result, err := gw.processPutMessage(messages.Messages[i]); err != nil {
@@ -310,19 +316,19 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 		}
 	}
 
+	// Check rate limiting if not a preapproved ID
+	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
+	if !idBucketSuccess {
+		return nil, errors.New("Too many messages sent in a specific time frame")
+	}
+
 	// Add messages to buffer
 	thisRound := id.Round(messages.RoundID)
-	err := gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
+	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
 	if err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
 				"Please try a different round.")
-	}
-
-	// Report message addition to log (on DEBUG)
-	senderId, err := id.Unmarshal(messages.Messages[0].GetMessage().GetSenderID())
-	if err != nil {
-		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
 	// Print out message if in debug mode
@@ -386,6 +392,12 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 	senderId, err := id.Unmarshal(msg.GetMessage().GetSenderID())
 	if err != nil {
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
+	}
+
+	// Check rate limiting if not a preapproved ID
+	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
+	if !idBucketSuccess {
+		return nil, errors.New("Too many messages sent in a specific time frame")
 	}
 
 	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {

@@ -11,6 +11,7 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"gitlab.com/xx_network/primitives/rateLimiting"
 	"testing"
 	"time"
 )
@@ -24,6 +25,14 @@ func TestInstance_upsertUserFilter(t *testing.T) {
 		CertPath:       testkeys.GetGatewayCertPath(),
 		DevMode:        true,
 	}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+
 	gw := NewGatewayInstance(params)
 	rndId := id.Round(0)
 
@@ -96,6 +105,14 @@ func TestInstance_UpsertFilters(t *testing.T) {
 		CertPath:       testkeys.GetGatewayCertPath(),
 		DevMode:        true,
 	}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+
 	gw := NewGatewayInstance(params)
 	rndId := id.Round(0)
 
