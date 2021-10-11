@@ -309,6 +309,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
+	// todo: check pre-approved IPs in NDF
 	ipBucketSuccess := gw.ipAddressRateLimiting.LookupBucket(ipAddr).Add(1)
 	idBucketSuccess := gw.idRateLimiting.LookupBucket(senderId.String()).Add(1)
 
