@@ -13,7 +13,9 @@ import (
 	"gitlab.com/elixxir/comms/testkeys"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/primitives/ndf"
+	"gitlab.com/xx_network/primitives/rateLimiting"
 	"testing"
+	"time"
 )
 
 // Error path: Pass in invalid messages
@@ -24,6 +26,14 @@ func TestInstance_Poll_NilCheck(t *testing.T) {
 		ServerCertPath: testkeys.GetNodeCertPath(),
 		CertPath:       testkeys.GetGatewayCertPath(),
 		DevMode:        true,
+	}
+
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
 	}
 
 	gw := NewGatewayInstance(params)

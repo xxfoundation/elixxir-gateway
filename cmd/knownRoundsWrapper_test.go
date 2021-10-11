@@ -12,15 +12,25 @@ import (
 	"encoding/base64"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/knownRounds"
+	"gitlab.com/xx_network/primitives/rateLimiting"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Unit test of newKnownRoundsWrapper.
 func Test_newKnownRoundsWrapper(t *testing.T) {
 	// Create new gateway instance
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+	gw := NewGatewayInstance(params)
 	roundCapacity := 255
 	expected := &knownRoundsWrapper{
 		kr: knownRounds.NewKnownRound(roundCapacity),
@@ -52,7 +62,15 @@ func Test_newKnownRoundsWrapper(t *testing.T) {
 
 // Unit test of knownRoundsWrapper.check.
 func Test_knownRoundsWrapper_check(t *testing.T) {
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+	gw := NewGatewayInstance(params)
 	krw, err := newKnownRoundsWrapper(10, gw.storage)
 	if err != nil {
 		t.Errorf("Failed to create new knownRoundsWrapper: %+v", err)
@@ -82,7 +100,15 @@ func Test_knownRoundsWrapper_check(t *testing.T) {
 
 // Unit test of knownRoundsWrapper.forceCheck.
 func Test_knownRoundsWrapper_forceCheck(t *testing.T) {
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+	gw := NewGatewayInstance(params)
 	krw, err := newKnownRoundsWrapper(10, gw.storage)
 	if err != nil {
 		t.Errorf("Failed to create new knownRoundsWrapper: %+v", err)
@@ -112,7 +138,15 @@ func Test_knownRoundsWrapper_forceCheck(t *testing.T) {
 
 // Unit test of knownRoundsWrapper.forceCheck.
 func Test_knownRoundsWrapper_getMarshal(t *testing.T) {
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+	gw := NewGatewayInstance(params)
 	krw, err := newKnownRoundsWrapper(10, gw.storage)
 	if err != nil {
 		t.Errorf("Failed to create new knownRoundsWrapper: %+v", err)
@@ -127,7 +161,15 @@ func Test_knownRoundsWrapper_getMarshal(t *testing.T) {
 // Tests that a knownRoundsWrapper that is saved and loaded matches the
 // original.
 func Test_knownRoundsWrapper_save_load(t *testing.T) {
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+	gw := NewGatewayInstance(params)
 	krw, err := newKnownRoundsWrapper(10, gw.storage)
 	if err != nil {
 		t.Errorf("Failed to create new knownRoundsWrapper: %+v", err)

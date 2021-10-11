@@ -116,6 +116,14 @@ func TestMain(m *testing.M) {
 		BucketMaxAge: 10 * time.Second,
 	}
 
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
 	hostParams := connect.GetDefaultHostParams()
@@ -283,6 +291,13 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		LeakDuration: leakDuration,
 		PollDuration: pollDuration,
 		BucketMaxAge: bucketMaxAge,
+	}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
 	}
 
 	gw := NewGatewayInstance(params)
@@ -1271,6 +1286,13 @@ func TestCreateNetworkInstance(t *testing.T) {
 func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	// Build the gateway instance
 	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
 
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
@@ -1304,6 +1326,13 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 	// Build the gateway instance
 
 	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
 
 	// Create new gateway instance and modify lastUpdate
 	gw := NewGatewayInstance(params)
@@ -1341,11 +1370,21 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 }
 
 func TestInstance_ClearOldStorage(t *testing.T) {
-	gw := NewGatewayInstance(Params{
+	params := Params{
 		cleanupInterval: 250 * time.Millisecond,
 		retentionPeriod: retentionPeriodDefault,
 		DevMode:         true,
-	})
+	}
+
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+
+	gw := NewGatewayInstance(params)
 
 	gw.period = 7
 
@@ -1394,7 +1433,17 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 
 // Happy path
 func TestInstance_SetPeriod(t *testing.T) {
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+
+	gw := NewGatewayInstance(params)
 	err := gw.SetPeriod()
 	if err != nil {
 		t.Errorf("Unable to set period: %+v", err)
@@ -1406,7 +1455,15 @@ func TestInstance_SetPeriod(t *testing.T) {
 
 // Handle existing period in storage path
 func TestInstance_SetPeriodExisting(t *testing.T) {
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+	gw := NewGatewayInstance(params)
 	expected := int64(50)
 
 	err := gw.storage.UpsertState(&storage.State{
@@ -1654,6 +1711,14 @@ func makeGatewayInstance(addr string, t *testing.T) *Instance {
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 		DevMode:               true,
+	}
+
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
 	}
 
 	gw := NewGatewayInstance(params)
