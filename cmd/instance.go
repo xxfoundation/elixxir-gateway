@@ -86,6 +86,12 @@ type Instance struct {
 	lowestRound *uint64 // Cache lowest known BloomFilter round for client retrieval
 
 	bloomFilterGossip sync.Mutex
+
+	// Rate limiting
+	ipAddressRateLimiting  *rateLimiting.BucketMap // map[string]*ratelimitng.Bucket
+	ipAddressRateLimitQuit chan struct{}
+	idRateLimiting         *rateLimiting.BucketMap // map[id.ID]*ratelimitng.Buck
+	idRateLimitQuit        chan struct{}
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -113,11 +119,22 @@ func NewGatewayInstance(params Params) *Instance {
 		jww.FATAL.Panicf("failed to create new KnownRounds wrapper: %+v", err)
 	}
 
+	ipRateLimitQuit := make(chan struct{}, 1)
+
+	ipAddressRateLimit := rateLimiting.CreateBucketMapFromParams(params.rateLimitParams, nil, gw.rateLimitQuit)
+
+	idRateLimitQuit := make(chan struct{}, 1)
+	idAddressRateLimit := rateLimiting.CreateBucketMapFromParams(params.rateLimitParams, nil, gw.rateLimitQuit)
+
 	i := &Instance{
-		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
-		Params:        params,
-		storage:       newDatabase,
-		krw:           krw,
+		UnmixedBuffer:          storage.NewUnmixedMessagesMap(),
+		Params:                 params,
+		storage:                newDatabase,
+		krw:                    krw,
+		ipAddressRateLimiting:  ipAddressRateLimit,
+		ipAddressRateLimitQuit: ipRateLimitQuit,
+		idRateLimiting:         idAddressRateLimit,
+		idRateLimitQuit:        idRateLimitQuit,
 	}
 
 	hw.LogHardware()
@@ -132,11 +149,11 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.RequestClientKey(message)
 	}
 
-	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
-		return instance.PutMessage(message)
+	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
+		return instance.PutMessage(message, ipAddr)
 	}
-	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
-		return instance.PutManyMessages(messages)
+	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
+		return instance.PutManyMessages(messages, ipAddr)
 	}
 	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
 		return instance.RequestClientKey(message)

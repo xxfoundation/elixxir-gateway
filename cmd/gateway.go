@@ -278,7 +278,7 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 }
 
 // PutManyMessages adds many messages to the outgoing queue
-func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
+func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
 	// If the target is nil or empty, consider the target itself
 	if messages.GetMessages()[0].GetTarget() != nil && len(messages.GetTarget()) > 0 {
 		// Unmarshal target ID
@@ -303,6 +303,19 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 		}
 	}
 
+	// Report message addition to log (on DEBUG)
+	senderId, err := id.Unmarshal(messages.Messages[0].GetMessage().GetSenderID())
+	if err != nil {
+		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
+	}
+
+	ipBucketSuccess := gw.ipAddressRateLimiting.LookupBucket(ipAddr).Add(1)
+	idBucketSuccess := gw.idRateLimiting.LookupBucket(senderId.String()).Add(1)
+
+	if !ipBucketSuccess || !idBucketSuccess {
+		return nil, errors.New("Too many messages sent in a specific time frame")
+	}
+
 	// Process all messages to be queued
 	for i := 0; i < len(messages.Messages); i++ {
 		if result, err := gw.processPutMessage(messages.Messages[i]); err != nil {
@@ -317,12 +330,6 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
 				"Please try a different round.")
-	}
-
-	// Report message addition to log (on DEBUG)
-	senderId, err := id.Unmarshal(messages.Messages[0].GetMessage().GetSenderID())
-	if err != nil {
-		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
 	// Print out message if in debug mode
@@ -347,7 +354,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 }
 
 // PutMessage adds a message to the outgoing queue
-func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
+func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 
 	// If the target is nil or empty, consider the target itself
 	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
