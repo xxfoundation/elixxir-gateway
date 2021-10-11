@@ -121,10 +121,10 @@ func NewGatewayInstance(params Params) *Instance {
 	msgRateLimit := rateLimiting.CreateBucketMapFromParams(params.messageRateLimitParams, nil, msgRateLimitQuit)
 
 	i := &Instance{
-		UnmixedBuffer:          storage.NewUnmixedMessagesMap(),
-		Params:                 params,
-		storage:                newDatabase,
-		krw:                    krw,
+		UnmixedBuffer:        storage.NewUnmixedMessagesMap(),
+		Params:               params,
+		storage:              newDatabase,
+		krw:                  krw,
 		messageRateLimiting:  msgRateLimit,
 		messageRateLimitQuit: msgRateLimitQuit,
 	}
@@ -706,4 +706,17 @@ func (gw *Instance) LoadLastUpdateID() error {
 
 	gw.lastUpdate = lastUpdate
 	return nil
+}
+
+func (gw *Instance) isPreapproved(userId string) bool {
+	localNdf := gw.NetInf.GetFullNdf().Get()
+
+	for _, preapprovedIds := range localNdf.PreApprovedIds {
+		if strings.Compare(userId, preapprovedIds) == 0 {
+			return true
+		}
+	}
+
+	return false
+
 }

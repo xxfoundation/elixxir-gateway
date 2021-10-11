@@ -40,9 +40,9 @@ type Params struct {
 	IDFPath               string
 	PermissioningCertPath string `yaml:"schedulingCertPath"`
 
-	rateLimitParams *rateLimiting.MapParams
+	rateLimitParams        *rateLimiting.MapParams
 	messageRateLimitParams *rateLimiting.MapParams
-	gossipFlags     gossip.ManagerFlags
+	gossipFlags            gossip.ManagerFlags
 
 	DevMode       bool
 	DisableGossip bool
@@ -156,7 +156,7 @@ func InitParams(vip *viper.Viper) Params {
 		PollDuration: pollDuration,
 		BucketMaxAge: bucketMaxAge,
 	}
-	
+
 	messageLimitingParams := &rateLimiting.MapParams{
 		Capacity:     1,
 		LeakedTokens: 1,
@@ -184,26 +184,26 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	return Params{
-		Port:                  gwPort,
-		PublicAddress:         gwAddress,
-		ListeningAddress:      listeningAddress,
-		NodeAddress:           nodeAddress,
-		CertPath:              certPath,
-		KeyPath:               keyPath,
-		ServerCertPath:        serverCertPath,
-		IDFPath:               idfPath,
-		PermissioningCertPath: permissioningCertPath,
-		gossipFlags:           gossipFlags,
-		rateLimitParams:       bucketMapParams,
+		Port:                   gwPort,
+		PublicAddress:          gwAddress,
+		ListeningAddress:       listeningAddress,
+		NodeAddress:            nodeAddress,
+		CertPath:               certPath,
+		KeyPath:                keyPath,
+		ServerCertPath:         serverCertPath,
+		IDFPath:                idfPath,
+		PermissioningCertPath:  permissioningCertPath,
+		gossipFlags:            gossipFlags,
+		rateLimitParams:        bucketMapParams,
 		messageRateLimitParams: messageLimitingParams,
-		DbName:                viper.GetString("dbName"),
-		DbUsername:            viper.GetString("dbUsername"),
-		DbPassword:            viper.GetString("dbPassword"),
-		DbAddress:             addr,
-		DbPort:                port,
-		DevMode:               viper.GetBool("devMode"),
-		DisableGossip:         viper.GetBool("disableGossip"),
-		retentionPeriod:       retentionPeriod,
-		cleanupInterval:       cleanupInterval,
+		DbName:                 viper.GetString("dbName"),
+		DbUsername:             viper.GetString("dbUsername"),
+		DbPassword:             viper.GetString("dbPassword"),
+		DbAddress:              addr,
+		DbPort:                 port,
+		DevMode:                viper.GetBool("devMode"),
+		DisableGossip:          viper.GetBool("disableGossip"),
+		retentionPeriod:        retentionPeriod,
+		cleanupInterval:        cleanupInterval,
 	}
 }

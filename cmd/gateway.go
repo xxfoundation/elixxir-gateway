@@ -309,17 +309,18 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	// todo: check pre-approved IPs in NDF
-	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
-
-	if !idBucketSuccess {
-		return nil, errors.New("Too many messages sent in a specific time frame")
-	}
-
 	// Process all messages to be queued
 	for i := 0; i < len(messages.Messages); i++ {
 		if result, err := gw.processPutMessage(messages.Messages[i]); err != nil {
 			return result, err
+		}
+	}
+
+	// Check rate limiting if not a preapproved ID
+	if !gw.isPreapproved(senderId.String()) {
+		idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
+		if !idBucketSuccess {
+			return nil, errors.New("Too many messages sent in a specific time frame")
 		}
 	}
 
@@ -395,13 +396,13 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	// todo: check pre-approved IPs in NDF
-	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
-
-	if !idBucketSuccess {
-		return nil, errors.New("Too many messages sent in a specific time frame")
+	// Check rate limiting if not a preapproved ID
+	if !gw.isPreapproved(senderId.String()) {
+		idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
+		if !idBucketSuccess {
+			return nil, errors.New("Too many messages sent in a specific time frame")
+		}
 	}
-
 
 	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
