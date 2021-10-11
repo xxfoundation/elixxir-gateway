@@ -118,8 +118,7 @@ func NewGatewayInstance(params Params) *Instance {
 	}
 
 	msgRateLimitQuit := make(chan struct{}, 1)
-
-	msgRateLimit := rateLimiting.CreateBucketMapFromParams(params.rateLimitParams, nil, msgRateLimitQuit)
+	msgRateLimit := rateLimiting.CreateBucketMapFromParams(params.messageRateLimitParams, nil, msgRateLimitQuit)
 
 	i := &Instance{
 		UnmixedBuffer:          storage.NewUnmixedMessagesMap(),
@@ -142,11 +141,11 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.RequestClientKey(message)
 	}
 
-	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
-		return instance.PutMessage(message, ipAddr)
+	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
+		return instance.PutMessage(message)
 	}
-	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
-		return instance.PutManyMessages(messages, ipAddr)
+	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
+		return instance.PutManyMessages(messages)
 	}
 	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
 		return instance.RequestClientKey(message)

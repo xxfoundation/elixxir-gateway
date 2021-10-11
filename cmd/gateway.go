@@ -278,7 +278,7 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 }
 
 // PutManyMessages adds many messages to the outgoing queue
-func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
+func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
 	// If the target is nil or empty, consider the target itself
 	if messages.GetMessages()[0].GetTarget() != nil && len(messages.GetTarget()) > 0 {
 		// Unmarshal target ID
@@ -310,10 +310,9 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 	}
 
 	// todo: check pre-approved IPs in NDF
-	ipBucketSuccess := gw.messageRateLimiting.LookupBucket(ipAddr).Add(1)
 	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
 
-	if !ipBucketSuccess || !idBucketSuccess {
+	if !idBucketSuccess {
 		return nil, errors.New("Too many messages sent in a specific time frame")
 	}
 
@@ -326,7 +325,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 
 	// Add messages to buffer
 	thisRound := id.Round(messages.RoundID)
-	err := gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
+	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
 	if err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
@@ -355,7 +354,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 }
 
 // PutMessage adds a message to the outgoing queue
-func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
+func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
 
 	// If the target is nil or empty, consider the target itself
 	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
@@ -395,6 +394,14 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 	if err != nil {
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
+
+	// todo: check pre-approved IPs in NDF
+	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
+
+	if !idBucketSuccess {
+		return nil, errors.New("Too many messages sent in a specific time frame")
+	}
+
 
 	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},

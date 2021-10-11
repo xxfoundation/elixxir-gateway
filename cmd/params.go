@@ -41,6 +41,7 @@ type Params struct {
 	PermissioningCertPath string `yaml:"schedulingCertPath"`
 
 	rateLimitParams *rateLimiting.MapParams
+	messageRateLimitParams *rateLimiting.MapParams
 	gossipFlags     gossip.ManagerFlags
 
 	DevMode       bool
@@ -155,6 +156,14 @@ func InitParams(vip *viper.Viper) Params {
 		PollDuration: pollDuration,
 		BucketMaxAge: bucketMaxAge,
 	}
+	
+	messageLimitingParams := &rateLimiting.MapParams{
+		Capacity:     1,
+		LeakedTokens: 1,
+		LeakDuration: 2 * time.Second,
+		PollDuration: pollDuration,
+		BucketMaxAge: bucketMaxAge,
+	}
 
 	// Time to keep messages, rounds and filters in storage
 	viper.SetDefault("retentionPeriod", retentionPeriodDefault)
@@ -186,6 +195,7 @@ func InitParams(vip *viper.Viper) Params {
 		PermissioningCertPath: permissioningCertPath,
 		gossipFlags:           gossipFlags,
 		rateLimitParams:       bucketMapParams,
+		messageRateLimitParams: messageLimitingParams,
 		DbName:                viper.GetString("dbName"),
 		DbUsername:            viper.GetString("dbUsername"),
 		DbPassword:            viper.GetString("dbPassword"),
