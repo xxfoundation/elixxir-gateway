@@ -310,8 +310,8 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 	}
 
 	// todo: check pre-approved IPs in NDF
-	ipBucketSuccess := gw.ipAddressRateLimiting.LookupBucket(ipAddr).Add(1)
-	idBucketSuccess := gw.idRateLimiting.LookupBucket(senderId.String()).Add(1)
+	ipBucketSuccess := gw.messageRateLimiting.LookupBucket(ipAddr).Add(1)
+	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
 
 	if !ipBucketSuccess || !idBucketSuccess {
 		return nil, errors.New("Too many messages sent in a specific time frame")
