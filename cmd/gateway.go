@@ -317,11 +317,9 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 	}
 
 	// Check rate limiting if not a preapproved ID
-	if !gw.isPreapproved(senderId.String()) {
-		idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
-		if !idBucketSuccess {
-			return nil, errors.New("Too many messages sent in a specific time frame")
-		}
+	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
+	if !idBucketSuccess {
+		return nil, errors.New("Too many messages sent in a specific time frame")
 	}
 
 	// Add messages to buffer
@@ -397,11 +395,9 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 	}
 
 	// Check rate limiting if not a preapproved ID
-	if !gw.isPreapproved(senderId.String()) {
-		idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
-		if !idBucketSuccess {
-			return nil, errors.New("Too many messages sent in a specific time frame")
-		}
+	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
+	if !idBucketSuccess {
+		return nil, errors.New("Too many messages sent in a specific time frame")
 	}
 
 	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {

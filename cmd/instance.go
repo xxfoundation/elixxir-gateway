@@ -221,6 +221,16 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		if err != nil {
 			return err
 		}
+
+		// Unmarshal NDF
+		newNdf, err := ndf.Unmarshal(newInfo.FullNDF.Ndf)
+		if err != nil {
+			return err
+		}
+
+		// Update the whitelisted rate limiting IDs
+		gw.messageRateLimiting.AddToWhitelist(newNdf.PreApprovedIds)
+
 	}
 	if newInfo.PartialNDF != nil {
 		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
@@ -706,17 +716,4 @@ func (gw *Instance) LoadLastUpdateID() error {
 
 	gw.lastUpdate = lastUpdate
 	return nil
-}
-
-func (gw *Instance) isPreapproved(userId string) bool {
-	localNdf := gw.NetInf.GetFullNdf().Get()
-
-	for _, preapprovedIds := range localNdf.PreApprovedIds {
-		if strings.Compare(userId, preapprovedIds) == 0 {
-			return true
-		}
-	}
-
-	return false
-
 }
