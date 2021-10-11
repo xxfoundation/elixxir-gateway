@@ -11,6 +11,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
@@ -260,7 +261,7 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 			return err
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	return catchErrors(err)
 }
 

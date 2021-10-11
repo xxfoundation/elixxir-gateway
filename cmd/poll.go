@@ -75,6 +75,12 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"handle client poll due to invalid end timestamp")
 	}
 
+	//get the known rounds before the client filters are received, otherwise there can
+	//be a race condition because known rounds is updated after the bloom filters,
+	//so you can get a known rounds that denotes an updated bloom filter while
+	//it was not received
+	knownRounds := gw.krw.getMarshal()
+
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
 	//  are returned to the client. Debug to avoid message spam.
@@ -92,19 +98,14 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	}
 
 	if len(clientFilters) > 0 {
-		filtersMsg.Filters = make([]*pb.ClientBloom, endEpoch-startEpoch+1)
+		filtersMsg.Filters = make([]*pb.ClientBloom, 0, endEpoch-startEpoch+1)
 		// Build ClientBloomFilter list for client
 		for _, f := range clientFilters {
-			index := f.Epoch - startEpoch
-			//todo- remove the if statement 1 week after 3/24/2021
-			if index < uint32(len(filtersMsg.Filters)) {
-				filtersMsg.Filters[index] = &pb.ClientBloom{
-					Filter:     f.Filter,
-					FirstRound: f.FirstRound,
-					RoundRange: f.RoundRange,
-				}
-			}
-
+			filtersMsg.Filters = append(filtersMsg.Filters, &pb.ClientBloom{
+				Filter:     f.Filter,
+				FirstRound: f.FirstRound,
+				RoundRange: f.RoundRange,
+			})
 		}
 	}
 
@@ -128,7 +129,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	return &pb.GatewayPollResponse{
 		PartialNDF:    netDef,
 		Updates:       updates,
-		KnownRounds:   gw.krw.getMarshal(),
+		KnownRounds:   knownRounds,
 		Filters:       filtersMsg,
 		EarliestRound: atomic.LoadUint64(gw.lowestRound),
 	}, nil
