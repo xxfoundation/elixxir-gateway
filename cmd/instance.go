@@ -89,11 +89,16 @@ type Instance struct {
 	bloomFilterGossip sync.Mutex
 
 	// Rate limiting
-	messageRateLimiting  *rateLimiting.BucketMap // map[string]*ratelimitng.Bucket
-	messageRateLimitQuit chan struct{}
+	messageRateLimiting    *rateLimiting.BucketMap // map[string]*ratelimitng.Bucket
+	messageRateLimitQuit   chan struct{}
+	messageRateLimitingMux sync.Mutex
 
 	whitelistedIpAddressSet *set.Set
 	whitelistedIdsSet       *set.Set
+
+	LeakedCapacity uint
+	LeakedTokens   uint
+	LeakDuration   time.Duration
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -122,18 +127,28 @@ func NewGatewayInstance(params Params) *Instance {
 	}
 
 	msgRateLimitQuit := make(chan struct{}, 1)
-	msgRateLimit := rateLimiting.CreateBucketMapFromParams(params.messageRateLimitParams, nil, msgRateLimitQuit)
 
 	i := &Instance{
-		UnmixedBuffer:        storage.NewUnmixedMessagesMap(),
-		Params:               params,
-		storage:              newDatabase,
-		krw:                  krw,
-		messageRateLimiting:  msgRateLimit,
-		messageRateLimitQuit: msgRateLimitQuit,
+		UnmixedBuffer:           storage.NewUnmixedMessagesMap(),
+		Params:                  params,
+		storage:                 newDatabase,
+		krw:                     krw,
+		messageRateLimitQuit:    msgRateLimitQuit,
 		whitelistedIpAddressSet: set.New(),
-		whitelistedIdsSet: set.New(),
+		whitelistedIdsSet:       set.New(),
+		LeakedCapacity:          1,
+		LeakDuration:            2000 * time.Millisecond,
+		LeakedTokens:            1,
 	}
+
+	msgRateLimitParams := &rateLimiting.MapParams{
+		Capacity:     uint32(i.LeakedCapacity),
+		LeakedTokens: uint32(i.LeakedTokens),
+		LeakDuration: i.LeakDuration,
+		PollDuration: params.messageRateLimitParams.PollDuration,
+		BucketMaxAge: params.messageRateLimitParams.BucketMaxAge,
+	}
+	i.messageRateLimiting = rateLimiting.CreateBucketMapFromParams(msgRateLimitParams, nil, msgRateLimitQuit)
 
 	hw.LogHardware()
 
@@ -234,52 +249,64 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			return err
 		}
 
-		// Construct set of of whitelisted IDs
-		whitelistedIdsSet := set.New()
-		for _, ids := range newNdf.WhitelistedIds {
-			whitelistedIdsSet.Insert(ids)
-		}
+		gw.messageRateLimitingMux.Lock()
+		if gw.LeakedCapacity != newNdf.RateLimits.Capacity ||
+			gw.LeakedTokens != newNdf.RateLimits.LeakedTokens ||
+			gw.LeakDuration != time.Duration(newNdf.RateLimits.LeakDuration) {
 
-		// Find difference between new set from NDF and stored set from impl
-		removedIds := gw.whitelistedIdsSet.Difference(whitelistedIdsSet)
-
-		// Remove all whitelisted IDs no longer in NDF
-		removedIds.Do(func(i interface{}) {
-			removedId := i.(string)
-			err = gw.messageRateLimiting.DeleteBucket(removedId)
-			if err != nil {
-				jww.ERROR.Printf("Could not remove ID from whitelist: %v", err)
+			gw.messageRateLimiting = rateLimiting.CreateBucketMap(capacity, leakedTokens,
+				leakDuration, pollDuration, bucketMaxAge, nil, gw.messageRateLimitQuit)
+		} else {
+			// Construct set of of whitelisted IDs
+			whitelistedIdsSet := set.New()
+			for _, ids := range newNdf.WhitelistedIds {
+				whitelistedIdsSet.Insert(ids)
 			}
 
-		})
+			// Find difference between new set from NDF and stored set from impl
+			removedIds := gw.whitelistedIdsSet.Difference(whitelistedIdsSet)
 
-		// Store new set in impl
-		gw.whitelistedIdsSet = whitelistedIdsSet
+			// Remove all whitelisted IDs no longer in NDF
+			removedIds.Do(func(i interface{}) {
+				removedId := i.(string)
+				err = gw.messageRateLimiting.DeleteBucket(removedId)
+				if err != nil {
+					jww.ERROR.Printf("Could not remove ID from whitelist: %v", err)
+				}
 
-		// Construct set of of whitelisted IP addresses from NDF
-		whitelistedIpAddressesSet := set.New()
-		for _, ipAddr := range newNdf.WhitelistedIpAddresses {
-			whitelistedIpAddressesSet.Insert(ipAddr)
-		}
+			})
 
-		// Find difference between new set from NDF and stored set from impl
-		removedIpAddresses := gw.whitelistedIdsSet.Difference(whitelistedIpAddressesSet)
+			// Store new set in impl
+			gw.whitelistedIdsSet = whitelistedIdsSet
 
-		// Remove all whitelisted IP addresses no longer in NDF
-		removedIpAddresses.Do(func(i interface{}) {
-			removedIpAddr := i.(string)
-			err = gw.messageRateLimiting.DeleteBucket(removedIpAddr)
-			if err != nil {
-				jww.ERROR.Printf("Could not remove IP address from whitelist: %v", err)
+			// Construct set of of whitelisted IP addresses from NDF
+			whitelistedIpAddressesSet := set.New()
+			for _, ipAddr := range newNdf.WhitelistedIpAddresses {
+				whitelistedIpAddressesSet.Insert(ipAddr)
 			}
-		})
 
-		// Store new set in impl
-		gw.whitelistedIpAddressSet = whitelistedIpAddressesSet
+			// Find difference between new set from NDF and stored set from impl
+			removedIpAddresses := gw.whitelistedIdsSet.Difference(whitelistedIpAddressesSet)
+
+			// Remove all whitelisted IP addresses no longer in NDF
+			removedIpAddresses.Do(func(i interface{}) {
+				removedIpAddr := i.(string)
+				err = gw.messageRateLimiting.DeleteBucket(removedIpAddr)
+				if err != nil {
+					jww.ERROR.Printf("Could not remove IP address from whitelist: %v", err)
+				}
+			})
+
+			// Store new set in impl
+			gw.whitelistedIpAddressSet = whitelistedIpAddressesSet
+
+		}
 
 		// Update the whitelisted rate limiting IDs
 		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIds)
 		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIpAddresses)
+
+		gw.messageRateLimitingMux.Unlock()
 
 	}
 	if newInfo.PartialNDF != nil {
