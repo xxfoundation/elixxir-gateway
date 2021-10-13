@@ -276,6 +276,9 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 
 // PutManyMessages adds many messages to the outgoing queue
 func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
+	if messages == nil || messages.GetMessages() == nil || len(messages.GetMessages())==0{
+		return nil, errors.Errorf("Malformed message object received: %+v", messages)
+	}
 	// If the target is nil or empty, consider the target itself
 	if messages.GetMessages()[0].GetTarget() != nil && len(messages.GetTarget()) > 0 {
 		// Unmarshal target ID
