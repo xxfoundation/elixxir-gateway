@@ -44,6 +44,7 @@ const (
 	ErrAuth        = "Failed to authenticate id:"
 	gwChanLen      = 1000
 	period         = int64(1800000000000) // 30 minutes in nanoseconds
+	maxSendsInARound = 25
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -99,6 +100,9 @@ type Instance struct {
 	LeakedCapacity uint
 	LeakedTokens   uint
 	LeakDuration   time.Duration
+
+	sentInRound map[id.Round]map[id.ID]*uint32
+	sentInRoundMux sync.RWMutex
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -139,6 +143,7 @@ func NewGatewayInstance(params Params) *Instance {
 		LeakedCapacity:          1,
 		LeakDuration:            2000 * time.Millisecond,
 		LeakedTokens:            1,
+		sentInRound: make(map[id.Round]map[id.ID]*uint32),
 	}
 
 	msgRateLimitParams := &rateLimiting.MapParams{
@@ -360,7 +365,9 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			// Chek if our node is the entry point fo the circuit
 			if states.Round(update.State) == states.PRECOMPUTING &&
 				topology.IsFirstNode(gw.ServerHost.GetId()) {
-				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
+				rid:=id.Round(update.ID)
+				gw.UnmixedBuffer.SetAsRoundLeader(rid, update.BatchSize)
+				gw.AddSentRound(rid)
 			} else if states.Round(update.State) == states.FAILED {
 				err = gw.krw.forceCheck(id.Round(update.ID), gw.storage)
 				if err != nil {
@@ -396,6 +403,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 	// Send a new batch to the server when it asks for one
 	if newInfo.BatchRequest != nil {
+		gw.RemoveSentRound(id.Round(newInfo.BatchRequest.ID))
 		gw.UploadUnmixedBatch(newInfo.BatchRequest)
 	}
 
@@ -794,3 +802,48 @@ func (gw *Instance) LoadLastUpdateID() error {
 	gw.lastUpdate = lastUpdate
 	return nil
 }
+
+func (gw *Instance) AddSentRound(rid id.Round) {
+	gw.sentInRoundMux.Lock()
+	defer gw.sentInRoundMux.Unlock()
+	gw.sentInRound[rid] = make(map[id.ID]*uint32)
+}
+
+func (gw *Instance) RemoveSentRound(rid id.Round) {
+	gw.sentInRoundMux.Lock()
+	defer gw.sentInRoundMux.Unlock()
+	delete(gw.sentInRound, rid)
+}
+
+func (gw *Instance) RegisterSendingUser(rid id.Round, uid *id.ID, num uint) bool{
+	gw.sentInRoundMux.Lock()
+	defer gw.sentInRoundMux.Unlock()
+	roundMap, exists := gw.sentInRound[rid]
+	if !exists{
+		return false
+	}
+	if _, exists = roundMap[*uid]; !exists{
+		userNumSender := uint32(num)
+		roundMap[*uid] = &userNumSender
+	}
+	return true
+}
+
+func (gw *Instance) AddToSendingUser(rid id.Round, uid *id.ID, num uint)(bool, uint) {
+	gw.sentInRoundMux.RLock()
+	defer gw.sentInRoundMux.RUnlock()
+	roundMap, exists := gw.sentInRound[rid]
+	if !exists{
+		return false, 0
+	}
+
+	amount, exists := roundMap[*uid]
+	if !exists{
+		return false, 0
+	}
+
+	newAmount := atomic.AddUint32(amount,uint32(num))
+	return newAmount<=maxSendsInARound, uint(newAmount)
+}
+
+

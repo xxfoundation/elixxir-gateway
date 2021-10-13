@@ -40,6 +40,7 @@ var noConnectionErr = "unable to connect to target host %s."
 const RequestKeyThresholdMax = 3 * time.Minute
 const RequestKeyThresholdMix = -3 * time.Minute
 const sendTimeout = time.Duration(1.3 * float64(time.Second))
+const maxManyMessages = 11
 
 // RequestClientKey is the endpoint for a client trying to register with a node.
 // It checks if the request made is valid. If valid, it sends the request to
@@ -310,23 +311,32 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
+	if len(messages.Messages)>maxManyMessages{
+		return  nil, errors.Errorf("Cannot process PutManyMessages with " +
+			"more than %d messages, recevied %d", maxManyMessages, len(messages.Messages))
+	}
+
 	// Process all messages to be queued
 	for i := 0; i < len(messages.Messages); i++ {
 		if result, err := gw.processPutMessage(messages.Messages[i]); err != nil {
 			return result, err
 		}
 	}
+	thisRound := id.Round(messages.RoundID)
 
 	// Check rate limiting of IP addresses and IDs
 	isWhitelistedIpAddr := gw.messageRateLimiting.LookupBucket(ipAddr).IsWhitelisted()
-	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
+	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).AddWithoutOverflow(uint32(len(messages.Messages)))
 	if !isWhitelistedIpAddr && !idBucketSuccess {
-		return nil, errors.Errorf("Too many messages sent "+
-			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
+		if accepted, _ := gw.AddToSendingUser(thisRound, senderId, uint(len(messages.Messages))); !accepted{
+			return nil, errors.Errorf("Too many messages sent "+
+				"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
+		}
+	}else{
+		gw.RegisterSendingUser(thisRound, senderId, uint(len(messages.Messages)))
 	}
 
 	// Add messages to buffer
-	thisRound := id.Round(messages.RoundID)
 	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
 	if err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
@@ -401,11 +411,15 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 	isWhitelistedIpAddr := gw.messageRateLimiting.LookupBucket(ipAddr).IsWhitelisted()
 	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
 	if !isWhitelistedIpAddr && !idBucketSuccess {
-		return nil, errors.Errorf("Too many messages sent "+
-			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
+		if accepted, _ := gw.AddToSendingUser(thisRound, senderId, 1); !accepted{
+			return nil, errors.Errorf("Too many messages sent "+
+				"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
+		}
+	}else{
+		gw.RegisterSendingUser(thisRound, senderId, 1)
 	}
 
-	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
+	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
 				"Please try a different round.")
