@@ -37,7 +37,7 @@ type database interface {
 	UpsertRound(round *Round) error
 	deleteRound(ts time.Time) error
 
-	countMixedMessagesByRound(roundId id.Round) (uint64, error)
+	countMixedMessagesByRound(roundId id.Round) (uint64, bool, error)
 	getMixedMessages(recipientId ephemeral.Id, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessages(cr *ClientRound) error
 	deleteMixedMessages(ts time.Time) error

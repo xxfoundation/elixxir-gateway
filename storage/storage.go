@@ -66,11 +66,10 @@ func (s *Storage) HandleBloomFilter(recipientId ephemeral.Id, filterBytes []byte
 
 // Returns a slice of MixedMessage from database with matching recipientId and roundId
 // Also returns a boolean for whether the gateway contains other messages for the given Round
-func (s *Storage) GetMixedMessages(recipientId ephemeral.Id, roundId id.Round) (msgs []*MixedMessage, isValidGateway bool, err error) {
+func (s *Storage) GetMixedMessages(recipientId ephemeral.Id, roundId id.Round) (msgs []*MixedMessage, hasRound bool, err error) {
 	// Determine whether this gateway has any messages for the given roundId
-	count, err := s.countMixedMessagesByRound(roundId)
-	isValidGateway = count > 0
-	if err != nil || !isValidGateway {
+	count, hasRound, err := s.countMixedMessagesByRound(roundId)
+	if !hasRound || count == 0 {
 		return
 	}
 
