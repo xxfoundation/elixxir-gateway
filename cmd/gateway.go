@@ -328,12 +328,8 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 	isWhitelistedIpAddr := gw.messageRateLimiting.LookupBucket(ipAddr).IsWhitelisted()
 	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).AddWithoutOverflow(uint32(len(messages.Messages)))
 	if !isWhitelistedIpAddr && !idBucketSuccess {
-		if accepted, _ := gw.AddToSendingUser(thisRound, senderId, uint(len(messages.Messages))); !accepted{
-			return nil, errors.Errorf("Too many messages sent "+
-				"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
-		}
-	}else{
-		gw.RegisterSendingUser(thisRound, senderId, uint(len(messages.Messages)))
+		return nil, errors.Errorf("Too many messages sent "+
+			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
 	}
 
 	// Add messages to buffer
@@ -411,12 +407,8 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 	isWhitelistedIpAddr := gw.messageRateLimiting.LookupBucket(ipAddr).IsWhitelisted()
 	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
 	if !isWhitelistedIpAddr && !idBucketSuccess {
-		if accepted, _ := gw.AddToSendingUser(thisRound, senderId, 1); !accepted{
-			return nil, errors.Errorf("Too many messages sent "+
-				"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
-		}
-	}else{
-		gw.RegisterSendingUser(thisRound, senderId, 1)
+		return nil, errors.Errorf("Too many messages sent "+
+			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
 	}
 
 	if err = gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
