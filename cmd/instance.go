@@ -131,6 +131,8 @@ func NewGatewayInstance(params Params) *Instance {
 		krw:                  krw,
 		messageRateLimiting:  msgRateLimit,
 		messageRateLimitQuit: msgRateLimitQuit,
+		whitelistedIpAddressSet: set.New(),
+		whitelistedIdsSet: set.New(),
 	}
 
 	hw.LogHardware()
