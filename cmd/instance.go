@@ -12,6 +12,7 @@ package cmd
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/golang-collections/collections/set"
 	"strconv"
 	"strings"
 	"sync"
@@ -90,6 +91,9 @@ type Instance struct {
 	// Rate limiting
 	messageRateLimiting  *rateLimiting.BucketMap // map[string]*ratelimitng.Bucket
 	messageRateLimitQuit chan struct{}
+
+	whitelistedIpAddressSet *set.Set
+	whitelistedIdsSet       *set.Set
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -141,11 +145,11 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.RequestClientKey(message)
 	}
 
-	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
-		return instance.PutMessage(message)
+	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
+		return instance.PutMessage(message, ipAddr)
 	}
-	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
-		return instance.PutManyMessages(messages)
+	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
+		return instance.PutManyMessages(messages, ipAddr)
 	}
 	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
 		return instance.RequestClientKey(message)
@@ -228,8 +232,52 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			return err
 		}
 
+		// Construct set of of whitelisted IDs
+		whitelistedIdsSet := set.New()
+		for _, ids := range newNdf.WhitelistedIds {
+			whitelistedIdsSet.Insert(ids)
+		}
+
+		// Find difference between new set from NDF and stored set from impl
+		removedIds := gw.whitelistedIdsSet.Difference(whitelistedIdsSet)
+
+		// Remove all whitelisted IDs no longer in NDF
+		removedIds.Do(func(i interface{}) {
+			removedId := i.(string)
+			err = gw.messageRateLimiting.DeleteBucket(removedId)
+			if err != nil {
+				jww.ERROR.Printf("Could not remove ID from whitelist: %v", err)
+			}
+
+		})
+
+		// Store new set in impl
+		gw.whitelistedIdsSet = whitelistedIdsSet
+
+		// Construct set of of whitelisted IP addresses from NDF
+		whitelistedIpAddressesSet := set.New()
+		for _, ipAddr := range newNdf.WhitelistedIpAddresses {
+			whitelistedIpAddressesSet.Insert(ipAddr)
+		}
+
+		// Find difference between new set from NDF and stored set from impl
+		removedIpAddresses := gw.whitelistedIdsSet.Difference(whitelistedIpAddressesSet)
+
+		// Remove all whitelisted IP addresses no longer in NDF
+		removedIpAddresses.Do(func(i interface{}) {
+			removedIpAddr := i.(string)
+			err = gw.messageRateLimiting.DeleteBucket(removedIpAddr)
+			if err != nil {
+				jww.ERROR.Printf("Could not remove IP address from whitelist: %v", err)
+			}
+		})
+
+		// Store new set in impl
+		gw.whitelistedIpAddressSet = whitelistedIpAddressesSet
+
 		// Update the whitelisted rate limiting IDs
-		gw.messageRateLimiting.AddToWhitelist(newNdf.PreApprovedIds)
+		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIds)
+		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIpAddresses)
 
 	}
 	if newInfo.PartialNDF != nil {
