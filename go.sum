@@ -351,6 +351,8 @@ gitlab.com/elixxir/primitives v0.0.3-0.20211013190951-ac85a548cdf9/go.mod h1:2BC
 gitlab.com/xx_network/comms v0.0.0-20200805174823-841427dd5023/go.mod h1:owEcxTRl7gsoM8c3RQ5KAm5GstxrJp5tn+6JfQ4z5Hw=
 gitlab.com/xx_network/comms v0.0.4-0.20211013190913-27764ce8570a h1:mJpP/l3UJEbS4bKyYDiEcvbJXYAtoyNU5rDD1WitFDE=
 gitlab.com/xx_network/comms v0.0.4-0.20211013190913-27764ce8570a/go.mod h1:Bz9z//8FtrPjgf3qvjUol09cJtILYisrzGmsiTOm/a8=
+gitlab.com/xx_network/comms v0.0.4-0.20211013231810-9a05a5dcd0b7 h1:Y2Jx55oisw9dzUOEqiqRCFpcIzqcE+3JXEE1k0UbocA=
+gitlab.com/xx_network/comms v0.0.4-0.20211013231810-9a05a5dcd0b7/go.mod h1:z6X5NN8Y6u+0md2KfH4cFa2Ax2b4KZ18bmnYADhvRuE=
 gitlab.com/xx_network/crypto v0.0.3/go.mod h1:DF2HYvvCw9wkBybXcXAgQMzX+MiGbFPjwt3t17VRqRE=
 gitlab.com/xx_network/crypto v0.0.4/go.mod h1:+lcQEy+Th4eswFgQDwT0EXKp4AXrlubxalwQFH5O0Mk=
 gitlab.com/xx_network/crypto v0.0.5-0.20211013190759-ad49cb42bde1 h1:Cc4vm7cD5jkvlygQRlG0s2HVhN+eVir2U6hyp8AGuQE=
@@ -362,8 +364,8 @@ gitlab.com/xx_network/primitives v0.0.4-0.20211013190514-fc0d0269c3e9 h1:ahRk/2E
 gitlab.com/xx_network/primitives v0.0.4-0.20211013190514-fc0d0269c3e9/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
 gitlab.com/xx_network/primitives v0.0.4-0.20211013194048-f0cff220e3b2 h1:Rto1mgAbNujJeMNWNTtkjhJ7jwtYLzmHwE5Uv7m8BzA=
 gitlab.com/xx_network/primitives v0.0.4-0.20211013194048-f0cff220e3b2/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
-gitlab.com/xx_network/primitives v0.0.4-0.20211013221132-b4f73b5135a9 h1:NMoX4oymJsoMs5MoS2d1B8xLYzt22LTuv6Hveck2bio=
-gitlab.com/xx_network/primitives v0.0.4-0.20211013221132-b4f73b5135a9/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
+gitlab.com/xx_network/primitives v0.0.4-0.20211013230007-611a38f19240 h1:PLSZO7vTR18e++s8B+CNoxSxYkDHi99OBEdoHpt5wJA=
+gitlab.com/xx_network/primitives v0.0.4-0.20211013230007-611a38f19240/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
 gitlab.com/xx_network/ring v0.0.3-0.20210527191221-ce3f170aabd5 h1:FY+4Rh1Q2rgLyv10aKJjhWApuKRCR/054XhreudfAvw=
 gitlab.com/xx_network/ring v0.0.3-0.20210527191221-ce3f170aabd5/go.mod h1:aLzpP2TiZTQut/PVHR40EJAomzugDdHXetbieRClXIM=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
