@@ -39,6 +39,7 @@ var noConnectionErr = "unable to connect to target host %s."
 
 const RequestKeyThresholdMax = 3 * time.Minute
 const RequestKeyThresholdMix = -3 * time.Minute
+const sendTimeout = time.Duration(1.3 * float64(time.Second))
 
 // RequestClientKey is the endpoint for a client trying to register with a node.
 // It checks if the request made is valid. If valid, it sends the request to
@@ -66,7 +67,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
-			return gw.Comms.SendRequestClientKey(host, msg)
+			return gw.Comms.SendRequestClientKey(host, msg, sendTimeout)
 		}
 	}
 
@@ -196,7 +197,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
-			return gw.Comms.SendRequestMessages(host, req)
+			return gw.Comms.SendRequestMessages(host, req, sendTimeout)
 		}
 	}
 
@@ -299,7 +300,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots) (*pb.GatewaySlotR
 				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
-			return gw.Comms.SendPutManyMessages(host, messages)
+			return gw.Comms.SendPutManyMessages(host, messages, sendTimeout)
 		}
 	}
 
@@ -376,7 +377,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot) (*pb.GatewaySlotResponse, er
 				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
-			return gw.Comms.SendPutMessage(host, msg)
+			return gw.Comms.SendPutMessage(host, msg, sendTimeout)
 		}
 	}
 
