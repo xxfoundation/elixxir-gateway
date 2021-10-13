@@ -275,86 +275,6 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 
 }
 
-// PutManyMessages adds many messages to the outgoing queue
-func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
-	if messages == nil || messages.GetMessages() == nil || len(messages.GetMessages()) == 0 {
-		return nil, errors.Errorf("Malformed message object received: %+v", messages)
-	}
-	// If the target is nil or empty, consider the target itself
-	if messages.GetMessages()[0].GetTarget() != nil && len(messages.GetTarget()) > 0 {
-		// Unmarshal target ID
-		targetID, err := id.Unmarshal(messages.GetTarget())
-		if err != nil {
-			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
-		}
-
-		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
-			// Check if the host exists and is connected
-			host, exists := gw.Comms.GetHost(targetID)
-			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
-			}
-			connected, _ := host.Connected()
-			if !connected {
-				return nil, errors.Errorf(noConnectionErr, targetID)
-			}
-
-			return gw.Comms.SendPutManyMessages(host, messages, sendTimeout)
-		}
-	}
-
-	// Report message addition to log (on DEBUG)
-	senderId, err := id.Unmarshal(messages.Messages[0].GetMessage().GetSenderID())
-	if err != nil {
-		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
-	}
-
-	// Process all messages to be queued
-	for i := 0; i < len(messages.Messages); i++ {
-		if result, err := gw.processPutMessage(messages.Messages[i]); err != nil {
-			return result, err
-		}
-	}
-
-	// Check rate limiting of IP addresses and IDs
-	isWhitelistedIpAddr := gw.messageRateLimiting.LookupBucket(ipAddr).IsWhitelisted()
-	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
-	if !isWhitelistedIpAddr && !idBucketSuccess {
-		return nil, errors.Errorf("Too many messages sent "+
-			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
-	}
-
-	// Add messages to buffer
-	thisRound := id.Round(messages.RoundID)
-	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
-	if err != nil {
-		return &pb.GatewaySlotResponse{Accepted: false},
-			errors.WithMessage(err, "could not add to round. "+
-				"Please try a different round.")
-	}
-
-	// Print out message if in debug mode
-	for i := 0; i < len(messages.Messages); i++ {
-		msg := messages.Messages[i]
-
-		if jww.GetLogThreshold() <= jww.LevelDebug {
-			msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
-			msgFmt.SetPayloadA(msg.Message.PayloadA)
-			msgFmt.SetPayloadB(msg.Message.PayloadB)
-			jww.DEBUG.Printf("Putting message from user %s (msgDigest: %s) "+
-				"in outgoing queue for round %d...", senderId.String(),
-				msgFmt.Digest(), thisRound)
-		}
-	}
-
-	return &pb.GatewaySlotResponse{
-		Accepted: true,
-		RoundID:  messages.GetRoundID(),
-	}, nil
-
-}
-
 // PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 
@@ -397,10 +317,11 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
-	// Check rate limiting of IP addresses and IDs
-	isWhitelistedIpAddr := gw.messageRateLimiting.LookupBucket(ipAddr).IsWhitelisted()
-	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
-	if !isWhitelistedIpAddr && !idBucketSuccess {
+	// Check if either the ID or IP is whitelisted
+	isIpAddrSuccess, isIpAddrWhitelisted := gw.ipAddrRateLimiting.LookupBucket(ipAddr).Add(1)
+	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).Add(1)
+	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
+		!(isIpAddrSuccess && idBucketSuccess) {
 		return nil, errors.Errorf("Too many messages sent "+
 			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
 	}
@@ -424,6 +345,88 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 		Accepted: true,
 		RoundID:  msg.GetRoundID(),
 	}, nil
+}
+
+// PutManyMessages adds many messages to the outgoing queue
+func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
+	if messages == nil || messages.GetMessages() == nil || len(messages.GetMessages()) == 0 {
+		return nil, errors.Errorf("Malformed message object received: %+v", messages)
+	}
+	// If the target is nil or empty, consider the target itself
+	if messages.GetMessages()[0].GetTarget() != nil && len(messages.GetTarget()) > 0 {
+		// Unmarshal target ID
+		targetID, err := id.Unmarshal(messages.GetTarget())
+		if err != nil {
+			return nil, errors.Errorf("failed to unmarshal target ID: %+v", err)
+		}
+
+		// Check if the target is not itself
+		if !gw.Comms.Id.Cmp(targetID) {
+			// Check if the host exists and is connected
+			host, exists := gw.Comms.GetHost(targetID)
+			if !exists {
+				return nil, errors.Errorf("unable to find target host %s.", targetID)
+			}
+			connected, _ := host.Connected()
+			if !connected {
+				return nil, errors.Errorf(noConnectionErr, targetID)
+			}
+
+			return gw.Comms.SendPutManyMessages(host, messages, sendTimeout)
+		}
+	}
+
+	// Report message addition to log (on DEBUG)
+	senderId, err := id.Unmarshal(messages.Messages[0].GetMessage().GetSenderID())
+	if err != nil {
+		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
+	}
+
+	// Process all messages to be queued
+	for i := 0; i < len(messages.Messages); i++ {
+		if result, err := gw.processPutMessage(messages.Messages[i]); err != nil {
+			return result, err
+		}
+	}
+
+	// Check if either the ID or IP is whitelisted
+	isIpAddrSuccess, isIpAddrWhitelisted := gw.ipAddrRateLimiting.LookupBucket(ipAddr).Add(uint32(len(messages.Messages)))
+	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).Add(uint32(len(messages.Messages)))
+	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
+		!(isIpAddrSuccess && idBucketSuccess) {
+		return nil, errors.Errorf("Too many messages sent "+
+			"from ID %v with IP address %s in a specific time frame by user",
+			senderId.String(), ipAddr)
+	}
+
+	// Add messages to buffer
+	thisRound := id.Round(messages.RoundID)
+	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
+	if err != nil {
+		return &pb.GatewaySlotResponse{Accepted: false},
+			errors.WithMessage(err, "could not add to round. "+
+				"Please try a different round.")
+	}
+
+	// Print out message if in debug mode
+	for i := 0; i < len(messages.Messages); i++ {
+		msg := messages.Messages[i]
+
+		if jww.GetLogThreshold() <= jww.LevelDebug {
+			msgFmt := format.NewMessage(gw.NetInf.GetCmixGroup().GetP().ByteLen())
+			msgFmt.SetPayloadA(msg.Message.PayloadA)
+			msgFmt.SetPayloadB(msg.Message.PayloadB)
+			jww.DEBUG.Printf("Putting message from user %s (msgDigest: %s) "+
+				"in outgoing queue for round %d...", senderId.String(),
+				msgFmt.Digest(), thisRound)
+		}
+	}
+
+	return &pb.GatewaySlotResponse{
+		Accepted: true,
+		RoundID:  messages.GetRoundID(),
+	}, nil
+
 }
 
 // Helper function which processes a single gateway slot. Checks the mac for
@@ -768,13 +771,14 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 
 // FilterMessage determines if the message should be kept or discarded based on
 // the capacity of the sender's ID bucket.
-func (gw *Instance) FilterMessage(userId *id.ID) error {
-	// If the user ID bucket is full AND the message's user ID is not on the
-	// whitelist, then reject the message
-	if !gw.rateLimit.LookupBucket(userId.String()).Add(1) {
-		return errors.New("Rate limit exceeded. Try again later.")
-	}
-
-	// Otherwise, if the user ID bucket has room then let the message through
-	return nil
-}
+// todo: determine whether to keep this logic for ratelimiting
+//func (gw *Instance) FilterMessage(userId *id.ID) error {
+//	// If the user ID bucket is full AND the message's user ID is not on the
+//	// whitelist, then reject the message
+//	if !gw.rateLimit.LookupBucket(userId.String()).Add(1) {
+//		return errors.New("Rate limit exceeded. Try again later.")
+//	}
+//
+//	// Otherwise, if the user ID bucket has room then let the message through
+//	return nil
+//}

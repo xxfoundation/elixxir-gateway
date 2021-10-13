@@ -708,7 +708,8 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	var err error
 	rndId := uint64(2)
 
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
+	senderId := id.NewIdFromUInt(128, id.User, t)
+	msg = pb.Slot{SenderID: senderId.Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
@@ -725,6 +726,8 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
+	gatewayInstance.ipAddrRateLimiting.AddToWhitelist([]string{""})
+	gatewayInstance.idRateLimiting.AddToWhitelist([]string{senderId.String()})
 	_, err = gatewayInstance.PutMessage(slotMsg, "")
 	errMsg := "PutMessage: Could not put any messages when IP " +
 		"address should not be blocked"
@@ -825,8 +828,8 @@ func TestGatewayImpl_PutMessage_Proxy(t *testing.T) {
 	}
 
 	rndId := uint64(20)
-
-	msg := pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
+	senderId := id.NewIdFromUInt(128, id.User, t)
+	msg := pb.Slot{SenderID: senderId.Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
@@ -846,7 +849,8 @@ func TestGatewayImpl_PutMessage_Proxy(t *testing.T) {
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
-	gatewayInstance.messageRateLimiting.AddToWhitelist([]string{""})
+	gatewayInstance.ipAddrRateLimiting.AddToWhitelist([]string{""})
+	gatewayInstance.idRateLimiting.AddToWhitelist([]string{senderId.String()})
 
 	receivedMsg, err := gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
@@ -895,7 +899,7 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 
 	ipAddr := "127.0.0.1"
 	whitelist := []string{senderId.String(), ipAddr}
-	gatewayInstance.messageRateLimiting.AddToWhitelist(whitelist)
+	gatewayInstance.idRateLimiting.AddToWhitelist(whitelist)
 
 	// Put a message in the same round to fill up the batch size
 	for i := 0; i < batchSize; i++ {
@@ -974,7 +978,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	ipAddr := "127.0.0.1"
 
 	whitelist := []string{senderId.String(), ipAddr}
-	gatewayInstance.messageRateLimiting.AddToWhitelist(whitelist)
+	gatewayInstance.idRateLimiting.AddToWhitelist(whitelist)
 
 	_, err = gatewayInstance.PutMessage(slotMsg, ipAddr)
 	if err != nil {
@@ -1039,7 +1043,7 @@ func TestInstance_PutManyMessages(t *testing.T) {
 	ipAddr := "127.0.0.1"
 
 	whitelist := []string{senderId.String(), ipAddr}
-	gatewayInstance.messageRateLimiting.AddToWhitelist(whitelist)
+	gatewayInstance.idRateLimiting.AddToWhitelist(whitelist)
 
 	// Construct messages to try to put in buffer
 	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
@@ -1177,7 +1181,7 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 	ipAddr := "127.0.0.1"
 
 	whitelist := []string{senderId.String(), ipAddr}
-	gatewayInstance.messageRateLimiting.AddToWhitelist(whitelist)
+	gatewayInstance.idRateLimiting.AddToWhitelist(whitelist)
 
 	// Construct messages to try to put in buffer
 	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
