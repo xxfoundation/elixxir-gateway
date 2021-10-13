@@ -40,6 +40,7 @@ var noConnectionErr = "unable to connect to target host %s."
 const RequestKeyThresholdMax = 3 * time.Minute
 const RequestKeyThresholdMix = -3 * time.Minute
 const sendTimeout = time.Duration(1.3 * float64(time.Second))
+const maxManyMessages = 11
 
 // RequestClientKey is the endpoint for a client trying to register with a node.
 // It checks if the request made is valid. If valid, it sends the request to
@@ -374,6 +375,11 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 
 			return gw.Comms.SendPutManyMessages(host, messages, sendTimeout)
 		}
+	}
+
+	if len(messages.Messages) > maxManyMessages {
+		return nil, errors.Errorf("Cannot process PutManyMessages with "+
+			"more than %d messages, recevied %d", maxManyMessages, len(messages.Messages))
 	}
 
 	// Report message addition to log (on DEBUG)

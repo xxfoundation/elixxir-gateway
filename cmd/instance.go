@@ -40,10 +40,11 @@ import (
 
 // Errors to suppress
 const (
-	ErrInvalidHost = "Invalid host ID:"
-	ErrAuth        = "Failed to authenticate id:"
-	gwChanLen      = 1000
-	period         = int64(1800000000000) // 30 minutes in nanoseconds
+	ErrInvalidHost   = "Invalid host ID:"
+	ErrAuth          = "Failed to authenticate id:"
+	gwChanLen        = 1000
+	period           = int64(1800000000000) // 30 minutes in nanoseconds
+	maxSendsInARound = 25
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -374,7 +375,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			// Chek if our node is the entry point fo the circuit
 			if states.Round(update.State) == states.PRECOMPUTING &&
 				topology.IsFirstNode(gw.ServerHost.GetId()) {
-				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
+				rid := id.Round(update.ID)
+				gw.UnmixedBuffer.SetAsRoundLeader(rid, update.BatchSize)
 			} else if states.Round(update.State) == states.FAILED {
 				err = gw.krw.forceCheck(id.Round(update.ID), gw.storage)
 				if err != nil {
