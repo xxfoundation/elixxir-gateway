@@ -230,7 +230,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 
 		// Update the whitelisted rate limiting IDs
 		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIds)
-		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIps)
+		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIpAddresses)
 
 	}
 	if newInfo.PartialNDF != nil {

@@ -366,6 +366,8 @@ gitlab.com/xx_network/primitives v0.0.4-0.20211013172526-181d8e79c542 h1:veqR7Cx
 gitlab.com/xx_network/primitives v0.0.4-0.20211013172526-181d8e79c542/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
 gitlab.com/xx_network/primitives v0.0.4-0.20211013172726-05676f0930c4 h1:X0Zn5fEDJTRPJFkLbDm41gOVjcgApSLBm16AIILw4WQ=
 gitlab.com/xx_network/primitives v0.0.4-0.20211013172726-05676f0930c4/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
+gitlab.com/xx_network/primitives v0.0.4-0.20211013180114-4d738c1f01a8 h1:oUon4xX2nkx8uvK3zGFHsd1YZzaU7mjugP0UdeiWlew=
+gitlab.com/xx_network/primitives v0.0.4-0.20211013180114-4d738c1f01a8/go.mod h1:9imZHvYwNFobxueSvVtHneZLk9wTK7HQTzxPm+zhFhE=
 gitlab.com/xx_network/ring v0.0.3-0.20210527191221-ce3f170aabd5 h1:FY+4Rh1Q2rgLyv10aKJjhWApuKRCR/054XhreudfAvw=
 gitlab.com/xx_network/ring v0.0.3-0.20210527191221-ce3f170aabd5/go.mod h1:aLzpP2TiZTQut/PVHR40EJAomzugDdHXetbieRClXIM=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
