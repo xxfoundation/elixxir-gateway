@@ -173,13 +173,33 @@ func (d *DatabaseImpl) deleteRound(ts time.Time) error {
 }
 
 // Count the number of MixedMessage in the database for the given roundId
-func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, error) {
+func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
 	defer cancel()
 
 	var count int64
-	err := d.db.WithContext(ctx).Model(&MixedMessage{}).Where("round_id = ?", uint64(roundId)).Count(&count).Error
-	return uint64(count), catchErrors(err)
+	hasRound := true
+
+	// Build a transaction to prevent race conditions
+	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := d.db.WithContext(ctx).Model(&MixedMessage{}).Where("round_id = ?", uint64(roundId)).Count(&count).Error
+		if err != nil {
+			return err
+		}
+
+		if count == 0 {
+			var roundCount int64
+			err = d.db.Where(&ClientRound{}, "id = ?", uint64(roundId)).Count(&roundCount).Error
+			if err != nil {
+				return err
+			}
+			hasRound = roundCount > 0
+		}
+
+		// Commit
+		return nil
+	})
+	return uint64(count), hasRound, catchErrors(err)
 }
 
 // Returns a slice of MixedMessages from database

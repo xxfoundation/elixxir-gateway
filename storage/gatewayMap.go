@@ -141,11 +141,12 @@ func (m *MapImpl) deleteRound(ts time.Time) error {
 }
 
 // Count the number of MixedMessage in the database for the given roundId
-func (m *MapImpl) countMixedMessagesByRound(roundId id.Round) (uint64, error) {
+func (m *MapImpl) countMixedMessagesByRound(roundId id.Round) (uint64, bool, error) {
 	m.mixedMessages.RLock()
 	defer m.mixedMessages.RUnlock()
+	_, hasRound := m.clientRounds[uint64(roundId)]
 
-	return m.mixedMessages.RoundIdCount[roundId], nil
+	return m.mixedMessages.RoundIdCount[roundId], hasRound, nil
 }
 
 // Returns a slice of MixedMessages from database

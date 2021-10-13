@@ -446,7 +446,7 @@ func TestMapImpl_countMixedMessagesByRound(t *testing.T) {
 
 	// Add more messages with different recipient and round IDs.
 	_ = m.InsertMixedMessages(&ClientRound{
-		Id:        420,
+		Id:        testRoundID,
 		Timestamp: time.Now(),
 		Messages: []MixedMessage{{
 			Id:          rand.Uint64(),
@@ -462,12 +462,12 @@ func TestMapImpl_countMixedMessagesByRound(t *testing.T) {
 			RecipientId: rand.Int63(),
 		}}})
 
-	count, err := m.countMixedMessagesByRound(id.Round(testRoundID))
+	count, hasRound, err := m.countMixedMessagesByRound(id.Round(testRoundID))
 	if err != nil {
 		t.Errorf("countMixedMessagesByRound() produced an error: %v", err)
 	}
 
-	if count != 3 {
+	if count != 3 || !hasRound {
 		t.Errorf("countMixedMessagesByRound() returned incorrect count."+
 			"\n\texpected: %v\n\treceived: %v", 3, count)
 	}

@@ -210,20 +210,17 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	roundID := id.Round(req.RoundID)
 
 	// Search the database for the requested messages
-	msgs, isValidGateway, err := gw.storage.GetMixedMessages(userId, roundID)
+	msgs, hasRound, err := gw.storage.GetMixedMessages(userId, roundID)
 	if err != nil {
 		jww.WARN.Printf("Could not find any MixedMessages with "+
 			"recipient ID %v and round ID %v: %+v", userId, roundID, err)
-		return &pb.GetMessagesResponse{
-				HasRound: true,
-			}, errors.Errorf("Could not find any MixedMessages with "+
-				"recipient ID %v and round ID %v: %+v", userId, roundID, err)
-	} else if !isValidGateway {
+		return &pb.GetMessagesResponse{HasRound: hasRound},
+			errors.Errorf("Could not find any MixedMessages with recipient "+
+				"ID %d and round ID %v: %+v", userId.Int64(), roundID, err)
+	} else if len(msgs) == 0 {
 		jww.WARN.Printf("A client (%v) has requested messages for a "+
 			"round (%v) which is not recorded with messages", userId, roundID)
-		return &pb.GetMessagesResponse{
-			HasRound: false,
-		}, nil
+		return &pb.GetMessagesResponse{HasRound: hasRound}, nil
 	}
 
 	// Parse the database response to construct individual slots
@@ -243,8 +240,8 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 
 	// Return all messages to the requester
 	return &pb.GetMessagesResponse{
-		HasRound: true,
 		Messages: slots,
+		HasRound: hasRound,
 	}, nil
 
 }
@@ -605,13 +602,13 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) err
 		return nil
 	}
 
-	//get the round for processing
+	// get the round for processing
 	round, err := gw.NetInf.GetRound(roundID)
 	if err != nil {
 		jww.ERROR.Printf("ProcessCompleted - Unable to get "+
 			"round %d: %+v", roundID, err)
 	}
-	//if the round was not retrieved, wait for it to become available up to 3 seconds
+	// if the round was not retrieved, wait for it to become available up to 3 seconds
 	if round == nil || states.Round(round.State) < states.QUEUED {
 		if round == nil {
 			jww.WARN.Printf("Failed to get the data about round %d for storage and gossip, "+
@@ -623,7 +620,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) err
 		}
 		roundUpdateCh := make(chan dataStructures.EventReturn)
 
-		//use round events to wait for the update
+		// use round events to wait for the update
 		gw.NetInf.GetRoundEvents().AddRoundEventChan(roundID, roundUpdateCh, roundLookupTimeout,
 			states.QUEUED, states.REALTIME, states.COMPLETED)
 		roundEvent := <-roundUpdateCh
@@ -635,10 +632,10 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) err
 		}
 	}
 
-	//process the messages
+	// process the messages
 	recipients, clientRound, notifications := gw.processMessages(msgs, roundID, round)
 
-	//upsert messages to the database
+	// upsert messages to the database
 	errMsg := gw.storage.InsertMixedMessages(clientRound)
 	if errMsg != nil {
 		jww.ERROR.Printf("Inserting new mixed messages failed in "+
