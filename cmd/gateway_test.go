@@ -869,7 +869,8 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 	var msg pb.Slot
 	rndId := uint64(3)
 	batchSize := 4
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
+	senderId := id.NewIdFromUInt(128, id.User, t)
+	msg = pb.Slot{SenderID: senderId.Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
@@ -890,9 +891,13 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: uint32(batchSize)}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
+	ipAddr := "127.0.0.1"
+	whitelist := []string{senderId.String(), ipAddr}
+	gatewayInstance.messageRateLimiting.AddToWhitelist(whitelist)
+
 	// Put a message in the same round to fill up the batch size
 	for i := 0; i < batchSize; i++ {
-		_, err := gatewayInstance.PutMessage(slotMsg, "")
+		_, err := gatewayInstance.PutMessage(slotMsg, ipAddr)
 		if err != nil {
 			t.Errorf("Failed to put message number %d into gateway's buffer: %v", i, err)
 		}
@@ -945,7 +950,8 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
 	rndId := uint64(5)
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
+	senderId := id.NewIdFromUInt(174, id.User, t)
+	msg = pb.Slot{SenderID: senderId.Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
@@ -963,8 +969,12 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
+	ipAddr := "127.0.0.1"
 
-	_, err = gatewayInstance.PutMessage(slotMsg, "")
+	whitelist := []string{senderId.String(), ipAddr}
+	gatewayInstance.messageRateLimiting.AddToWhitelist(whitelist)
+
+	_, err = gatewayInstance.PutMessage(slotMsg, ipAddr)
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
 			"IP address should not be blocked")
@@ -1004,7 +1014,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
-	_, err = gatewayInstance.PutMessage(slotMsg, "")
+	_, err = gatewayInstance.PutMessage(slotMsg, ipAddr)
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when user " +
 			"ID bucket is full but user ID is on whitelist")
@@ -1018,17 +1028,22 @@ func TestInstance_PutManyMessages(t *testing.T) {
 	numMessage := 10
 
 	// Construct client information for database
-	senderId := id.NewIdFromUInt(174, id.User, t).Marshal()
+	senderId := id.NewIdFromUInt(174, id.User, t)
 	newClient := &storage.Client{
-		Id:  senderId,
+		Id:  senderId.Marshal(),
 		Key: []byte("test"),
 	}
+
+	ipAddr := "127.0.0.1"
+
+	whitelist := []string{senderId.String(), ipAddr}
+	gatewayInstance.messageRateLimiting.AddToWhitelist(whitelist)
 
 	// Construct messages to try to put in buffer
 	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
 	for i := 0; i < numMessage; i++ {
 		msg := &pb.Slot{
-			SenderID: senderId,
+			SenderID: senderId.Marshal(),
 			PayloadA: []byte("test" + strconv.Itoa(i)),
 		}
 
@@ -1061,7 +1076,7 @@ func TestInstance_PutManyMessages(t *testing.T) {
 	}
 
 	// Try to put message
-	_, err = gatewayInstance.PutManyMessages(manyMessages, "")
+	_, err = gatewayInstance.PutManyMessages(manyMessages, ipAddr)
 	if err != nil {
 		t.Errorf("PutManyMessages: Could not put any messages in happy path: %v", err)
 	}
@@ -1151,17 +1166,22 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 	numMessage := 10
 
 	// Construct client information for database
-	senderId := id.NewIdFromUInt(174, id.User, t).Marshal()
+	senderId := id.NewIdFromUInt(174, id.User, t)
 	newClient := &storage.Client{
-		Id:  senderId,
+		Id:  senderId.Marshal(),
 		Key: []byte("test"),
 	}
+
+	ipAddr := "127.0.0.1"
+
+	whitelist := []string{senderId.String(), ipAddr}
+	gatewayInstance.messageRateLimiting.AddToWhitelist(whitelist)
 
 	// Construct messages to try to put in buffer
 	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
 	for i := 0; i < numMessage; i++ {
 		msg := &pb.Slot{
-			SenderID: senderId,
+			SenderID: senderId.Marshal(),
 			PayloadA: []byte("test" + strconv.Itoa(i)),
 		}
 
@@ -1192,7 +1212,7 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 		Target:   gatewayInstance.Comms.Id.Marshal(),
 	}
 
-	receivedMsg, err := gatewayInstance.PutManyMessages(manyMessages, "")
+	receivedMsg, err := gatewayInstance.PutManyMessages(manyMessages, ipAddr)
 	if err != nil {
 		t.Errorf("PutMessage returned an error: %+v", err)
 	}
