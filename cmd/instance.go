@@ -81,9 +81,10 @@ type Instance struct {
 	addGateway      chan network.NodeGateway
 	removeGateway   chan *id.ID
 
-	lastUpdate  uint64
-	period      int64   // Defines length of validity for ClientBloomFilter
-	lowestRound *uint64 // Cache lowest known BloomFilter round for client retrieval
+	lastUpdate    uint64
+	period        int64   // Defines length of validity for ClientBloomFilter
+	lowestRound   *uint64 // Cache lowest known BloomFilter round for client retrieval
+	lowestRoundTS *int64  // Cache earliest known timestamp
 
 	bloomFilterGossip sync.Mutex
 }
@@ -378,6 +379,8 @@ func (gw *Instance) InitNetwork() error {
 	// Set gw.lowestRound information
 	zeroRound := uint64(0)
 	gw.lowestRound = &zeroRound
+	zeroTS := int64(0)
+	gw.lowestRoundTS = &zeroTS
 
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
@@ -583,13 +586,22 @@ func (gw *Instance) beginStorageCleanup() {
 		jww.WARN.Printf("Unable to GetLowestBloomRound, will use the"+
 			" lowest round on the first poll: %+v", err)
 	}
+	earliestRoundObj, err := gw.storage.GetClientRound(
+		id.Round(earliestRound))
+	if err != nil {
+		jww.WARN.Printf("Could not get earliest round starting"+
+			" cleanup: %+v", err)
+	}
+
 	atomic.StoreUint64(gw.lowestRound, earliestRound)
+	atomic.StoreInt64(gw.lowestRoundTS, earliestRoundObj.Timestamp.Unix())
+
+	retentionPeriod := gw.Params.retentionPeriod
 
 	time.Sleep(1 * time.Second)
 
 	// Begin ticker for storage cleanup
 	ticker := time.NewTicker(gw.Params.cleanupInterval)
-	retentionPeriod := gw.Params.retentionPeriod
 	for true {
 		select {
 		case <-ticker.C:
@@ -605,7 +617,17 @@ func (gw *Instance) beginStorageCleanup() {
 				jww.WARN.Printf("Unable to GetLowestBloomRound: %+v", err)
 				continue
 			}
+			earliestRoundObj, err := gw.storage.GetClientRound(
+				id.Round(earliestRound))
+			if err != nil {
+				jww.WARN.Printf("Could not get earliest"+
+					" round on cleanup: %+v",
+					err)
+				continue
+			}
 			atomic.StoreUint64(gw.lowestRound, earliestRound)
+			atomic.StoreInt64(gw.lowestRoundTS,
+				earliestRoundObj.Timestamp.Unix())
 		}
 	}
 }

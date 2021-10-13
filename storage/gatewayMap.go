@@ -255,6 +255,21 @@ func (m *MapImpl) deleteMixedMessages(ts time.Time) error {
 	return nil
 }
 
+// GetClientRound Returns a ClientRound from map with the given id
+// Or an error if a matching Round does not exist
+func (m *MapImpl) GetClientRound(id id.Round) (*ClientRound, error) {
+	m.RLock()
+	round := m.clientRounds[uint64(id)]
+	m.RUnlock()
+
+	// Return an error if the Round was not found in the map
+	if round == nil {
+		return nil, errors.Errorf("Could not find Client Round with ID %v in map.", id)
+	}
+
+	return round, nil
+}
+
 // Returns ClientBloomFilter from database with the given recipientId
 // and an Epoch between startEpoch and endEpoch (inclusive)
 // Or an error if no matching ClientBloomFilter exist

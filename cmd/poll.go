@@ -126,12 +126,28 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 
 	}
 
+	hasFullHistory := false
+	if atomic.LoadUint64(gw.lowestRound) <= 1 {
+		hasFullHistory = true
+	} else {
+		firstTS := atomic.LoadInt64(gw.lowestRoundTS)
+		timeFromLastRet := firstTS % int64(gw.Params.retentionPeriod)
+		// note: seconds * 1e9 -> ns
+		// 60*60*1e9 => 3600*1e9
+		oneHR := int64(3600000000000)
+		if timeFromLastRet < oneHR {
+			hasFullHistory = true
+		}
+	}
+
 	return &pb.GatewayPollResponse{
-		PartialNDF:    netDef,
-		Updates:       updates,
-		KnownRounds:   knownRounds,
-		Filters:       filtersMsg,
-		EarliestRound: atomic.LoadUint64(gw.lowestRound),
+		PartialNDF:             netDef,
+		Updates:                updates,
+		KnownRounds:            knownRounds,
+		Filters:                filtersMsg,
+		EarliestRound:          atomic.LoadUint64(gw.lowestRound),
+		EarliestRoundTimestamp: atomic.LoadInt64(gw.lowestRoundTS),
+		HasFullHistory:         hasFullHistory,
 	}, nil
 }
 

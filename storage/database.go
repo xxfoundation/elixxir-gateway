@@ -41,6 +41,7 @@ type database interface {
 	getMixedMessages(recipientId ephemeral.Id, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessages(cr *ClientRound) error
 	deleteMixedMessages(ts time.Time) error
+	GetClientRound(roundId id.Round) (*ClientRound, error)
 
 	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error

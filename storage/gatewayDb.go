@@ -211,6 +211,14 @@ func (d *DatabaseImpl) deleteMixedMessages(ts time.Time) error {
 	return d.db.Where("timestamp <= ?", ts).Delete(ClientRound{}).Error
 }
 
+// Returns a ClientRound from database with the given id
+// Or an error if a matching Round does not exist
+func (d *DatabaseImpl) GetClientRound(id id.Round) (*ClientRound, error) {
+	result := &ClientRound{}
+	err := d.db.Take(&result, "id = ?", uint64(id)).Error
+	return result, catchErrors(err)
+}
+
 // Returns ClientBloomFilter from database with the given recipientId
 // and an Epoch between startEpoch and endEpoch (inclusive)
 // Or an error if no matching ClientBloomFilter exist
