@@ -141,11 +141,11 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.RequestClientKey(message)
 	}
 
-	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
-		return instance.PutMessage(message)
+	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
+		return instance.PutMessage(message, ipAddr)
 	}
-	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
-		return instance.PutManyMessages(messages)
+	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
+		return instance.PutManyMessages(messages, ipAddr)
 	}
 	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
 		return instance.RequestClientKey(message)
@@ -229,7 +229,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		}
 
 		// Update the whitelisted rate limiting IDs
-		gw.messageRateLimiting.AddToWhitelist(newNdf.PreApprovedIds)
+		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIds)
+		gw.messageRateLimiting.AddToWhitelist(newNdf.WhitelistedIps)
 
 	}
 	if newInfo.PartialNDF != nil {
