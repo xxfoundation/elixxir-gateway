@@ -397,9 +397,9 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 	}
 
 	// Check rate limiting of IP addresses and IDs
-	ipBucketSuccess := gw.messageRateLimiting.LookupBucket(ipAddr).Add(1)
+	isWhitelistedIpAddr := gw.messageRateLimiting.LookupBucket(ipAddr).IsWhitelisted()
 	idBucketSuccess := gw.messageRateLimiting.LookupBucket(senderId.String()).Add(1)
-	if !ipBucketSuccess || !idBucketSuccess {
+	if !isWhitelistedIpAddr && !idBucketSuccess {
 		return nil, errors.New("Too many messages sent in a specific time frame by user")
 	}
 
