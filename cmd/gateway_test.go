@@ -846,6 +846,8 @@ func TestGatewayImpl_PutMessage_Proxy(t *testing.T) {
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
+	gatewayInstance.messageRateLimiting.AddToWhitelist([]string{""})
+
 	receivedMsg, err := gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf("PutMessage returned an error: %+v", err)
