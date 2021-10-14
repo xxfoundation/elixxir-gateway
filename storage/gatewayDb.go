@@ -189,7 +189,7 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, bool
 
 		if count == 0 {
 			var roundCount int64
-			err = d.db.Where(&ClientRound{}, "id = ?", uint64(roundId)).Count(&roundCount).Error
+			err = d.db.Model(&ClientRound{}).Where("id = ?", uint64(roundId)).Count(&roundCount).Error
 			if err != nil {
 				return err
 			}
