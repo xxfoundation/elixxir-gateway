@@ -177,28 +177,18 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, bool
 	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
 	defer cancel()
 
+	var roundCount int64
+	err := d.db.WithContext(ctx).Model(&ClientRound{}).Where("id = ?", uint64(roundId)).Count(&roundCount).Error
+	if err != nil {
+		return 0, false, catchErrors(err)
+	}
+	hasRound := roundCount > 0
+
 	var count int64
-	hasRound := true
+	if hasRound {
+		err = d.db.WithContext(ctx).Model(&MixedMessage{}).Where("round_id = ?", uint64(roundId)).Count(&count).Error
+	}
 
-	// Build a transaction to prevent race conditions
-	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := d.db.WithContext(ctx).Model(&MixedMessage{}).Where("round_id = ?", uint64(roundId)).Count(&count).Error
-		if err != nil {
-			return err
-		}
-
-		if count == 0 {
-			var roundCount int64
-			err = d.db.Model(&ClientRound{}).Where("id = ?", uint64(roundId)).Count(&roundCount).Error
-			if err != nil {
-				return err
-			}
-			hasRound = roundCount > 0
-		}
-
-		// Commit
-		return nil
-	})
 	return uint64(count), hasRound, catchErrors(err)
 }
 
