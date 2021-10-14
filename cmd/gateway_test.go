@@ -116,6 +116,14 @@ func TestMain(m *testing.M) {
 		BucketMaxAge: 10 * time.Second,
 	}
 
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+
 	gatewayInstance = NewGatewayInstance(params)
 	gatewayInstance.Comms = gComm
 	hostParams := connect.GetDefaultHostParams()
@@ -242,7 +250,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 		UpdateId: 0,
 	}
 	gatewayInstance.storage.UpsertRound(rnd)
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	_, err = gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!"+
 			"Error received: %v", err)
@@ -283,6 +291,13 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		LeakDuration: leakDuration,
 		PollDuration: pollDuration,
 		BucketMaxAge: bucketMaxAge,
+	}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
 	}
 
 	gw := NewGatewayInstance(params)
@@ -346,7 +361,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 		UpdateId: 0,
 	}
 	gw.storage.UpsertRound(rnd)
-	_, err = gw.PutMessage(slotMsg)
+	_, err = gw.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages!"+
 			"Error received: %v", err)
@@ -693,7 +708,8 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	var err error
 	rndId := uint64(2)
 
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
+	senderId := id.NewIdFromUInt(128, id.User, t)
+	msg = pb.Slot{SenderID: senderId.Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
@@ -710,7 +726,9 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	gatewayInstance.ipAddrRateLimiting.AddToWhitelist([]string{""})
+	gatewayInstance.idRateLimiting.AddToWhitelist([]string{senderId.String()})
+	_, err = gatewayInstance.PutMessage(slotMsg, "")
 	errMsg := "PutMessage: Could not put any messages when IP " +
 		"address should not be blocked"
 	if err != nil {
@@ -731,7 +749,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	_, err = gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
@@ -750,7 +768,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	_, err = gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
@@ -769,7 +787,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	_, err = gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf(errMsg)
 	}
@@ -790,7 +808,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	_, err = gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
 			"IP bucket is full but message IP is on whitelist")
@@ -810,8 +828,8 @@ func TestGatewayImpl_PutMessage_Proxy(t *testing.T) {
 	}
 
 	rndId := uint64(20)
-
-	msg := pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
+	senderId := id.NewIdFromUInt(128, id.User, t)
+	msg := pb.Slot{SenderID: senderId.Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
@@ -831,7 +849,10 @@ func TestGatewayImpl_PutMessage_Proxy(t *testing.T) {
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
-	receivedMsg, err := gatewayInstance.PutMessage(slotMsg)
+	gatewayInstance.ipAddrRateLimiting.AddToWhitelist([]string{""})
+	gatewayInstance.idRateLimiting.AddToWhitelist([]string{senderId.String()})
+
+	receivedMsg, err := gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf("PutMessage returned an error: %+v", err)
 	}
@@ -854,7 +875,8 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 	var msg pb.Slot
 	rndId := uint64(3)
 	batchSize := 4
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(128, id.User, t).Marshal()}
+	senderId := id.NewIdFromUInt(128, id.User, t)
+	msg = pb.Slot{SenderID: senderId.Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
@@ -875,15 +897,19 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: uint32(batchSize)}
 	gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
+	ipAddr := "127.0.0.1"
+	whitelist := []string{senderId.String(), ipAddr}
+	gatewayInstance.idRateLimiting.AddToWhitelist(whitelist)
+
 	// Put a message in the same round to fill up the batch size
 	for i := 0; i < batchSize; i++ {
-		_, err := gatewayInstance.PutMessage(slotMsg)
+		_, err := gatewayInstance.PutMessage(slotMsg, ipAddr)
 		if err != nil {
 			t.Errorf("Failed to put message number %d into gateway's buffer: %v", i, err)
 		}
 	}
 
-	_, err := gatewayInstance.PutMessage(slotMsg)
+	_, err := gatewayInstance.PutMessage(slotMsg, "")
 	if err == nil {
 		t.Errorf("Expected error path. Should not be able to put a message into a full round!")
 
@@ -918,7 +944,7 @@ func TestInstance_PutMessage_NonLeader(t *testing.T) {
 	// ri := &pb.RoundInfo{ID:(rndId), BatchSize:uint32(batchSize)}
 	// gatewayInstance.UnmixedBuffer.SetAsRoundLeader(id.Round(rndId), ri.BatchSize)
 
-	_, err := gatewayInstance.PutMessage(slotMsg)
+	_, err := gatewayInstance.PutMessage(slotMsg, "")
 	if err == nil {
 		t.Errorf("Expected error path. Should not be able to put a message into a round when not the leader!")
 	}
@@ -930,7 +956,8 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	var msg pb.Slot
 	var err error
 	rndId := uint64(5)
-	msg = pb.Slot{SenderID: id.NewIdFromUInt(174, id.User, t).Marshal()}
+	senderId := id.NewIdFromUInt(174, id.User, t)
+	msg = pb.Slot{SenderID: senderId.Marshal()}
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
@@ -948,8 +975,12 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
+	ipAddr := "127.0.0.1"
 
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	whitelist := []string{senderId.String(), ipAddr}
+	gatewayInstance.idRateLimiting.AddToWhitelist(whitelist)
+
+	_, err = gatewayInstance.PutMessage(slotMsg, ipAddr)
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
 			"IP address should not be blocked")
@@ -969,7 +1000,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	_, err = gatewayInstance.PutMessage(slotMsg, "")
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when " +
 			"IP address should not be blocked")
@@ -989,7 +1020,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 
 	slotMsg.MAC = generateClientMac(newClient, slotMsg)
 	gatewayInstance.storage.UpsertClient(newClient)
-	_, err = gatewayInstance.PutMessage(slotMsg)
+	_, err = gatewayInstance.PutMessage(slotMsg, ipAddr)
 	if err != nil {
 		t.Errorf("PutMessage: Could not put any messages when user " +
 			"ID bucket is full but user ID is on whitelist")
@@ -1003,17 +1034,22 @@ func TestInstance_PutManyMessages(t *testing.T) {
 	numMessage := 10
 
 	// Construct client information for database
-	senderId := id.NewIdFromUInt(174, id.User, t).Marshal()
+	senderId := id.NewIdFromUInt(174, id.User, t)
 	newClient := &storage.Client{
-		Id:  senderId,
+		Id:  senderId.Marshal(),
 		Key: []byte("test"),
 	}
+
+	ipAddr := "127.0.0.1"
+
+	whitelist := []string{senderId.String(), ipAddr}
+	gatewayInstance.idRateLimiting.AddToWhitelist(whitelist)
 
 	// Construct messages to try to put in buffer
 	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
 	for i := 0; i < numMessage; i++ {
 		msg := &pb.Slot{
-			SenderID: senderId,
+			SenderID: senderId.Marshal(),
 			PayloadA: []byte("test" + strconv.Itoa(i)),
 		}
 
@@ -1046,7 +1082,7 @@ func TestInstance_PutManyMessages(t *testing.T) {
 	}
 
 	// Try to put message
-	_, err = gatewayInstance.PutManyMessages(manyMessages)
+	_, err = gatewayInstance.PutManyMessages(manyMessages, ipAddr)
 	if err != nil {
 		t.Errorf("PutManyMessages: Could not put any messages in happy path: %v", err)
 	}
@@ -1098,7 +1134,7 @@ func TestInstance_PutManyMessage_FullRound(t *testing.T) {
 	// Ensure that the numMessage length would not fit into the batch
 	// Batch would be filled up to (max - numMessages) + 1, so numMessages would overflow
 	for i := 0; i < batchSize-numMessage+1; i++ {
-		_, err := gatewayInstance.PutMessage(gatewaySlots[0])
+		_, err := gatewayInstance.PutMessage(gatewaySlots[0], "")
 		if err != nil {
 			t.Errorf("Failed to put message number %d into gateway's buffer: %v", i, err)
 		}
@@ -1112,7 +1148,7 @@ func TestInstance_PutManyMessage_FullRound(t *testing.T) {
 	}
 
 	// Try to put message
-	_, err = gatewayInstance.PutManyMessages(manyMessages)
+	_, err = gatewayInstance.PutManyMessages(manyMessages, "")
 	if err == nil {
 		t.Errorf("Expected error path. Should not be able to put a message into a full round!")
 
@@ -1136,17 +1172,22 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 	numMessage := 10
 
 	// Construct client information for database
-	senderId := id.NewIdFromUInt(174, id.User, t).Marshal()
+	senderId := id.NewIdFromUInt(174, id.User, t)
 	newClient := &storage.Client{
-		Id:  senderId,
+		Id:  senderId.Marshal(),
 		Key: []byte("test"),
 	}
+
+	ipAddr := "127.0.0.1"
+
+	whitelist := []string{senderId.String(), ipAddr}
+	gatewayInstance.idRateLimiting.AddToWhitelist(whitelist)
 
 	// Construct messages to try to put in buffer
 	gatewaySlots := make([]*pb.GatewaySlot, numMessage)
 	for i := 0; i < numMessage; i++ {
 		msg := &pb.Slot{
-			SenderID: senderId,
+			SenderID: senderId.Marshal(),
 			PayloadA: []byte("test" + strconv.Itoa(i)),
 		}
 
@@ -1177,7 +1218,7 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 		Target:   gatewayInstance.Comms.Id.Marshal(),
 	}
 
-	receivedMsg, err := gatewayInstance.PutManyMessages(manyMessages)
+	receivedMsg, err := gatewayInstance.PutManyMessages(manyMessages, ipAddr)
 	if err != nil {
 		t.Errorf("PutMessage returned an error: %+v", err)
 	}
@@ -1271,6 +1312,13 @@ func TestCreateNetworkInstance(t *testing.T) {
 func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	// Build the gateway instance
 	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
 
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
@@ -1304,6 +1352,13 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 	// Build the gateway instance
 
 	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
 
 	// Create new gateway instance and modify lastUpdate
 	gw := NewGatewayInstance(params)
@@ -1341,11 +1396,21 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 }
 
 func TestInstance_ClearOldStorage(t *testing.T) {
-	gw := NewGatewayInstance(Params{
+	params := Params{
 		cleanupInterval: 250 * time.Millisecond,
 		retentionPeriod: retentionPeriodDefault,
 		DevMode:         true,
-	})
+	}
+
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+
+	gw := NewGatewayInstance(params)
 
 	gw.period = 7
 
@@ -1394,7 +1459,17 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 
 // Happy path
 func TestInstance_SetPeriod(t *testing.T) {
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+
+	gw := NewGatewayInstance(params)
 	err := gw.SetPeriod()
 	if err != nil {
 		t.Errorf("Unable to set period: %+v", err)
@@ -1406,7 +1481,15 @@ func TestInstance_SetPeriod(t *testing.T) {
 
 // Handle existing period in storage path
 func TestInstance_SetPeriodExisting(t *testing.T) {
-	gw := NewGatewayInstance(Params{DevMode: true})
+	params := Params{DevMode: true}
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
+	}
+	gw := NewGatewayInstance(params)
 	expected := int64(50)
 
 	err := gw.storage.UpsertState(&storage.State{
@@ -1654,6 +1737,14 @@ func makeGatewayInstance(addr string, t *testing.T) *Instance {
 		KeyPath:               testkeys.GetGatewayKeyPath(),
 		PermissioningCertPath: testkeys.GetNodeCertPath(),
 		DevMode:               true,
+	}
+
+	params.messageRateLimitParams = &rateLimiting.MapParams{
+		Capacity:     10,
+		LeakedTokens: 1,
+		LeakDuration: 10 * time.Second,
+		PollDuration: 10 * time.Second,
+		BucketMaxAge: 10 * time.Second,
 	}
 
 	gw := NewGatewayInstance(params)

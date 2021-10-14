@@ -12,6 +12,7 @@ package cmd
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/golang-collections/collections/set"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,10 +40,11 @@ import (
 
 // Errors to suppress
 const (
-	ErrInvalidHost = "Invalid host ID:"
-	ErrAuth        = "Failed to authenticate id:"
-	gwChanLen      = 1000
-	period         = int64(1800000000000) // 30 minutes in nanoseconds
+	ErrInvalidHost   = "Invalid host ID:"
+	ErrAuth          = "Failed to authenticate id:"
+	gwChanLen        = 1000
+	period           = int64(1800000000000) // 30 minutes in nanoseconds
+	maxSendsInARound = 25
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -86,6 +88,23 @@ type Instance struct {
 	lowestRound *uint64 // Cache lowest known BloomFilter round for client retrieval
 
 	bloomFilterGossip sync.Mutex
+
+	// Rate limiting
+	RateLimitingMux sync.RWMutex
+
+	idRateLimiting  *rateLimiting.BucketMap
+	idRateLimitQuit chan struct{}
+
+	// Rate limiting
+	ipAddrRateLimiting  *rateLimiting.BucketMap
+	ipAddrRateLimitQuit chan struct{}
+
+	whitelistedIpAddressSet *set.Set
+	whitelistedIdsSet       *set.Set
+
+	LeakedCapacity uint
+	LeakedTokens   uint
+	LeakDuration   time.Duration
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -113,12 +132,32 @@ func NewGatewayInstance(params Params) *Instance {
 		jww.FATAL.Panicf("failed to create new KnownRounds wrapper: %+v", err)
 	}
 
+	idRateLimitQuit := make(chan struct{}, 1)
+	ipAddrRateLimitQuit := make(chan struct{}, 1)
+
 	i := &Instance{
-		UnmixedBuffer: storage.NewUnmixedMessagesMap(),
-		Params:        params,
-		storage:       newDatabase,
-		krw:           krw,
+		UnmixedBuffer:           storage.NewUnmixedMessagesMap(),
+		Params:                  params,
+		storage:                 newDatabase,
+		krw:                     krw,
+		idRateLimitQuit:         idRateLimitQuit,
+		ipAddrRateLimitQuit:     ipAddrRateLimitQuit,
+		whitelistedIpAddressSet: set.New(),
+		whitelistedIdsSet:       set.New(),
+		LeakedCapacity:          1,
+		LeakDuration:            2000 * time.Millisecond,
+		LeakedTokens:            1,
 	}
+
+	msgRateLimitParams := &rateLimiting.MapParams{
+		Capacity:     uint32(i.LeakedCapacity),
+		LeakedTokens: uint32(i.LeakedTokens),
+		LeakDuration: i.LeakDuration,
+		PollDuration: params.messageRateLimitParams.PollDuration,
+		BucketMaxAge: params.messageRateLimitParams.BucketMaxAge,
+	}
+	i.idRateLimiting = rateLimiting.CreateBucketMapFromParams(msgRateLimitParams, nil, i.idRateLimitQuit)
+	i.ipAddrRateLimiting = rateLimiting.CreateBucketMapFromParams(msgRateLimitParams, nil, i.ipAddrRateLimitQuit)
 
 	hw.LogHardware()
 
@@ -132,11 +171,11 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.RequestClientKey(message)
 	}
 
-	impl.Functions.PutMessage = func(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
-		return instance.PutMessage(message)
+	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
+		return instance.PutMessage(message, ipAddr)
 	}
-	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots) (*pb.GatewaySlotResponse, error) {
-		return instance.PutManyMessages(messages)
+	impl.Functions.PutManyMessages = func(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
+		return instance.PutManyMessages(messages, ipAddr)
 	}
 	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
 		return instance.RequestClientKey(message)
@@ -212,6 +251,78 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		if err != nil {
 			return err
 		}
+
+		// Unmarshal NDF
+		newNdf, err := ndf.Unmarshal(newInfo.FullNDF.Ndf)
+		if err != nil {
+			return err
+		}
+
+		gw.RateLimitingMux.Lock()
+		if gw.LeakedCapacity != newNdf.RateLimits.Capacity ||
+			gw.LeakedTokens != newNdf.RateLimits.LeakedTokens ||
+			gw.LeakDuration != time.Duration(newNdf.RateLimits.LeakDuration) {
+
+			gw.idRateLimiting = rateLimiting.CreateBucketMap(uint32(newNdf.RateLimits.Capacity),
+				uint32(newNdf.RateLimits.LeakedTokens),
+				time.Duration(newNdf.RateLimits.LeakedTokens), pollDuration, bucketMaxAge, nil, gw.idRateLimitQuit)
+
+			gw.ipAddrRateLimiting = rateLimiting.CreateBucketMap(uint32(newNdf.RateLimits.Capacity),
+				uint32(newNdf.RateLimits.LeakedTokens),
+				time.Duration(newNdf.RateLimits.LeakedTokens), pollDuration, bucketMaxAge, nil, gw.ipAddrRateLimitQuit)
+
+		} else {
+			// Construct set of of whitelisted IDs
+			whitelistedIdsSet := set.New()
+			for _, ids := range newNdf.WhitelistedIds {
+				whitelistedIdsSet.Insert(ids)
+			}
+
+			// Find difference between new set from NDF and stored set from impl
+			removedIds := gw.whitelistedIdsSet.Difference(whitelistedIdsSet)
+
+			// Remove all whitelisted IDs no longer in NDF
+			removedIds.Do(func(i interface{}) {
+				removedId := i.(string)
+				err = gw.idRateLimiting.DeleteBucket(removedId)
+				if err != nil {
+					jww.ERROR.Printf("Could not remove ID from whitelist: %v", err)
+				}
+
+			})
+
+			// Store new set in impl
+			gw.whitelistedIdsSet = whitelistedIdsSet
+
+			// Construct set of of whitelisted IP addresses from NDF
+			whitelistedIpAddressesSet := set.New()
+			for _, ipAddr := range newNdf.WhitelistedIpAddresses {
+				whitelistedIpAddressesSet.Insert(ipAddr)
+			}
+
+			// Find difference between new set from NDF and stored set from impl
+			removedIpAddresses := gw.whitelistedIdsSet.Difference(whitelistedIpAddressesSet)
+
+			// Remove all whitelisted IP addresses no longer in NDF
+			removedIpAddresses.Do(func(i interface{}) {
+				removedIpAddr := i.(string)
+				err = gw.ipAddrRateLimiting.DeleteBucket(removedIpAddr)
+				if err != nil {
+					jww.ERROR.Printf("Could not remove IP address from whitelist: %v", err)
+				}
+			})
+
+			// Store new set in impl
+			gw.whitelistedIpAddressSet = whitelistedIpAddressesSet
+
+		}
+
+		// Update the whitelisted rate limiting IDs
+		gw.idRateLimiting.AddToWhitelist(newNdf.WhitelistedIds)
+		gw.ipAddrRateLimiting.AddToWhitelist(newNdf.WhitelistedIpAddresses)
+
+		gw.RateLimitingMux.Unlock()
+
 	}
 	if newInfo.PartialNDF != nil {
 		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
@@ -264,7 +375,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			// Chek if our node is the entry point fo the circuit
 			if states.Round(update.State) == states.PRECOMPUTING &&
 				topology.IsFirstNode(gw.ServerHost.GetId()) {
-				gw.UnmixedBuffer.SetAsRoundLeader(id.Round(update.ID), update.BatchSize)
+				rid := id.Round(update.ID)
+				gw.UnmixedBuffer.SetAsRoundLeader(rid, update.BatchSize)
 			} else if states.Round(update.State) == states.FAILED {
 				err = gw.krw.forceCheck(id.Round(update.ID), gw.storage)
 				if err != nil {
