@@ -103,10 +103,12 @@ type Instance struct {
 	whitelistedIpAddressSet *set.Set
 	whitelistedIdsSet       *set.Set
 
-	LeakedCapacity uint
-	LeakedTokens   uint
-	LeakDuration   time.Duration
-	earliestRound  *uint64 // Cache lowest known round provided by node for client retrieval
+	LeakedCapacity            uint
+	LeakedTokens              uint
+	LeakDuration              time.Duration
+	earliestRound             *uint64 // Cache lowest known round provided by node for client retrieval
+	earliestRoundTimestamp    time.Time
+	earliestRoundTimestampMux sync.Mutex
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -418,8 +420,14 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		gw.UploadUnmixedBatch(newInfo.BatchRequest)
 	}
 
-	if newInfo.GetEarliestRound() != 0 && newInfo.GetEarliestRound() != gw.GetEarliestRound() {
+	if newInfo.GetEarliestRound() != 0 &&
+		newInfo.GetEarliestRound() != gw.GetEarliestRound() {
 		gw.SetEarliestRound(newInfo.GetEarliestRound())
+	}
+
+	earliestRoundTs := time.Unix(0, int64(newInfo.GetEarliestRoundTimestamp()))
+	if !earliestRoundTs.IsZero() {
+		gw.SetEarliestRoundTimestamp(earliestRoundTs)
 	}
 
 	return nil
@@ -708,12 +716,11 @@ func (gw *Instance) beginStorageCleanup() {
 
 	// Begin ticker for storage cleanup
 	ticker := time.NewTicker(gw.Params.cleanupInterval)
-	retentionPeriod := gw.Params.retentionPeriod
 	for true {
 		select {
 		case <-ticker.C:
 			// Run storage cleanup when timer expires
-			err := gw.clearOldStorage(time.Now().Add(-retentionPeriod))
+			err := gw.clearOldStorage(gw.GetEarliestRoundTimestamp())
 			if err != nil {
 				jww.WARN.Printf("Issue clearing old storage: %v", err)
 				continue
@@ -824,4 +831,16 @@ func (gw *Instance) GetEarliestRound() uint64 {
 
 func (gw *Instance) SetEarliestRound(round uint64) {
 	atomic.StoreUint64(gw.earliestRound, round)
+}
+
+func (gw *Instance) SetEarliestRoundTimestamp(ts time.Time) {
+	gw.earliestRoundTimestampMux.Lock()
+	defer gw.earliestRoundTimestampMux.Unlock()
+	gw.earliestRoundTimestamp = ts
+}
+
+func (gw *Instance) GetEarliestRoundTimestamp() time.Time {
+	gw.earliestRoundTimestampMux.Lock()
+	defer gw.earliestRoundTimestampMux.Unlock()
+	return gw.earliestRoundTimestamp
 }
