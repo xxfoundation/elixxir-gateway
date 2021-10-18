@@ -426,7 +426,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	earliestRoundTs := time.Unix(0, int64(newInfo.GetEarliestRoundTimestamp()))
-	if !earliestRoundTs.IsZero() {
+	if !earliestRoundTs.IsZero() &&
+		!earliestRoundTs.Equal(gw.GetEarliestRoundTimestamp()) {
 		gw.SetEarliestRoundTimestamp(earliestRoundTs)
 	}
 
