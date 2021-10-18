@@ -10,7 +10,6 @@
 package cmd
 
 import (
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -131,7 +130,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		Updates:       updates,
 		KnownRounds:   knownRounds,
 		Filters:       filtersMsg,
-		EarliestRound: atomic.LoadUint64(gw.lowestRound),
+		EarliestRound: gw.GetEarliestRound(),
 	}, nil
 }
 

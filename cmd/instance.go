@@ -83,8 +83,9 @@ type Instance struct {
 	addGateway      chan network.NodeGateway
 	removeGateway   chan *id.ID
 
-	lastUpdate  uint64
-	period      int64   // Defines length of validity for ClientBloomFilter
+	lastUpdate uint64
+	period     int64 // Defines length of validity for ClientBloomFilter
+	// todo: should this be removed for earliestRound from node?
 	lowestRound *uint64 // Cache lowest known BloomFilter round for client retrieval
 
 	bloomFilterGossip sync.Mutex
@@ -105,6 +106,7 @@ type Instance struct {
 	LeakedCapacity uint
 	LeakedTokens   uint
 	LeakDuration   time.Duration
+	earliestRound  *uint64 // Cache lowest known round provided by node for client retrieval
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -134,7 +136,7 @@ func NewGatewayInstance(params Params) *Instance {
 
 	idRateLimitQuit := make(chan struct{}, 1)
 	ipAddrRateLimitQuit := make(chan struct{}, 1)
-
+	earliestRound := uint64(0)
 	i := &Instance{
 		UnmixedBuffer:           storage.NewUnmixedMessagesMap(),
 		Params:                  params,
@@ -147,6 +149,7 @@ func NewGatewayInstance(params Params) *Instance {
 		LeakedCapacity:          1,
 		LeakDuration:            2000 * time.Millisecond,
 		LeakedTokens:            1,
+		earliestRound:           &earliestRound,
 	}
 
 	msgRateLimitParams := &rateLimiting.MapParams{
@@ -413,6 +416,10 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	// Send a new batch to the server when it asks for one
 	if newInfo.BatchRequest != nil {
 		gw.UploadUnmixedBatch(newInfo.BatchRequest)
+	}
+
+	if newInfo.GetEarliestRound() != 0 && newInfo.GetEarliestRound() != gw.GetEarliestRound() {
+		gw.SetEarliestRound(newInfo.GetEarliestRound())
 	}
 
 	return nil
@@ -809,4 +816,12 @@ func (gw *Instance) LoadLastUpdateID() error {
 
 	gw.lastUpdate = lastUpdate
 	return nil
+}
+
+func (gw *Instance) GetEarliestRound() uint64 {
+	return atomic.LoadUint64(gw.earliestRound)
+}
+
+func (gw *Instance) SetEarliestRound(round uint64) {
+	atomic.StoreUint64(gw.earliestRound, round)
 }
