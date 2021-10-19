@@ -107,11 +107,15 @@ type Instance struct {
 	whitelistedIpAddressSet *set.Set
 	whitelistedIdsSet       *set.Set
 
-	LeakedCapacity          uint
-	LeakedTokens            uint
-	LeakDuration            time.Duration
-	earliestRoundTracker    atomic.Value
-	earliestRoundUpdateChan chan struct{}
+	LeakedCapacity uint
+	LeakedTokens   uint
+	LeakDuration   time.Duration
+
+	earliestRoundTracker       atomic.Value
+	earliestRoundTrackerUnsafe EarliestRound
+
+	earliestRoundTrackerMux sync.Mutex
+	earliestRoundUpdateChan chan EarliestRound
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -141,7 +145,7 @@ func NewGatewayInstance(params Params) *Instance {
 
 	idRateLimitQuit := make(chan struct{}, 1)
 	ipAddrRateLimitQuit := make(chan struct{}, 1)
-	earliestRoundUpdateChan := make(chan struct{})
+	earliestRoundUpdateChan := make(chan EarliestRound)
 	i := &Instance{
 		UnmixedBuffer:           storage.NewUnmixedMessagesMap(),
 		Params:                  params,
@@ -417,13 +421,13 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	if newInfo.EarliestRoundErr == "" {
-		swapped, err := gw.UpdateEarliestRound(newInfo.GetEarliestRound(),
+		swapped := gw.UpdateEarliestRound(newInfo.GetEarliestRound(),
 			newInfo.GetEarliestRoundTimestamp())
-		if err != nil {
-			return errors.Errorf("Could not update earliest tracked round: %v", err)
-		}
 		if swapped {
-			gw.earliestRoundUpdateChan <- struct{}{}
+			gw.earliestRoundUpdateChan <- EarliestRound{
+				id:        newInfo.GetEarliestRound(),
+				timestamp: newInfo.GetEarliestRoundTimestamp(),
+			}
 		}
 	}
 
@@ -702,9 +706,10 @@ func (gw *Instance) beginStorageCleanup() {
 	// Begin ticker for storage cleanup
 	for true {
 		select {
-		case <-gw.earliestRoundUpdateChan:
+		case earliestRound := <-gw.earliestRoundUpdateChan:
 			// Run storage cleanup when timer expires
-			err := gw.clearOldStorage(gw.GetEarliestRoundTimestamp())
+			clearTimeStamp := time.Unix(0, int64(earliestRound.timestamp))
+			err := gw.clearOldStorage(clearTimeStamp)
 			if err != nil {
 				jww.WARN.Printf("Issue clearing old storage: %v", err)
 				continue
@@ -802,55 +807,37 @@ func (gw *Instance) LoadLastUpdateID() error {
 	return nil
 }
 
-func (gw *Instance) GetEarliestRound() (uint64, uint64, error) {
+func (gw *Instance) GetEarliestRound() (uint64, time.Time, error) {
 	// Retrieve earliest round from tracker
 	earliestRound, ok := gw.earliestRoundTracker.Load().(*EarliestRound)
 	if !ok || earliestRound == nil { // If nil or not of expected type, return an error
-		return 0, 0, errors.New("Earliest round state does not exist, try again")
+		return 0, time.Time{}, errors.New("Earliest round state does not exist, try again")
 	}
 
 	// Return values
-	return earliestRound.id, earliestRound.timestamp, nil
+	return earliestRound.id, time.Unix(0, int64(earliestRound.timestamp)), nil
 }
 
-func (gw *Instance) UpdateEarliestRound(newRoundId, newRoundTimestamp uint64) (bool, error) {
-	// Retrieve earliest round from tracker
-	earliestRound, ok := gw.earliestRoundTracker.Load().(*EarliestRound)
-	if !ok {
-		return false, errors.New("Unexpected type stored in earliest round tracker")
-	}
+func (gw *Instance) UpdateEarliestRound(newRoundId, newRoundTimestamp uint64) bool {
+	gw.earliestRoundTrackerMux.Lock()
+	defer gw.earliestRoundTrackerMux.Unlock()
 
-	// Store new values
-	newEarliestRound := &EarliestRound{
+	// Create earliest round
+	newEarliestRound := EarliestRound{
 		id:        newRoundId,
 		timestamp: newRoundTimestamp,
 	}
 
-	swappedTimestamp := true
+	// Determine if values need to be updated
+	swappedTimestamp := gw.earliestRoundTrackerUnsafe.timestamp != newEarliestRound.timestamp ||
+		newEarliestRound.id != gw.earliestRoundTrackerUnsafe.id
 
-	// On startup, no value will be present in the atomic.
-	// Store new values without state checking
-	if earliestRound != nil {
-		// Determine if timestamp was updated
-		swappedTimestamp = earliestRound.timestamp == newEarliestRound.timestamp
+	// Update values if necessary
+	if swappedTimestamp {
+		gw.earliestRoundTracker.Store(newEarliestRound)
+		gw.earliestRoundTrackerUnsafe = newEarliestRound
 	}
 
-	gw.earliestRoundTracker.Store(newEarliestRound)
-
 	// Return whether update occurred
-	return swappedTimestamp, nil
-}
-
-func (gw *Instance) GetEarliestRoundTimestamp() time.Time {
-	// Retrieve earliest round from tracker
-	earliestRound := gw.earliestRoundTracker.Load().(*EarliestRound)
-
-	return time.Unix(0, int64(earliestRound.timestamp))
-}
-
-func (gw *Instance) GetEarliestRoundId() uint64 {
-	// Retrieve earliest round from tracker
-	earliestRound := gw.earliestRoundTracker.Load().(*EarliestRound)
-
-	return earliestRound.id
+	return swappedTimestamp
 }
