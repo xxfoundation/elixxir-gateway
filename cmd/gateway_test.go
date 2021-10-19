@@ -1415,7 +1415,6 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 
 	gw.period = 7
 
-	gw.earliestRoundTimestamp = time.Now().Add(-retentionPeriod)
 	oldTimestamp := time.Now().Add(-5 * retentionPeriod)
 	rndId := uint64(1)
 

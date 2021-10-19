@@ -130,7 +130,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		Updates:       updates,
 		KnownRounds:   knownRounds,
 		Filters:       filtersMsg,
-		EarliestRound: gw.GetEarliestRound(),
+		EarliestRound: gw.GetEarliestRoundId(),
 	}, nil
 }
 
