@@ -20,7 +20,7 @@ before_script:
   - chmod 700 ~/.ssh
   - ssh-keyscan -t rsa $GITLAB_SERVER > ~/.ssh/known_hosts
   - git config --global url."git@$GITLAB_SERVER:".insteadOf "https://gitlab.com/"
-  - git config --global url."git@$GITLAB_SERVER:".insteadOf "https://git.xx.network/"
+  - git config --global url."git@$GITLAB_SERVER:".insteadOf "https://git.xx.network/" --add
   - export PATH=$HOME/go/bin:$PATH
 
 stages:
@@ -78,8 +78,9 @@ tag:
 
 trigger_integration:
   stage: trigger_integration
-  script:
-    - "curl -X POST -F token=e34aa19ef1530e579c5d590873d3c6 -F ref=master https://gitlab.com/api/v4/projects/28/trigger/pipeline"
-    - "curl -X POST -F token=d1888aeb7d0e1e6573b313a59ff16e -F ref=master https://gitlab.com/api/v4/projects/28/trigger/pipeline"
+  trigger:
+    project: elixxir/integration
+    branch: $CI_COMMIT_REF_NAME
   only:
+    - release
     - master

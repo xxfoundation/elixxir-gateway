@@ -40,8 +40,9 @@ type Params struct {
 	IDFPath               string
 	PermissioningCertPath string `yaml:"schedulingCertPath"`
 
-	rateLimitParams *rateLimiting.MapParams
-	gossipFlags     gossip.ManagerFlags
+	rateLimitParams        *rateLimiting.MapParams
+	messageRateLimitParams *rateLimiting.MapParams
+	gossipFlags            gossip.ManagerFlags
 
 	DevMode       bool
 	DisableGossip bool
@@ -156,6 +157,14 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
+	messageLimitingParams := &rateLimiting.MapParams{
+		Capacity:     1,
+		LeakedTokens: 1,
+		LeakDuration: 2 * time.Second,
+		PollDuration: pollDuration,
+		BucketMaxAge: bucketMaxAge,
+	}
+
 	// Time to keep messages, rounds and filters in storage
 	viper.SetDefault("retentionPeriod", retentionPeriodDefault)
 	retentionPeriod := viper.GetDuration("retentionPeriod")
@@ -175,25 +184,26 @@ func InitParams(vip *viper.Viper) Params {
 	}
 
 	return Params{
-		Port:                  gwPort,
-		PublicAddress:         gwAddress,
-		ListeningAddress:      listeningAddress,
-		NodeAddress:           nodeAddress,
-		CertPath:              certPath,
-		KeyPath:               keyPath,
-		ServerCertPath:        serverCertPath,
-		IDFPath:               idfPath,
-		PermissioningCertPath: permissioningCertPath,
-		gossipFlags:           gossipFlags,
-		rateLimitParams:       bucketMapParams,
-		DbName:                viper.GetString("dbName"),
-		DbUsername:            viper.GetString("dbUsername"),
-		DbPassword:            viper.GetString("dbPassword"),
-		DbAddress:             addr,
-		DbPort:                port,
-		DevMode:               viper.GetBool("devMode"),
-		DisableGossip:         viper.GetBool("disableGossip"),
-		retentionPeriod:       retentionPeriod,
-		cleanupInterval:       cleanupInterval,
+		Port:                   gwPort,
+		PublicAddress:          gwAddress,
+		ListeningAddress:       listeningAddress,
+		NodeAddress:            nodeAddress,
+		CertPath:               certPath,
+		KeyPath:                keyPath,
+		ServerCertPath:         serverCertPath,
+		IDFPath:                idfPath,
+		PermissioningCertPath:  permissioningCertPath,
+		gossipFlags:            gossipFlags,
+		rateLimitParams:        bucketMapParams,
+		messageRateLimitParams: messageLimitingParams,
+		DbName:                 viper.GetString("dbName"),
+		DbUsername:             viper.GetString("dbUsername"),
+		DbPassword:             viper.GetString("dbPassword"),
+		DbAddress:              addr,
+		DbPort:                 port,
+		DevMode:                viper.GetBool("devMode"),
+		DisableGossip:          viper.GetBool("disableGossip"),
+		retentionPeriod:        retentionPeriod,
+		cleanupInterval:        cleanupInterval,
 	}
 }

@@ -148,7 +148,7 @@ func (umb *UnmixedMessagesMap) SetAsRoundLeader(roundId id.Round, batchsize uint
 	}
 	jww.INFO.Printf("Adding round buffer for round %d", roundId)
 	umb.messages[roundId] = &SendRound{
-		batch:       &pb.Batch{},
+		batch:       &pb.Batch{Slots: make([]*pb.Slot, 0, batchsize)},
 		maxElements: batchsize,
 	}
 }

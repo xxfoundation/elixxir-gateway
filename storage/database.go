@@ -37,7 +37,7 @@ type database interface {
 	UpsertRound(round *Round) error
 	deleteRound(ts time.Time) error
 
-	countMixedMessagesByRound(roundId id.Round) (uint64, error)
+	countMixedMessagesByRound(roundId id.Round) (uint64, bool, error)
 	getMixedMessages(recipientId ephemeral.Id, roundId id.Round) ([]*MixedMessage, error)
 	InsertMixedMessages(cr *ClientRound) error
 	deleteMixedMessages(ts time.Time) error
@@ -162,7 +162,7 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 }
 
 // Initialize the database interface with database backend
-// Returns a database interface, close function, and error
+// Returns a database interface and error
 func newDatabase(username, password, dbName, address,
 	port string, devmode bool) (database, error) {
 

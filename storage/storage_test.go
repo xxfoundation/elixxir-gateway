@@ -203,15 +203,18 @@ func TestStorage_GetMixedMessages(t *testing.T) {
 				},
 				RoundIdCount: map[id.Round]uint64{testRoundID: 1},
 			},
+			clientRounds: map[uint64]*ClientRound{
+				uint64(testRoundID): {},
+			},
 		},
 	}
 
-	msgs, isValidGateway, err := storage.GetMixedMessages(testRecipientID, testRoundID)
+	msgs, hasRound, err := storage.GetMixedMessages(testRecipientID, testRoundID)
 	if len(msgs) != 1 {
 		t.Errorf("Retrieved unexpected number of messages: %d", len(msgs))
 	}
-	if !isValidGateway {
-		t.Errorf("Expected valid gateway!")
+	if !hasRound {
+		t.Errorf("Expected valid round!")
 	}
 	if err != nil {
 		t.Errorf(err.Error())
@@ -232,12 +235,12 @@ func TestStorage_GetMixedMessagesInvalidGw(t *testing.T) {
 		},
 	}
 
-	msgs, isValidGateway, err := storage.GetMixedMessages(testRecipientID, testRoundID)
+	msgs, hasRound, err := storage.GetMixedMessages(testRecipientID, testRoundID)
 	if len(msgs) != 0 {
 		t.Errorf("Retrieved unexpected number of messages: %d", len(msgs))
 	}
-	if isValidGateway {
-		t.Errorf("Expected invalid gateway!")
+	if hasRound {
+		t.Errorf("Expected invalid round!")
 	}
 	if err != nil {
 		t.Errorf(err.Error())
