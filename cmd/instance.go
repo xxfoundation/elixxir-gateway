@@ -429,15 +429,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	if newInfo.EarliestRoundErr == "" {
-		swapped := gw.UpdateEarliestRound(newInfo.GetEarliestClientRound(),
+		gw.UpdateEarliestRound(newInfo.GetEarliestClientRound(),
 			newInfo.GetEarliestGatewayRound(), newInfo.GetEarliestRoundTimestamp())
-		if swapped {
-			gw.earliestRoundUpdateChan <- EarliestRound{
-				clientRoundId: newInfo.GetEarliestClientRound(),
-				gwRoundID:     newInfo.GetEarliestGatewayRound(),
-				gwTimestamp:   newInfo.GetEarliestRoundTimestamp(),
-			}
-		}
 	}
 
 	return nil
@@ -831,7 +824,7 @@ func (gw *Instance) GetEarliestRound() (uint64, uint64, time.Time, error) {
 }
 
 func (gw *Instance) UpdateEarliestRound(newClientRoundId,
-	newGwRoundID uint64, newRoundTimestamp int64) bool {
+	newGwRoundID uint64, newRoundTimestamp int64) {
 	gw.earliestRoundTrackerMux.Lock()
 	defer gw.earliestRoundTrackerMux.Unlock()
 
@@ -847,12 +840,13 @@ func (gw *Instance) UpdateEarliestRound(newClientRoundId,
 		newEarliestRound.clientRoundId != gw.earliestRoundTrackerUnsafe.clientRoundId ||
 		newEarliestRound.gwRoundID != gw.earliestRoundTrackerUnsafe.gwRoundID
 
-	// Update values if necessary
+	// Update values if update is needed
 	if isUpdate {
 		gw.earliestRoundTracker.Store(newEarliestRound)
 		gw.earliestRoundTrackerUnsafe = newEarliestRound
+
+		// Send to storage maintenance thread
+		gw.earliestRoundUpdateChan <- newEarliestRound
 	}
 
-	// Return whether update occurred
-	return isUpdate
 }
