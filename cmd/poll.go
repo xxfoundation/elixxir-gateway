@@ -55,7 +55,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"client version \"%s\" was not compatible with NDF defined minimum version", clientRequest.ClientVersion)
 	}
 
-	earliestRoundId, _, err := gw.GetEarliestRound()
+	earliestRoundId, _, _, err := gw.GetEarliestRound()
 	if err != nil {
 		return &pb.GatewayPollResponse{}, errors.WithMessage(err, "Failed to "+
 			"retrieve earliest round info, no state currently exists with this gateway.")

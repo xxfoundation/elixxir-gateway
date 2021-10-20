@@ -52,8 +52,16 @@ const knownRoundsSize = 65536
 
 // EarliestRound denotes the earliest tracked round for this gateway.
 type EarliestRound struct {
-	id        uint64
-	timestamp uint64
+	clientRoundId uint64
+	gwRoundID     uint64
+	gwTimestamp   int64
+}
+
+// IsZero  returns whether any of the values are zero,
+// representing an uninitialized object
+func (er EarliestRound) IsZero() bool {
+	return er.clientRoundId == 0 ||
+		er.gwRoundID == 0 || er.gwTimestamp == 0
 }
 
 type Instance struct {
@@ -421,12 +429,13 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	if newInfo.EarliestRoundErr == "" {
-		swapped := gw.UpdateEarliestRound(newInfo.GetEarliestRound(),
-			newInfo.GetEarliestRoundTimestamp())
+		swapped := gw.UpdateEarliestRound(newInfo.GetEarliestClientRound(),
+			newInfo.GetEarliestGatewayRound(), newInfo.GetEarliestRoundTimestamp())
 		if swapped {
 			gw.earliestRoundUpdateChan <- EarliestRound{
-				id:        newInfo.GetEarliestRound(),
-				timestamp: newInfo.GetEarliestRoundTimestamp(),
+				clientRoundId: newInfo.GetEarliestClientRound(),
+				gwRoundID:     newInfo.GetEarliestGatewayRound(),
+				gwTimestamp:   newInfo.GetEarliestRoundTimestamp(),
 			}
 		}
 	}
@@ -708,7 +717,7 @@ func (gw *Instance) beginStorageCleanup() {
 		select {
 		case earliestRound := <-gw.earliestRoundUpdateChan:
 			// Run storage cleanup when timer expires
-			clearTimeStamp := time.Unix(0, int64(earliestRound.timestamp))
+			clearTimeStamp := time.Unix(0, earliestRound.gwTimestamp)
 			err := gw.clearOldStorage(clearTimeStamp)
 			if err != nil {
 				jww.WARN.Printf("Issue clearing old storage: %v", err)
@@ -807,37 +816,43 @@ func (gw *Instance) LoadLastUpdateID() error {
 	return nil
 }
 
-func (gw *Instance) GetEarliestRound() (uint64, time.Time, error) {
+func (gw *Instance) GetEarliestRound() (uint64, uint64, time.Time, error) {
 	// Retrieve earliest round from tracker
-	earliestRound, ok := gw.earliestRoundTracker.Load().(*EarliestRound)
-	if !ok || earliestRound == nil { // If nil or not of expected type, return an error
-		return 0, time.Time{}, errors.New("Earliest round state does not exist, try again")
+	earliestRound, ok := gw.earliestRoundTracker.Load().(EarliestRound)
+	if !ok || // Or the// If not of the expected type
+		earliestRound.IsZero() { // or if the object is uninitialized, return an error
+		return 0, 0, time.Time{},
+			errors.New("Earliest round state does not exist, try again")
 	}
 
 	// Return values
-	return earliestRound.id, time.Unix(0, int64(earliestRound.timestamp)), nil
+	return earliestRound.clientRoundId,
+		earliestRound.gwRoundID, time.Unix(0, earliestRound.gwTimestamp), nil
 }
 
-func (gw *Instance) UpdateEarliestRound(newRoundId, newRoundTimestamp uint64) bool {
+func (gw *Instance) UpdateEarliestRound(newClientRoundId,
+	newGwRoundID uint64, newRoundTimestamp int64) bool {
 	gw.earliestRoundTrackerMux.Lock()
 	defer gw.earliestRoundTrackerMux.Unlock()
 
 	// Create earliest round
 	newEarliestRound := EarliestRound{
-		id:        newRoundId,
-		timestamp: newRoundTimestamp,
+		clientRoundId: newClientRoundId,
+		gwRoundID:     newGwRoundID,
+		gwTimestamp:   newRoundTimestamp,
 	}
 
 	// Determine if values need to be updated
-	swappedTimestamp := gw.earliestRoundTrackerUnsafe.timestamp != newEarliestRound.timestamp ||
-		newEarliestRound.id != gw.earliestRoundTrackerUnsafe.id
+	isUpdate := gw.earliestRoundTrackerUnsafe.gwTimestamp != newEarliestRound.gwTimestamp ||
+		newEarliestRound.clientRoundId != gw.earliestRoundTrackerUnsafe.clientRoundId ||
+		newEarliestRound.gwRoundID != gw.earliestRoundTrackerUnsafe.gwRoundID
 
 	// Update values if necessary
-	if swappedTimestamp {
+	if isUpdate {
 		gw.earliestRoundTracker.Store(newEarliestRound)
 		gw.earliestRoundTrackerUnsafe = newEarliestRound
 	}
 
 	// Return whether update occurred
-	return swappedTimestamp
+	return isUpdate
 }
