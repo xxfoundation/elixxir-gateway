@@ -500,6 +500,8 @@ func (gw *Instance) InitNetwork() error {
 		jww.WARN.Printf("Unable to load LastUpdateID: %+v", err)
 	}
 
+	jww.DEBUG.Printf("On start up last update ID is: %d", gw.lastUpdate)
+
 	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
 	gw.Comms = gateway.StartGateway(&id.TempGateway, gw.Params.ListeningAddress,
