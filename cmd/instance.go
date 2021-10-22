@@ -712,11 +712,16 @@ func (gw *Instance) beginStorageCleanup() {
 		select {
 		case earliestRound := <-gw.earliestRoundUpdateChan:
 			// Run storage cleanup when timer expires
-			clearTimeStamp := time.Unix(0, earliestRound.gwTimestamp)
-			err := gw.clearOldStorage(clearTimeStamp)
-			if err != nil {
-				jww.WARN.Printf("Issue clearing old storage: %v", err)
-				continue
+			if earliestRound.gwTimestamp > 0 {
+				clearTimeStamp := time.Unix(0, earliestRound.gwTimestamp)
+
+				jww.INFO.Printf("clearTimestamp: %s", clearTimeStamp)
+				jww.INFO.Printf("raw timestamp: %v", earliestRound.gwTimestamp)
+				err := gw.clearOldStorage(clearTimeStamp)
+				if err != nil {
+					jww.WARN.Printf("Issue clearing old storage: %v", err)
+					continue
+				}
 			}
 		}
 	}
@@ -834,7 +839,6 @@ func (gw *Instance) UpdateEarliestRound(newClientRoundId,
 	newEarliestRound := EarliestRound{
 		clientRoundId: newClientRoundId,
 		gwRoundID:     newGwRoundID,
-		gwTimestamp:   newRoundTimestamp,
 	}
 
 	// Determine if values need to be updated
