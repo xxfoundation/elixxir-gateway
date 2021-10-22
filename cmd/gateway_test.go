@@ -1398,9 +1398,10 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 func TestInstance_ClearOldStorage(t *testing.T) {
 	params := Params{
 		cleanupInterval: 250 * time.Millisecond,
-		retentionPeriod: retentionPeriodDefault,
 		DevMode:         true,
 	}
+
+	retentionPeriod := 2 * 7 * 24 * time.Hour
 
 	params.messageRateLimitParams = &rateLimiting.MapParams{
 		Capacity:     10,
@@ -1414,7 +1415,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 
 	gw.period = 7
 
-	oldTimestamp := time.Now().Add(-5 * retentionPeriodDefault)
+	oldTimestamp := time.Now().Add(-5 * retentionPeriod)
 	rndId := uint64(1)
 
 	testId := id.NewIdFromBytes([]byte("Frodo"), t)
@@ -1439,7 +1440,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	go func() {
 		wg.Add(1)
 
-		gw.clearOldStorage(time.Now().Add(-retentionPeriodDefault))
+		gw.clearOldStorage(time.Now().Add(-retentionPeriod))
 
 		wg.Done()
 	}()

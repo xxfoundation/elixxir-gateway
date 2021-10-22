@@ -10,7 +10,6 @@
 package cmd
 
 import (
-	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -54,6 +53,12 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	if version.IsCompatible(expectedClientVersion, clientVersion) == false {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
 			"client version \"%s\" was not compatible with NDF defined minimum version", clientRequest.ClientVersion)
+	}
+
+	earliestRoundId, _, _, err := gw.GetEarliestRound()
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.WithMessage(err, "Failed to "+
+			"retrieve earliest round info, no state currently exists with this gateway.")
 	}
 
 	// Check if the clientID is populated and valid
@@ -123,7 +128,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		// Get the range of updates from the consensus object, with all updates
 		// and the RSA Signature
 		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
-
 	}
 
 	return &pb.GatewayPollResponse{
@@ -131,7 +135,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		Updates:       updates,
 		KnownRounds:   knownRounds,
 		Filters:       filtersMsg,
-		EarliestRound: atomic.LoadUint64(gw.lowestRound),
+		EarliestRound: earliestRoundId,
 	}, nil
 }
 

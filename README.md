@@ -87,10 +87,6 @@ dbPassword: ""
 # Flags listed below should be left as their defaults unless you know what you
 # are doing.
 
-# How long messages, rounds, and bloom filters remain in storage before being
-# cleaned from storage. Expects duration in"h". (Defaults to 1 week (168 hours))
-retentionPeriod: 168h
-
 # How often the periodic storage tracker checks for items older than the
 # retention period value. Expects duration in "s", "m", "h". (Defaults to 5
 # minutes)
