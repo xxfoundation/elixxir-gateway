@@ -83,7 +83,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 	requestTime := time.Unix(0, request.RequestTimestamp)
 	if time.Since(requestTime) > RequestKeyThresholdMax ||
 		time.Until(requestTime) < RequestKeyThresholdMix {
-		errMsg := errors.WithMessagef(err, "Request timestamp is beyond acceptable threshold")
+		errMsg := errors.New("Request timestamp is beyond acceptable threshold")
 		return &pb.SignedKeyResponse{Error: errMsg.Error()}, errMsg
 	}
 
