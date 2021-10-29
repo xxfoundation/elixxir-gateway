@@ -43,6 +43,7 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 	krw := &knownRoundsWrapper{
 		kr:         knownRounds.NewKnownRound(roundCapacity),
 		marshalled: []byte{},
+		truncated:  []byte{},
 	}
 
 	// There is no round 0
@@ -135,7 +136,7 @@ func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 	return nil
 }
 
-// load loads the KnownRounds from storage into the knownRoundsWrapper.
+// load the KnownRounds from storage into the knownRoundsWrapper.
 func (krw *knownRoundsWrapper) load(store *storage.Storage, earliestRoundId id.Round) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()

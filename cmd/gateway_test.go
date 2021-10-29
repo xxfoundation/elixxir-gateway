@@ -1329,6 +1329,12 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	}
 	expectedData := gw.krw.getMarshal()
 
+	gw.earliestRoundTracker.Store(EarliestRound{
+		clientRoundId: 1,
+		gwRoundID:     1,
+		gwTimestamp:   1,
+	})
+
 	// Attempt to save knownRounds to file
 	if err := gw.SaveKnownRounds(); err != nil {
 		t.Errorf("SaveKnownRounds() produced an error: %v", err)
