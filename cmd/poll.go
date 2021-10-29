@@ -10,7 +10,6 @@
 package cmd
 
 import (
-	"gitlab.com/xx_network/primitives/id"
 	"time"
 
 	"github.com/pkg/errors"
@@ -91,7 +90,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	lastChecked := gw.krw.getLastChecked()
 	var knownRounds []byte
 	if clientRequest.GetLastRound()-uint64(lastChecked) < knownRoundsTruncateThreshold {
-		knownRounds = gw.krw.truncateMarshal(id.Round(earliestRoundId))
+		knownRounds = gw.krw.truncateMarshal()
 	} else {
 		knownRounds = gw.krw.getMarshal()
 	}

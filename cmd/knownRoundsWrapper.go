@@ -33,6 +33,7 @@ const (
 type knownRoundsWrapper struct {
 	kr         *knownRounds.KnownRounds
 	marshalled []byte
+	truncated  []byte
 	l          sync.RWMutex
 }
 
@@ -69,11 +70,14 @@ func (krw *knownRoundsWrapper) check(rid id.Round, store *storage.Storage) error
 	return krw.saveUnsafe(store)
 }
 
-func (krw *knownRoundsWrapper) truncateMarshal(startRound id.Round) []byte {
+func (krw *knownRoundsWrapper) truncateMarshal() []byte {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
-	return krw.kr.Truncate(startRound).Marshal()
+	bytes := make([]byte, len(krw.truncated))
+	copy(bytes, krw.truncated)
+
+	return bytes
 }
 
 func (krw *knownRoundsWrapper) getLastChecked() id.Round {
@@ -132,7 +136,7 @@ func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 }
 
 // load loads the KnownRounds from storage into the knownRoundsWrapper.
-func (krw *knownRoundsWrapper) load(store *storage.Storage) error {
+func (krw *knownRoundsWrapper) load(store *storage.Storage, earliestRoundId id.Round) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
@@ -155,6 +159,7 @@ func (krw *knownRoundsWrapper) load(store *storage.Storage) error {
 
 	// Save the marshalled KnownRounds
 	krw.marshalled = dataDecode
+	krw.truncated = krw.kr.Truncate(earliestRoundId).Marshal()
 
 	return nil
 }

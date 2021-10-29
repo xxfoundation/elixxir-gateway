@@ -777,7 +777,11 @@ func (gw *Instance) SaveKnownRounds() error {
 // LoadKnownRounds loads the KnownRounds from storage into the Instance, if a
 // stored value exists.
 func (gw *Instance) LoadKnownRounds() error {
-	return gw.krw.load(gw.storage)
+	earliestRoundId, _, _, err := gw.GetEarliestRound()
+	if err != nil {
+		return err
+	}
+	return gw.krw.load(gw.storage, id.Round(earliestRoundId))
 }
 
 // SaveLastUpdateID saves the Instance.lastUpdate value to storage
