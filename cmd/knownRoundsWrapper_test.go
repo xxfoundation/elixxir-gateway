@@ -37,6 +37,7 @@ func Test_newKnownRoundsWrapper(t *testing.T) {
 	}
 	expected.kr.Check(0)
 	expected.marshalled = expected.kr.Marshal()
+	expected.truncated = expected.marshalled
 	expectedData := base64.StdEncoding.EncodeToString(expected.marshalled)
 
 	krw, err := newKnownRoundsWrapper(roundCapacity, gw.storage)
