@@ -184,7 +184,7 @@ func Test_knownRoundsWrapper_save_load(t *testing.T) {
 		kr: knownRounds.NewKnownRound(10),
 	}
 
-	err = loadedKrw.load(gw.storage, 0)
+	err = loadedKrw.load(gw.storage)
 	if err != nil {
 		t.Errorf("load retuned an error: %+v", err)
 	}
@@ -205,7 +205,7 @@ func Test_knownRoundsWrapper_load_GetStateValueError(t *testing.T) {
 	krw := &knownRoundsWrapper{kr: knownRounds.NewKnownRound(10)}
 	expectedErr := strings.SplitN(storageGetErr, "%", 2)[0]
 
-	err = krw.load(store, 0)
+	err = krw.load(store)
 	if err == nil || !strings.Contains(err.Error(), expectedErr) {
 		t.Errorf("load did not return the expected error."+
 			"\nexpected: %s\nreceived: %+v", expectedErr, err)

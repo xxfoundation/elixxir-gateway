@@ -24,10 +24,12 @@ import (
 
 // Error messages.
 const (
-	storageUpsertErr    = "failed to upsert marshalled KnownRounds to storage: %+v"
-	storageGetErr       = "failed to get KnownRounds from storage: %+v"
-	storageDecodeErr    = "failed to decode KnownRounds from storage: %+v"
-	storageUnmarshalErr = "failed to unmarshal KnownRounds from storage: %+v"
+	// Determines round differences that triggers a truncate
+	knownRoundsTruncateThreshold id.Round = 1000
+	storageUpsertErr                      = "failed to upsert marshalled KnownRounds to storage: %+v"
+	storageGetErr                         = "failed to get KnownRounds from storage: %+v"
+	storageDecodeErr                      = "failed to decode KnownRounds from storage: %+v"
+	storageUnmarshalErr                   = "failed to unmarshal KnownRounds from storage: %+v"
 )
 
 type knownRoundsWrapper struct {
@@ -123,6 +125,11 @@ func (krw *knownRoundsWrapper) save(store *storage.Storage) error {
 func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 	// Marshal and save knownRounds
 	krw.marshalled = krw.kr.Marshal()
+	if krw.kr.GetLastChecked() > knownRoundsTruncateThreshold {
+		krw.truncated = krw.kr.Truncate(krw.kr.GetLastChecked() - knownRoundsTruncateThreshold).Marshal()
+	} else {
+		krw.truncated = krw.marshalled
+	}
 
 	// Store knownRounds data
 	err := store.UpsertState(&storage.State{
@@ -137,7 +144,7 @@ func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 }
 
 // load the KnownRounds from storage into the knownRoundsWrapper.
-func (krw *knownRoundsWrapper) load(store *storage.Storage, earliestRoundId id.Round) error {
+func (krw *knownRoundsWrapper) load(store *storage.Storage) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
@@ -160,7 +167,11 @@ func (krw *knownRoundsWrapper) load(store *storage.Storage, earliestRoundId id.R
 
 	// Save the marshalled KnownRounds
 	krw.marshalled = dataDecode
-	krw.truncated = krw.kr.Truncate(earliestRoundId).Marshal()
+	if krw.kr.GetLastChecked() > knownRoundsTruncateThreshold {
+		krw.truncated = krw.kr.Truncate(krw.kr.GetLastChecked() - knownRoundsTruncateThreshold).Marshal()
+	} else {
+		krw.truncated = dataDecode
+	}
 
 	return nil
 }

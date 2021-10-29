@@ -23,9 +23,6 @@ import (
 	"gitlab.com/xx_network/primitives/ndf"
 )
 
-// Determines round differences that triggers a truncate
-const knownRoundsTruncateThreshold uint64 = 1000
-
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
 func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	*pb.GatewayPollResponse, error) {
@@ -87,13 +84,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//be a race condition because known rounds is updated after the bloom filters,
 	//so you can get a known rounds that denotes an updated bloom filter while
 	//it was not received
-	lastChecked := gw.krw.getLastChecked()
-	var knownRounds []byte
-	if clientRequest.GetLastRound()-uint64(lastChecked) < knownRoundsTruncateThreshold {
-		knownRounds = gw.krw.truncateMarshal()
-	} else {
-		knownRounds = gw.krw.getMarshal()
-	}
+	knownRounds := gw.krw.truncateMarshal()
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
