@@ -10,6 +10,7 @@
 package cmd
 
 import (
+	"gitlab.com/xx_network/primitives/id"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,6 +23,8 @@ import (
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/ndf"
 )
+
+var knownRoundsTruncateThreshold uint64 = 1000
 
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
 func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
@@ -84,7 +87,13 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//be a race condition because known rounds is updated after the bloom filters,
 	//so you can get a known rounds that denotes an updated bloom filter while
 	//it was not received
-	knownRounds := gw.krw.getMarshal()
+	lastChecked := gw.krw.getLastChecked()
+	var knownRounds []byte
+	if clientRequest.GetLastRound()-uint64(lastChecked) < knownRoundsTruncateThreshold {
+		knownRounds = gw.krw.truncateMarshal(id.Round(earliestRoundId))
+	} else {
+		knownRounds = gw.krw.getMarshal()
+	}
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters

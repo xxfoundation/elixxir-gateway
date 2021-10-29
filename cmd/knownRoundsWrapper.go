@@ -69,6 +69,20 @@ func (krw *knownRoundsWrapper) check(rid id.Round, store *storage.Storage) error
 	return krw.saveUnsafe(store)
 }
 
+func (krw *knownRoundsWrapper) truncateMarshal(startRound id.Round) []byte {
+	krw.l.Lock()
+	defer krw.l.Unlock()
+
+	return krw.kr.Truncate(startRound).Marshal()
+}
+
+func (krw *knownRoundsWrapper) getLastChecked() id.Round {
+	krw.l.Lock()
+	defer krw.l.Unlock()
+
+	return krw.kr.GetLastChecked()
+}
+
 // forceCheck force checks the round and saves the KnownRounds.
 func (krw *knownRoundsWrapper) forceCheck(rid id.Round, store *storage.Storage) error {
 	krw.l.Lock()
