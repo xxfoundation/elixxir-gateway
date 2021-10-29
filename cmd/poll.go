@@ -24,7 +24,8 @@ import (
 	"gitlab.com/xx_network/primitives/ndf"
 )
 
-var knownRoundsTruncateThreshold uint64 = 1000
+// Determines round differences that triggers a truncate
+const knownRoundsTruncateThreshold uint64 = 1000
 
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
 func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
