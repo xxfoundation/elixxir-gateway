@@ -58,7 +58,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	earliestRoundId, _, _, err := gw.GetEarliestRound()
 	if err != nil {
 		return &pb.GatewayPollResponse{}, errors.WithMessage(err, "Failed to "+
-			"retrieve earliest round info, no state currently exists with this gateway.")
+			"retrieve earliest round info, no state currently exists with this gateway")
 	}
 
 	// Check if the clientID is populated and valid

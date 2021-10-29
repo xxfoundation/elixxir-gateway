@@ -60,8 +60,8 @@ type EarliestRound struct {
 // IsZero  returns whether any of the values are zero,
 // representing an uninitialized object
 func (er EarliestRound) IsZero() bool {
-	return er.clientRoundId == 0 ||
-		er.gwRoundID == 0 || er.gwTimestamp == 0
+	jww.DEBUG.Printf("clientRound %d, gwRound %d, gwTs %v", er.clientRoundId, er.gwRoundID, er.gwTimestamp)
+	return er.clientRoundId == 0
 }
 
 type Instance struct {
@@ -712,11 +712,14 @@ func (gw *Instance) beginStorageCleanup() {
 		select {
 		case earliestRound := <-gw.earliestRoundUpdateChan:
 			// Run storage cleanup when timer expires
-			clearTimeStamp := time.Unix(0, earliestRound.gwTimestamp)
-			err := gw.clearOldStorage(clearTimeStamp)
-			if err != nil {
-				jww.WARN.Printf("Issue clearing old storage: %v", err)
-				continue
+			if earliestRound.gwTimestamp > 0 {
+				clearTimeStamp := time.Unix(0, earliestRound.gwTimestamp)
+
+				err := gw.clearOldStorage(clearTimeStamp)
+				if err != nil {
+					jww.WARN.Printf("Issue clearing old storage: %v", err)
+					continue
+				}
 			}
 		}
 	}
@@ -816,6 +819,7 @@ func (gw *Instance) GetEarliestRound() (uint64, uint64, time.Time, error) {
 	earliestRound, ok := gw.earliestRoundTracker.Load().(EarliestRound)
 	if !ok || // Or the// If not of the expected type
 		earliestRound.IsZero() { // or if the object is uninitialized, return an error
+		jww.DEBUG.Printf("GetEarliestRound is ok %v and isZero %v", ok, earliestRound.IsZero())
 		return 0, 0, time.Time{},
 			errors.New("Earliest round state does not exist, try again")
 	}
@@ -834,7 +838,7 @@ func (gw *Instance) UpdateEarliestRound(newClientRoundId,
 	newEarliestRound := EarliestRound{
 		clientRoundId: newClientRoundId,
 		gwRoundID:     newGwRoundID,
-		gwTimestamp:   newRoundTimestamp,
+		gwTimestamp: newRoundTimestamp,
 	}
 
 	// Determine if values need to be updated
