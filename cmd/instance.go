@@ -48,7 +48,7 @@ const (
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
-const knownRoundsSize = 65536
+const knownRoundsSize = 1512000
 
 // EarliestRound denotes the earliest tracked round for this gateway.
 type EarliestRound struct {
