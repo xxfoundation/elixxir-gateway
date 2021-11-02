@@ -24,15 +24,18 @@ import (
 
 // Error messages.
 const (
-	storageUpsertErr    = "failed to upsert marshalled KnownRounds to storage: %+v"
-	storageGetErr       = "failed to get KnownRounds from storage: %+v"
-	storageDecodeErr    = "failed to decode KnownRounds from storage: %+v"
-	storageUnmarshalErr = "failed to unmarshal KnownRounds from storage: %+v"
+	// Determines round differences that triggers a truncate
+	knownRoundsTruncateThreshold id.Round = 1000
+	storageUpsertErr                      = "failed to upsert marshalled KnownRounds to storage: %+v"
+	storageGetErr                         = "failed to get KnownRounds from storage: %+v"
+	storageDecodeErr                      = "failed to decode KnownRounds from storage: %+v"
+	storageUnmarshalErr                   = "failed to unmarshal KnownRounds from storage: %+v"
 )
 
 type knownRoundsWrapper struct {
 	kr         *knownRounds.KnownRounds
 	marshalled []byte
+	truncated  []byte
 	l          sync.RWMutex
 }
 
@@ -42,6 +45,7 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 	krw := &knownRoundsWrapper{
 		kr:         knownRounds.NewKnownRound(roundCapacity),
 		marshalled: []byte{},
+		truncated:  []byte{},
 	}
 
 	// There is no round 0
@@ -67,6 +71,23 @@ func (krw *knownRoundsWrapper) check(rid id.Round, store *storage.Storage) error
 	krw.kr.Check(rid)
 
 	return krw.saveUnsafe(store)
+}
+
+func (krw *knownRoundsWrapper) truncateMarshal() []byte {
+	krw.l.Lock()
+	defer krw.l.Unlock()
+
+	bytes := make([]byte, len(krw.truncated))
+	copy(bytes, krw.truncated)
+
+	return bytes
+}
+
+func (krw *knownRoundsWrapper) getLastChecked() id.Round {
+	krw.l.Lock()
+	defer krw.l.Unlock()
+
+	return krw.kr.GetLastChecked()
 }
 
 // forceCheck force checks the round and saves the KnownRounds.
@@ -104,6 +125,11 @@ func (krw *knownRoundsWrapper) save(store *storage.Storage) error {
 func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 	// Marshal and save knownRounds
 	krw.marshalled = krw.kr.Marshal()
+	if krw.kr.GetLastChecked() > knownRoundsTruncateThreshold {
+		krw.truncated = krw.kr.Truncate(krw.kr.GetLastChecked() - knownRoundsTruncateThreshold).Marshal()
+	} else {
+		krw.truncated = krw.marshalled
+	}
 
 	// Store knownRounds data
 	err := store.UpsertState(&storage.State{
@@ -117,7 +143,7 @@ func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 	return nil
 }
 
-// load loads the KnownRounds from storage into the knownRoundsWrapper.
+// load the KnownRounds from storage into the knownRoundsWrapper.
 func (krw *knownRoundsWrapper) load(store *storage.Storage) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
@@ -141,6 +167,11 @@ func (krw *knownRoundsWrapper) load(store *storage.Storage) error {
 
 	// Save the marshalled KnownRounds
 	krw.marshalled = dataDecode
+	if krw.kr.GetLastChecked() > knownRoundsTruncateThreshold {
+		krw.truncated = krw.kr.Truncate(krw.kr.GetLastChecked() - knownRoundsTruncateThreshold).Marshal()
+	} else {
+		krw.truncated = dataDecode
+	}
 
 	return nil
 }

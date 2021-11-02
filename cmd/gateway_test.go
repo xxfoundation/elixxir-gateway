@@ -1328,7 +1328,6 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 		t.Errorf("Failed to check round %d: %v", 4, err)
 	}
 	expectedData := gw.krw.getMarshal()
-
 	// Attempt to save knownRounds to file
 	if err := gw.SaveKnownRounds(); err != nil {
 		t.Errorf("SaveKnownRounds() produced an error: %v", err)
@@ -1338,7 +1337,6 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	if err := gw.LoadKnownRounds(); err != nil {
 		t.Errorf("LoadKnownRounds() produced an error: %v", err)
 	}
-
 	// Ensure that the data loaded from file matches the expected data
 	testData := gw.krw.getMarshal()
 	if !reflect.DeepEqual(expectedData, testData) {

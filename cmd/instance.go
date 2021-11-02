@@ -815,7 +815,7 @@ func (gw *Instance) LoadLastUpdateID() error {
 }
 
 func (gw *Instance) GetEarliestRound() (uint64, uint64, time.Time, error) {
-	// Retrieve earliest round from tracker
+	// Retrieve the earliest round from tracker
 	earliestRound, ok := gw.earliestRoundTracker.Load().(EarliestRound)
 	if !ok || // Or the// If not of the expected type
 		earliestRound.IsZero() { // or if the object is uninitialized, return an error

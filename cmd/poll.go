@@ -84,7 +84,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//be a race condition because known rounds is updated after the bloom filters,
 	//so you can get a known rounds that denotes an updated bloom filter while
 	//it was not received
-	knownRounds := gw.krw.getMarshal()
+	knownRounds := gw.krw.truncateMarshal()
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
