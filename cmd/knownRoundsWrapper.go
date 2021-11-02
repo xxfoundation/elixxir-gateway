@@ -74,8 +74,8 @@ func (krw *knownRoundsWrapper) check(rid id.Round, store *storage.Storage) error
 }
 
 func (krw *knownRoundsWrapper) truncateMarshal() []byte {
-	krw.l.Lock()
-	defer krw.l.Unlock()
+	krw.l.RLock()
+	defer krw.l.RUnlock()
 
 	bytes := make([]byte, len(krw.truncated))
 	copy(bytes, krw.truncated)
@@ -84,8 +84,8 @@ func (krw *knownRoundsWrapper) truncateMarshal() []byte {
 }
 
 func (krw *knownRoundsWrapper) getLastChecked() id.Round {
-	krw.l.Lock()
-	defer krw.l.Unlock()
+	krw.l.RLock()
+	defer krw.l.RUnlock()
 
 	return krw.kr.GetLastChecked()
 }
@@ -102,8 +102,8 @@ func (krw *knownRoundsWrapper) forceCheck(rid id.Round, store *storage.Storage) 
 
 // getMarshal returns a copy of the marshalled bytes of the KnownRounds.
 func (krw *knownRoundsWrapper) getMarshal() []byte {
-	krw.l.Lock()
-	defer krw.l.Unlock()
+	krw.l.RLock()
+	defer krw.l.RUnlock()
 
 	bytes := make([]byte, len(krw.marshalled))
 	copy(bytes, krw.marshalled)
@@ -111,7 +111,7 @@ func (krw *knownRoundsWrapper) getMarshal() []byte {
 	return bytes
 }
 
-// save saves the marshalled KnownRounds to memory and storage. This
+// save the marshalled KnownRounds to memory and storage. This
 // function is thread safe.
 func (krw *knownRoundsWrapper) save(store *storage.Storage) error {
 	krw.l.Lock()
@@ -141,6 +141,12 @@ func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 	}
 
 	return nil
+}
+
+// Returns whether the given round calls for a truncated knownRound
+func (krw *knownRoundsWrapper) needsTruncated(round id.Round) bool {
+	lastChecked := krw.kr.GetLastChecked()
+	return round < lastChecked && lastChecked-round > knownRoundsTruncateThreshold
 }
 
 // load the KnownRounds from storage into the knownRoundsWrapper.

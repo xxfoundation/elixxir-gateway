@@ -10,6 +10,7 @@
 package cmd
 
 import (
+	"gitlab.com/xx_network/primitives/id"
 	"time"
 
 	"github.com/pkg/errors"
@@ -84,7 +85,12 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//be a race condition because known rounds is updated after the bloom filters,
 	//so you can get a known rounds that denotes an updated bloom filter while
 	//it was not received
-	knownRounds := gw.krw.truncateMarshal()
+	var knownRounds []byte
+	if gw.krw.needsTruncated(id.Round(clientRequest.LastRound)) {
+		knownRounds = gw.krw.truncateMarshal()
+	} else {
+		knownRounds = gw.krw.getMarshal()
+	}
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
