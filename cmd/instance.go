@@ -124,6 +124,7 @@ type Instance struct {
 
 	earliestRoundTrackerMux sync.Mutex
 	earliestRoundUpdateChan chan EarliestRound
+	earliestRoundQuitChan  chan struct{}
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -721,6 +722,8 @@ func (gw *Instance) beginStorageCleanup() {
 					continue
 				}
 			}
+		case <- gw.earliestRoundQuitChan:
+			return
 		}
 	}
 }

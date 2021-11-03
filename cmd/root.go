@@ -124,6 +124,7 @@ var rootCmd = &cobra.Command{
 		case <-stopCh:
 			gateway.ipAddrRateLimitQuit <- struct{}{}
 			gateway.idRateLimitQuit <- struct{}{}
+			gateway.earliestRoundQuitChan <- struct{}{}
 			jww.INFO.Printf(
 				"Received Exit (SIGTERM or SIGINT) signal...\n")
 			if profileOut != "" {
