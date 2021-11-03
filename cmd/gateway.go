@@ -459,8 +459,10 @@ func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotR
 	clientMac := generateClientMac(cl, message)
 	if !bytes.Equal(clientMac, message.MAC) {
 		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, errors.New("Could not authenticate client. Is the client registered with this node?")
+				Accepted: false,
+			}, errors.Errorf("Could not authenticate client. Is the "+
+				"client registered with this node (%s)?",
+				gw.ServerHost.GetId())
 	}
 
 	// fixme: enable once gossip is not broken
