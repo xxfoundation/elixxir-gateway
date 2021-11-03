@@ -504,8 +504,15 @@ func (gw *Instance) InitNetwork() error {
 
 	// Set up temporary gateway listener
 	gatewayHandler := NewImplementation(gw)
+	// Start storage cleanup thread
+	go func() {
+		gw.beginStorageCleanup()
+	}()
+
 	gw.Comms = gateway.StartGateway(&id.TempGateway, gw.Params.ListeningAddress,
 		gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
+
+
 
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
@@ -694,11 +701,6 @@ func (gw *Instance) InitNetwork() error {
 		// }
 	}
 
-	// Start storage cleanup thread
-	go func() {
-		gw.beginStorageCleanup()
-	}()
-
 	return nil
 }
 
@@ -842,9 +844,9 @@ func (gw *Instance) UpdateEarliestRound(newClientRoundId,
 	}
 
 	// Determine if values need to be updated
-	isUpdate := gw.earliestRoundTrackerUnsafe.gwTimestamp != newEarliestRound.gwTimestamp ||
-		newEarliestRound.clientRoundId != gw.earliestRoundTrackerUnsafe.clientRoundId ||
-		newEarliestRound.gwRoundID != gw.earliestRoundTrackerUnsafe.gwRoundID
+	isUpdate := gw.earliestRoundTrackerUnsafe.gwTimestamp > newEarliestRound.gwTimestamp ||
+		newEarliestRound.clientRoundId > gw.earliestRoundTrackerUnsafe.clientRoundId ||
+		newEarliestRound.gwRoundID > gw.earliestRoundTrackerUnsafe.gwRoundID
 
 	// Update values if update is needed
 	if isUpdate {
