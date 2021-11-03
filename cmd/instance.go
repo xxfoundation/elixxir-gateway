@@ -844,7 +844,7 @@ func (gw *Instance) UpdateEarliestRound(newClientRoundId,
 	}
 
 	// Determine if values need to be updated
-	isUpdate := gw.earliestRoundTrackerUnsafe.gwTimestamp > newEarliestRound.gwTimestamp ||
+	isUpdate := newEarliestRound.gwTimestamp  > gw.earliestRoundTrackerUnsafe.gwTimestamp ||
 		newEarliestRound.clientRoundId > gw.earliestRoundTrackerUnsafe.clientRoundId ||
 		newEarliestRound.gwRoundID > gw.earliestRoundTrackerUnsafe.gwRoundID
 
