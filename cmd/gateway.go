@@ -36,6 +36,7 @@ import (
 // Zeroed identity fingerprint identifies dummy messages
 var dummyIdFp = make([]byte, format.IdentityFPLen)
 var noConnectionErr = "unable to connect to target host %s."
+var noHostErr = "unable to find target host %s."
 
 const RequestKeyThresholdMax = 3 * time.Minute
 const RequestKeyThresholdMix = -3 * time.Minute
@@ -61,7 +62,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
+				return nil, errors.Errorf(noHostErr, targetID)
 			}
 			connected, _ := host.Connected()
 			if !connected {
@@ -191,7 +192,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
+				return nil, errors.Errorf(noHostErr, targetID)
 			}
 			connected, _ := host.Connected()
 			if !connected {
@@ -293,7 +294,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
+				return nil, errors.Errorf(noHostErr, targetID)
 			}
 			connected, _ := host.Connected()
 			if !connected {
@@ -366,7 +367,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
+				return nil, errors.Errorf(noHostErr, targetID)
 			}
 			connected, _ := host.Connected()
 			if !connected {
