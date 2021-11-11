@@ -10,7 +10,7 @@
 package cmd
 
 import (
-	"sync/atomic"
+	"gitlab.com/xx_network/primitives/id"
 	"time"
 
 	"github.com/pkg/errors"
@@ -56,6 +56,12 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"client version \"%s\" was not compatible with NDF defined minimum version", clientRequest.ClientVersion)
 	}
 
+	earliestRoundId, _, _, err := gw.GetEarliestRound()
+	if err != nil {
+		return &pb.GatewayPollResponse{}, errors.WithMessage(err, "Failed to "+
+			"retrieve earliest round info, no state currently exists with this gateway")
+	}
+
 	// Check if the clientID is populated and valid
 	receptionId, err := ephemeral.Marshal(clientRequest.GetReceptionID())
 	if err != nil {
@@ -79,7 +85,12 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	//be a race condition because known rounds is updated after the bloom filters,
 	//so you can get a known rounds that denotes an updated bloom filter while
 	//it was not received
-	knownRounds := gw.krw.getMarshal()
+	var knownRounds []byte
+	if gw.krw.needsTruncated(id.Round(clientRequest.LastRound)) {
+		knownRounds = gw.krw.truncateMarshal()
+	} else {
+		knownRounds = gw.krw.getMarshal()
+	}
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
@@ -123,7 +134,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		// Get the range of updates from the consensus object, with all updates
 		// and the RSA Signature
 		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
-
 	}
 
 	return &pb.GatewayPollResponse{
@@ -131,7 +141,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		Updates:       updates,
 		KnownRounds:   knownRounds,
 		Filters:       filtersMsg,
-		EarliestRound: atomic.LoadUint64(gw.lowestRound),
+		EarliestRound: earliestRoundId,
 	}, nil
 }
 

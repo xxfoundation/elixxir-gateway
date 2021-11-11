@@ -37,6 +37,7 @@ func Test_newKnownRoundsWrapper(t *testing.T) {
 	}
 	expected.kr.Check(0)
 	expected.marshalled = expected.kr.Marshal()
+	expected.truncated = expected.marshalled
 	expectedData := base64.StdEncoding.EncodeToString(expected.marshalled)
 
 	krw, err := newKnownRoundsWrapper(roundCapacity, gw.storage)
@@ -189,7 +190,7 @@ func Test_knownRoundsWrapper_save_load(t *testing.T) {
 		t.Errorf("load retuned an error: %+v", err)
 	}
 
-	if !reflect.DeepEqual(krw, loadedKrw) {
+	if !bytes.Equal(loadedKrw.marshalled, krw.marshalled) {
 		t.Errorf("Saved and loaded knownRoundsWrapper does not match original."+
 			"\nexpected: %+v\nreceived: %+v", krw, loadedKrw)
 	}

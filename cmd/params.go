@@ -47,15 +47,10 @@ type Params struct {
 	DevMode       bool
 	DisableGossip bool
 
-	retentionPeriod time.Duration
 	cleanupInterval time.Duration
 }
 
 const (
-	// Default time period for keeping messages, rounds and bloom filters
-	// alive in storage. Anything in storage older gets deleted
-	retentionPeriodDefault = 24 * 7 * time.Hour
-
 	// Default time period for checking storage for stored items older
 	// than the retention period value
 	cleanupIntervalDefault = 5 * time.Minute
@@ -165,10 +160,6 @@ func InitParams(vip *viper.Viper) Params {
 		BucketMaxAge: bucketMaxAge,
 	}
 
-	// Time to keep messages, rounds and filters in storage
-	viper.SetDefault("retentionPeriod", retentionPeriodDefault)
-	retentionPeriod := viper.GetDuration("retentionPeriod")
-
 	// Time to periodically check for old objects in storage
 	viper.SetDefault("cleanupInterval", cleanupIntervalDefault)
 	cleanupInterval := viper.GetDuration("cleanupInterval")
@@ -203,7 +194,6 @@ func InitParams(vip *viper.Viper) Params {
 		DbPort:                 port,
 		DevMode:                viper.GetBool("devMode"),
 		DisableGossip:          viper.GetBool("disableGossip"),
-		retentionPeriod:        retentionPeriod,
 		cleanupInterval:        cleanupInterval,
 	}
 }

@@ -1328,7 +1328,6 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 		t.Errorf("Failed to check round %d: %v", 4, err)
 	}
 	expectedData := gw.krw.getMarshal()
-
 	// Attempt to save knownRounds to file
 	if err := gw.SaveKnownRounds(); err != nil {
 		t.Errorf("SaveKnownRounds() produced an error: %v", err)
@@ -1338,7 +1337,6 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	if err := gw.LoadKnownRounds(); err != nil {
 		t.Errorf("LoadKnownRounds() produced an error: %v", err)
 	}
-
 	// Ensure that the data loaded from file matches the expected data
 	testData := gw.krw.getMarshal()
 	if !reflect.DeepEqual(expectedData, testData) {
@@ -1398,9 +1396,10 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 func TestInstance_ClearOldStorage(t *testing.T) {
 	params := Params{
 		cleanupInterval: 250 * time.Millisecond,
-		retentionPeriod: retentionPeriodDefault,
 		DevMode:         true,
 	}
+
+	retentionPeriod := 2 * 7 * 24 * time.Hour
 
 	params.messageRateLimitParams = &rateLimiting.MapParams{
 		Capacity:     10,
@@ -1414,7 +1413,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 
 	gw.period = 7
 
-	oldTimestamp := time.Now().Add(-5 * retentionPeriodDefault)
+	oldTimestamp := time.Now().Add(-5 * retentionPeriod)
 	rndId := uint64(1)
 
 	testId := id.NewIdFromBytes([]byte("Frodo"), t)
@@ -1439,7 +1438,7 @@ func TestInstance_ClearOldStorage(t *testing.T) {
 	go func() {
 		wg.Add(1)
 
-		gw.clearOldStorage(time.Now().Add(-retentionPeriodDefault))
+		gw.clearOldStorage(time.Now().Add(-retentionPeriod))
 
 		wg.Done()
 	}()

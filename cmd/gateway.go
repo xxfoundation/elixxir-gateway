@@ -36,6 +36,7 @@ import (
 // Zeroed identity fingerprint identifies dummy messages
 var dummyIdFp = make([]byte, format.IdentityFPLen)
 var noConnectionErr = "unable to connect to target host %s."
+var noHostErr = "unable to find target host %s."
 
 const RequestKeyThresholdMax = 3 * time.Minute
 const RequestKeyThresholdMix = -3 * time.Minute
@@ -61,7 +62,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
+				return nil, errors.Errorf(noHostErr, targetID)
 			}
 			connected, _ := host.Connected()
 			if !connected {
@@ -83,7 +84,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 	requestTime := time.Unix(0, request.RequestTimestamp)
 	if time.Since(requestTime) > RequestKeyThresholdMax ||
 		time.Until(requestTime) < RequestKeyThresholdMix {
-		errMsg := errors.WithMessagef(err, "Request timestamp is beyond acceptable threshold")
+		errMsg := errors.New("Request timestamp is beyond acceptable threshold")
 		return &pb.SignedKeyResponse{Error: errMsg.Error()}, errMsg
 	}
 
@@ -191,7 +192,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
+				return nil, errors.Errorf(noHostErr, targetID)
 			}
 			connected, _ := host.Connected()
 			if !connected {
@@ -293,7 +294,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
+				return nil, errors.Errorf(noHostErr, targetID)
 			}
 			connected, _ := host.Connected()
 			if !connected {
@@ -366,7 +367,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
-				return nil, errors.Errorf("unable to find target host %s.", targetID)
+				return nil, errors.Errorf(noHostErr, targetID)
 			}
 			connected, _ := host.Connected()
 			if !connected {
@@ -459,8 +460,10 @@ func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotR
 	clientMac := generateClientMac(cl, message)
 	if !bytes.Equal(clientMac, message.MAC) {
 		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, errors.New("Could not authenticate client. Is the client registered with this node?")
+				Accepted: false,
+			}, errors.Errorf("Could not authenticate client. Is the "+
+				"client registered with this node (%s)?",
+				gw.ServerHost.GetId())
 	}
 
 	// fixme: enable once gossip is not broken

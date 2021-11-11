@@ -24,15 +24,18 @@ import (
 
 // Error messages.
 const (
-	storageUpsertErr    = "failed to upsert marshalled KnownRounds to storage: %+v"
-	storageGetErr       = "failed to get KnownRounds from storage: %+v"
-	storageDecodeErr    = "failed to decode KnownRounds from storage: %+v"
-	storageUnmarshalErr = "failed to unmarshal KnownRounds from storage: %+v"
+	// Determines round differences that triggers a truncate
+	knownRoundsTruncateThreshold id.Round = 1500
+	storageUpsertErr                      = "failed to upsert marshalled KnownRounds to storage: %+v"
+	storageGetErr                         = "failed to get KnownRounds from storage: %+v"
+	storageDecodeErr                      = "failed to decode KnownRounds from storage: %+v"
+	storageUnmarshalErr                   = "failed to unmarshal KnownRounds from storage: %+v"
 )
 
 type knownRoundsWrapper struct {
 	kr         *knownRounds.KnownRounds
 	marshalled []byte
+	truncated  []byte
 	l          sync.RWMutex
 }
 
@@ -42,6 +45,7 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 	krw := &knownRoundsWrapper{
 		kr:         knownRounds.NewKnownRound(roundCapacity),
 		marshalled: []byte{},
+		truncated:  []byte{},
 	}
 
 	// There is no round 0
@@ -69,6 +73,23 @@ func (krw *knownRoundsWrapper) check(rid id.Round, store *storage.Storage) error
 	return krw.saveUnsafe(store)
 }
 
+func (krw *knownRoundsWrapper) truncateMarshal() []byte {
+	krw.l.RLock()
+	defer krw.l.RUnlock()
+
+	bytes := make([]byte, len(krw.truncated))
+	copy(bytes, krw.truncated)
+
+	return bytes
+}
+
+func (krw *knownRoundsWrapper) getLastChecked() id.Round {
+	krw.l.RLock()
+	defer krw.l.RUnlock()
+
+	return krw.kr.GetLastChecked()
+}
+
 // forceCheck force checks the round and saves the KnownRounds.
 func (krw *knownRoundsWrapper) forceCheck(rid id.Round, store *storage.Storage) error {
 	krw.l.Lock()
@@ -81,8 +102,8 @@ func (krw *knownRoundsWrapper) forceCheck(rid id.Round, store *storage.Storage) 
 
 // getMarshal returns a copy of the marshalled bytes of the KnownRounds.
 func (krw *knownRoundsWrapper) getMarshal() []byte {
-	krw.l.Lock()
-	defer krw.l.Unlock()
+	krw.l.RLock()
+	defer krw.l.RUnlock()
 
 	bytes := make([]byte, len(krw.marshalled))
 	copy(bytes, krw.marshalled)
@@ -90,7 +111,7 @@ func (krw *knownRoundsWrapper) getMarshal() []byte {
 	return bytes
 }
 
-// save saves the marshalled KnownRounds to memory and storage. This
+// save the marshalled KnownRounds to memory and storage. This
 // function is thread safe.
 func (krw *knownRoundsWrapper) save(store *storage.Storage) error {
 	krw.l.Lock()
@@ -104,6 +125,11 @@ func (krw *knownRoundsWrapper) save(store *storage.Storage) error {
 func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 	// Marshal and save knownRounds
 	krw.marshalled = krw.kr.Marshal()
+	if krw.kr.GetLastChecked() > knownRoundsTruncateThreshold {
+		krw.truncated = krw.kr.Truncate(krw.kr.GetLastChecked() - knownRoundsTruncateThreshold).Marshal()
+	} else {
+		krw.truncated = krw.marshalled
+	}
 
 	// Store knownRounds data
 	err := store.UpsertState(&storage.State{
@@ -117,7 +143,13 @@ func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 	return nil
 }
 
-// load loads the KnownRounds from storage into the knownRoundsWrapper.
+// Returns whether the given round calls for a truncated knownRound
+func (krw *knownRoundsWrapper) needsTruncated(round id.Round) bool {
+	lastChecked := krw.kr.GetLastChecked()
+	return round < lastChecked && lastChecked-round > knownRoundsTruncateThreshold
+}
+
+// load the KnownRounds from storage into the knownRoundsWrapper.
 func (krw *knownRoundsWrapper) load(store *storage.Storage) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
@@ -141,6 +173,11 @@ func (krw *knownRoundsWrapper) load(store *storage.Storage) error {
 
 	// Save the marshalled KnownRounds
 	krw.marshalled = dataDecode
+	if krw.kr.GetLastChecked() > knownRoundsTruncateThreshold {
+		krw.truncated = krw.kr.Truncate(krw.kr.GetLastChecked() - knownRoundsTruncateThreshold).Marshal()
+	} else {
+		krw.truncated = dataDecode
+	}
 
 	return nil
 }
