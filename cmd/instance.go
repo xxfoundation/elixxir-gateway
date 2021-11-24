@@ -813,7 +813,7 @@ func (gw *Instance) LoadLastUpdateID() error {
 		return errors.Errorf("Failed to get LastUpdateID: %v", err)
 	}
 
-	if lastUpdate > 40000000 && time.Now().Before(time.Date(2021, 12, 14, 0, 0, 0, 0, nil)) {
+	if lastUpdate > 40000000 && time.Now().Before(time.Date(2021, 12, 14, 0, 0, 0, 0, time.UTC)) {
 		jww.FATAL.Panicf("Protonet database detected; cannot run with this configuration, please wipe & start from a clean database")
 	}
 
