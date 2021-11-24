@@ -124,21 +124,21 @@ var rootCmd = &cobra.Command{
 		case <-stopCh:
 			jww.INFO.Printf(
 				"Received Exit (SIGTERM or SIGINT) signal...\n")
-			select{
-				case gateway.ipAddrRateLimitQuit <- struct{}{}:
-				case <-time.After(20*time.Second):
-					jww.ERROR.Println("Failed to stop ipAddrRateLimit")
+			select {
+			case gateway.ipAddrRateLimitQuit <- struct{}{}:
+			case <-time.After(20 * time.Second):
+				jww.ERROR.Println("Failed to stop ipAddrRateLimit")
 			}
 
-			select{
+			select {
 			case gateway.idRateLimitQuit <- struct{}{}:
-			case <-time.After(20*time.Second):
+			case <-time.After(20 * time.Second):
 				jww.ERROR.Println("Failed to stop idRateLimitQuit")
 			}
 
-			select{
+			select {
 			case gateway.earliestRoundQuitChan <- struct{}{}:
-			case <-time.After(20*time.Second):
+			case <-time.After(20 * time.Second):
 				jww.ERROR.Println("Failed to stop earliestRoundQuitChan")
 			}
 
@@ -147,7 +147,6 @@ var rootCmd = &cobra.Command{
 			if profileOut != "" {
 				pprof.StopCPUProfile()
 			}
-			gateway.Comms.Shutdown()
 		}
 
 	},
