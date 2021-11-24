@@ -1360,7 +1360,7 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 
 	// Create new gateway instance and modify lastUpdate
 	gw := NewGatewayInstance(params)
-	expectedLastUpdate := rand.Uint64()
+	expectedLastUpdate := rand.Uint64() % 39000000
 	gw.lastUpdate = expectedLastUpdate
 
 	err := gw.SaveLastUpdateID()
@@ -1368,7 +1368,7 @@ func TestInstance_SaveLastUpdateID_LoadLastUpdateID(t *testing.T) {
 		t.Errorf("SaveLastUpdateID() produced an error: %v", err)
 	}
 
-	gw.lastUpdate = rand.Uint64()
+	gw.lastUpdate = rand.Uint64() % 39000000
 
 	err = gw.LoadLastUpdateID()
 	if err != nil {
