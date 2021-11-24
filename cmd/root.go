@@ -114,7 +114,7 @@ var rootCmd = &cobra.Command{
 
 		gateway.Start()
 
-		// Block forever on Signal Handler for safe program exit
+		// Open Signal Handler for safe program exit
 		stopCh := ReceiveExitSignal()
 
 		// Block forever to prevent the program ending
@@ -122,11 +122,11 @@ var rootCmd = &cobra.Command{
 		// provided
 		select {
 		case <-stopCh:
+			jww.INFO.Printf(
+				"Received Exit (SIGTERM or SIGINT) signal...\n")
 			gateway.ipAddrRateLimitQuit <- struct{}{}
 			gateway.idRateLimitQuit <- struct{}{}
 			gateway.earliestRoundQuitChan <- struct{}{}
-			jww.INFO.Printf(
-				"Received Exit (SIGTERM or SIGINT) signal...\n")
 			if profileOut != "" {
 				pprof.StopCPUProfile()
 			}
