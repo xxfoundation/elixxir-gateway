@@ -124,7 +124,7 @@ type Instance struct {
 
 	earliestRoundTrackerMux sync.Mutex
 	earliestRoundUpdateChan chan EarliestRound
-	earliestRoundQuitChan  chan struct{}
+	earliestRoundQuitChan   chan struct{}
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -513,8 +513,6 @@ func (gw *Instance) InitNetwork() error {
 	gw.Comms = gateway.StartGateway(&id.TempGateway, gw.Params.ListeningAddress,
 		gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
 
-
-
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
 	dummyServerID := id.DummyUser.DeepCopy()
@@ -724,7 +722,7 @@ func (gw *Instance) beginStorageCleanup() {
 					continue
 				}
 			}
-		case <- gw.earliestRoundQuitChan:
+		case <-gw.earliestRoundQuitChan:
 			return
 		}
 	}
@@ -815,6 +813,10 @@ func (gw *Instance) LoadLastUpdateID() error {
 		return errors.Errorf("Failed to get LastUpdateID: %v", err)
 	}
 
+	if lastUpdate > 40000000 && time.Now().Before(time.Date(2021, 12, 14, 0, 0, 0, 0, nil)) {
+		jww.FATAL.Panicf("Protonet database detected; cannot run with this configuration, please wipe & start from a clean database")
+	}
+
 	gw.lastUpdate = lastUpdate
 	return nil
 }
@@ -843,11 +845,11 @@ func (gw *Instance) UpdateEarliestRound(newClientRoundId,
 	newEarliestRound := EarliestRound{
 		clientRoundId: newClientRoundId,
 		gwRoundID:     newGwRoundID,
-		gwTimestamp: newRoundTimestamp,
+		gwTimestamp:   newRoundTimestamp,
 	}
 
 	// Determine if values need to be updated
-	isUpdate := newEarliestRound.gwTimestamp  > gw.earliestRoundTrackerUnsafe.gwTimestamp ||
+	isUpdate := newEarliestRound.gwTimestamp > gw.earliestRoundTrackerUnsafe.gwTimestamp ||
 		newEarliestRound.clientRoundId > gw.earliestRoundTrackerUnsafe.clientRoundId ||
 		newEarliestRound.gwRoundID > gw.earliestRoundTrackerUnsafe.gwRoundID
 
