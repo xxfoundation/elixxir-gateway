@@ -124,7 +124,7 @@ type Instance struct {
 
 	earliestRoundTrackerMux sync.Mutex
 	earliestRoundUpdateChan chan EarliestRound
-	earliestRoundQuitChan  chan struct{}
+	earliestRoundQuitChan   chan struct{}
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -152,22 +152,21 @@ func NewGatewayInstance(params Params) *Instance {
 		jww.FATAL.Panicf("failed to create new KnownRounds wrapper: %+v", err)
 	}
 
-	idRateLimitQuit := make(chan struct{}, 1)
-	ipAddrRateLimitQuit := make(chan struct{}, 1)
 	earliestRoundUpdateChan := make(chan EarliestRound)
 	i := &Instance{
 		UnmixedBuffer:           storage.NewUnmixedMessagesMap(),
 		Params:                  params,
 		storage:                 newDatabase,
 		krw:                     krw,
-		idRateLimitQuit:         idRateLimitQuit,
-		ipAddrRateLimitQuit:     ipAddrRateLimitQuit,
+		idRateLimitQuit:         make(chan struct{}, 1),
+		ipAddrRateLimitQuit:     make(chan struct{}, 1),
 		whitelistedIpAddressSet: set.New(),
 		whitelistedIdsSet:       set.New(),
 		LeakedCapacity:          1,
 		LeakDuration:            2000 * time.Millisecond,
 		LeakedTokens:            1,
 		earliestRoundUpdateChan: earliestRoundUpdateChan,
+		earliestRoundQuitChan:   make(chan struct{}, 1),
 	}
 
 	msgRateLimitParams := &rateLimiting.MapParams{
@@ -513,8 +512,6 @@ func (gw *Instance) InitNetwork() error {
 	gw.Comms = gateway.StartGateway(&id.TempGateway, gw.Params.ListeningAddress,
 		gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
 
-
-
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
 	dummyServerID := id.DummyUser.DeepCopy()
@@ -724,7 +721,7 @@ func (gw *Instance) beginStorageCleanup() {
 					continue
 				}
 			}
-		case <- gw.earliestRoundQuitChan:
+		case <-gw.earliestRoundQuitChan:
 			return
 		}
 	}
@@ -843,11 +840,11 @@ func (gw *Instance) UpdateEarliestRound(newClientRoundId,
 	newEarliestRound := EarliestRound{
 		clientRoundId: newClientRoundId,
 		gwRoundID:     newGwRoundID,
-		gwTimestamp: newRoundTimestamp,
+		gwTimestamp:   newRoundTimestamp,
 	}
 
 	// Determine if values need to be updated
-	isUpdate := newEarliestRound.gwTimestamp  > gw.earliestRoundTrackerUnsafe.gwTimestamp ||
+	isUpdate := newEarliestRound.gwTimestamp > gw.earliestRoundTrackerUnsafe.gwTimestamp ||
 		newEarliestRound.clientRoundId > gw.earliestRoundTrackerUnsafe.clientRoundId ||
 		newEarliestRound.gwRoundID > gw.earliestRoundTrackerUnsafe.gwRoundID
 
