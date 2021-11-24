@@ -147,6 +147,7 @@ var rootCmd = &cobra.Command{
 			if profileOut != "" {
 				pprof.StopCPUProfile()
 			}
+			gateway.Comms.Shutdown()
 		}
 
 	},
