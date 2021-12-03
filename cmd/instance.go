@@ -633,6 +633,7 @@ func (gw *Instance) InitNetwork() error {
 				" instance: %v", err)
 			continue
 		}
+		jww.INFO.Printf("Instance created")
 
 		// Initialize the update tracker for fast client polling
 		gw.filteredUpdates, err = NewFilteredUpdates(gw.NetInf)
@@ -641,6 +642,7 @@ func (gw *Instance) InitNetwork() error {
 		}
 
 		// Add permissioning as a host
+		jww.INFO.Printf("Adding permissioning as host w/ cert: %s", permissioningCert)
 		params := connect.GetDefaultHostParams()
 		params.MaxRetries = 0
 		params.AuthEnabled = false
@@ -659,6 +661,7 @@ func (gw *Instance) InitNetwork() error {
 		notificationParams.MaxRetries = 3
 		notificationParams.EnableCoolOff = true
 
+		jww.INFO.Printf("Adding notification bot with cert: %s", gw.NetInf.GetFullNdf().Get().Notification.Address)
 		// Add notification bot as a host
 		_, err = gw.Comms.AddHost(
 			&id.NotificationBot,
@@ -669,7 +672,7 @@ func (gw *Instance) InitNetwork() error {
 		if err != nil {
 			return errors.Errorf("failed to add notification bot host to comms: %v", err)
 		}
-
+		jww.INFO.Printf("added notification bot")
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
