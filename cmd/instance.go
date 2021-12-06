@@ -662,6 +662,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Add notification bot as a host
 		if gw.NetInf.GetFullNdf().Get().Notification.Address != "" {
+			jww.WARN.Printf("Notifications Bot is not specified in the NDF, not adding as host")
 
 			_, err = gw.Comms.AddHost(
 				&id.NotificationBot,
