@@ -633,6 +633,7 @@ func (gw *Instance) InitNetwork() error {
 				" instance: %v", err)
 			continue
 		}
+		jww.INFO.Printf("Instance created")
 
 		// Initialize the update tracker for fast client polling
 		gw.filteredUpdates, err = NewFilteredUpdates(gw.NetInf)
@@ -660,16 +661,19 @@ func (gw *Instance) InitNetwork() error {
 		notificationParams.EnableCoolOff = true
 
 		// Add notification bot as a host
-		_, err = gw.Comms.AddHost(
-			&id.NotificationBot,
-			gw.NetInf.GetFullNdf().Get().Notification.Address,
-			[]byte(gw.NetInf.GetFullNdf().Get().Notification.TlsCertificate),
-			notificationParams,
-		)
-		if err != nil {
-			return errors.Errorf("failed to add notification bot host to comms: %v", err)
-		}
+		if gw.NetInf.GetFullNdf().Get().Notification.Address != "" {
+			jww.WARN.Printf("Notifications Bot is not specified in the NDF, not adding as host")
 
+			_, err = gw.Comms.AddHost(
+				&id.NotificationBot,
+				gw.NetInf.GetFullNdf().Get().Notification.Address,
+				[]byte(gw.NetInf.GetFullNdf().Get().Notification.TlsCertificate),
+				notificationParams,
+			)
+			if err != nil {
+				return errors.Errorf("failed to add notification bot host to comms: %v", err)
+			}
+		}
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
