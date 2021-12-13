@@ -25,7 +25,7 @@ import (
 // Error messages.
 const (
 	// Determines round differences that triggers a truncate
-	knownRoundsTruncateThreshold id.Round = 1500
+	knownRoundsTruncateThreshold id.Round = 3000
 	storageUpsertErr                      = "failed to upsert marshalled KnownRounds to storage: %+v"
 	storageGetErr                         = "failed to get KnownRounds from storage: %+v"
 	storageDecodeErr                      = "failed to decode KnownRounds from storage: %+v"
