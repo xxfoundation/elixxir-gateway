@@ -5,7 +5,6 @@
 // LICENSE file                                                              //
 ///////////////////////////////////////////////////////////////////////////////
 
-
 package ipAddress
 
 import (
@@ -25,9 +24,12 @@ func StringToByte(ipAddr string) ([]byte, error) {
 		return nil, errors.Errorf("Invalid input, %s is not recognized as an IP", ipAddr)
 	}
 
+	// Initialize byte slice
 	b := make([]byte, 4)
+
+	// Iterate through each value
 	for i, addrVal := range addrVals {
-		// Conver to byte
+		// Convert to byte
 		addr, err := strconv.Atoi(addrVal)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "Could not convert IP address (%s) to byte data", ipAddr)
@@ -37,6 +39,7 @@ func StringToByte(ipAddr string) ([]byte, error) {
 		b[i] = byte(addr)
 	}
 
+	// Return IP address as byte data
 	return b, nil
 }
 
@@ -54,7 +57,7 @@ func ByteToString(ipAddr []byte) (string, error) {
 		addrVals[i] = strconv.Itoa(int(b))
 	}
 
-	// Join string slice by "." delimiter
+	// Return joined string slice by "." delimiter
 	return strings.Join(addrVals, "."), nil
 
 }
