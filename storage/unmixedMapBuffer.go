@@ -26,6 +26,8 @@ type UnmixedMessagesMap struct {
 type SendRound struct {
 	batch       *pb.Batch
 	maxElements uint32
+	Senders []*id.ID
+	Ips 	[]string
 	sent        bool
 }
 
@@ -40,7 +42,7 @@ func NewUnmixedMessagesMap() UnmixedMessageBuffer {
 }
 
 // AddUnmixedMessage adds a message to send to the cMix node.
-func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round) error {
+func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, ip string, roundId id.Round) error {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
@@ -150,6 +152,8 @@ func (umb *UnmixedMessagesMap) SetAsRoundLeader(roundId id.Round, batchsize uint
 	umb.messages[roundId] = &SendRound{
 		batch:       &pb.Batch{Slots: make([]*pb.Slot, 0, batchsize)},
 		maxElements: batchsize,
+		Senders: make([]*id.ID, 0, batchsize),
+		Ips: make([]string,0,batchsize),
 	}
 }
 
