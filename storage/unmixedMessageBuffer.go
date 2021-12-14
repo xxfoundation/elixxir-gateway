@@ -15,13 +15,13 @@ import (
 // Interface for interacting with the UnmixedMessageBuffer.
 type UnmixedMessageBuffer interface {
 	// AddUnmixedMessage adds an unmixed message to send to the cMix node.
-	AddUnmixedMessage(msg *pb.Slot, round id.Round) error
+	AddUnmixedMessage(msg *pb.Slot, sender *id.ID, ip string, round id.Round) error
 
 	// AddManyUnmixedMessage adds many unmixed messages to send to the cMix node.
-	AddManyUnmixedMessages(msg []*pb.GatewaySlot, round id.Round) error
+	AddManyUnmixedMessages(msg []*pb.GatewaySlot, sender *id.ID, ip string, round id.Round) error
 
 	// GetRoundMessages returns the batch associated with the roundID
-	PopRound(rndId id.Round) *pb.Batch
+	PopRound(rndId id.Round) (*pb.Batch, []*id.ID, []string)
 
 	// LenUnmixed return the number of messages within the requested round
 	LenUnmixed(rndId id.Round) int
@@ -37,4 +37,5 @@ type UnmixedMessageBuffer interface {
 	// IsRoundLeader returns true if object mapped to this round has
 	// been previously set
 	IsRoundLeader(rndId id.Round) bool
+
 }

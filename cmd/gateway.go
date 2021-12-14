@@ -564,7 +564,7 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 
 	rid := id.Round(roundInfo.ID)
 
-	batch := gw.UnmixedBuffer.PopRound(rid)
+	batch, senders, ips := gw.UnmixedBuffer.PopRound(rid)
 
 	if batch == nil {
 		jww.ERROR.Printf("Batch for %v not found!", roundInfo.ID)
