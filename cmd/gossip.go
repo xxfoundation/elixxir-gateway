@@ -114,7 +114,7 @@ func (gw *Instance) gossipVerify(msg *gossip.GossipMsg, _ []byte) error {
 	}
 
 	if msg.Tag == RateLimitGossip {
-		return verifyRateLimit(msg, origin, gw.NetInf)
+		return nil
 	} else if msg.Tag == BloomFilterGossip {
 		return nil
 	}

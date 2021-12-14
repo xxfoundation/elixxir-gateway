@@ -10,79 +10,27 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/comms/network"
-	"gitlab.com/elixxir/comms/network/dataStructures"
-	"gitlab.com/elixxir/primitives/states"
-	"gitlab.com/xx_network/comms/connect"
+	"gitlab.com/elixxir/gateway/cmd/ipAddress"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/id"
-	"gitlab.com/xx_network/primitives/rateLimiting"
-	"time"
 )
 
 // Initialize fields required for the gossip protocol specialized to rate limiting
 func (gw *Instance) InitRateLimitGossip() {
 
-	// Initialize leaky bucket
-	gw.rateLimitQuit = make(chan struct{}, 1)
-	gw.rateLimit = rateLimiting.CreateBucketMapFromParams(gw.Params.rateLimitParams, nil, gw.rateLimitQuit)
-	fmt.Printf("gwComms: %v\n", gw.Comms)
-	fmt.Printf("gwManager: %v\n", gw.Comms.Manager)
+	flags := gossip.DefaultProtocolFlags()
+	flags.FanOut = 4
+	flags.MaximumReSends = 2
+	flags.NumParallelSends = 100
 
-	// Register gossip protocol for client rate limiting
-	gw.Comms.Manager.NewGossip(RateLimitGossip, gossip.DefaultProtocolFlags(),
+	// Register gossip protocol for bloom filters
+	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
 		gw.gossipRateLimitReceive, gw.gossipVerify, nil)
-}
 
-func verifyRateLimit(msg *gossip.GossipMsg, origin *id.ID, instance *network.Instance) error {
-	// Parse the payload message
-	payloadMsg := &pb.BatchSenders{}
-	err := proto.Unmarshal(msg.Payload, payloadMsg)
-	if err != nil {
-		return errors.Errorf("Could not unmarshal message into expected format: %s", err)
-	}
-
-	// Check if we recognize the round
-	r := id.Round(payloadMsg.RoundID)
-	ri, err := instance.GetRound(r)
-	if err != nil {
-		eventChan := make(chan dataStructures.EventReturn, 1)
-		instance.GetRoundEvents().AddRoundEventChan(r,
-			eventChan, 60*time.Second, states.COMPLETED, states.FAILED)
-
-		// Check if we recognize the round
-		event := <-eventChan
-		if event.TimedOut {
-			return errors.Errorf("Failed to lookup round %v sent out by gossip message.", payloadMsg.RoundID)
-		} else if states.Round(event.RoundInfo.State) == states.FAILED {
-			return errors.Errorf("Round %v sent out by gossip message failed.", payloadMsg.RoundID)
-		}
-
-		ri = event.RoundInfo
-	}
-
-	// Parse the round topology
-	idList, err := id.NewIDListFromBytes(ri.Topology)
-	if err != nil {
-		return errors.Errorf("Could not read topology from gossip message: %s", err)
-	}
-
-	topology := connect.NewCircuit(idList)
-
-	senderIdCopy := origin.DeepCopy()
-	senderIdCopy.SetType(id.Node)
-
-	// Check if the sender is in the round
-	//  we have tracked
-	if topology.GetNodeLocation(senderIdCopy) < 0 {
-		return errors.Errorf("Origin gateway is not in round it's gossiping about. Gateway ID %v", origin)
-	}
-	return nil
 }
 
 // Receive function for Gossip messages specialized to rate limiting
@@ -100,7 +48,17 @@ func (gw *Instance) gossipRateLimitReceive(msg *gossip.GossipMsg) error {
 		if err != nil {
 			return errors.Errorf("Could not unmarshal sender ID: %+v", err)
 		}
-		gw.rateLimit.LookupBucket(senderId.String()).Add(1)
+		gw.idRateLimiting.LookupBucket(senderId.String()).Add(1)
+	}
+	for _, ipBytes := range payloadMsg.Ips{
+		ipStr, err := ipAddress.ByteToString(ipBytes)
+		if err!=nil{
+			jww.WARN.Printf("round %d rate limit gossip sent " +
+				"an invalid ip addr %v: %s", payloadMsg.RoundID, ipBytes, err)
+		}else{
+			gw.idRateLimiting.LookupBucket(ipStr).Add(1)
+		}
+
 	}
 	return nil
 }
@@ -113,7 +71,7 @@ func (gw *Instance) KillRateLimiter() {
 
 // GossipBatch builds a gossip message containing all of the sender IDs
 // within the batch and gossips it to all peers
-func (gw *Instance) GossipBatch(batch *pb.Batch) error {
+func (gw *Instance) GossipBatch(round id.Round, senders []*id.ID, ips []string) error {
 	var err error
 
 	// Build the message
@@ -123,7 +81,7 @@ func (gw *Instance) GossipBatch(batch *pb.Batch) error {
 	}
 
 	// Add the GossipMsg payload
-	gossipMsg.Payload, err = buildGossipPayloadRateLimit(batch)
+	gossipMsg.Payload, err = buildGossipPayloadRateLimit(round, senders, ips)
 	if err != nil {
 		return errors.Errorf("Unable to build gossip payload: %+v", err)
 	}
@@ -150,21 +108,33 @@ func (gw *Instance) GossipBatch(batch *pb.Batch) error {
 }
 
 // Helper function used to convert Batch into a GossipMsg payload
-func buildGossipPayloadRateLimit(batch *pb.Batch) ([]byte, error) {
+func buildGossipPayloadRateLimit(round id.Round, senders []*id.ID, ips []string) ([]byte, error) {
 	// Nil check for the received back
-	if batch == nil || batch.Round == nil {
+	if senders == nil || ips == nil {
 		return nil, errors.New("Batch does not contain necessary round info needed to gossip")
 	}
 
 	// Collect all of the sender IDs in the batch
-	senderIds := make([][]byte, len(batch.Slots))
-	for i, slot := range batch.Slots {
-		senderIds[i] = slot.GetSenderID()
+	ipsBytesSlice := make([][]byte, 0, len(ips))
+	for _, ipStr := range ips {
+		ipsBytes, err := ipAddress.StringToByte(ipStr)
+		if err!=nil{
+			jww.WARN.Printf("ip %s failed to get added for round %d" +
+				" because : %s", ipStr, round, err)
+		}else{
+			ipsBytesSlice = append(ipsBytesSlice,ipsBytes)
+		}
+	}
+
+	sendersByteSlice := make([][]byte, 0, len(senders))
+	for _, sID := range senders {
+		sendersByteSlice = append(sendersByteSlice,sID.Marshal())
 	}
 
 	payloadMsg := &pb.BatchSenders{
-		SenderIds: senderIds,
-		RoundID:   batch.Round.ID,
+		SenderIds: sendersByteSlice,
+		Ips: ipsBytesSlice,
+		RoundID:   uint64(round),
 	}
 	return proto.Marshal(payloadMsg)
 }

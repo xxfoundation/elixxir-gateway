@@ -328,7 +328,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
 	}
 
-	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
+	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, senderId, ipAddr, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
 				"Please try a different round.")
@@ -408,7 +408,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 
 	// Add messages to buffer
 	thisRound := id.Round(messages.RoundID)
-	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
+	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages,  senderId, ipAddr, thisRound)
 	if err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
@@ -604,11 +604,15 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 	jww.INFO.Printf("Upload complete")
 
 	if !gw.Params.DisableGossip {
-		/*// Gossip senders included in the batch to other gateways
-		err = gw.GossipBatch(batch)
-		if err != nil {
-			jww.WARN.Printf("Unable to gossip batch information: %+v", err)
-		}*/
+		// Gossip senders included in the batch to other gateways
+		go func(){
+			err = gw.GossipBatch(rid, senders, ips)
+			if err != nil {
+				jww.ERROR.Printf("Unable to gossip rate limit batch " +
+					"information for round %d: %+v", rid, err)
+			}
+		}()
+
 	}
 }
 

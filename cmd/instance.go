@@ -77,9 +77,7 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
-	// Map of leaky buckets for user IDs
 	rateLimitQuit chan struct{}
-	rateLimit     *rateLimiting.BucketMap
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
