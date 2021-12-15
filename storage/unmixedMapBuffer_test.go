@@ -22,7 +22,10 @@ func TestUnmixedMapBuffer_AddUnmixedMessage(t *testing.T) {
 
 	numOutgoingMsgs := len(unmixedMessageBuf.messages)
 	unmixedMessageBuf.SetAsRoundLeader(id.Round(0), 5)
-	unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{SenderID: id.ZeroUser.Marshal()}, id.Round(0))
+
+	senderId := id.NewIdFromString("test", id.User, t)
+
+	unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{SenderID: id.ZeroUser.Marshal()}, senderId, "", id.Round(0))
 
 	if len(unmixedMessageBuf.messages) != numOutgoingMsgs+1 {
 		t.Errorf("AddUnMixedMessage: Message was not added to outgoing" +
@@ -39,14 +42,16 @@ func TestUnmixedMapBuffer_GetUnmixedMessages(t *testing.T) {
 			unmixedMessageBuf.LenUnmixed(id.Round(0)))
 	}
 
-	if unmixedMessageBuf.PopRound(0) != nil {
+	batch, _, _ := unmixedMessageBuf.PopRound(0)
+	if batch != nil {
 		t.Errorf("GetRoundMessages: Should have returned empty batch")
 	}
 	testSlot := &pb.Slot{SenderID: id.ZeroUser.Marshal()}
 
 	unmixedMessageBuf.SetAsRoundLeader(id.Round(0), 4)
+	senderId := id.NewIdFromString("test", id.User, t)
 
-	unmixedMessageBuf.AddUnmixedMessage(testSlot, id.Round(0))
+	unmixedMessageBuf.AddUnmixedMessage(testSlot, senderId, "", id.Round(0))
 
 	// First confirm there is a message present
 	if unmixedMessageBuf.LenUnmixed(0) != 1 {
@@ -57,13 +62,18 @@ func TestUnmixedMapBuffer_GetUnmixedMessages(t *testing.T) {
 
 	// Test that if minCount is greater than the amount of messages, then the
 	// batch that is returned is nil
-	unmixedMessageBuf.AddUnmixedMessage(testSlot, id.Round(0))
 
-	batch := unmixedMessageBuf.PopRound(0)
+	unmixedMessageBuf.AddUnmixedMessage(testSlot, senderId, "", id.Round(0))
+
+	batch, receivedId, _ := unmixedMessageBuf.PopRound(0)
 
 	if batch != nil {
 		t.Errorf("Error case of minCount being greater than the amount of"+
 			"messages, should received a nil batch but received: %v", batch)
+	}
+
+	if !senderId.Cmp(receivedId[0]) {
+		t.Errorf("Error case, should receive a sender ID")
 	}
 
 }
@@ -74,9 +84,10 @@ func TestUnmixedMessagesMap_IsRoundFull(t *testing.T) {
 	rndId := id.Round(4)
 	batchSize := 3
 	unmixedMessageBuf.SetAsRoundLeader(rndId, uint32(batchSize))
+	senderId := id.NewIdFromString("test", id.User, t)
 
 	for i := 0; i < batchSize; i++ {
-		unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{}, rndId)
+		unmixedMessageBuf.AddUnmixedMessage(&pb.Slot{},senderId, "", rndId)
 	}
 
 	if !unmixedMessageBuf.IsRoundFull(rndId) {
@@ -122,7 +133,9 @@ func TestUnmixedMessagesMap_AddManyUnmixedMessages(t *testing.T) {
 		slots = append(slots, slot)
 	}
 	rnd := id.Round(0)
-	err := unmixedMessageBuf.AddManyUnmixedMessages(slots, rnd)
+	senderId := id.NewIdFromString("test", id.User, t)
+
+	err := unmixedMessageBuf.AddManyUnmixedMessages(slots, senderId, "", rnd)
 	if err != nil {
 		t.Fatalf("AddManyUnmixedMessages error: %v", err)
 	}
@@ -132,7 +145,7 @@ func TestUnmixedMessagesMap_AddManyUnmixedMessages(t *testing.T) {
 		Message: &pb.Slot{SenderID: id.ZeroUser.Marshal()},
 	}
 	extraSlots := []*pb.GatewaySlot{slot}
-	err = unmixedMessageBuf.AddManyUnmixedMessages(extraSlots, rnd)
+	err = unmixedMessageBuf.AddManyUnmixedMessages(extraSlots, senderId, "", rnd)
 	if err == nil {
 		t.Fatalf("AddManyUnmixedMessages error: " +
 			"Should not be able to insert into already full batch")
