@@ -45,6 +45,9 @@ func (gw *Instance) gossipRateLimitReceive(msg *gossip.GossipMsg) error {
 
 	capacity, leaked, duration := gw.GetRateLimitParams()
 
+	jww.INFO.Println("Received rate limit for round %d with %d senders and %d ips", payloadMsg.RoundID, len(payloadMsg.SenderIds), len(payloadMsg.Ips))
+
+
 	// Add to leaky bucket for each sender
 	for _, senderBytes := range payloadMsg.SenderIds {
 		senderId, err := id.Unmarshal(senderBytes)
@@ -95,6 +98,7 @@ func (gw *Instance) GossipBatch(round id.Round, senders []*id.ID, ips []string) 
 	if !ok {
 		return errors.Errorf("Unable to get gossip protocol.")
 	}
+	jww.INFO.Println("Sending rate limit for round %d with %d senders and %d ips", round, len(senders), len(ips))
 	numPeers, errs := gossipProtocol.Gossip(gossipMsg)
 
 	// Return any errors up the stack
