@@ -26,7 +26,7 @@ func (gw *Instance) InitRateLimitGossip() {
 	flags.FanOut = 4
 	flags.MaximumReSends = 2
 	flags.NumParallelSends = 1000
-	flags.SelfGossip = true
+	flags.SelfGossip = false
 
 	// Register gossip protocol for bloom filters
 	gw.Comms.Manager.NewGossip(RateLimitGossip, flags,
@@ -43,13 +43,15 @@ func (gw *Instance) gossipRateLimitReceive(msg *gossip.GossipMsg) error {
 		return errors.Errorf("Could not unmarshal gossip payload: %v", err)
 	}
 
+	capacity, leaked, duration := gw.GetRateLimitParams()
+
 	// Add to leaky bucket for each sender
 	for _, senderBytes := range payloadMsg.SenderIds {
 		senderId, err := id.Unmarshal(senderBytes)
 		if err != nil {
 			return errors.Errorf("Could not unmarshal sender ID: %+v", err)
 		}
-		gw.idRateLimiting.LookupBucket(senderId.String()).Add(1)
+		gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(1, capacity, leaked, duration)
 	}
 	for _, ipBytes := range payloadMsg.Ips{
 		ipStr, err := ipAddress.ByteToString(ipBytes)
@@ -57,7 +59,7 @@ func (gw *Instance) gossipRateLimitReceive(msg *gossip.GossipMsg) error {
 			jww.WARN.Printf("round %d rate limit gossip sent " +
 				"an invalid ip addr %v: %s", payloadMsg.RoundID, ipBytes, err)
 		}else{
-			gw.idRateLimiting.LookupBucket(ipStr).Add(1)
+			gw.idRateLimiting.LookupBucket(ipStr).AddWithExternalParams(1, capacity, leaked, duration)
 		}
 
 	}
