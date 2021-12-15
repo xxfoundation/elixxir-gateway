@@ -25,7 +25,8 @@ func (gw *Instance) InitRateLimitGossip() {
 	flags := gossip.DefaultProtocolFlags()
 	flags.FanOut = 4
 	flags.MaximumReSends = 2
-	flags.NumParallelSends = 100
+	flags.NumParallelSends = 1000
+	flags.SelfGossip = true
 
 	// Register gossip protocol for bloom filters
 	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
