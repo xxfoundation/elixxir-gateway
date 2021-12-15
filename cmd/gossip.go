@@ -11,6 +11,7 @@ package cmd
 
 import (
 	"crypto/rand"
+	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/comms/gossip"
@@ -27,16 +28,19 @@ const BloomFilterGossip = "bloomFilter"
 // Starts a thread for monitoring and handling changes to gossip peers
 func (gw *Instance) StartPeersThread() {
 	go func() {
+		fmt.Println("a")
 		rateLimitProtocol, exists := gw.Comms.Manager.Get(RateLimitGossip)
 		if !exists {
-			jww.WARN.Printf("Unable to get gossip rateLimitProtocol!")
+			jww.ERROR.Printf("Unable to get gossip rateLimitProtocol!")
 			return
 		}
+		fmt.Println("b")
 		bloomProtocol, exists := gw.Comms.Manager.Get(BloomFilterGossip)
 		if !exists {
-			jww.WARN.Printf("Unable to get gossip BloomFilter!")
+			jww.ERROR.Printf("Unable to get gossip BloomFilter!")
 			return
 		}
+		fmt.Println("c")
 
 		//add all previously present gateways
 		/*for _, gateway := range gw.NetInf.GetFullNdf().Get().Gateways{
@@ -70,6 +74,7 @@ func (gw *Instance) StartPeersThread() {
 					jww.WARN.Printf("Unable to remove bloom gossip peer: %+v", err)
 				}
 			case add := <-gw.addGateway:
+				fmt.Println("added")
 				gwId, err := id.Unmarshal(add.Gateway.ID)
 				if err != nil {
 					jww.WARN.Printf("Unable to unmarshal gossip peer: %+v", err)

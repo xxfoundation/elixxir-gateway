@@ -29,7 +29,7 @@ func (gw *Instance) InitRateLimitGossip() {
 	flags.SelfGossip = true
 
 	// Register gossip protocol for bloom filters
-	gw.Comms.Manager.NewGossip(BloomFilterGossip, flags,
+	gw.Comms.Manager.NewGossip(RateLimitGossip, flags,
 		gw.gossipRateLimitReceive, gw.gossipVerify, nil)
 
 }
@@ -64,11 +64,6 @@ func (gw *Instance) gossipRateLimitReceive(msg *gossip.GossipMsg) error {
 	return nil
 }
 
-// KillRateLimiter is a helper function which sends the kill
-// signal to the gateway's rate limiter
-func (gw *Instance) KillRateLimiter() {
-	gw.rateLimitQuit <- struct{}{}
-}
 
 // GossipBatch builds a gossip message containing all of the sender IDs
 // within the batch and gossips it to all peers
