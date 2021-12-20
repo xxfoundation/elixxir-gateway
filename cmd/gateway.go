@@ -319,16 +319,18 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 		return nil, errors.Errorf("Unable to unmarshal sender ID: %+v", err)
 	}
 
+	capacity, leaked, duration := gw.GetRateLimitParams()
+
 	// Check if either the ID or IP is whitelisted
-	isIpAddrSuccess, isIpAddrWhitelisted := gw.ipAddrRateLimiting.LookupBucket(ipAddr).Add(1)
-	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).Add(1)
+	isIpAddrSuccess, isIpAddrWhitelisted := gw.ipAddrRateLimiting.LookupBucket(ipAddr).AddWithExternalParams(1, capacity, leaked, duration)
+	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(1, capacity, leaked, duration)
 	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
 		!(isIpAddrSuccess && idBucketSuccess) {
 		return nil, errors.Errorf("Too many messages sent "+
 			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
 	}
 
-	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, thisRound); err != nil {
+	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, senderId, ipAddr, thisRound); err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
 				"Please try a different round.")
@@ -397,8 +399,9 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 	}
 
 	// Check if either the ID or IP is whitelisted
-	isIpAddrSuccess, isIpAddrWhitelisted := gw.ipAddrRateLimiting.LookupBucket(ipAddr).Add(uint32(len(messages.Messages)))
-	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).Add(uint32(len(messages.Messages)))
+	capacity, leaked, duration := gw.GetRateLimitParams()
+	isIpAddrSuccess, isIpAddrWhitelisted := gw.ipAddrRateLimiting.LookupBucket(ipAddr).AddWithExternalParams(uint32(len(messages.Messages)), capacity, leaked, duration)
+	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(uint32(len(messages.Messages)), capacity, leaked, duration)
 	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
 		!(isIpAddrSuccess && idBucketSuccess) {
 		return nil, errors.Errorf("Too many messages sent "+
@@ -408,7 +411,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 
 	// Add messages to buffer
 	thisRound := id.Round(messages.RoundID)
-	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, thisRound)
+	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages,  senderId, ipAddr, thisRound)
 	if err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
@@ -564,7 +567,7 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 
 	rid := id.Round(roundInfo.ID)
 
-	batch := gw.UnmixedBuffer.PopRound(rid)
+	batch, senders, ips := gw.UnmixedBuffer.PopRound(rid)
 
 	if batch == nil {
 		jww.ERROR.Printf("Batch for %v not found!", roundInfo.ID)
@@ -604,11 +607,15 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 	jww.INFO.Printf("Upload complete")
 
 	if !gw.Params.DisableGossip {
-		/*// Gossip senders included in the batch to other gateways
-		err = gw.GossipBatch(batch)
-		if err != nil {
-			jww.WARN.Printf("Unable to gossip batch information: %+v", err)
-		}*/
+		// Gossip senders included in the batch to other gateways
+		go func(){
+			err = gw.GossipBatch(rid, senders, ips)
+			if err != nil {
+				jww.ERROR.Printf("Unable to gossip rate limit batch " +
+					"information for round %d: %+v", rid, err)
+			}
+		}()
+
 	}
 }
 

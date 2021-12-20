@@ -77,9 +77,7 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
-	// Map of leaky buckets for user IDs
 	rateLimitQuit chan struct{}
-	rateLimit     *rateLimiting.BucketMap
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
@@ -260,6 +258,12 @@ func (gw *Instance) Start() {
 	}()
 }
 
+func (gw *Instance) GetRateLimitParams() (uint32, uint32, time.Duration) {
+	gw.RateLimitingMux.RLock()
+	defer gw.RateLimitingMux.RUnlock()
+	return uint32(gw.LeakedCapacity), uint32(gw.LeakedTokens), gw.LeakDuration
+}
+
 // UpdateInstance reads a ServerPollResponse object and updates the instance
 // state accordingly.
 func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
@@ -283,67 +287,65 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			gw.LeakedTokens != newNdf.RateLimits.LeakedTokens ||
 			gw.LeakDuration != time.Duration(newNdf.RateLimits.LeakDuration) {
 
-			gw.idRateLimiting = rateLimiting.CreateBucketMap(uint32(newNdf.RateLimits.Capacity),
-				uint32(newNdf.RateLimits.LeakedTokens),
-				time.Duration(newNdf.RateLimits.LeakedTokens), pollDuration, bucketMaxAge, nil, gw.idRateLimitQuit)
-
-			gw.ipAddrRateLimiting = rateLimiting.CreateBucketMap(uint32(newNdf.RateLimits.Capacity),
-				uint32(newNdf.RateLimits.LeakedTokens),
-				time.Duration(newNdf.RateLimits.LeakedTokens), pollDuration, bucketMaxAge, nil, gw.ipAddrRateLimitQuit)
-
-		} else {
-			// Construct set of of whitelisted IDs
-			whitelistedIdsSet := set.New()
-			for _, ids := range newNdf.WhitelistedIds {
-				whitelistedIdsSet.Insert(ids)
-			}
-
-			// Find difference between new set from NDF and stored set from impl
-			removedIds := gw.whitelistedIdsSet.Difference(whitelistedIdsSet)
-
-			// Remove all whitelisted IDs no longer in NDF
-			removedIds.Do(func(i interface{}) {
-				removedId := i.(string)
-				err = gw.idRateLimiting.DeleteBucket(removedId)
-				if err != nil {
-					jww.ERROR.Printf("Could not remove ID from whitelist: %v", err)
-				}
-
-			})
-
-			// Store new set in impl
-			gw.whitelistedIdsSet = whitelistedIdsSet
-
-			// Construct set of of whitelisted IP addresses from NDF
-			whitelistedIpAddressesSet := set.New()
-			for _, ipAddr := range newNdf.WhitelistedIpAddresses {
-				whitelistedIpAddressesSet.Insert(ipAddr)
-			}
-
-			// Find difference between new set from NDF and stored set from impl
-			removedIpAddresses := gw.whitelistedIdsSet.Difference(whitelistedIpAddressesSet)
-
-			// Remove all whitelisted IP addresses no longer in NDF
-			removedIpAddresses.Do(func(i interface{}) {
-				removedIpAddr := i.(string)
-				err = gw.ipAddrRateLimiting.DeleteBucket(removedIpAddr)
-				if err != nil {
-					jww.ERROR.Printf("Could not remove IP address from whitelist: %v", err)
-				}
-			})
-
-			// Store new set in impl
-			gw.whitelistedIpAddressSet = whitelistedIpAddressesSet
+			gw.LeakedCapacity = newNdf.RateLimits.Capacity
+			gw.LeakedTokens = newNdf.RateLimits.LeakedTokens
+			gw.LeakDuration = time.Duration(newNdf.RateLimits.LeakDuration)
 
 		}
+
+		// Construct set of of whitelisted IDs
+		whitelistedIdsSet := set.New()
+		for _, ids := range newNdf.WhitelistedIds {
+			whitelistedIdsSet.Insert(ids)
+		}
+
+		// Find difference between new set from NDF and stored set from impl
+		removedIds := gw.whitelistedIdsSet.Difference(whitelistedIdsSet)
+
+		// Remove all whitelisted IDs no longer in NDF
+		removedIds.Do(func(i interface{}) {
+			removedId := i.(string)
+			err = gw.idRateLimiting.DeleteBucket(removedId)
+			if err != nil {
+				jww.ERROR.Printf("Could not remove ID from whitelist: %v", err)
+			}
+
+		})
+
+		// Store new set in impl
+		gw.whitelistedIdsSet = whitelistedIdsSet
+
+		// Construct set of of whitelisted IP addresses from NDF
+		whitelistedIpAddressesSet := set.New()
+		for _, ipAddr := range newNdf.WhitelistedIpAddresses {
+			whitelistedIpAddressesSet.Insert(ipAddr)
+		}
+
+		// Find difference between new set from NDF and stored set from impl
+		removedIpAddresses := gw.whitelistedIdsSet.Difference(whitelistedIpAddressesSet)
+
+		// Remove all whitelisted IP addresses no longer in NDF
+		removedIpAddresses.Do(func(i interface{}) {
+			removedIpAddr := i.(string)
+			err = gw.ipAddrRateLimiting.DeleteBucket(removedIpAddr)
+			if err != nil {
+				jww.ERROR.Printf("Could not remove IP address from whitelist: %v", err)
+			}
+		})
+
+		// Store new set in impl
+		gw.whitelistedIpAddressSet = whitelistedIpAddressesSet
 
 		// Update the whitelisted rate limiting IDs
 		gw.idRateLimiting.AddToWhitelist(newNdf.WhitelistedIds)
 		gw.ipAddrRateLimiting.AddToWhitelist(newNdf.WhitelistedIpAddresses)
 
 		gw.RateLimitingMux.Unlock()
-
 	}
+
+
+
+
 	if newInfo.PartialNDF != nil {
 		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
 		if err != nil {
@@ -679,7 +681,7 @@ func (gw *Instance) InitNetwork() error {
 
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {
-			//gw.InitRateLimitGossip()
+			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
 
