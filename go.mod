@@ -18,12 +18,12 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211011181341-718e08d2adef
-	gitlab.com/elixxir/comms v0.0.4-0.20211215180139-d2725935eb68
-	gitlab.com/elixxir/crypto v0.0.7-0.20211215180030-337c9eab7db5
-	gitlab.com/elixxir/primitives v0.0.3-0.20211215175956-d65c3202c661
-	gitlab.com/xx_network/comms v0.0.4-0.20211215175944-c4c319d4f752
-	gitlab.com/xx_network/crypto v0.0.5-0.20211215175916-ef89afff7ea2
-	gitlab.com/xx_network/primitives v0.0.4-0.20211215010517-1917372c5ecc
+	gitlab.com/elixxir/comms v0.0.4-0.20211220224127-670d882e4067
+	gitlab.com/elixxir/crypto v0.0.7-0.20211220224022-1f518df56c0f
+	gitlab.com/elixxir/primitives v0.0.3-0.20211220223949-1fdbc43d8269
+	gitlab.com/xx_network/comms v0.0.4-0.20211220223937-660809b69338
+	gitlab.com/xx_network/crypto v0.0.5-0.20211220223913-6088f05a1191
+	gitlab.com/xx_network/primitives v0.0.4-0.20211220222437-cfa4d22efd35
 	google.golang.org/genproto v0.0.0-20210105202744-fe13368bc0e1 // indirect
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.27.1
