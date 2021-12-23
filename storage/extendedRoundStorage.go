@@ -71,13 +71,20 @@ func (s *Storage) Retrieve(id id.Round) (*pb.RoundInfo, error) {
 func (s *Storage) RetrieveMany(rounds []id.Round) ([]*pb.RoundInfo, error) {
 	var r = make([]*pb.RoundInfo, len(rounds))
 
+	numFound := 0
+
 	// Iterate over all rounds provided and put them in the round array
 	for i, rid := range rounds {
 		ri, err := s.Retrieve(rid)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		r[i] = ri
+		numFound++
+	}
+
+	if numFound==0{
+		return nil, errors.New("Failed to find any of the rounds")
 	}
 
 	return r, nil
