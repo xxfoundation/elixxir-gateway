@@ -17,7 +17,7 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
-	gitlab.com/elixxir/bloomfilter v0.0.0-20211011181341-718e08d2adef
+	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
 	gitlab.com/elixxir/comms v0.0.4-0.20211227194636-6c18b5e870ae
 	gitlab.com/elixxir/crypto v0.0.7-0.20211227194530-ccd1a1c13a48
 	gitlab.com/elixxir/primitives v0.0.3-0.20211227194457-8745b796d1f5
