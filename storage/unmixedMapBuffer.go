@@ -26,6 +26,8 @@ type UnmixedMessagesMap struct {
 type SendRound struct {
 	batch       *pb.Batch
 	maxElements uint32
+	Senders []*id.ID
+	Ips 	[]string
 	sent        bool
 }
 
@@ -40,9 +42,10 @@ func NewUnmixedMessagesMap() UnmixedMessageBuffer {
 }
 
 // AddUnmixedMessage adds a message to send to the cMix node.
-func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round) error {
+func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, sender *id.ID, ip string, roundId id.Round) error {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
+
 
 	retrievedBatch, ok := umb.messages[roundId]
 	if !ok {
@@ -59,12 +62,16 @@ func (umb *UnmixedMessagesMap) AddUnmixedMessage(msg *pb.Slot, roundId id.Round)
 
 	// If the batch for this round was already created, add another message
 	retrievedBatch.batch.Slots = append(retrievedBatch.batch.Slots, msg)
+	retrievedBatch.Senders = append(retrievedBatch.Senders, sender)
+	retrievedBatch.Ips = append(retrievedBatch.Ips, ip)
+
 	umb.messages[roundId] = retrievedBatch
 	return nil
 }
 
 // AddManyUnmixedMessage adds many unmixed messages to send to the cMix node.
-func (umb *UnmixedMessagesMap) AddManyUnmixedMessages(msgs []*pb.GatewaySlot, roundId id.Round) error {
+func (umb *UnmixedMessagesMap) AddManyUnmixedMessages(msgs []*pb.GatewaySlot, sender *id.ID,
+	ip string, roundId id.Round) error {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
@@ -90,6 +97,8 @@ func (umb *UnmixedMessagesMap) AddManyUnmixedMessages(msgs []*pb.GatewaySlot, ro
 	slots := make([]*pb.Slot, len(msgs))
 	for i := 0; i < len(msgs); i++ {
 		slots[i] = msgs[i].Message
+		retrievedBatch.Senders = append(retrievedBatch.Senders, sender)
+		retrievedBatch.Ips = append(retrievedBatch.Ips, ip)
 	}
 
 	// If the batch for this round was already created, add another message
@@ -99,22 +108,24 @@ func (umb *UnmixedMessagesMap) AddManyUnmixedMessages(msgs []*pb.GatewaySlot, ro
 }
 
 // GetRoundMessages returns the batch associated with the roundID
-func (umb *UnmixedMessagesMap) PopRound(roundId id.Round) *pb.Batch {
+func (umb *UnmixedMessagesMap) PopRound(roundId id.Round) (*pb.Batch, []*id.ID, []string) {
 	umb.mux.Lock()
 	defer umb.mux.Unlock()
 
 	retrievedBatch, ok := umb.messages[roundId]
 	if !ok {
-		return nil
+		return nil, nil, nil
 	}
 
 	retrievedBatch.sent = true
 
 	// Handle batches too small to send
 	batch := retrievedBatch.batch
+	senders := retrievedBatch.Senders
+	ips := retrievedBatch.Ips
 	retrievedBatch.batch = nil
 	umb.messages[roundId] = retrievedBatch
-	return batch
+	return batch, senders, ips
 }
 
 // LenUnmixed return the number of messages within the requested round
@@ -150,6 +161,8 @@ func (umb *UnmixedMessagesMap) SetAsRoundLeader(roundId id.Round, batchsize uint
 	umb.messages[roundId] = &SendRound{
 		batch:       &pb.Batch{Slots: make([]*pb.Slot, 0, batchsize)},
 		maxElements: batchsize,
+		Senders: make([]*id.ID, 0, batchsize),
+		Ips: make([]string,0,batchsize),
 	}
 }
 

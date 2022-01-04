@@ -77,9 +77,7 @@ type Instance struct {
 	// Gateway object created at start
 	Comms *gateway.Comms
 
-	// Map of leaky buckets for user IDs
 	rateLimitQuit chan struct{}
-	rateLimit     *rateLimiting.BucketMap
 
 	// struct for tracking notifications
 	un notifications.UserNotifications
@@ -124,7 +122,7 @@ type Instance struct {
 
 	earliestRoundTrackerMux sync.Mutex
 	earliestRoundUpdateChan chan EarliestRound
-	earliestRoundQuitChan  chan struct{}
+	earliestRoundQuitChan   chan struct{}
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -152,22 +150,21 @@ func NewGatewayInstance(params Params) *Instance {
 		jww.FATAL.Panicf("failed to create new KnownRounds wrapper: %+v", err)
 	}
 
-	idRateLimitQuit := make(chan struct{}, 1)
-	ipAddrRateLimitQuit := make(chan struct{}, 1)
 	earliestRoundUpdateChan := make(chan EarliestRound)
 	i := &Instance{
 		UnmixedBuffer:           storage.NewUnmixedMessagesMap(),
 		Params:                  params,
 		storage:                 newDatabase,
 		krw:                     krw,
-		idRateLimitQuit:         idRateLimitQuit,
-		ipAddrRateLimitQuit:     ipAddrRateLimitQuit,
+		idRateLimitQuit:         make(chan struct{}, 1),
+		ipAddrRateLimitQuit:     make(chan struct{}, 1),
 		whitelistedIpAddressSet: set.New(),
 		whitelistedIdsSet:       set.New(),
 		LeakedCapacity:          1,
 		LeakDuration:            2000 * time.Millisecond,
 		LeakedTokens:            1,
 		earliestRoundUpdateChan: earliestRoundUpdateChan,
+		earliestRoundQuitChan:   make(chan struct{}, 1),
 	}
 
 	msgRateLimitParams := &rateLimiting.MapParams{
@@ -261,6 +258,12 @@ func (gw *Instance) Start() {
 	}()
 }
 
+func (gw *Instance) GetRateLimitParams() (uint32, uint32, time.Duration) {
+	gw.RateLimitingMux.RLock()
+	defer gw.RateLimitingMux.RUnlock()
+	return uint32(gw.LeakedCapacity), uint32(gw.LeakedTokens), gw.LeakDuration
+}
+
 // UpdateInstance reads a ServerPollResponse object and updates the instance
 // state accordingly.
 func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
@@ -284,67 +287,65 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			gw.LeakedTokens != newNdf.RateLimits.LeakedTokens ||
 			gw.LeakDuration != time.Duration(newNdf.RateLimits.LeakDuration) {
 
-			gw.idRateLimiting = rateLimiting.CreateBucketMap(uint32(newNdf.RateLimits.Capacity),
-				uint32(newNdf.RateLimits.LeakedTokens),
-				time.Duration(newNdf.RateLimits.LeakedTokens), pollDuration, bucketMaxAge, nil, gw.idRateLimitQuit)
-
-			gw.ipAddrRateLimiting = rateLimiting.CreateBucketMap(uint32(newNdf.RateLimits.Capacity),
-				uint32(newNdf.RateLimits.LeakedTokens),
-				time.Duration(newNdf.RateLimits.LeakedTokens), pollDuration, bucketMaxAge, nil, gw.ipAddrRateLimitQuit)
-
-		} else {
-			// Construct set of of whitelisted IDs
-			whitelistedIdsSet := set.New()
-			for _, ids := range newNdf.WhitelistedIds {
-				whitelistedIdsSet.Insert(ids)
-			}
-
-			// Find difference between new set from NDF and stored set from impl
-			removedIds := gw.whitelistedIdsSet.Difference(whitelistedIdsSet)
-
-			// Remove all whitelisted IDs no longer in NDF
-			removedIds.Do(func(i interface{}) {
-				removedId := i.(string)
-				err = gw.idRateLimiting.DeleteBucket(removedId)
-				if err != nil {
-					jww.ERROR.Printf("Could not remove ID from whitelist: %v", err)
-				}
-
-			})
-
-			// Store new set in impl
-			gw.whitelistedIdsSet = whitelistedIdsSet
-
-			// Construct set of of whitelisted IP addresses from NDF
-			whitelistedIpAddressesSet := set.New()
-			for _, ipAddr := range newNdf.WhitelistedIpAddresses {
-				whitelistedIpAddressesSet.Insert(ipAddr)
-			}
-
-			// Find difference between new set from NDF and stored set from impl
-			removedIpAddresses := gw.whitelistedIdsSet.Difference(whitelistedIpAddressesSet)
-
-			// Remove all whitelisted IP addresses no longer in NDF
-			removedIpAddresses.Do(func(i interface{}) {
-				removedIpAddr := i.(string)
-				err = gw.ipAddrRateLimiting.DeleteBucket(removedIpAddr)
-				if err != nil {
-					jww.ERROR.Printf("Could not remove IP address from whitelist: %v", err)
-				}
-			})
-
-			// Store new set in impl
-			gw.whitelistedIpAddressSet = whitelistedIpAddressesSet
+			gw.LeakedCapacity = newNdf.RateLimits.Capacity
+			gw.LeakedTokens = newNdf.RateLimits.LeakedTokens
+			gw.LeakDuration = time.Duration(newNdf.RateLimits.LeakDuration)
 
 		}
+
+		// Construct set of of whitelisted IDs
+		whitelistedIdsSet := set.New()
+		for _, ids := range newNdf.WhitelistedIds {
+			whitelistedIdsSet.Insert(ids)
+		}
+
+		// Find difference between new set from NDF and stored set from impl
+		removedIds := gw.whitelistedIdsSet.Difference(whitelistedIdsSet)
+
+		// Remove all whitelisted IDs no longer in NDF
+		removedIds.Do(func(i interface{}) {
+			removedId := i.(string)
+			err = gw.idRateLimiting.DeleteBucket(removedId)
+			if err != nil {
+				jww.ERROR.Printf("Could not remove ID from whitelist: %v", err)
+			}
+
+		})
+
+		// Store new set in impl
+		gw.whitelistedIdsSet = whitelistedIdsSet
+
+		// Construct set of of whitelisted IP addresses from NDF
+		whitelistedIpAddressesSet := set.New()
+		for _, ipAddr := range newNdf.WhitelistedIpAddresses {
+			whitelistedIpAddressesSet.Insert(ipAddr)
+		}
+
+		// Find difference between new set from NDF and stored set from impl
+		removedIpAddresses := gw.whitelistedIdsSet.Difference(whitelistedIpAddressesSet)
+
+		// Remove all whitelisted IP addresses no longer in NDF
+		removedIpAddresses.Do(func(i interface{}) {
+			removedIpAddr := i.(string)
+			err = gw.ipAddrRateLimiting.DeleteBucket(removedIpAddr)
+			if err != nil {
+				jww.ERROR.Printf("Could not remove IP address from whitelist: %v", err)
+			}
+		})
+
+		// Store new set in impl
+		gw.whitelistedIpAddressSet = whitelistedIpAddressesSet
 
 		// Update the whitelisted rate limiting IDs
 		gw.idRateLimiting.AddToWhitelist(newNdf.WhitelistedIds)
 		gw.ipAddrRateLimiting.AddToWhitelist(newNdf.WhitelistedIpAddresses)
 
 		gw.RateLimitingMux.Unlock()
-
 	}
+
+
+
+
 	if newInfo.PartialNDF != nil {
 		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
 		if err != nil {
@@ -513,8 +514,6 @@ func (gw *Instance) InitNetwork() error {
 	gw.Comms = gateway.StartGateway(&id.TempGateway, gw.Params.ListeningAddress,
 		gatewayHandler, gwCert, gwKey, gossip.DefaultManagerFlags())
 
-
-
 	// Set up temporary server host
 	// (id, address string, cert []byte, disableTimeout, enableAuth bool)
 	dummyServerID := id.DummyUser.DeepCopy()
@@ -636,6 +635,7 @@ func (gw *Instance) InitNetwork() error {
 				" instance: %v", err)
 			continue
 		}
+		jww.INFO.Printf("Instance created")
 
 		// Initialize the update tracker for fast client polling
 		gw.filteredUpdates, err = NewFilteredUpdates(gw.NetInf)
@@ -663,22 +663,25 @@ func (gw *Instance) InitNetwork() error {
 		notificationParams.EnableCoolOff = true
 
 		// Add notification bot as a host
-		_, err = gw.Comms.AddHost(
-			&id.NotificationBot,
-			gw.NetInf.GetFullNdf().Get().Notification.Address,
-			[]byte(gw.NetInf.GetFullNdf().Get().Notification.TlsCertificate),
-			notificationParams,
-		)
-		if err != nil {
-			return errors.Errorf("failed to add notification bot host to comms: %v", err)
-		}
+		if gw.NetInf.GetFullNdf().Get().Notification.Address != "" {
+			jww.WARN.Printf("Notifications Bot is not specified in the NDF, not adding as host")
 
+			_, err = gw.Comms.AddHost(
+				&id.NotificationBot,
+				gw.NetInf.GetFullNdf().Get().Notification.Address,
+				[]byte(gw.NetInf.GetFullNdf().Get().Notification.TlsCertificate),
+				notificationParams,
+			)
+			if err != nil {
+				return errors.Errorf("failed to add notification bot host to comms: %v", err)
+			}
+		}
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {
-			//gw.InitRateLimitGossip()
+			gw.InitRateLimitGossip()
 			gw.InitBloomGossip()
 		}
 
@@ -724,7 +727,7 @@ func (gw *Instance) beginStorageCleanup() {
 					continue
 				}
 			}
-		case <- gw.earliestRoundQuitChan:
+		case <-gw.earliestRoundQuitChan:
 			return
 		}
 	}
@@ -843,11 +846,11 @@ func (gw *Instance) UpdateEarliestRound(newClientRoundId,
 	newEarliestRound := EarliestRound{
 		clientRoundId: newClientRoundId,
 		gwRoundID:     newGwRoundID,
-		gwTimestamp: newRoundTimestamp,
+		gwTimestamp:   newRoundTimestamp,
 	}
 
 	// Determine if values need to be updated
-	isUpdate := newEarliestRound.gwTimestamp  > gw.earliestRoundTrackerUnsafe.gwTimestamp ||
+	isUpdate := newEarliestRound.gwTimestamp > gw.earliestRoundTrackerUnsafe.gwTimestamp ||
 		newEarliestRound.clientRoundId > gw.earliestRoundTrackerUnsafe.clientRoundId ||
 		newEarliestRound.gwRoundID > gw.earliestRoundTrackerUnsafe.gwRoundID
 

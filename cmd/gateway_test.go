@@ -209,7 +209,6 @@ func buildTestNodeImpl() *node.Implementation {
 // Tests that receiving messages and sending them to the node works
 func TestGatewayImpl_SendBatch(t *testing.T) {
 	gatewayInstance.InitRateLimitGossip()
-	defer gatewayInstance.KillRateLimiter()
 
 	p := large.NewIntFromString(prime, 16)
 	g := large.NewIntFromString(generator, 16)
@@ -324,7 +323,6 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	}
 
 	gw.InitRateLimitGossip()
-	defer gw.KillRateLimiter()
 
 	data := format.NewMessage(grp2.GetP().ByteLen())
 	rndId := uint64(1)

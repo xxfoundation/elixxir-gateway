@@ -35,7 +35,6 @@ import (
 // Happy path
 func TestInstance_GossipReceive_RateLimit(t *testing.T) {
 	gatewayInstance.InitRateLimitGossip()
-	defer gatewayInstance.KillRateLimiter()
 	var err error
 
 	// Create a fake round info
@@ -50,20 +49,18 @@ func TestInstance_GossipReceive_RateLimit(t *testing.T) {
 		t.Errorf("Error signing round info: %s", err)
 	}
 
+	numsender := 100
 	// Build a test batch
-	batch := &pb.Batch{
-		Slots: make([]*pb.Slot, 10),
-		Round: ri,
-	}
+	senderIDs := make([]*id.ID,0,numsender)
 
-	for i := 0; i < len(batch.Slots); i++ {
+	for i := 0; i < numsender; i++ {
 		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
-		batch.Slots[i] = &pb.Slot{SenderID: senderId.Marshal()}
+		senderIDs = append(senderIDs,senderId)
 	}
 
 	// Build a test gossip message
 	gossipMsg := &gossip.GossipMsg{}
-	gossipMsg.Payload, err = buildGossipPayloadRateLimit(batch)
+	gossipMsg.Payload, err = buildGossipPayloadRateLimit(10,senderIDs,[]string{})
 	if err != nil {
 		t.Errorf("Unable to build gossip payload: %+v", err)
 	}
@@ -75,16 +72,13 @@ func TestInstance_GossipReceive_RateLimit(t *testing.T) {
 	}
 
 	// Ensure the buckets were populated
-	for _, slot := range batch.Slots {
-		senderId, err := id.Unmarshal(slot.GetSenderID())
-		if err != nil {
-			t.Errorf("Could not unmarshal sender ID: %+v", err)
-		}
-		bucket := gatewayInstance.rateLimit.LookupBucket(senderId.String())
+	for _, senderID := range senderIDs {
+		bucket := gatewayInstance.idRateLimiting.LookupBucket(senderID.String())
 		if bucket.Remaining() == 0 {
-			t.Errorf("Failed to add to leaky bucket for sender %s", senderId.String())
+			t.Errorf("Failed to add to leaky bucket for sender %s", senderID.String())
 		}
 	}
+
 }
 
 // Happy path
@@ -132,7 +126,6 @@ func TestInstance_GossipVerify(t *testing.T) {
 	}
 
 	gw.InitRateLimitGossip()
-	defer gw.KillRateLimiter()
 
 	// Add permissioning as a host
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
@@ -249,7 +242,6 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	gatewayInstance.removeGateway = make(chan *id.ID, gwChanLen)
 	gatewayInstance.InitRateLimitGossip()
 	gatewayInstance.InitBloomGossip()
-	defer gatewayInstance.KillRateLimiter()
 	var err error
 
 	// Prepare values and host
@@ -274,16 +266,11 @@ func TestInstance_StartPeersThread(t *testing.T) {
 
 	// Send the add gateway signal
 	gatewayInstance.addGateway <- testSignal
+	time.Sleep(1*time.Second)
 
 	// Test the add gateway signals
 	// by attempting to remove the added gateway
-	for i := 0; i < 5; i++ {
-		err = protocol.RemoveGossipPeer(gwId)
-		if err == nil {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	err = protocol.RemoveGossipPeer(gwId)
 	if err != nil {
 		t.Errorf("Unable to remove gossip peer: %+v", err)
 	}
@@ -303,6 +290,7 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	// 	t.Errorf("Expected failure to remove already-removed peer!")
 	// }
 }
+
 
 //
 func TestInstance_GossipBatch(t *testing.T) {
@@ -350,7 +338,6 @@ func TestInstance_GossipBatch(t *testing.T) {
 
 	// Initialize leaky bucket
 	gw.rateLimitQuit = make(chan struct{}, 1)
-	gw.rateLimit = rateLimiting.CreateBucketMapFromParams(gw.Params.rateLimitParams, nil, gw.rateLimitQuit)
 	fmt.Printf("gwComms: %v\n", gw.Comms)
 	fmt.Printf("gwManager: %v\n", gw.Comms.Manager)
 	flags := gossip.DefaultProtocolFlags()
@@ -358,7 +345,6 @@ func TestInstance_GossipBatch(t *testing.T) {
 	// Register gossip protocol for client rate limiting
 	gw.Comms.Manager.NewGossip(RateLimitGossip, flags,
 		gw.gossipRateLimitReceive, gw.gossipVerify, nil)
-	defer gw.KillRateLimiter()
 
 	// Add permissioning as a host
 	pub := testkeys.LoadFromPath(testkeys.GetNodeCertPath())
@@ -406,7 +392,18 @@ func TestInstance_GossipBatch(t *testing.T) {
 		t.Errorf("Could not place mock round: %v", err)
 	}
 
+	numsenders := 100
+
 	// Build a test batch
+	senderIDs := make([]*id.ID,0,numsenders)
+	ips := make([]string,0,numsenders)
+
+	for i := 0; i < numsenders; i++ {
+		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
+		senderIDs = append(senderIDs,senderId)
+		ip := fmt.Sprintf("%d.%d.%d.%d", i,i,i,i)
+		ips = append(ips,ip)
+	}
 	batch := &pb.Batch{
 		Round: ri,
 		Slots: make([]*pb.Slot, 10),
@@ -417,7 +414,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	}
 
 	// Send the gossip
-	err = gw.GossipBatch(batch)
+	err = gw.GossipBatch(id.Round(ri.ID),senderIDs,ips)
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
@@ -425,7 +422,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 
 	// Verify the gossip was received
 	testSenderId := id.NewIdFromString("0", id.User, t)
-	if remaining := gw.rateLimit.LookupBucket(testSenderId.String()).Remaining(); remaining != 1 {
+	if remaining := gw.idRateLimiting.LookupBucket(testSenderId.String()).Remaining(); remaining != 1 {
 		t.Errorf("Expected to reduce remaining message count for test sender, got %d", remaining)
 	}
 }

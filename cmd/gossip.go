@@ -11,6 +11,7 @@ package cmd
 
 import (
 	"crypto/rand"
+	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/comms/gossip"
@@ -27,16 +28,19 @@ const BloomFilterGossip = "bloomFilter"
 // Starts a thread for monitoring and handling changes to gossip peers
 func (gw *Instance) StartPeersThread() {
 	go func() {
-		/*rateLimitProtocol, exists := gw.Comms.Manager.Get(RateLimitGossip)
+		fmt.Println("a")
+		rateLimitProtocol, exists := gw.Comms.Manager.Get(RateLimitGossip)
 		if !exists {
-			jww.WARN.Printf("Unable to get gossip rateLimitProtocol!")
-			return
-		}*/
-		bloomProtocol, exists := gw.Comms.Manager.Get(BloomFilterGossip)
-		if !exists {
-			jww.WARN.Printf("Unable to get gossip BloomFilter!")
+			jww.ERROR.Printf("Unable to get gossip rateLimitProtocol!")
 			return
 		}
+		fmt.Println("b")
+		bloomProtocol, exists := gw.Comms.Manager.Get(BloomFilterGossip)
+		if !exists {
+			jww.ERROR.Printf("Unable to get gossip BloomFilter!")
+			return
+		}
+		fmt.Println("c")
 
 		//add all previously present gateways
 		/*for _, gateway := range gw.NetInf.GetFullNdf().Get().Gateways{
@@ -61,25 +65,26 @@ func (gw *Instance) StartPeersThread() {
 			// TODO: Add kill case?
 			case removeId := <-gw.removeGateway:
 				jww.INFO.Printf("Removed %s to gossip peers list", removeId)
-				/*err := rateLimitProtocol.RemoveGossipPeer(removeId)
+				err := rateLimitProtocol.RemoveGossipPeer(removeId)
 				if err != nil {
 					jww.WARN.Printf("Unable to remove rate limit gossip peer: %+v", err)
-				}*/
-				err := bloomProtocol.RemoveGossipPeer(removeId)
+				}
+				err = bloomProtocol.RemoveGossipPeer(removeId)
 				if err != nil {
 					jww.WARN.Printf("Unable to remove bloom gossip peer: %+v", err)
 				}
 			case add := <-gw.addGateway:
+				fmt.Println("added")
 				gwId, err := id.Unmarshal(add.Gateway.ID)
 				if err != nil {
 					jww.WARN.Printf("Unable to unmarshal gossip peer: %+v", err)
 					continue
 				}
 				jww.INFO.Printf("Added %s to gossip peers list", gwId)
-				/*err = rateLimitProtocol.AddGossipPeer(gwId)
+				err = rateLimitProtocol.AddGossipPeer(gwId)
 				if err != nil {
 					jww.WARN.Printf("Unable to add rate limit gossip peer: %+v", err)
-				}*/
+				}
 				err = bloomProtocol.AddGossipPeer(gwId)
 				if err != nil {
 					jww.WARN.Printf("Unable to add bloom gossip peer: %+v", err)
@@ -114,7 +119,7 @@ func (gw *Instance) gossipVerify(msg *gossip.GossipMsg, _ []byte) error {
 	}
 
 	if msg.Tag == RateLimitGossip {
-		return verifyRateLimit(msg, origin, gw.NetInf)
+		return nil
 	} else if msg.Tag == BloomFilterGossip {
 		return nil
 	}
