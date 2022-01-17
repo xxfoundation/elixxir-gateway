@@ -81,7 +81,7 @@ func (gw *Instance) GossipBatch(round id.Round, senders []*id.ID, ips []string) 
 	// Add the GossipMsg payload
 	gossipMsg.Payload, err = buildGossipPayloadRateLimit(round, senders, ips)
 	if err != nil {
-		return errors.Errorf("Unable to build gossip payload: %+v", err)
+		return errors.Errorf("Unable to build rate limit gossip payload: %+v", err)
 	}
 
 	// Add the GossipMsg signature

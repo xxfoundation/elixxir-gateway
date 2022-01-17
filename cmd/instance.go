@@ -291,6 +291,11 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			gw.LeakedTokens = newNdf.RateLimits.LeakedTokens
 			gw.LeakDuration = time.Duration(newNdf.RateLimits.LeakDuration)
 
+			jww.INFO.Printf("rate limit gossip updates: " +
+				"(LeakedCapacity: %d, LeakedTokens: %d, " +
+				"LeakDuration: %s)", gw.LeakedCapacity,
+				gw.LeakedTokens, gw.LeakDuration)
+
 		}
 
 		// Construct set of of whitelisted IDs
