@@ -103,7 +103,7 @@ func (gw *Instance) gossipVerify(msg *gossip.GossipMsg, _ []byte) error {
 	}
 	host, exists := gw.Comms.GetHost(origin)
 	if !exists {
-		return errors.Errorf("Unable to locate origin host: %+v", err)
+		return errors.Errorf("Unable to locate origin host: %s", host)
 	}
 
 	// Prepare message hash
