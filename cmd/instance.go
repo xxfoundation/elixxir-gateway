@@ -343,9 +343,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 		gw.RateLimitingMux.Unlock()
 	}
 
-
-
-
 	if newInfo.PartialNDF != nil {
 		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
 		if err != nil {
@@ -376,7 +373,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			}
 
 			// Add the updates to the consensus object
-			err = gw.NetInf.RoundUpdate(update)
+			_, err = gw.NetInf.RoundUpdate(update)
 			if err != nil {
 				// do not return on round update failure, that will cause the
 				// gateway to cease to process further updates, just warn

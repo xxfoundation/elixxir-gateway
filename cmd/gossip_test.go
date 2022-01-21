@@ -51,16 +51,16 @@ func TestInstance_GossipReceive_RateLimit(t *testing.T) {
 
 	numsender := 100
 	// Build a test batch
-	senderIDs := make([]*id.ID,0,numsender)
+	senderIDs := make([]*id.ID, 0, numsender)
 
 	for i := 0; i < numsender; i++ {
 		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
-		senderIDs = append(senderIDs,senderId)
+		senderIDs = append(senderIDs, senderId)
 	}
 
 	// Build a test gossip message
 	gossipMsg := &gossip.GossipMsg{}
-	gossipMsg.Payload, err = buildGossipPayloadRateLimit(10,senderIDs,[]string{})
+	gossipMsg.Payload, err = buildGossipPayloadRateLimit(10, senderIDs, []string{})
 	if err != nil {
 		t.Errorf("Unable to build gossip payload: %+v", err)
 	}
@@ -160,7 +160,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 	}
 
 	// Insert the mock round into the network instance
-	err = gw.NetInf.RoundUpdate(ri)
+	_, err = gw.NetInf.RoundUpdate(ri)
 	if err != nil {
 		t.Errorf("Could not place mock round: %v", err)
 	}
@@ -266,7 +266,7 @@ func TestInstance_StartPeersThread(t *testing.T) {
 
 	// Send the add gateway signal
 	gatewayInstance.addGateway <- testSignal
-	time.Sleep(1*time.Second)
+	time.Sleep(1 * time.Second)
 
 	// Test the add gateway signals
 	// by attempting to remove the added gateway
@@ -290,7 +290,6 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	// 	t.Errorf("Expected failure to remove already-removed peer!")
 	// }
 }
-
 
 //
 func TestInstance_GossipBatch(t *testing.T) {
@@ -387,7 +386,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	}
 
 	// Insert the mock round into the network instance
-	err = gw.NetInf.RoundUpdate(ri)
+	_, err = gw.NetInf.RoundUpdate(ri)
 	if err != nil {
 		t.Errorf("Could not place mock round: %v", err)
 	}
@@ -395,14 +394,14 @@ func TestInstance_GossipBatch(t *testing.T) {
 	numsenders := 100
 
 	// Build a test batch
-	senderIDs := make([]*id.ID,0,numsenders)
-	ips := make([]string,0,numsenders)
+	senderIDs := make([]*id.ID, 0, numsenders)
+	ips := make([]string, 0, numsenders)
 
 	for i := 0; i < numsenders; i++ {
 		senderId := id.NewIdFromString(fmt.Sprintf("%d", i), id.User, t)
-		senderIDs = append(senderIDs,senderId)
-		ip := fmt.Sprintf("%d.%d.%d.%d", i,i,i,i)
-		ips = append(ips,ip)
+		senderIDs = append(senderIDs, senderId)
+		ip := fmt.Sprintf("%d.%d.%d.%d", i, i, i, i)
+		ips = append(ips, ip)
 	}
 	batch := &pb.Batch{
 		Round: ri,
@@ -414,7 +413,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 	}
 
 	// Send the gossip
-	err = gw.GossipBatch(id.Round(ri.ID),senderIDs,ips)
+	err = gw.GossipBatch(id.Round(ri.ID), senderIDs, ips)
 	if err != nil {
 		t.Errorf("Unable to gossip: %+v", err)
 	}
@@ -525,7 +524,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 
 	// Insert the mock round into the network instance
-	err = gw.NetInf.RoundUpdate(ri)
+	_, err = gw.NetInf.RoundUpdate(ri)
 	if err != nil {
 		t.Errorf("Could not place mock round: %v", err)
 	}
