@@ -136,13 +136,16 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
 	}
 
-	jww.INFO.Printf("EphemeralId: %d"+
+	jww.INFO.Printf("EphemeralId (Bytes): %v"+
+		"\nEphemeralId (Int64): %d"+
 		"\nStartEpoch: %d"+
 		"\nEndEpoch: %d"+
 		"\nNumber of filters: %d,"+
 		"\nClientReq Start Timestamp: %d"+
 		"\nClientReq End Timestamp: %d"+
-		"\nClientFilters Msg: %+v", receptionId.Int64(),
+		"\nClientFilters Msg: %+v",
+		clientRequest.ReceptionID,
+		receptionId.Int64(),
 		startEpoch, endEpoch,
 		len(clientFilters), clientRequest.StartTimestamp, clientRequest.EndTimestamp, filtersMsg)
 
