@@ -141,13 +141,14 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		"\nStartEpoch: %d"+
 		"\nEndEpoch: %d"+
 		"\nNumber of filters: %d,"+
-		"\nClientReq Start Timestamp: %d"+
-		"\nClientReq End Timestamp: %d"+
+		"\nClientReq Start Timestamp: %s"+
+		"\nClientReq End Timestamp: %s"+
 		"\nClientFilters Msg: %+v",
 		clientRequest.ReceptionID,
 		receptionId.Int64(),
 		startEpoch, endEpoch,
-		len(clientFilters), clientRequest.StartTimestamp, clientRequest.EndTimestamp, filtersMsg)
+		len(clientFilters),
+		time.Unix(0, clientRequest.StartTimestamp), time.Unix(0, clientRequest.EndTimestamp), filtersMsg)
 
 	return &pb.GatewayPollResponse{
 		PartialNDF:    netDef,
