@@ -210,6 +210,14 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.Poll(msg)
 	}
 
+	impl.Functions.PutMessageProxy = func(message *pb.GatewaySlot, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
+		return instance.PutMessageProxy(message, auth)
+	}
+
+	impl.Functions.PutManyMessagesProxy = func(msgs *pb.GatewaySlots, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
+		return instance.PutManyMessageProxy(msgs, auth)
+	}
+
 	return impl
 }
 
