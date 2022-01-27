@@ -406,7 +406,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 }
 
 // PutManyMessageProxy is the function which handles a PutManyMessage proxy from another gateway
-func (gw *Instance) PutManyMessageProxy(msg *pb.GatewaySlots, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
+func (gw *Instance) PutManyMessagesProxy(msg *pb.GatewaySlots, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
 
 	// Ensure poller is properly authenticated
 	if !auth.IsAuthenticated {

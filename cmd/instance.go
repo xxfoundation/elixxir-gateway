@@ -215,7 +215,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 
 	impl.Functions.PutManyMessagesProxy = func(msgs *pb.GatewaySlots, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
-		return instance.PutManyMessageProxy(msgs, auth)
+		return instance.PutManyMessagesProxy(msgs, auth)
 	}
 
 	return impl
