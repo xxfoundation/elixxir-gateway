@@ -231,9 +231,8 @@ func (d *DatabaseImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoc
 
 	var results []*ClientBloomFilter
 	recipientIdInt := recipientId.Int64()
-	err := d.db.WithContext(ctx).Find(&results, &ClientBloomFilter{RecipientId: &recipientIdInt}).
-		Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Error
-	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
+	err := d.db.WithContext(ctx).Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Find(&results, &ClientBloomFilter{RecipientId: &recipientIdInt}).Error
+	jww.INFO.Printf("Returning filters [%v] for client [%v]", results, recipientId)
 
 	return results, catchErrors(err)
 }
