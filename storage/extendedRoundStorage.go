@@ -12,10 +12,10 @@
 package storage
 
 import (
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	pb "gitlab.com/elixxir/comms/mixmessages"
 	"gitlab.com/xx_network/primitives/id"
-	"google.golang.org/protobuf/proto"
 	"strings"
 )
 
