@@ -10,7 +10,6 @@ package cmd
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/binary"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -283,8 +282,6 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 
 	// If the target is nil or empty, consider the target itself
 	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
-		jww.INFO.Printf("PUTMESSAGE: received proxied put message (%v) from %q, redirecting", msg, ipAddr)
-
 		// Unmarshal target ID
 		targetID, err := id.Unmarshal(msg.GetTarget())
 		if err != nil {
@@ -324,11 +321,8 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 
 // PutMessageProxy is the function which handles a PutMessage proxy from another gateway
 func (gw *Instance) PutMessageProxy(msg *pb.GatewaySlot, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
-	jww.INFO.Printf("PUTMESSAGE: message (%v) from %q, processing...", msg, msg.Message)
-
 	// Ensure poller is properly authenticated
 	if !auth.IsAuthenticated {
-		jww.WARN.Printf("ProxiedPutManyMessage failed on auth. Auth object: %v", auth)
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 
@@ -338,8 +332,6 @@ func (gw *Instance) PutMessageProxy(msg *pb.GatewaySlot, auth *connect.Auth) (*p
 // Helper function which handles the logic for a put message request
 func (gw *Instance) handlePutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 	if result, err := gw.processPutMessage(msg); err != nil {
-		jww.WARN.Printf("Failed to put message from %s for round %d: %+v",
-			base64.StdEncoding.EncodeToString(msg.Message.SenderID), msg.RoundID, err)
 		return result, err
 	}
 
@@ -392,8 +384,6 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 	}
 	// If the target is nil or empty, consider the target itself
 	if messages.GetMessages()[0].GetTarget() != nil && len(messages.GetTarget()) > 0 {
-		jww.INFO.Printf("PutManyMessages: received proxied put message (%v) from %q, redirecting", messages, ipAddr)
-
 		// Unmarshal target ID
 		targetID, err := id.Unmarshal(messages.GetTarget())
 		if err != nil {
@@ -426,7 +416,6 @@ func (gw *Instance) PutManyMessagesProxy(msg *pb.GatewaySlots, auth *connect.Aut
 
 	// Ensure poller is properly authenticated
 	if !auth.IsAuthenticated {
-		jww.WARN.Printf("ProxiedPutManyMessage failed on auth. Auth object: %v", auth)
 		return nil, connect.AuthError(auth.Sender.GetId())
 	}
 
@@ -458,8 +447,6 @@ func (gw *Instance) handlePutManyMessage(messages *pb.GatewaySlots, ipAddr strin
 	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(uint32(len(messages.Messages)), capacity, leaked, duration)
 	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
 		!(isIpAddrSuccess && idBucketSuccess) {
-		jww.INFO.Printf("PUTMESSAGE: rate limit failed for msg %v with ip addr %q, senderID %s. isIpAddrSuccess %v, idBucketSuccess: %v",
-			messages, ipAddr, senderId, isIpAddrSuccess, idBucketSuccess)
 		return nil, errors.Errorf("Too many messages sent "+
 			"from ID %v with IP address %s in a specific time frame by user",
 			senderId.String(), ipAddr)
