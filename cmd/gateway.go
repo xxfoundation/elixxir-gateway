@@ -350,8 +350,6 @@ func (gw *Instance) handlePutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.Ga
 	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(1, capacity, leaked, duration)
 	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
 		!(isIpAddrSuccess && idBucketSuccess) {
-		jww.INFO.Printf("PUTMESSAGE: rate limit failed for msg %v with ip addr %q, senderID %s. isIpAddrSuccess %v, idBucketSuccess: %v",
-			msg, ipAddr, senderId, isIpAddrSuccess, idBucketSuccess)
 		return nil, errors.Errorf("Too many messages sent "+
 			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
 	}
