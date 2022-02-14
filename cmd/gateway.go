@@ -307,8 +307,11 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 			msg.IpAddr = ipAddr
 
 			resp, err := gw.Comms.SendPutMessageProxy(host, msg, sendTimeout)
-			if connect.IsAuthError(err) {
-				return nil, errors.Errorf(noConnectionErr, targetID)
+			if err != nil {
+				if connect.IsAuthError(err) {
+					return nil, errors.Errorf(noConnectionErr, targetID)
+				}
+				return nil, err
 			}
 
 			return resp, nil
