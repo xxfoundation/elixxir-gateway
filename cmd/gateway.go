@@ -29,6 +29,7 @@ import (
 	"gitlab.com/xx_network/crypto/xx"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"gitlab.com/xx_network/primitives/rateLimiting"
 	"google.golang.org/protobuf/proto"
 	"time"
 )
@@ -350,8 +351,7 @@ func (gw *Instance) handlePutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.Ga
 	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(1, capacity, leaked, duration)
 	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
 		!(isIpAddrSuccess && idBucketSuccess) {
-		return nil, errors.Errorf("Too many messages sent "+
-			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
+		return nil, errors.Errorf(rateLimiting.ClientRateLimitErr, senderId.String(), ipAddr)
 	}
 
 	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, senderId, ipAddr, thisRound); err != nil {
@@ -445,8 +445,7 @@ func (gw *Instance) handlePutManyMessage(messages *pb.GatewaySlots, ipAddr strin
 	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(uint32(len(messages.Messages)), capacity, leaked, duration)
 	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
 		!(isIpAddrSuccess && idBucketSuccess) {
-		return nil, errors.Errorf("Too many messages sent "+
-			"from ID %v with IP address %s in a specific time frame by user",
+		return nil, errors.Errorf(rateLimiting.ClientRateLimitErr,
 			senderId.String(), ipAddr)
 	}
 
