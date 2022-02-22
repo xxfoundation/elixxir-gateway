@@ -10,7 +10,6 @@ package cmd
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/binary"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -24,11 +23,13 @@ import (
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/states"
+	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/comms/messages"
 	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/crypto/xx"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
+	"gitlab.com/xx_network/primitives/rateLimiting"
 	"google.golang.org/protobuf/proto"
 	"time"
 )
@@ -301,13 +302,37 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
-			return gw.Comms.SendPutMessage(host, msg, sendTimeout)
+			msg.IpAddr = ipAddr
+
+			resp, err := gw.Comms.SendPutMessageProxy(host, msg, sendTimeout)
+			if err != nil {
+				if connect.IsAuthError(err) {
+					return nil, errors.Errorf(noConnectionErr, targetID)
+				}
+				return nil, err
+			}
+
+			return resp, nil
 		}
 	}
 
+	return gw.handlePutMessage(msg, ipAddr)
+
+}
+
+// PutMessageProxy is the function which handles a PutMessage proxy from another gateway
+func (gw *Instance) PutMessageProxy(msg *pb.GatewaySlot, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
+	// Ensure poller is properly authenticated
+	if !auth.IsAuthenticated {
+		return nil, connect.AuthError(auth.Sender.GetId())
+	}
+
+	return gw.handlePutMessage(msg, msg.IpAddr)
+}
+
+// Helper function which handles the logic for a put message request
+func (gw *Instance) handlePutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 	if result, err := gw.processPutMessage(msg); err != nil {
-		jww.WARN.Printf("Failed to put message from %s for round %d: %+v",
-			base64.StdEncoding.EncodeToString(msg.Message.SenderID), msg.RoundID, err)
 		return result, err
 	}
 
@@ -326,8 +351,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(1, capacity, leaked, duration)
 	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
 		!(isIpAddrSuccess && idBucketSuccess) {
-		return nil, errors.Errorf("Too many messages sent "+
-			"from ID %v with IP address %s in a specific time frame by user", senderId.String(), ipAddr)
+		return nil, errors.Errorf(rateLimiting.ClientRateLimitErr, senderId.String(), ipAddr)
 	}
 
 	if err := gw.UnmixedBuffer.AddUnmixedMessage(msg.Message, senderId, ipAddr, thisRound); err != nil {
@@ -376,10 +400,27 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 				return nil, errors.Errorf(noConnectionErr, targetID)
 			}
 
-			return gw.Comms.SendPutManyMessages(host, messages, sendTimeout)
+			messages.IpAddr = ipAddr
+
+			return gw.Comms.SendPutManyMessagesProxy(host, messages, sendTimeout)
 		}
 	}
 
+	return gw.handlePutManyMessage(messages, ipAddr)
+}
+
+// PutManyMessageProxy is the function which handles a PutManyMessage proxy from another gateway
+func (gw *Instance) PutManyMessagesProxy(msg *pb.GatewaySlots, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
+
+	// Ensure poller is properly authenticated
+	if !auth.IsAuthenticated {
+		return nil, connect.AuthError(auth.Sender.GetId())
+	}
+
+	return gw.handlePutManyMessage(msg, msg.IpAddr)
+}
+
+func (gw *Instance) handlePutManyMessage(messages *pb.GatewaySlots, ipAddr string) (*pb.GatewaySlotResponse, error) {
 	if len(messages.Messages) > maxManyMessages {
 		return nil, errors.Errorf("Cannot process PutManyMessages with "+
 			"more than %d messages, recevied %d", maxManyMessages, len(messages.Messages))
@@ -404,14 +445,13 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 	idBucketSuccess, isIdWhitelisted := gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(uint32(len(messages.Messages)), capacity, leaked, duration)
 	if !(isIpAddrWhitelisted || isIdWhitelisted) &&
 		!(isIpAddrSuccess && idBucketSuccess) {
-		return nil, errors.Errorf("Too many messages sent "+
-			"from ID %v with IP address %s in a specific time frame by user",
+		return nil, errors.Errorf(rateLimiting.ClientRateLimitErr,
 			senderId.String(), ipAddr)
 	}
 
 	// Add messages to buffer
 	thisRound := id.Round(messages.RoundID)
-	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages,  senderId, ipAddr, thisRound)
+	err = gw.UnmixedBuffer.AddManyUnmixedMessages(messages.Messages, senderId, ipAddr, thisRound)
 	if err != nil {
 		return &pb.GatewaySlotResponse{Accepted: false},
 			errors.WithMessage(err, "could not add to round. "+
@@ -608,7 +648,7 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 
 	if !gw.Params.DisableGossip {
 		// Gossip senders included in the batch to other gateways
-		go func(){
+		go func() {
 			err = gw.GossipBatch(rid, senders, ips)
 			if err != nil {
 				jww.ERROR.Printf("Unable to rate limit gossip batch " +
