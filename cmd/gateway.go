@@ -651,9 +651,12 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 		go func() {
 			err = gw.GossipBatch(rid, senders, ips)
 			if err != nil {
-				jww.ERROR.Printf("Unable to gossip rate limit batch "+
+				jww.ERROR.Printf("Unable to rate limit gossip batch " +
 					"information for round %d: %+v", rid, err)
 			}
+			jww.INFO.Printf("Sent rate limit gossip for round %d," +
+				" with %d ips and %d senders", rid,
+				len(ips), len(senders))
 		}()
 
 	}
