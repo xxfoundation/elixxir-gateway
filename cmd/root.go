@@ -12,6 +12,14 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"os"
+	"os/signal"
+	"runtime/pprof"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
@@ -21,13 +29,6 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/utils"
 	"google.golang.org/grpc/grpclog"
-	"os"
-	"os/signal"
-	"runtime/pprof"
-	"strconv"
-	"strings"
-	"syscall"
-	"time"
 )
 
 // Flags to import from command line or config file
@@ -327,6 +328,11 @@ func init() {
 		"Enable cpu profiling to this file")
 	viper.BindPFlag("profile-cpu", rootCmd.Flags().Lookup("profile-cpu"))
 
+	rootCmd.Flags().BoolP("ignoreClientVersion", "", false, "Ignore the version of "+
+		"the client connecting to the Gateway. Do not use this on a live network!!")
+	err = viper.BindPFlag("ignoreClientVersion", rootCmd.Flags().Lookup("ignoreClientVersion"))
+	handleBindingError(err, "ignoreClientVersion")
+	_ = rootCmd.Flags().MarkHidden("ignoreClientVersion")
 }
 
 // Handle flag binding errors

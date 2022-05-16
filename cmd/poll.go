@@ -10,8 +10,9 @@
 package cmd
 
 import (
-	"gitlab.com/xx_network/primitives/id"
 	"time"
+
+	"gitlab.com/xx_network/primitives/id"
 
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -38,22 +39,24 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		return &pb.GatewayPollResponse{}, errors.New(ndf.NO_NDF)
 	}
 
-	// Get version sent from client
-	clientVersion, err := version.ParseVersion(string(clientRequest.ClientVersion))
-	if err != nil {
-		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"Unable to ParseVersion for clientRequest: %+v", err)
-	}
-	// Get version from NDF
-	expectedClientVersion, err := version.ParseVersion(gw.NetInf.GetFullNdf().Get().ClientVersion)
-	if err != nil {
-		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"Unable to ParseVersion for gateway's NDF: %+v", err)
-	}
-	// Check that the two versions are compatible
-	if version.IsCompatible(expectedClientVersion, clientVersion) == false {
-		return &pb.GatewayPollResponse{}, errors.Errorf(
-			"client version \"%s\" was not compatible with NDF defined minimum version", clientRequest.ClientVersion)
+	if gw.Params.ignoreClientVersion {
+		// Get version sent from client
+		clientVersion, err := version.ParseVersion(string(clientRequest.ClientVersion))
+		if err != nil {
+			return &pb.GatewayPollResponse{}, errors.Errorf(
+				"Unable to ParseVersion for clientRequest: %+v", err)
+		}
+		// Get version from NDF
+		expectedClientVersion, err := version.ParseVersion(gw.NetInf.GetFullNdf().Get().ClientVersion)
+		if err != nil {
+			return &pb.GatewayPollResponse{}, errors.Errorf(
+				"Unable to ParseVersion for gateway's NDF: %+v", err)
+		}
+		// Check that the two versions are compatible
+		if version.IsCompatible(expectedClientVersion, clientVersion) == false {
+			return &pb.GatewayPollResponse{}, errors.Errorf(
+				"client version \"%s\" was not compatible with NDF defined minimum version", clientRequest.ClientVersion)
+		}
 	}
 
 	earliestRoundId, _, _, err := gw.GetEarliestRound()

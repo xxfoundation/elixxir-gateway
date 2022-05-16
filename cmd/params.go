@@ -11,15 +11,16 @@ package cmd
 
 import (
 	"fmt"
+	"net"
+	"strconv"
+	"strings"
+	"time"
+
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/comms/publicAddress"
 	"gitlab.com/xx_network/comms/gossip"
 	"gitlab.com/xx_network/primitives/rateLimiting"
-	"net"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type Params struct {
@@ -44,8 +45,9 @@ type Params struct {
 	messageRateLimitParams *rateLimiting.MapParams
 	gossipFlags            gossip.ManagerFlags
 
-	DevMode       bool
-	DisableGossip bool
+	DevMode             bool
+	DisableGossip       bool
+	ignoreClientVersion bool
 
 	cleanupInterval time.Duration
 }
@@ -194,6 +196,7 @@ func InitParams(vip *viper.Viper) Params {
 		DbPort:                 port,
 		DevMode:                viper.GetBool("devMode"),
 		DisableGossip:          viper.GetBool("disableGossip"),
+		ignoreClientVersion:    viper.GetBool("ignoreClientVersion"),
 		cleanupInterval:        cleanupInterval,
 	}
 }
