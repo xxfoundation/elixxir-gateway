@@ -12,13 +12,21 @@ And provide DB connection info as program arguments, if needed.
 """
 
 import argparse
+import boto3
+import botocore
 import csv
 import datetime
+import json
 import logging as log
+import os
+import psycopg2
 import sys
 import time
+import threading
+import uuid
 
-import psycopg2
+
+from botocore.config import Config
 
 # Static keys used for reading and storing state to the database
 last_run_state_key = "ActiveUsersEpoch"
@@ -30,17 +38,27 @@ check_ranges = [1, 12, 48]
 # Should probably be modified to rely on the period value
 max_historical_epochs = 21 * 24 * 2
 
+# globals for get_node_id
+generated_uuid = None
+read_node_id = None
+
 
 def main():
     # Process input variables and program arguments
     args = get_args()
+    db_pass = args['pass']
+    del args['pass']
     log.info("Running with configuration: {}".format(args))
     db_host = args['host']
     db_port = args['port']
     db_name = args['db']
     db_user = args['user']
-    db_pass = args['pass']
     output_path = args['output']
+    s3_access_key_id = args["aws_key"]
+    s3_access_key_secret = args["aws_secret"]
+    s3_region = args["aws_region"]
+    id_file = args["id_path"]
+    cloudwatch_log_group = args["cloudwatch_log_group"]
 
     conn, csv_file = None, None
     try:
@@ -48,6 +66,12 @@ def main():
         csv_file = open(output_path, "a")
         csv_writer = csv.writer(csv_file, delimiter=',',
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        # Set up cloudwatch logging
+        cw_log_thread = start_cw_logger(cloudwatch_log_group, args['log'],  id_file, s3_region,
+                                        s3_access_key_id, s3_access_key_secret)
+        csv_cw_log_thread = start_cw_logger(cloudwatch_log_group, output_path,  id_file, s3_region,
+                                            s3_access_key_id, s3_access_key_secret)
 
         # Set up database connection
         conn = get_conn(db_host, db_port, db_name, db_user, db_pass)
@@ -106,6 +130,297 @@ def main():
         if conn:
             conn.close()
         sys.exit(1)
+
+
+def start_cw_logger(cloudwatch_log_group, log_file_path, id_path, region, access_key_id, access_key_secret):
+    """
+    start_cw_logger is a blocking function which starts the thread to log to cloudwatch.
+    This requires a blocking function so we can ensure that if a log file is present,
+    it is opened before logging resumes.  This prevents lines from being omitted in cloudwatch.
+
+    :param cloudwatch_log_group: log group name for cloudwatch logging
+    :param log_file_path: Path to the log file
+    :param id_path: path to node's id file
+    :param region: AWS region
+    :param access_key_id: aws access key
+    :param access_key_secret: aws secret key
+    """
+    # If there is already a log file, open it here so we don't lose records
+    log_file = None
+
+    # Configure boto retries
+    config = Config(
+        retries=dict(
+            max_attempts=50
+        )
+    )
+
+    # Setup cloudwatch logs client
+    client = boto3.client('logs', region_name=region,
+                          aws_access_key_id=access_key_id,
+                          aws_secret_access_key=access_key_secret,
+                          config=config)
+
+    # Open the log file read-only and pin its current size if it already exists
+    if os.path.isfile(log_file_path):
+        log_file = open(log_file_path, 'r')
+        log_file.seek(0, os.SEEK_END)
+
+    # Start the log backup service
+    thr = threading.Thread(target=cloudwatch_log,
+                           args=(cloudwatch_log_group, log_file_path,
+                                 id_path, log_file, client))
+    thr.start()
+    return thr
+
+
+def cloudwatch_log(cloudwatch_log_group, log_file_path, id_path, log_file, client):
+    """
+    cloudwatch_log is intended to run in a thread.  It will monitor the file at
+    log_file_path and send the logs to cloudwatch.  Note: if the node lacks a
+    stream, one will be created for it, named by node ID.
+
+    :param client: cloudwatch client for this logging thread
+    :param log_file: log file for this logging thread
+    :param cloudwatch_log_group: log group name for cloudwatch logging
+    :param log_file_path: Path to the log file
+    :param id_path: path to node's id file
+    """
+    global read_node_id
+    # Constants
+    megabyte = 1048576  # Size of one megabyte in bytes
+    max_size = 100 * megabyte  # Maximum log file size before truncation
+    push_frequency = 3  # frequency of pushes to cloudwatch, in seconds
+    max_send_size = megabyte
+
+    # Event buffer and storage
+    event_buffer = ""  # Incomplete data not yet added to log_events for push to cloudwatch
+    log_events = []  # Buffer of events from log not yet sent to cloudwatch
+    events_size = 0
+
+    log_file, client, log_stream_name, upload_sequence_token, init_err = init(log_file_path, id_path,
+                                                                              cloudwatch_log_group, log_file, client)
+    if init_err:
+        log.error("Failed to init cloudwatch logging for {}: {}".format(cloudwatch_log_group, init_err))
+        return
+
+    log.info("Starting cloudwatch logging for {}...".format(cloudwatch_log_group))
+
+    last_push_time = time.time()
+    last_line_time = time.time()
+    while True:
+        event_buffer, log_events, events_size, last_line_time = process_line(log_file, event_buffer, log_events,
+                                                                             events_size, last_line_time)
+
+        # Check if we should send events to cloudwatch
+        log_event_size = 26
+        is_over_max_size = len(event_buffer.encode(encoding='utf-8')) + log_event_size + events_size > max_send_size
+        is_time_to_push = time.time() - last_push_time > push_frequency
+
+        if (is_over_max_size or is_time_to_push) and len(log_events) > 0:
+            # Send to cloudwatch, then reset events, size and push time
+            upload_sequence_token, ok = send(client, upload_sequence_token,
+                                             log_events, log_stream_name, cloudwatch_log_group)
+            if ok:
+                events_size = 0
+                log_events = []
+                last_push_time = time.time()
+
+        # Clear the log file if it has exceeded maximum size
+        log_size = os.path.getsize(log_file_path)
+        log.debug("Current log {} size: {}".format(log_file_path, log_size))
+        if log_size > max_size:
+            # Close the old log file
+            log.warning("Log {} has reached maximum size: {}. Clearing...".format(log_file_path, log_size))
+            log_file.close()
+            # Overwrite the log with an empty file and reopen
+            log_file = open(log_file_path, "w+")
+            log.info("Log {} has been cleared. New Size: {}".format(
+                log_file_path, os.path.getsize(log_file_path)))
+
+
+def init(log_file_path, id_path, cloudwatch_log_group, log_file, client):
+    """
+    Initialize client for cloudwatch logging
+    :param client: cloudwatch client for this logging thread
+    :param log_file_path: path to log output
+    :param id_path: path to id file
+    :param cloudwatch_log_group: cloudwatch log group name
+    :param log_file: log file to read lines from
+    :return log_file, client, log_stream_name, upload_sequence_token:
+    """
+    global read_node_id
+    upload_sequence_token = ""
+
+    # If the log file does not already exist, wait for it
+    if not log_file:
+        while not os.path.isfile(log_file_path):
+            time.sleep(1)
+        # Open the newly-created log file as read-only
+        log_file = open(log_file_path, 'r')
+
+    # Define prefix for log stream - should be ID based on file
+    if read_node_id:
+        log_prefix = read_node_id
+    # Read node ID from the file
+    else:
+        log.info("Waiting for ID file...")
+        while not os.path.exists(id_path):
+            time.sleep(1)
+        log_prefix = get_node_id(id_path)
+
+    log_name = os.path.basename(log_file_path)  # Name of the log file
+    log_stream_name = "{}-{}".format(log_prefix, log_name)  # Stream name should be {ID}-{node/gateway}.log
+
+    try:
+        # Determine if stream exists.  If not, make one.
+        streams = client.describe_log_streams(logGroupName=cloudwatch_log_group,
+                                              logStreamNamePrefix=log_stream_name)['logStreams']
+
+        if len(streams) == 0:
+            # Create a log stream on the fly if ours does not exist
+            client.create_log_stream(logGroupName=cloudwatch_log_group, logStreamName=log_stream_name)
+        else:
+            # If our log stream exists, we need to get the sequence token from this call to start sending to it again
+            for s in streams:
+                if log_stream_name == s['logStreamName'] and 'uploadSequenceToken' in s.keys():
+                    upload_sequence_token = s['uploadSequenceToken']
+
+    except Exception as e:
+        return None, None, None, None, e
+
+    return log_file, client, log_stream_name, upload_sequence_token, None
+
+
+def process_line(log_file, event_buffer, log_events, events_size, last_line_time):
+    """
+    Accepts current buffer and log events from main loop
+    Processes one line of input, either adding an event or adding it to the buffer
+    New events are marked by a string in log_starters, or are separated by more than 0.5 seconds
+    :param log_file: file to read line from
+    :param last_line_time: Timestamp when last log line was read
+    :param events_size: message size for log events per aws docs
+    :param event_buffer: string buffer of concatenated lines that make up a single event
+    :param log_events: current array of events
+    :return:
+    """
+    # using these to deliniate the start of an event
+    log_starters = ["INFO", "WARN", "DEBUG", "ERROR", "FATAL", "TRACE"]
+
+    # This controls how long we should wait after a line before assuming it's the end of an event
+    force_event_time = 1
+    maximum_event_size = 260000
+
+    # Get a line and mark the time it's read
+    line = log_file.readline()
+    line_time = int(round(time.time() * 1000))  # Timestamp for this line
+
+    # Check the potential size, if over max, we should force a new event
+    potential_buffer = event_buffer + line
+    is_event_too_big = len(potential_buffer.encode(encoding='utf-8')) > maximum_event_size
+
+    if not line:
+        # if it's been more than force_event_time since last line, push buffer to events
+        is_new_line = time.time() - last_line_time > force_event_time and event_buffer != ""
+        time.sleep(0.5)
+    else:
+        # Reset last line time
+        last_line_time = time.time()
+        # If a new event is starting, push buffer to events
+        is_new_line = True  # line.split(' ')[0] in log_starters and event_buffer != ""s
+
+    if is_new_line or is_event_too_big:
+        # Push the buffer into events
+        size = len(event_buffer.encode(encoding='utf-8'))
+        log_events.append({'timestamp': line_time, 'message': event_buffer})
+        event_buffer = ""
+        events_size += (size + 26)  # Increment buffer size by message len + 26 (per aws documentation)
+
+    if line:
+        if len(line.encode(encoding='utf-8')) > maximum_event_size:
+            line = line[:maximum_event_size-1]
+        # Push line on to the buffer
+        event_buffer += line
+
+    return event_buffer, log_events, events_size, last_line_time
+
+
+def send(client, upload_sequence_token, log_events, log_stream_name, cloudwatch_log_group):
+    """
+    send is a helper function for cloudwatch_log, used to push a batch of events to the proper stream
+    :param log_events: Log events to be sent to cloudwatch
+    :param log_stream_name: Name of cloudwatch log stream
+    :param cloudwatch_log_group: Name of cloudwatch log group
+    :param client: cloudwatch logs client
+    :param upload_sequence_token: sequence token for log stream
+    :return: new sequence token
+    """
+    ok = True
+    if len(log_events) == 0:
+        return upload_sequence_token
+
+    try:
+        if upload_sequence_token == "":
+            # for the first message in a stream, there is no sequence token
+            resp = client.put_log_events(logGroupName=cloudwatch_log_group,
+                                         logStreamName=log_stream_name,
+                                         logEvents=log_events)
+        else:
+            resp = client.put_log_events(logGroupName=cloudwatch_log_group,
+                                         logStreamName=log_stream_name,
+                                         logEvents=log_events,
+                                         sequenceToken=upload_sequence_token)
+        upload_sequence_token = resp['nextSequenceToken']  # set the next sequence token
+
+        # IF anything was rejected, log as warning
+        if 'rejectedLogEventsInfo' in resp.keys():
+            log.warning("Some log events were rejected:")
+            log.warning(resp['rejectedLogEventsInfo'])
+
+    except client.exceptions.InvalidSequenceTokenException as e:
+        ok = False
+        log.warning(f"Boto3 invalidSequenceTokenException encountered: {e}")
+        upload_sequence_token = e.response['Error']['Message'].split()[-1]
+    except botocore.exceptions.ClientError as e:
+        ok = False
+        log.error("Boto3 client error encountered: %s" % e)
+    except Exception as e:
+        ok = False
+        log.error(e)
+    finally:
+        # Always return upload sequence token - dropping this causes lots of errors
+        return upload_sequence_token, ok
+
+
+def get_node_id(id_path):
+    """
+    Obtain the ID of the running node.
+
+    :param id_path: the path to the node id
+    :type id_path: str
+    :return: The node id OR a UUID by host and time if node id file absent
+    :rtype: str
+    """
+    global generated_uuid, read_node_id
+    # if we've already read it successfully from the file, return it
+    if read_node_id:
+        return read_node_id
+    # Read it from the file
+    try:
+        if os.path.exists(id_path):
+            with open(id_path, 'r') as id_file:
+                new_node_id = json.loads(id_file.read().strip()).get("id", None)
+                if new_node_id:
+                    read_node_id = new_node_id
+                    return new_node_id
+    except Exception as error:
+        log.warning("Could not open node ID at {}: {}".format(id_path, error))
+
+    # If that fails, then generate, or use the last generated UUID
+    if not generated_uuid:
+        generated_uuid = str(uuid.uuid1())
+        log.warning("Generating random instance ID: {}".format(generated_uuid))
+    return generated_uuid
 
 
 def count_in_epoch_range(conn, start, end):
@@ -228,6 +543,20 @@ def get_args():
                         default="cmix")
     parser.add_argument("--pass", type=str,
                         help="DB password")
+    parser.add_argument("--aws-key", type=str, required=True,
+                        help="aws access key")
+    parser.add_argument("--aws-secret", type=str, required=True,
+                        help="aws access key secret")
+    parser.add_argument("--aws-region", type=str, required=False,
+                        help="AWS region",
+                        default="us-west-1")
+    parser.add_argument("--id-path", type=str, required=False,
+                        help="Path of the cMix/Gateway ID file",
+                        default="/opt/xxnetwork/cred/IDF.json")
+    parser.add_argument("--cloudwatch-log-group", type=str, required=False,
+                        help="Log group for CloudWatch logging",
+                        default="xxnetwork-active-users-mainnet")
+
 
     args = vars(parser.parse_args())
     log.basicConfig(format='[%(levelname)s] %(asctime)s: %(message)s',
