@@ -544,12 +544,15 @@ def get_args():
                         help="aws access key")
     parser.add_argument("--aws-secret", type=str, required=True,
                         help="aws access key secret")
-    parser.add_argument("--aws-region", type=str, required=True,
-                        help="aws region")
-    parser.add_argument("--id-file", type=str, required=True,
-                        help="Id file path")
-    parser.add_argument("--cloudwatch-group", type=str, required=True,
-                        help="Cloudwatch log group")
+    parser.add_argument("--s3-region", type=str, required=False,
+                        help="S3 region",
+                        default="us-west-1")
+    parser.add_argument("--id-path", type=str, required=False,
+                        help="Path of the cMix/Gateway ID file",
+                        default="/opt/xxnetwork/cred/IDF.json")
+    parser.add_argument("--cloudwatch-log-group", type=str, required=False,
+                        help="Log group for CloudWatch logging",
+                        default="xxnetwork-active-users")
 
     args = vars(parser.parse_args())
     log.basicConfig(format='[%(levelname)s] %(asctime)s: %(message)s',
