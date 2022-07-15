@@ -46,12 +46,13 @@ read_node_id = None
 def main():
     # Process input variables and program arguments
     args = get_args()
+    db_pass = args['pass']
+    del args['pass']
     log.info("Running with configuration: {}".format(args))
     db_host = args['host']
     db_port = args['port']
     db_name = args['db']
     db_user = args['user']
-    db_pass = args['pass']
     output_path = args['output']
     s3_access_key_id = args["aws_key"]
     s3_access_key_secret = args["aws_secret"]
@@ -68,7 +69,9 @@ def main():
 
         # Set up cloudwatch logging
         cw_log_thread = start_cw_logger(cloudwatch_log_group, args['log'],  id_file, s3_region,
-                                                                   s3_access_key_id, s3_access_key_secret)
+                                        s3_access_key_id, s3_access_key_secret)
+        csv_cw_log_thread = start_cw_logger(cloudwatch_log_group, output_path,  id_file, s3_region,
+                                            s3_access_key_id, s3_access_key_secret)
 
         # Set up database connection
         conn = get_conn(db_host, db_port, db_name, db_user, db_pass)
@@ -324,7 +327,7 @@ def process_line(log_file, event_buffer, log_events, events_size, last_line_time
         # Reset last line time
         last_line_time = time.time()
         # If a new event is starting, push buffer to events
-        is_new_line = line.split(' ')[0] in log_starters and event_buffer != ""
+        is_new_line = True  # line.split(' ')[0] in log_starters and event_buffer != ""s
 
     if is_new_line or is_event_too_big:
         # Push the buffer into events
@@ -552,7 +555,7 @@ def get_args():
                         default="/opt/xxnetwork/cred/IDF.json")
     parser.add_argument("--cloudwatch-log-group", type=str, required=False,
                         help="Log group for CloudWatch logging",
-                        default="xxnetwork-active-users")
+                        default="xxnetwork-active-users-mainnet")
 
 
     args = vars(parser.parse_args())
