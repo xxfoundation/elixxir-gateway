@@ -119,7 +119,6 @@ def main():
             csv_file.close()
         if conn:
             conn.close()
-        cw_log_thread.join()
         sys.exit(1)
 
 
