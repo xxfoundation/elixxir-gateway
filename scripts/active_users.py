@@ -12,17 +12,18 @@ And provide DB connection info as program arguments, if needed.
 """
 
 import argparse
+import boto3
+import botocore
 import csv
 import datetime
 import logging as log
-import sys
-import time
-import boto3
-import botocore
-from botocore.config import Config
-import threading
 import os
 import psycopg2
+import sys
+import time
+import threading
+
+from botocore.config import Config
 
 # Static keys used for reading and storing state to the database
 last_run_state_key = "ActiveUsersEpoch"
