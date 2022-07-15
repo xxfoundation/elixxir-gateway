@@ -56,8 +56,8 @@ def main():
     s3_access_key_id = args["aws_key"]
     s3_access_key_secret = args["aws_secret"]
     s3_region = args["aws_region"]
-    id_file = args["id_file"]
-    cloudwatch_log_group = args["cloudwatch_group"]
+    id_file = args["id_path"]
+    cloudwatch_log_group = args["cloudwatch_log_group"]
 
     conn, csv_file = None, None
     try:
@@ -544,8 +544,8 @@ def get_args():
                         help="aws access key")
     parser.add_argument("--aws-secret", type=str, required=True,
                         help="aws access key secret")
-    parser.add_argument("--s3-region", type=str, required=False,
-                        help="S3 region",
+    parser.add_argument("--aws-region", type=str, required=False,
+                        help="AWS region",
                         default="us-west-1")
     parser.add_argument("--id-path", type=str, required=False,
                         help="Path of the cMix/Gateway ID file",
@@ -553,6 +553,7 @@ def get_args():
     parser.add_argument("--cloudwatch-log-group", type=str, required=False,
                         help="Log group for CloudWatch logging",
                         default="xxnetwork-active-users")
+
 
     args = vars(parser.parse_args())
     log.basicConfig(format='[%(levelname)s] %(asctime)s: %(message)s',
