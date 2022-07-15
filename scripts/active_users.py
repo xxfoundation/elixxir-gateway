@@ -16,12 +16,15 @@ import boto3
 import botocore
 import csv
 import datetime
+import json
 import logging as log
 import os
 import psycopg2
 import sys
 import time
 import threading
+import uuid
+
 
 from botocore.config import Config
 
@@ -34,6 +37,10 @@ check_ranges = [1, 12, 48]
 # 21 days * 24 hours * 2 epochs per hour
 # Should probably be modified to rely on the period value
 max_historical_epochs = 21 * 24 * 2
+
+# globals for get_node_id
+generated_uuid = None
+read_node_id = None
 
 
 def main():
@@ -380,6 +387,37 @@ def send(client, upload_sequence_token, log_events, log_stream_name, cloudwatch_
     finally:
         # Always return upload sequence token - dropping this causes lots of errors
         return upload_sequence_token, ok
+
+
+def get_node_id(id_path):
+    """
+    Obtain the ID of the running node.
+
+    :param id_path: the path to the node id
+    :type id_path: str
+    :return: The node id OR a UUID by host and time if node id file absent
+    :rtype: str
+    """
+    global generated_uuid, read_node_id
+    # if we've already read it successfully from the file, return it
+    if read_node_id:
+        return read_node_id
+    # Read it from the file
+    try:
+        if os.path.exists(id_path):
+            with open(id_path, 'r') as id_file:
+                new_node_id = json.loads(id_file.read().strip()).get("id", None)
+                if new_node_id:
+                    read_node_id = new_node_id
+                    return new_node_id
+    except Exception as error:
+        log.warning("Could not open node ID at {}: {}".format(id_path, error))
+
+    # If that fails, then generate, or use the last generated UUID
+    if not generated_uuid:
+        generated_uuid = str(uuid.uuid1())
+        log.warning("Generating random instance ID: {}".format(generated_uuid))
+    return generated_uuid
 
 
 def count_in_epoch_range(conn, start, end):
