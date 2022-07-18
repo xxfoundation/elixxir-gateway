@@ -12,20 +12,19 @@ And provide DB connection info as program arguments, if needed.
 """
 
 import argparse
-import boto3
-import botocore
 import csv
 import datetime
 import json
 import logging as log
 import os
-import psycopg2
 import sys
-import time
 import threading
+import time
 import uuid
 
-
+import boto3
+import botocore
+import psycopg2
 from botocore.config import Config
 
 # Static keys used for reading and storing state to the database
@@ -59,6 +58,12 @@ def main():
     s3_region = args["aws_region"]
     id_file = args["id_path"]
     cloudwatch_log_group = args["cloudwatch_log_group"]
+    force_reset = args["force_reset"]
+
+    # Clear output_path if force_reset
+    if force_reset:
+        with open(output_path, "w+"):
+            pass
 
     conn, csv_file = None, None
     try:
@@ -68,7 +73,7 @@ def main():
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
         # Set up cloudwatch logging
-        cw_log_thread = start_cw_logger(cloudwatch_log_group, args['log'],  id_file, s3_region,
+        cw_log_thread = start_cw_logger(cloudwatch_log_group, args['log'], id_file, s3_region,
                                         s3_access_key_id, s3_access_key_secret)
         csv_cw_log_thread = start_cw_logger(cloudwatch_log_group, output_path,  id_file, s3_region,
                                             s3_access_key_id, s3_access_key_secret)
@@ -82,7 +87,7 @@ def main():
 
         # Get epoch of last run
         last_run_epoch = get_state(conn, last_run_state_key)
-        if last_run_epoch is None:
+        if force_reset or last_run_epoch is None:
             # If no database time, start as far back as possible
             current_time = time.mktime(datetime.datetime.now().timetuple())
             current_epoch = current_time / period
@@ -304,9 +309,6 @@ def process_line(log_file, event_buffer, log_events, events_size, last_line_time
     :param log_events: current array of events
     :return:
     """
-    # using these to deliniate the start of an event
-    log_starters = ["INFO", "WARN", "DEBUG", "ERROR", "FATAL", "TRACE"]
-
     # This controls how long we should wait after a line before assuming it's the end of an event
     force_event_time = 1
     maximum_event_size = 260000
@@ -327,7 +329,7 @@ def process_line(log_file, event_buffer, log_events, events_size, last_line_time
         # Reset last line time
         last_line_time = time.time()
         # If a new event is starting, push buffer to events
-        is_new_line = True  # line.split(' ')[0] in log_starters and event_buffer != ""s
+        is_new_line = event_buffer != ""
 
     if is_new_line or is_event_too_big:
         # Push the buffer into events
@@ -523,6 +525,8 @@ def get_args():
     parser = argparse.ArgumentParser(description="Options for active users monitoring script")
     parser.add_argument("--verbose", action="store_true",
                         help="Print debug logs", default=False)
+    parser.add_argument("--force-reset", action="store_true",
+                        help="Force reprocessing of all user data", default=False)
     parser.add_argument("--log", type=str,
                         help="Path to output log information",
                         default="active_users.log")
@@ -552,11 +556,10 @@ def get_args():
                         default="us-west-1")
     parser.add_argument("--id-path", type=str, required=False,
                         help="Path of the cMix/Gateway ID file",
-                        default="/opt/xxnetwork/cred/IDF.json")
+                        default="/opt/xxnetwork/cred/gateway-IDF.json")
     parser.add_argument("--cloudwatch-log-group", type=str, required=False,
                         help="Log group for CloudWatch logging",
                         default="xxnetwork-active-users-mainnet")
-
 
     args = vars(parser.parse_args())
     log.basicConfig(format='[%(levelname)s] %(asctime)s: %(message)s',
