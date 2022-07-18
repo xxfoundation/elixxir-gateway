@@ -329,7 +329,7 @@ def process_line(log_file, event_buffer, log_events, events_size, last_line_time
         # If a new event is starting, push buffer to events
         is_new_line = True  # line.split(' ')[0] in log_starters and event_buffer != ""s
 
-    if is_new_line or is_event_too_big:
+    if (is_new_line or is_event_too_big) and event_buffer != "":
         # Push the buffer into events
         size = len(event_buffer.encode(encoding='utf-8'))
         log_events.append({'timestamp': line_time, 'message': event_buffer})
