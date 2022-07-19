@@ -116,7 +116,6 @@ def main():
                 log.debug(f"Results: {output}")
 
                 # Write output to file
-                # Set up output file
                 with open(output_path, "a") as csv_file:
                     csv_writer = csv.writer(csv_file, delimiter=',',
                                             quotechar='"', quoting=csv.QUOTE_MINIMAL)
