@@ -1,7 +1,8 @@
-# Example service file for the active_users script
+# Example service file for the active_users script.
 # Emphasizes required keys and minimal additional configuration
-# and expects the standard gateway operator file paths
-# Should share aws access keys with the ones provided to wrapper script
+# and expects the standard gateway file paths as specified in the handbook.
+# Other paths can easily be provided by specifying other command line args.
+# Should share aws access keys with the ones provided to wrapper script.
 
 [Unit]
 Description=Job that starts the Active Users Script
