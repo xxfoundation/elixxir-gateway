@@ -65,13 +65,8 @@ def main():
         with open(output_path, "w+"):
             pass
 
-    conn, csv_file = None, None
+    conn = None
     try:
-        # Set up output file
-        csv_file = open(output_path, "a")
-        csv_writer = csv.writer(csv_file, delimiter=',',
-                                quotechar='"', quoting=csv.QUOTE_MINIMAL)
-
         # Set up cloudwatch logging
         cw_log_thread = start_cw_logger(cloudwatch_log_group, args['log'], id_file, s3_region,
                                         s3_access_key_id, s3_access_key_secret)
@@ -121,7 +116,11 @@ def main():
                 log.debug(f"Results: {output}")
 
                 # Write output to file
-                csv_writer.writerow(output)
+                # Set up output file
+                with open(output_path, "a") as csv_file:
+                    csv_writer = csv.writer(csv_file, delimiter=',',
+                                            quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                    csv_writer.writerow(output)
 
             # Update state to declare current run as completed
             upsert_state(conn, last_run_state_key, epoch_to_run)
@@ -130,8 +129,6 @@ def main():
 
     except Exception as e:
         log.fatal(f"Unhandled exception occurred: {e}", exc_info=True)
-        if csv_file:
-            csv_file.close()
         if conn:
             conn.close()
         sys.exit(1)
@@ -529,10 +526,10 @@ def get_args():
                         help="Force reprocessing of all user data", default=False)
     parser.add_argument("--log", type=str,
                         help="Path to output log information",
-                        default="active_users.log")
+                        default="/opt/xxnetwork/log/active_users.log")
     parser.add_argument("--output", type=str,
                         help="Path to output results in CSV format",
-                        default="active_users.csv")
+                        default="/opt/xxnetwork/log/active_users.csv")
     parser.add_argument("-a", "--host", metavar="host", type=str,
                         help="Database server host for attempted connection",
                         default="localhost")
