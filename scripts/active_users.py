@@ -105,6 +105,10 @@ def main():
             end_timestamp = epoch_to_run * period + period
             log.info(f"Fetching information for epoch {epoch_to_run}...")
             for epoch_range in check_ranges:
+                # Only calculate results when an epoch_range has elapsed
+                if epoch_to_run % epoch_range != 0:
+                    continue
+
                 real_epoch_range = epoch_range - 1  # Subtract one to avoid double-counting the current
                 unique_users = count_in_epoch_range(conn,
                                                     epoch_to_run - real_epoch_range,
