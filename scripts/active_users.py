@@ -68,10 +68,10 @@ def main():
     conn = None
     try:
         # Set up cloudwatch logging
-        cw_log_thread = start_cw_logger(cloudwatch_log_group, args['log'], id_file, s3_region,
-                                        s3_access_key_id, s3_access_key_secret)
-        csv_cw_log_thread = start_cw_logger(cloudwatch_log_group, output_path,  id_file, s3_region,
-                                            s3_access_key_id, s3_access_key_secret)
+        start_cw_logger(cloudwatch_log_group, args['log'], id_file, s3_region,
+                        s3_access_key_id, s3_access_key_secret)
+        start_cw_logger(cloudwatch_log_group, output_path, id_file, s3_region,
+                        s3_access_key_id, s3_access_key_secret)
 
         # Set up database connection
         conn = get_conn(db_host, db_port, db_name, db_user, db_pass)
@@ -84,7 +84,7 @@ def main():
         last_run_epoch = get_state(conn, last_run_state_key)
         if force_reset or last_run_epoch is None:
             # If no database time, start as far back as possible
-            current_time = time.mktime(datetime.datetime.now().timetuple())
+            current_time = time.mktime(datetime.datetime.now(datetime.timezone.utc).timetuple())
             current_epoch = current_time / period
             last_run_epoch = current_epoch - max_historical_epochs
         # Force into integer space
@@ -93,7 +93,7 @@ def main():
         epoch_to_run = last_run_epoch + 1
         while True:
             # If current epoch is less than last_run_epoch, wait for next epoch
-            current_time = time.mktime(datetime.datetime.now().timetuple())
+            current_time = time.mktime(datetime.datetime.now(datetime.timezone.utc).timetuple())
             current_epoch = int(current_time / period)
             if current_epoch <= epoch_to_run:
                 next_epoch_start_time = (epoch_to_run + 1) * period
@@ -116,7 +116,9 @@ def main():
 
                 # Output format: epoch,numEpochs,endTimestamp,numUnique
                 output = [epoch_to_run, epoch_range,
-                          datetime.datetime.fromtimestamp(end_timestamp), unique_users]
+                          datetime.datetime.fromtimestamp(end_timestamp,
+                                                          datetime.timezone.utc),
+                          unique_users]
                 log.debug(f"Results: {output}")
 
                 # Write output to file
