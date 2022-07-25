@@ -84,16 +84,14 @@ def main():
         last_run_epoch = get_state(conn, last_run_state_key)
         if force_reset or last_run_epoch is None:
             # If no database time, start as far back as possible
-            current_time = time.mktime(datetime.datetime.now(datetime.timezone.utc).timetuple())
-            current_epoch = current_time / period
+            current_time = datetime.datetime.now(datetime.timezone.utc).timestamp()
+            current_epoch = int(current_time / period)
             last_run_epoch = current_epoch - max_historical_epochs
-        # Force into integer space
-        last_run_epoch = int(last_run_epoch)
 
         epoch_to_run = last_run_epoch + 1
         while True:
             # If current epoch is less than last_run_epoch, wait for next epoch
-            current_time = time.mktime(datetime.datetime.now(datetime.timezone.utc).timetuple())
+            current_time = datetime.datetime.now(datetime.timezone.utc).timestamp()
             current_epoch = int(current_time / period)
             if current_epoch <= epoch_to_run:
                 extra_delay = 5  # Delay a little extra to prevent data loss on epoch turnover
