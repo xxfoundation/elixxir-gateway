@@ -28,7 +28,7 @@ import psycopg2
 from botocore.config import Config
 
 # Static keys used for reading and storing state to the database
-last_run_state_key = "ActiveUsersEpoch"
+last_run_state_key = "ActiveUsersMonitoringScript"
 period_state_key = "Period"
 # Determines number of epochs to check for each run per period
 check_ranges = [1, 12, 48]
@@ -96,7 +96,8 @@ def main():
             current_time = time.mktime(datetime.datetime.now(datetime.timezone.utc).timetuple())
             current_epoch = int(current_time / period)
             if current_epoch <= epoch_to_run:
-                next_epoch_start_time = (epoch_to_run + 1) * period
+                extra_delay = 5  # Delay a little extra to prevent data loss on epoch turnover
+                next_epoch_start_time = (epoch_to_run + 1) * period + extra_delay
                 wait_time = next_epoch_start_time - current_time
                 log.info(f"Waiting {wait_time}s for epoch {epoch_to_run} to finish...")
                 time.sleep(wait_time)
@@ -109,9 +110,9 @@ def main():
                 if epoch_to_run % epoch_range != 0:
                     continue
 
-                real_epoch_range = epoch_range - 1  # Subtract one to avoid double-counting the current
+                query_epoch_range = epoch_range - 1  # Subtract one to avoid double-counting the current
                 unique_users = count_in_epoch_range(conn,
-                                                    epoch_to_run - real_epoch_range,
+                                                    epoch_to_run - query_epoch_range,
                                                     epoch_to_run)
 
                 # Output format: epoch,numEpochs,endTimestamp,numUnique
