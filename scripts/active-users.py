@@ -530,10 +530,10 @@ def get_args():
                         help="Force reprocessing of all user data", default=False)
     parser.add_argument("--log", type=str,
                         help="Path to output log information",
-                        default="/opt/xxnetwork/log/active_users.log")
+                        default="/opt/xxnetwork/log/active-users.log")
     parser.add_argument("--output", type=str,
                         help="Path to output results in CSV format",
-                        default="/opt/xxnetwork/log/active_users.csv")
+                        default="/opt/xxnetwork/log/active-users.csv")
     parser.add_argument("-a", "--host", metavar="host", type=str,
                         help="Database server host for attempted connection",
                         default="localhost")
