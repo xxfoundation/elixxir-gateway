@@ -10,7 +10,7 @@ Description=Job that starts the Active Users Script
 [Service]
 User=elixxir
 Type=simple
-ExecStart=/opt/xxnetwork/active_users.py --pass "" --aws-key "" --aws-secret ""
+ExecStart=/opt/xxnetwork/active-users.py --pass "" --aws-key "" --aws-secret ""
 
 [Install]
 WantedBy=multi-user.target
