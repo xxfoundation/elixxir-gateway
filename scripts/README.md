@@ -26,6 +26,7 @@ a decentralized network.
       `/opt/xxnetwork/xxnetwork-gateway.service` under the `--s3-access-key` field.
    4. `--aws-secret` - AWS access credentials for CloudWatch. Can be extracted from
       `/opt/xxnetwork/xxnetwork-gateway.service` under the `--s3-secret` field.
+2. Install required Python dependencies by running `pip3 install psycopg2-binary`
 3. Stage the script. Place `active-users.py` at `/opt/xxnetwork/active-users.py` on your gateway machine, matching
    the `ExecStart` path to the script provided in the service file.
 4. Make the script executable by running `chmod +x /opt/xxnetwork/active-users.py`.
