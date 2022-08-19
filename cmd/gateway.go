@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -31,6 +30,7 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/rateLimiting"
+	"google.golang.org/protobuf/proto"
 	"time"
 )
 
