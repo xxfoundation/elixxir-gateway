@@ -1,0 +1,16 @@
+# Example service file for the active_users script.
+# Emphasizes required keys and minimal additional configuration
+# and expects the standard gateway file paths as specified in the handbook.
+# Other paths can easily be provided by specifying other command line args.
+# Should share aws access keys with the ones provided to wrapper script.
+
+[Unit]
+Description=Job that starts the Active Users Script
+
+[Service]
+User=elixxir
+Type=simple
+ExecStart=/opt/xxnetwork/active-users.py --pass "" --aws-key "" --aws-secret ""
+
+[Install]
+WantedBy=multi-user.target

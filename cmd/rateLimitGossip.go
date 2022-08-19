@@ -45,6 +45,10 @@ func (gw *Instance) gossipRateLimitReceive(msg *gossip.GossipMsg) error {
 
 	capacity, leaked, duration := gw.GetRateLimitParams()
 
+	jww.INFO.Printf("rate limit gossip for round %d: %d senders, %d ips",
+		payloadMsg.RoundID, len(payloadMsg.SenderIds),
+		len(payloadMsg.Ips))
+
 	// Add to leaky bucket for each sender
 	for _, senderBytes := range payloadMsg.SenderIds {
 		senderId, err := id.Unmarshal(senderBytes)
@@ -81,7 +85,7 @@ func (gw *Instance) GossipBatch(round id.Round, senders []*id.ID, ips []string) 
 	// Add the GossipMsg payload
 	gossipMsg.Payload, err = buildGossipPayloadRateLimit(round, senders, ips)
 	if err != nil {
-		return errors.Errorf("Unable to build gossip payload: %+v", err)
+		return errors.Errorf("Unable to build rate limit gossip payload: %+v", err)
 	}
 
 	// Add the GossipMsg signature
