@@ -54,7 +54,7 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	// Build the message
 	gossipMsg := &gossip.GossipMsg{
 		Tag:    BloomFilterGossip,
-		Origin: gw.Comms.Id.Marshal(),
+		Origin: gw.Comms.GetId().Marshal(),
 	}
 
 	// Add the GossipMsg payload

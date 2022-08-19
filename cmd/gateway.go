@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -18,8 +19,8 @@ import (
 	"gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
-	"gitlab.com/elixxir/crypto/fingerprint"
 	"gitlab.com/elixxir/crypto/hash"
+	"gitlab.com/elixxir/crypto/sih"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/states"
@@ -30,12 +31,11 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/rateLimiting"
-	"google.golang.org/protobuf/proto"
 	"time"
 )
 
 // Zeroed identity fingerprint identifies dummy messages
-var dummyIdFp = make([]byte, format.IdentityFPLen)
+var dummyIdFp = make([]byte, format.SIHLen)
 var noConnectionErr = "unable to connect to target host %s."
 var noHostErr = "unable to find target host %s."
 
@@ -59,7 +59,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 		}
 
 		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
+		if !gw.Comms.GetId().Cmp(targetID) {
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
@@ -170,7 +170,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 	return resp, nil
 }
 
-// Client -> Gateway handler. Looks up messages based on a userID and a roundID.
+// RequestMessages Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
 func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
@@ -189,7 +189,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 		}
 
 		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
+		if !gw.Comms.GetId().Cmp(targetID) {
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
@@ -291,7 +291,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 
 		// Check if the target is not itself (ie this gateway is a proxy to the
 		// intended recipient)
-		if !gw.Comms.Id.Cmp(targetID) {
+		if !gw.Comms.GetId().Cmp(targetID) {
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
@@ -389,7 +389,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 		}
 
 		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
+		if !gw.Comms.GetId().Cmp(targetID) {
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
@@ -409,7 +409,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 	return gw.handlePutManyMessage(messages, ipAddr)
 }
 
-// PutManyMessageProxy is the function which handles a PutManyMessage proxy from another gateway
+// PutManyMessagesProxy is the function which handles a PutManyMessage proxy from another gateway
 func (gw *Instance) PutManyMessagesProxy(msg *pb.GatewaySlots, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
 
 	// Ensure poller is properly authenticated
@@ -576,7 +576,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round
 		jww.FATAL.Panicf("Could not get ID: %+v", err)
 	}
 	msg.SetEphemeralRID(ephId[:])
-	msg.SetIdentityFP(dummyIdFp)
+	msg.SetSIH(dummyIdFp)
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys, roundID)
 
@@ -651,10 +651,10 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 		go func() {
 			err = gw.GossipBatch(rid, senders, ips)
 			if err != nil {
-				jww.ERROR.Printf("Unable to rate limit gossip batch " +
+				jww.ERROR.Printf("Unable to rate limit gossip batch "+
 					"information for round %d: %+v", rid, err)
 			}
-			jww.INFO.Printf("Sent rate limit gossip for round %d," +
+			jww.INFO.Printf("Sent rate limit gossip for round %d,"+
 				" with %d ips and %d senders", rid,
 				len(ips), len(senders))
 		}()
@@ -784,7 +784,7 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 		serialMsg.SetPayloadB(msg.GetPayloadB())
 
 		// If IdentityFP is not zeroed, the message is not a dummy
-		if !bytes.Equal(serialMsg.GetIdentityFP(), dummyIdFp) {
+		if !bytes.Equal(serialMsg.GetSIH(), dummyIdFp) {
 			recipIdBytes := serialMsg.GetEphemeralRID()
 			recipientId, err := ephemeral.Marshal(recipIdBytes)
 			if err != nil {
@@ -815,8 +815,8 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			// Add new NotificationData for the message
 			notifications.Notifications = append(notifications.Notifications, &pb.NotificationData{
 				EphemeralID: recipientId.Int64(),
-				IdentityFP:  serialMsg.GetIdentityFP(),
-				MessageHash: fingerprint.GetMessageHash(serialMsg.GetContents()),
+				IdentityFP:  serialMsg.GetSIH(),
+				MessageHash: sih.GetMessageHash(serialMsg.GetContents()),
 			})
 		}
 	}
