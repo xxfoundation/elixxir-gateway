@@ -365,7 +365,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 		t.Errorf("Unable to add gossip peer: %+v", err)
 	}
 	// Build a mock node ID for a topology
-	nodeID := gw.Comms.GetId().DeepCopy()
+	nodeID := gw.Comms.GetId()
 	nodeID.SetType(id.Node)
 	topology := [][]byte{nodeID.Bytes()}
 	// Create a fake round info to store
@@ -504,7 +504,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 	}
 
 	// Build a mock node ID for a topology
-	nodeID := gw.Comms.GetId().DeepCopy()
+	nodeID := gw.Comms.GetId()
 	nodeID.SetType(id.Node)
 	topology := [][]byte{nodeID.Bytes()}
 	// Create a fake round info to store
