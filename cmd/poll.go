@@ -81,10 +81,10 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"handle client poll due to invalid end timestamp")
 	}
 
-	//get the known rounds before the client filters are received, otherwise there can
-	//be a race condition because known rounds is updated after the bloom filters,
-	//so you can get a known rounds that denotes an updated bloom filter while
-	//it was not received
+	// get the known rounds before the client filters are received, otherwise there can
+	// be a race condition because known rounds is updated after the bloom filters,
+	// so you can get a known rounds that denotes an updated bloom filter while
+	// it was not received
 	var knownRounds []byte
 	if gw.krw.needsTruncated(id.Round(clientRequest.LastRound)) {
 		knownRounds = gw.krw.truncateMarshal()
@@ -118,6 +118,15 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 				RoundRange: f.RoundRange,
 			})
 		}
+	}
+
+	// Exclude the NDF and network round updates on client request
+	if clientRequest.GetDisableUpdates() {
+		return &pb.GatewayPollResponse{
+			KnownRounds:   knownRounds,
+			Filters:       filtersMsg,
+			EarliestRound: earliestRoundId,
+		}, nil
 	}
 
 	var netDef *pb.NDF
