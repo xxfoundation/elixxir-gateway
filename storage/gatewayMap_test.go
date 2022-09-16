@@ -737,11 +737,7 @@ func TestMapImpl_GetClientBloomFilters(t *testing.T) {
 	}
 
 	// Initialize MapImpl with ClientBloomFilterList
-	m := &MapImpl{
-		bloomFilters: BloomFilterMap{
-			RecipientId: map[int64]*ClientBloomFilterList{},
-		},
-	}
+	m, err := NewStorage("", "", "", "", "", true)
 
 	for i, bf := range filters {
 		if err := m.upsertClientBloomFilter(bf); err != nil {
@@ -1100,5 +1096,30 @@ func TestMapImpl_UpsertClient(t *testing.T) {
 	err = m.UpsertClient(testClient)
 	if err != nil || !bytes.Equal(m.clients[*testKey].Key, []byte("testkey2")) {
 		t.Errorf("Failed to upsert client: %v", err)
+	}
+}
+
+func TestMapImpl_GetStateValue(t *testing.T) {
+	db, err := NewStorage("", "", "", "", "", true)
+	if err != nil {
+		t.Fatalf("Failed to init storage: %+v", err)
+	}
+	testKey := "test_key"
+	testValue := "test_value"
+	err = db.UpsertState(&State{
+		Key:   testKey,
+		Value: testValue,
+	})
+	if err != nil {
+		t.Fatalf("Failed to upsert state: %+v", err)
+	}
+
+	val, err := db.GetStateValue(testKey)
+	if err != nil {
+		t.Fatalf("Failed to get state value: %+v", err)
+	}
+	if val != testValue {
+		t.Fatalf("Did not receive expected value from GetStateValue"+
+			"\n\tExpected: %+v\n\tReceived: %+v\n", testValue, val)
 	}
 }

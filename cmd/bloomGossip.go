@@ -168,6 +168,8 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 			time.Unix(0, int64(payloadMsg.RoundTS)), averageAttempts, totalNumAttempts)
 	}
 
+	jww.TRACE.Printf("Gossip received for RID %d, lastChecked: %d", roundID, gw.krw.getLastChecked())
+
 	return nil
 }
 

@@ -56,13 +56,16 @@ type DatabaseImpl struct {
 
 // Struct implementing the database Interface with an underlying Map
 type MapImpl struct {
-	states        map[string]string
-	clients       map[id.ID]*Client
-	rounds        map[id.Round]*Round
-	clientRounds  map[uint64]*ClientRound
-	mixedMessages MixedMessageMap
-	bloomFilters  BloomFilterMap
-	sync.RWMutex
+	states           map[string]string
+	statesLock       sync.RWMutex
+	clients          map[id.ID]*Client
+	clientsLock      sync.RWMutex
+	rounds           map[id.Round]*Round
+	roundsLock       sync.RWMutex
+	clientRounds     map[uint64]*ClientRound
+	clientRoundsLock sync.RWMutex
+	mixedMessages    MixedMessageMap
+	bloomFilters     BloomFilterMap
 }
 
 // MixedMessageMap contains a list of MixedMessage sorted into two maps so that
