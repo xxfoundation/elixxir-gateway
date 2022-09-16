@@ -91,6 +91,7 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	} else {
 		knownRounds = gw.krw.getMarshal()
 	}
+	jww.TRACE.Printf("Poll retrieved knownrounds, last checked: %d", gw.krw.getLastChecked())
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
