@@ -11,6 +11,7 @@ package cmd
 
 import (
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/netTime"
 	"time"
 
 	"github.com/pkg/errors"
@@ -27,6 +28,9 @@ import (
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
 func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	*pb.GatewayPollResponse, error) {
+	// Record the beginning of Poll processing; returned with the response
+	startTime := netTime.Now()
+
 	// Nil check to check for valid clientRequest
 	if clientRequest == nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
@@ -151,6 +155,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		KnownRounds:   knownRounds,
 		Filters:       filtersMsg,
 		EarliestRound: earliestRoundId,
+		ReceivedTs:    startTime.Unix(),
+		GatewayDelay:  int64(netTime.Now().Sub(startTime)),
 	}, nil
 }
 
