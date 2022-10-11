@@ -130,6 +130,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			KnownRounds:   knownRounds,
 			Filters:       filtersMsg,
 			EarliestRound: earliestRoundId,
+			ReceivedTs:    startTime.UnixNano(),
+			GatewayDelay:  int64(netTime.Now().Sub(startTime)),
 		}, nil
 	}
 
