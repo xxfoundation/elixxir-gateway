@@ -84,8 +84,6 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 
 // Receive function for Gossip messages regarding bloom filters.
 func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
-	gw.bloomFilterGossip.Lock()
-	defer gw.bloomFilterGossip.Unlock()
 
 	received := time.Now()
 
@@ -104,6 +102,9 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	totalNumAttempts := uint32(0)
 	failedInsert := uint32(0)
+
+	gw.bloomFilterGossip.Lock()
+	defer gw.bloomFilterGossip.Unlock()
 
 	// WARNING: this needs function IDENTICALLY to the code in ProcessCompletedBatch in
 	// gateway.go, but due to this being hot code, has subtle differences which
