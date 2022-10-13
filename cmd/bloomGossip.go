@@ -82,7 +82,7 @@ func (gw *Instance) GossipBloom(recipients map[ephemeral.Id]interface{}, roundId
 	return nil
 }
 
-// Receive function for Gossip messages regarding bloom filters
+// Receive function for Gossip messages regarding bloom filters.
 func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	gw.bloomFilterGossip.Lock()
 	defer gw.bloomFilterGossip.Unlock()
@@ -105,7 +105,10 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 	totalNumAttempts := uint32(0)
 	failedInsert := uint32(0)
 
-	// Go through each of the recipients
+	// WARNING: this needs function IDENTICALLY to the code in ProcessCompletedBatch in
+	// gateway.go, but due to this being hot code, has subtle differences which
+	// lead to a different implementation
+	//Go through each of the recipients
 	for _, recipient := range payloadMsg.RecipientIds {
 		wg.Add(1)
 		go func(localRecipient []byte) {
