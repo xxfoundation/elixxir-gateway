@@ -31,6 +31,8 @@ import (
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"google.golang.org/protobuf/proto"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -726,12 +728,79 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) err
 			jww.INFO.Printf("Sent bloom gossip for round %d", roundID)
 		}()
 
+		received := time.Now()
+
+		// WARNING: this needs function IDENTICALLY to the code in gossipBloomFilterReceive in
+		// bloomGossip.go, but due to this being hot code, has subtle differences which
+		// lead to a different implementation
+		//Go through each of the recipients
 		go func() {
-			// Update filters in our storage system
-			errFilters := gw.UpsertFilters(recipients, roundID)
-			if err != nil {
-				jww.ERROR.Printf("Unable to update local bloom filters "+
-					"for round %d: %+v", roundID, errFilters)
+			gw.bloomFilterGossip.Lock()
+			defer gw.bloomFilterGossip.Unlock()
+			// Get epoch information
+			roundTimestamp := round.Timestamps[states.QUEUED]
+			epoch := GetEpoch(int64(roundTimestamp), gw.period)
+
+			var wg sync.WaitGroup
+
+			totalNumAttempts := uint32(0)
+			failedInsert := uint32(0)
+
+			for recipient, _ := range recipients {
+				wg.Add(1)
+				go func(recipientId ephemeral.Id) {
+					defer wg.Done()
+
+					// retry insertion into the database in the event that there is an
+					// insertion on the same ephemeral id by multiple rounds at the same
+					// time, in which case all but one will fail
+					i := 0
+					var localErr error
+					for ; i < bloomUploadRetries && (localErr != nil || i == 0); i++ {
+						localErr = gw.UpsertFilter(recipientId, roundID, epoch)
+						if localErr != nil {
+							jww.WARN.Printf("Failed to upsert recipient %d bloom as team member on "+
+								"round %d on attempt %d: %s", recipientId, roundID, i, localErr.Error())
+						}
+					}
+
+					atomic.AddUint32(&totalNumAttempts, uint32(i))
+					if localErr != nil {
+						jww.ERROR.Printf("Failed to upsert recipient %d bloom as team member on "+
+							"round %d on all attemps(%d/%d): %+v", recipientId, roundID, i, i, localErr)
+						atomic.AddUint32(&failedInsert, 1)
+					}
+				}(recipient)
+			}
+			wg.Wait()
+
+			finishedInsert := time.Now()
+			averageAttempts := float32(totalNumAttempts) / float32(len(recipients))
+
+			if failedInsert == 0 {
+				//denote the reception in known rounds
+				err = gw.krw.forceCheck(roundID, gw.storage)
+				if err != nil {
+					jww.ERROR.Printf("Local round data not recorded due to known rounds error for "+
+						"round %d with %d recipients at %s: "+
+						"\n\t inserts finished at %s, KR insert finished at %s, "+
+						"\n]t round started at ts %s, average attempts: %f (total: %d): %+v", roundID,
+						len(recipients), received, finishedInsert, time.Now(),
+						time.Unix(0, int64(roundTimestamp)), averageAttempts, totalNumAttempts, err)
+				} else {
+					jww.INFO.Printf("Local round data for round %d with %d recipients at %s: "+
+						"\n\t inserts finished at %s, KR insert finished at %s, "+
+						"\n]t round started at ts %s, average attempts: %f (total: %d)", roundID,
+						len(recipients), received, finishedInsert, time.Now(),
+						time.Unix(0, int64(roundTimestamp)), averageAttempts, totalNumAttempts)
+				}
+			} else {
+				jww.ERROR.Printf("Gossip received not recorded due to bloom upsert failures for %d recipeints"+
+					" for round %d with %d recipients at %s: "+
+					"\n\t inserts finished at %s, KR insert finished at %s, "+
+					"\n]t round started at ts %s, average attempts: %f (total: %d)", failedInsert, roundID,
+					len(recipients), received, finishedInsert, time.Now(),
+					time.Unix(0, int64(roundTimestamp)), averageAttempts, totalNumAttempts)
 			}
 		}()
 	}
