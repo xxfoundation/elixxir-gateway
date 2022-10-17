@@ -10,12 +10,12 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
-	gitlab.com/elixxir/comms v0.0.4-0.20221010191831-71c090dbc62b
-	gitlab.com/elixxir/crypto v0.0.7-0.20220913220142-ab0771bad0af
-	gitlab.com/elixxir/primitives v0.0.3-0.20220810173935-592f34a88326
-	gitlab.com/xx_network/comms v0.0.4-0.20220913215811-c4bf83b27de3
-	gitlab.com/xx_network/crypto v0.0.5-0.20220913213008-98764f5b3287
-	gitlab.com/xx_network/primitives v0.0.4-0.20220809193445-9fc0a5209548
+	gitlab.com/elixxir/comms v0.0.4-0.20221017173926-4eaa6061dfaa
+	gitlab.com/elixxir/crypto v0.0.7-0.20221017173452-565da4101a3b
+	gitlab.com/elixxir/primitives v0.0.3-0.20221017172918-6176818d1aba
+	gitlab.com/xx_network/comms v0.0.4-0.20221017172508-09e33697dc15
+	gitlab.com/xx_network/crypto v0.0.5-0.20221017172404-b384a8d8b171
+	gitlab.com/xx_network/primitives v0.0.4-0.20221017171439-42169a3e5c0d
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
 	gorm.io/driver/postgres v1.0.7
