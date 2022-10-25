@@ -10,12 +10,12 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
-	gitlab.com/elixxir/comms v0.0.4-0.20221017173926-4eaa6061dfaa
-	gitlab.com/elixxir/crypto v0.0.7-0.20221017173452-565da4101a3b
-	gitlab.com/elixxir/primitives v0.0.3-0.20221017172918-6176818d1aba
-	gitlab.com/xx_network/comms v0.0.4-0.20221017172508-09e33697dc15
-	gitlab.com/xx_network/crypto v0.0.5-0.20221017172404-b384a8d8b171
-	gitlab.com/xx_network/primitives v0.0.4-0.20221017171439-42169a3e5c0d
+	gitlab.com/elixxir/comms v0.0.4-0.20221025020711-eba3adc4eb06
+	gitlab.com/elixxir/crypto v0.0.7-0.20221025020525-985806badd65
+	gitlab.com/elixxir/primitives v0.0.3-0.20221025020430-f5d2eb330fbc
+	gitlab.com/xx_network/comms v0.0.4-0.20221025020408-9b62d4c2e700
+	gitlab.com/xx_network/crypto v0.0.5-0.20221025020316-517fa8f91d2c
+	gitlab.com/xx_network/primitives v0.0.4-0.20221025020003-cbec15a71b8f
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
 	gorm.io/driver/postgres v1.0.7
@@ -57,11 +57,11 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/zeebo/blake3 v0.1.1 // indirect
-	gitlab.com/xx_network/ring v0.0.3-0.20220222211904-da613960ad93 // indirect
+	gitlab.com/xx_network/ring v0.0.3-0.20220902183151-a7d3b15bc981 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c // indirect
-	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
+	golang.org/x/sys v0.0.0-20220731174439-a90be440212d // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto v0.0.0-20220822174746-9e6da59bd2fc // indirect
