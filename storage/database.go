@@ -22,9 +22,6 @@ import (
 	"time"
 )
 
-// Determines maximum runtime (in seconds) of specific DB queries
-const DbTimeout = 3
-
 // Interface declaration for storage methods
 type database interface {
 	UpsertState(state *State) error
@@ -43,9 +40,8 @@ type database interface {
 	InsertMixedMessages(cr *ClientRound) error
 	deleteMixedMessages(ts time.Time) error
 
-	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
-	upsertClientBloomFilter(filter *ClientBloomFilter) error
-	GetLowestBloomRound() (uint64, error)
+	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*BloomFilter, error)
+	upsertClientBloomFilter(filter *BloomFilter) error
 	DeleteClientFiltersBeforeEpoch(epoch uint32) error
 }
 
@@ -125,6 +121,18 @@ type ClientRound struct {
 	Messages []MixedMessage `gorm:"foreignKey:RoundId;constraint:OnDelete:CASCADE"`
 }
 
+// BloomFilter is migrated from the previous ClientBloomFilter to allow for
+// expansion of multiple BloomFilter in the same Epoch/RecipientId pair.
+type BloomFilter struct {
+	Id          uint64 `gorm:"primaryKey;autoIncrement:true"`
+	Epoch       uint32 `gorm:"index;not null"`
+	RecipientId *int64 `gorm:"index;not null"` // Pointer to enforce zero-value reading in ORM
+	FirstRound  uint64 `gorm:"index;not null"`
+	RoundRange  uint32 `gorm:"not null"`
+	Filter      []byte `gorm:"not null"`
+	Uses        uint32 `gorm:"not null"` // Keep track of how many times used
+}
+
 // Represents a ClientBloomFilter
 type ClientBloomFilter struct {
 	Epoch       uint32 `gorm:"primaryKey"`
@@ -168,7 +176,7 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 // Initialize the database interface with database backend
 // Returns a database interface and error
 func newDatabase(username, password, dbName, address,
-	port string, devmode bool) (database, error) {
+	port string, devMode bool) (database, error) {
 
 	var err error
 	var db *gorm.DB
@@ -200,7 +208,7 @@ func newDatabase(username, password, dbName, address,
 			jww.WARN.Printf(failReason)
 		}
 
-		if !devmode {
+		if !devMode {
 			jww.FATAL.Panicf("Gateway cannot run in production "+
 				"without a database: %s", failReason)
 		}
@@ -244,7 +252,7 @@ func newDatabase(username, password, dbName, address,
 	// Initialize the database schema
 	// WARNING: Order is important. Do not change without database testing
 	models := []interface{}{&Client{}, &Round{}, &ClientRound{},
-		&MixedMessage{}, &ClientBloomFilter{}, State{}}
+		&MixedMessage{}, &ClientBloomFilter{}, BloomFilter{}, State{}}
 	for _, model := range models {
 		err = db.AutoMigrate(model)
 		if err != nil {

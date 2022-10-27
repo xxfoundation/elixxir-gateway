@@ -17,22 +17,29 @@ import (
 	"time"
 )
 
+const (
+	// Determines maximum runtime (in seconds) of specific DB queries
+	dbTimeout = 3 * time.Second
+	// Determines maximum number of uses for a BloomFilter in a given period.
+	maxBloomUses = 100
+)
+
 // API for the storage layer
 type Storage struct {
 	// Stored database interface
 	database
 }
 
-// Create a new Storage object wrapping a database interface
-// Returns a Storage object and error
+// NewStorage creates a new Storage object wrapping a database interface.
+// Returns a Storage object and error.
 func NewStorage(username, password, dbName, address, port string, devmode bool) (*Storage, error) {
 	db, err := newDatabase(username, password, dbName, address, port, devmode)
 	storage := &Storage{db}
 	return storage, err
 }
 
-// Clears certain data from Storage older than the given timestamp
-// This includes Round and MixedMessage information
+// ClearOldStorage deletes certain data from Storage older
+// than the given timestamp. This includes Round and MixedMessage information.
 func (s *Storage) ClearOldStorage(ts time.Time) error {
 	err := s.deleteRound(ts)
 	if err != nil {
@@ -42,7 +49,7 @@ func (s *Storage) ClearOldStorage(ts time.Time) error {
 	return s.deleteMixedMessages(ts)
 }
 
-// Builds a ClientBloomFilter with the given parameters, then stores it
+// HandleBloomFilter builds a BloomFilter with the given parameters, then stores it.
 func (s *Storage) HandleBloomFilter(recipientId ephemeral.Id, filterBytes []byte, roundId id.Round, epoch uint32) error {
 	// Ignore zero-value recipient ID for now - this is a reserved address
 	recipientIdInt := recipientId.Int64()
@@ -51,7 +58,7 @@ func (s *Storage) HandleBloomFilter(recipientId ephemeral.Id, filterBytes []byte
 	}
 
 	// Build a newly-initialized ClientBloomFilter to be stored
-	validFilter := &ClientBloomFilter{
+	validFilter := &BloomFilter{
 		RecipientId: &recipientIdInt,
 		Epoch:       epoch,
 		// FirstRound is input as CurrentRound for later calculation
@@ -59,6 +66,7 @@ func (s *Storage) HandleBloomFilter(recipientId ephemeral.Id, filterBytes []byte
 		// RoundRange is empty for now as it can't be calculated yet
 		RoundRange: 0,
 		Filter:     filterBytes,
+		Uses:       0,
 	}
 
 	// Commit the new/updated ClientBloomFilter
@@ -101,7 +109,7 @@ func or(existingBuffer, additionalBuffer []byte) []byte {
 // Combine with and update this filter using oldFilter
 // Used in upsertFilter functionality in order to ensure atomicity
 // Kept in business logic layer because functionality is shared
-func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
+func (f *BloomFilter) combine(oldFilter *BloomFilter) {
 
 	// Initialize FirstRound variable if needed
 	if oldFilter.FirstRound == uint64(0) {
@@ -130,8 +138,9 @@ func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 
 	// Combine the filters
 	f.Filter = or(oldFilter.Filter, f.Filter)
+	f.Uses = oldFilter.Uses + 1
 }
 
-func (f *ClientBloomFilter) lastRound() uint64 {
+func (f *BloomFilter) lastRound() uint64 {
 	return f.FirstRound + uint64(f.RoundRange)
 }
