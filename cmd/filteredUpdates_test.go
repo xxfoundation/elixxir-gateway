@@ -22,10 +22,11 @@ import (
 func TestFilteredUpdates_RoundUpdate(t *testing.T) {
 	validUpdateId := uint64(4)
 	validMsg := &mixmessages.RoundInfo{
-		ID:        2,
-		UpdateID:  validUpdateId,
-		State:     uint32(states.COMPLETED),
-		BatchSize: 8,
+		ID:         2,
+		UpdateID:   validUpdateId,
+		State:      uint32(states.COMPLETED),
+		BatchSize:  8,
+		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
 	}
 
 	ecPrivKey, err := ec.NewKeyPair(rand.Reader)
@@ -91,10 +92,11 @@ func TestFilteredUpdates_RoundUpdate(t *testing.T) {
 func TestFilteredUpdates_RoundUpdates(t *testing.T) {
 	validUpdateId := uint64(4)
 	validMsg := &mixmessages.RoundInfo{
-		ID:        2,
-		UpdateID:  validUpdateId,
-		State:     uint32(states.COMPLETED),
-		BatchSize: 8,
+		ID:         2,
+		UpdateID:   validUpdateId,
+		State:      uint32(states.COMPLETED),
+		BatchSize:  8,
+		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
 	}
 
 	ellipticKey, err := ec.NewKeyPair(rand.Reader)
@@ -122,10 +124,11 @@ func TestFilteredUpdates_RoundUpdates(t *testing.T) {
 	}
 	invalidUpdateId := uint64(5)
 	invalidMsg := &mixmessages.RoundInfo{
-		ID:        2,
-		UpdateID:  invalidUpdateId,
-		State:     uint32(states.PRECOMPUTING),
-		BatchSize: 8,
+		ID:         2,
+		UpdateID:   invalidUpdateId,
+		State:      uint32(states.PRECOMPUTING),
+		BatchSize:  8,
+		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
 	}
 
 	err = testutils.SignRoundInfoEddsa(validMsg, ellipticKey, t)
@@ -183,9 +186,10 @@ func TestFilteredUpdates_GetRoundUpdate(t *testing.T) {
 		t.Fatalf("Failed to create filtered update: %v", err)
 	}
 	ri := &mixmessages.RoundInfo{
-		ID:       uint64(1),
-		UpdateID: uint64(1),
-		State:    uint32(states.QUEUED),
+		ID:         uint64(1),
+		UpdateID:   uint64(1),
+		State:      uint32(states.QUEUED),
+		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
 	}
 	testutils.SignRoundInfoEddsa(ri, ellipticKey, t)
 	rnd := ds.NewRound(ri, nil, ellipticKey.GetPublic())
@@ -222,17 +226,19 @@ func TestFilteredUpdates_GetRoundUpdates(t *testing.T) {
 		t.Fatalf("Failed to create filtered update: %v", err)
 	}
 	roundInfoOne := &mixmessages.RoundInfo{
-		ID:       uint64(1),
-		UpdateID: uint64(2),
-		State:    uint32(states.QUEUED),
+		ID:         uint64(1),
+		UpdateID:   uint64(2),
+		State:      uint32(states.QUEUED),
+		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
 	}
 	if err = testutils.SignRoundInfoEddsa(roundInfoOne, ellipticKey, t); err != nil {
 		t.Fatalf("Failed to sign round info: %v", err)
 	}
 	roundInfoTwo := &mixmessages.RoundInfo{
-		ID:       uint64(2),
-		UpdateID: uint64(3),
-		State:    uint32(states.QUEUED),
+		ID:         uint64(2),
+		UpdateID:   uint64(3),
+		State:      uint32(states.QUEUED),
+		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
 	}
 	if err = testutils.SignRoundInfoEddsa(roundInfoTwo, ellipticKey, t); err != nil {
 		t.Fatalf("Failed to sign round info: %v", err)

@@ -148,9 +148,10 @@ func TestInstance_GossipVerify(t *testing.T) {
 
 	// Create a fake round info to store
 	ri := &pb.RoundInfo{
-		ID:       10,
-		UpdateID: 10,
-		Topology: topology,
+		ID:         10,
+		UpdateID:   10,
+		Topology:   topology,
+		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
 	}
 
 	// Sign the round info with the mock permissioning private key

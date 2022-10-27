@@ -58,7 +58,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
 		initLog()
-
+		jww.INFO.Printf("TESTING")
 		profileOut := viper.GetString("profile-cpu")
 		if profileOut != "" {
 			f, err := os.Create(profileOut)
