@@ -126,11 +126,6 @@ type ClientRound struct {
 }
 
 type ClientBloomFilter struct {
-	//Epoch       uint32 `gorm:"primaryKey"`
-	//RecipientId *int64 `gorm:"primaryKey"` // Pointer to enforce zero-value reading in ORM
-	//FirstRound  uint64 `gorm:"index;not null"`
-	//RoundRange  uint32 `gorm:"not null"`
-	//Filter      []byte `gorm:"not null"`
 	Id          uint64 `gorm:"primaryKey;autoIncrement:true"`
 	Epoch       uint32 `gorm:"index;not null"`
 	RecipientId *int64 `gorm:"index;not null"` // Pointer to enforce zero-value reading in ORM
@@ -273,13 +268,14 @@ func migrate(db *gorm.DB) error {
 	jww.INFO.Printf("Current database version: v%d", currentVersion)
 
 	// Perform automatic migrations of basic table structure.
-	// WARNING: Order is important. Do not change without database testing
+	// WARNING: Order is important. Do not change without database testing.
 	err := db.AutoMigrate(&Client{}, &Round{}, &ClientRound{},
 		&MixedMessage{}, &ClientBloomFilter{}, State{})
 	if err != nil {
 		return err
 	}
 
+	// Perform any required manual migrations.
 	if minVersion := 1; currentVersion < minVersion {
 		jww.INFO.Printf("Performing database migration from v%d -> v%d",
 			currentVersion, minVersion)
@@ -297,6 +293,7 @@ func migrate(db *gorm.DB) error {
 		if err != nil {
 			return err
 		}
+		currentVersion = minVersion
 	}
 	return nil
 }
