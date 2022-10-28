@@ -32,7 +32,6 @@ type database interface {
 	UpsertClient(client *Client) error
 
 	GetRound(id id.Round) (*Round, error)
-	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
 	deleteRound(ts time.Time) error
 
@@ -43,8 +42,11 @@ type database interface {
 
 	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error
-	GetLowestBloomRound() (uint64, error)
 	DeleteClientFiltersBeforeEpoch(epoch uint32) error
+
+	// TODO: Currently not used. May want to remove.
+	GetLowestBloomRound() (uint64, error)
+	GetRounds(ids []id.Round) ([]*Round, error)
 }
 
 // DatabaseImpl implements the database interface with an underlying DB
@@ -233,7 +235,8 @@ func newDatabase(username, password, dbName, address,
 	// Get and configure the internal database ConnPool
 	sqlDb, err := db.DB()
 	if err != nil {
-		return database(&DatabaseImpl{}), errors.Errorf("Unable to configure database connection pool: %+v", err)
+		return database(&DatabaseImpl{}), errors.Errorf(
+			"Unable to configure database connection pool: %+v", err)
 	}
 	// SetMaxIdleConns sets the maximum number of connections in the idle connection pool.
 	sqlDb.SetMaxIdleConns(10)
@@ -244,30 +247,11 @@ func newDatabase(username, password, dbName, address,
 	// SetConnMaxLifetime sets the maximum amount of time a connection may be reused.
 	sqlDb.SetConnMaxLifetime(12 * time.Hour)
 
-	// Initialize the database schema
-	// WARNING: Order is important. Do not change without database testing
-	models := []interface{}{&ClientBloomFilter{}}
-	for _, model := range models {
-		err = db.AutoMigrate(model)
-		if err != nil {
-			return database(&DatabaseImpl{}), err
-		}
-	}
-
-	// Build a transaction to prevent race conditions
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout*5)
-	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Exec("ALTER TABLE client_bloom_filters DROP CONSTRAINT client_bloom_filters_pkey;").Error
-		if err != nil {
-			return err
-		}
-
-		// Commit
-		return tx.Exec("ALTER TABLE client_bloom_filters ADD PRIMARY KEY (id);").Error
-	})
-	cancel()
+	// Ensure database structure is up-to-date.
+	err = migrate(db)
 	if err != nil {
-		return database(&DatabaseImpl{}), err
+		return database(&DatabaseImpl{}), errors.Errorf(
+			"Failed to migrate database: %+v", err)
 	}
 
 	// Build the interface
@@ -277,4 +261,42 @@ func newDatabase(username, password, dbName, address,
 
 	jww.INFO.Println("Database backend initialized successfully!")
 	return database(di), nil
+}
+
+// migrate is a basic database structure migrator.
+func migrate(db *gorm.DB) error {
+	// Determine the current version of the database via basic structural checks.
+	currentVersion := 0
+	if db.Migrator().HasColumn(&ClientBloomFilter{}, "id") {
+		currentVersion = 1
+	}
+	jww.INFO.Printf("Current database version: v%d", currentVersion)
+
+	// Perform automatic migrations of basic table structure.
+	// WARNING: Order is important. Do not change without database testing
+	err := db.AutoMigrate(&Client{}, &Round{}, &ClientRound{},
+		&MixedMessage{}, &ClientBloomFilter{}, State{})
+	if err != nil {
+		return err
+	}
+
+	if minVersion := 1; currentVersion < minVersion {
+		jww.INFO.Printf("Performing database migration from v%d -> v%d",
+			currentVersion, minVersion)
+		ctx, cancel := context.WithTimeout(context.Background(), dbTimeout*5)
+		err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			err := tx.Exec("ALTER TABLE client_bloom_filters DROP CONSTRAINT client_bloom_filters_pkey;").Error
+			if err != nil {
+				return err
+			}
+
+			// Commit
+			return tx.Exec("ALTER TABLE client_bloom_filters ADD PRIMARY KEY (id);").Error
+		})
+		cancel()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
