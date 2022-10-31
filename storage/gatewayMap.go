@@ -15,6 +15,7 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"math"
+	"sync/atomic"
 	"time"
 )
 
@@ -292,8 +293,9 @@ func (m *MapImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, en
 
 	// Build list of existing filters between the range
 	var bloomFilters []*ClientBloomFilter
-	for _, bf := range list.list[startIndex : endIndex+1] {
-		if bf != nil {
+	for _, bfl := range list.list[startIndex : endIndex+1] {
+		if bfl != nil {
+			bf := bfl[0]
 			bloomFilters = append(bloomFilters, bf)
 		}
 	}
@@ -316,9 +318,12 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 	// TODO: Really really dumb, probably revise
 	earliestFirstRound := uint64(math.MaxUint64)
 	for _, v := range m.bloomFilters.RecipientId {
-		for _, filter := range v.list {
-			if filter != nil && filter.FirstRound < earliestFirstRound {
-				earliestFirstRound = filter.FirstRound
+		for _, filterList := range v.list {
+			if len(filterList) > 0 {
+				filter := filterList[0]
+				if filter != nil && filter.FirstRound < earliestFirstRound {
+					earliestFirstRound = filter.FirstRound
+				}
 			}
 		}
 	}
@@ -343,7 +348,7 @@ func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	list := m.bloomFilters.RecipientId[*filter.RecipientId]
 	if list == nil {
 		m.bloomFilters.RecipientId[*filter.RecipientId] = &ClientBloomFilterList{
-			list:  make([]*ClientBloomFilter, initialClientBloomFilterListSize),
+			list:  make([][]*ClientBloomFilter, initialClientBloomFilterListSize),
 			start: filter.Epoch,
 		}
 		list = m.bloomFilters.RecipientId[*filter.RecipientId]
@@ -360,12 +365,25 @@ func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	}
 
 	// Update the filter with the new one if one already exists in the list
-	if oldFilter := list.list[index]; oldFilter != nil {
-		filter.combine(oldFilter)
+	if indexFilterList := list.list[index]; indexFilterList == nil {
+		list.list[index] = []*ClientBloomFilter{{}}
+	} else {
+		oldFilter := indexFilterList[0]
+		if oldFilter != nil {
+			if oldFilter.Uses < maxBloomUses {
+				filter.combine(oldFilter)
+			} else {
+				list.list[index] = append([]*ClientBloomFilter{{}}, list.list[index]...)
+				filter.Id = atomic.LoadUint64(m.bloomFilters.primaryKey)
+				for !atomic.CompareAndSwapUint64(m.bloomFilters.primaryKey, filter.Id, filter.Id+1) {
+					filter.Id = atomic.LoadUint64(m.bloomFilters.primaryKey)
+				}
+			}
+		}
 	}
 
 	// Insert the filter into the list
-	list.list[index] = filter
+	list.list[index][0] = filter
 	return nil
 }
 
@@ -408,7 +426,7 @@ func (m *MapImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
 // where to place the data in the modified array. cutIndex specifies the start
 // location of data to be copied.
 func (bfl *ClientBloomFilterList) changeSize(size, copyIndex, cutIndex int) {
-	newList := make([]*ClientBloomFilter, size)
+	newList := make([][]*ClientBloomFilter, size)
 	copy(newList[copyIndex:], bfl.list[cutIndex:])
 	bfl.list = newList
 }

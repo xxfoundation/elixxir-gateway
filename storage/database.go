@@ -82,11 +82,12 @@ type MixedMessageMap struct {
 // BloomFilterMap contains a list of ClientBloomFilter sorted in a map that can key on RecipientId.
 type BloomFilterMap struct {
 	RecipientId map[int64]*ClientBloomFilterList
+	primaryKey  *uint64
 	sync.RWMutex
 }
 
 type ClientBloomFilterList struct {
-	list  []*ClientBloomFilter
+	list  [][]*ClientBloomFilter
 	start uint32
 }
 

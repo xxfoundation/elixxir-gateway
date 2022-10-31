@@ -9,10 +9,12 @@ package storage
 
 import (
 	"bytes"
+	"fmt"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"math/rand"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -910,11 +912,11 @@ func TestMapImpl_upsertClientBloomFilter(t *testing.T) {
 
 	// Build expected bloom filter list
 	expectedList := &ClientBloomFilterList{
-		list:  make([]*ClientBloomFilter, 451),
+		list:  make([][]*ClientBloomFilter, 451),
 		start: 50,
 	}
 	for _, bf := range filters {
-		expectedList.list[bf.Epoch-expectedList.start] = bf
+		expectedList.list[bf.Epoch-expectedList.start] = []*ClientBloomFilter{bf}
 	}
 
 	// Initialize MapImpl with ClientBloomFilterList
@@ -937,6 +939,59 @@ func TestMapImpl_upsertClientBloomFilter(t *testing.T) {
 			"\nexpected: %+v\nreceived: %+v",
 			expectedList, m.bloomFilters.RecipientId[rid])
 	}
+}
+
+func TestMapImpl_upsertClientBloomFilter_rollover(t *testing.T) {
+	// Build list of bloom filters to add
+	rid := rand.Int63()
+	filter := ClientBloomFilter{RecipientId: &rid, Epoch: 100}
+
+	// Initialize MapImpl with ClientBloomFilterList
+	m := &MapImpl{
+		bloomFilters: BloomFilterMap{
+			primaryKey:  new(uint64),
+			RecipientId: map[int64]*ClientBloomFilterList{},
+		},
+	}
+	atomic.StoreUint64(m.bloomFilters.primaryKey, 0)
+
+	// Upsert test bloom filters and check for errors
+	for i := 0; i <= maxBloomUses; i++ {
+		var f ClientBloomFilter
+		f = filter
+		err := m.upsertClientBloomFilter(&f)
+		if err != nil {
+			t.Errorf("Failed to insert BloomFilter (%d): %v", i, err)
+		}
+	}
+
+	if len(m.bloomFilters.RecipientId[rid].list[filter.Epoch-m.bloomFilters.RecipientId[rid].start]) != 1 {
+		t.Errorf("Should not have rolled over before %d uses", maxBloomUses)
+	}
+
+	var f ClientBloomFilter
+	f = filter
+	err := m.upsertClientBloomFilter(&f)
+	if err != nil {
+		t.Errorf("Failed to insert BloomFilter: %v", err)
+	}
+
+	if len(m.bloomFilters.RecipientId[rid].list[filter.Epoch-m.bloomFilters.RecipientId[rid].start]) != 2 {
+		t.Errorf("Uses after %d should have caused rollover", maxBloomUses)
+	}
+
+	f = filter
+	err = m.upsertClientBloomFilter(&f)
+	if err != nil {
+		t.Errorf("Failed to insert BloomFilter: %v", err)
+	}
+
+	fmt.Println(m.bloomFilters.RecipientId[rid].list[filter.Epoch-m.bloomFilters.RecipientId[rid].start])
+	if len(m.bloomFilters.RecipientId[rid].list[filter.Epoch-m.bloomFilters.RecipientId[rid].start]) != 2 {
+		t.Errorf("Uses after %d should have continued to use last appended filter", maxBloomUses+1)
+	}
+
+	fmt.Println(m.bloomFilters.RecipientId[rid].list[filter.Epoch-m.bloomFilters.RecipientId[rid].start])
 }
 
 // Happy path.
@@ -984,7 +1039,7 @@ func TestMapImpl_DeleteClientFiltersBeforeEpoch(t *testing.T) {
 	var mapFilters []*ClientBloomFilter
 	for _, bf := range m.bloomFilters.RecipientId[rid[0]].list {
 		if bf != nil {
-			mapFilters = append(mapFilters, bf)
+			mapFilters = append(mapFilters, bf[0])
 		}
 	}
 
@@ -998,7 +1053,7 @@ func TestMapImpl_DeleteClientFiltersBeforeEpoch(t *testing.T) {
 	mapFilters = []*ClientBloomFilter{}
 	for _, bf := range m.bloomFilters.RecipientId[rid[1]].list {
 		if bf != nil {
-			mapFilters = append(mapFilters, bf)
+			mapFilters = append(mapFilters, bf[0])
 		}
 	}
 
@@ -1012,7 +1067,7 @@ func TestMapImpl_DeleteClientFiltersBeforeEpoch(t *testing.T) {
 	mapFilters = []*ClientBloomFilter{}
 	for _, bf := range m.bloomFilters.RecipientId[rid[2]].list {
 		if bf != nil {
-			mapFilters = append(mapFilters, bf)
+			mapFilters = append(mapFilters, bf[0])
 		}
 	}
 
@@ -1068,7 +1123,7 @@ func TestMapImpl_DeleteClientFiltersBeforeEpoch_NoFiltersError(t *testing.T) {
 	var mapFilters []*ClientBloomFilter
 	for _, bf := range m.bloomFilters.RecipientId[rid].list {
 		if bf != nil {
-			mapFilters = append(mapFilters, bf)
+			mapFilters = append(mapFilters, bf[0])
 		}
 	}
 
