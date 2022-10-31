@@ -243,8 +243,8 @@ func (d *DatabaseImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoc
 	return results, catchErrors(err)
 }
 
-// Inserts the given ClientBloomFilter into database if it does not exist
-// Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
+// upsertClientBloomFilter into database if it does not exist, or updates the
+// ClientBloomFilter in the database if the ClientBloomFilter already exists.
 func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	jww.DEBUG.Printf("Upserting filter for client %d at epoch %d", *filter.RecipientId, filter.Epoch)
 	ctx, cancel := newContext()

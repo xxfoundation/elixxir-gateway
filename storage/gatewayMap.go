@@ -331,8 +331,9 @@ func (m *MapImpl) GetLowestBloomRound() (uint64, error) {
 	return earliestFirstRound, nil
 }
 
-// Inserts the given ClientBloomFilter into database if it does not exist
-// Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
+// upsertClientBloomFilter into database if it does not exist, or updates the
+// ClientBloomFilter in the database if the ClientBloomFilter already exists.
+// TODO: Needs to add the "uses" functionality of the DB version.
 func (m *MapImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	m.bloomFilters.Lock()
 	defer m.bloomFilters.Unlock()

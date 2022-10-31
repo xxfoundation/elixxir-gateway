@@ -21,7 +21,7 @@ const (
 	// Determines maximum runtime (in seconds) of specific DB queries
 	dbTimeout = 3 * time.Second
 	// Determines maximum number of uses for a BloomFilter in a given period.
-	maxBloomUses = 100
+	maxBloomUses = 64
 )
 
 // API for the storage layer
@@ -138,6 +138,7 @@ func (f *ClientBloomFilter) combine(oldFilter *ClientBloomFilter) {
 	// Combine the filters
 	f.Filter = or(oldFilter.Filter, f.Filter)
 	f.Uses = oldFilter.Uses + 1
+	f.Id = oldFilter.Id
 }
 
 func (f *ClientBloomFilter) lastRound() uint64 {
