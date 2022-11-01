@@ -260,13 +260,14 @@ func newDatabase(username, password, dbName, address,
 
 // migrate is a basic database structure migrator.
 func migrate(db *gorm.DB) error {
+	migrateTimestamp := time.Now()
+
 	// Determine the current version of the database via basic structural checks.
 	currentVersion := 0
 	if db.Migrator().HasColumn(&ClientBloomFilter{}, "id") {
 		currentVersion = 1
 	}
 	jww.INFO.Printf("Current database version: v%d", currentVersion)
-	migrateTimestamp := time.Now()
 
 	// Perform automatic migrations of basic table structure.
 	// WARNING: Order is important. Do not change without database testing.
