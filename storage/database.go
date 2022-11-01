@@ -266,6 +266,7 @@ func migrate(db *gorm.DB) error {
 		currentVersion = 1
 	}
 	jww.INFO.Printf("Current database version: v%d", currentVersion)
+	migrateTimestamp := time.Now()
 
 	// Perform automatic migrations of basic table structure.
 	// WARNING: Order is important. Do not change without database testing.
@@ -295,5 +296,7 @@ func migrate(db *gorm.DB) error {
 		}
 		currentVersion = minVersion
 	}
+	jww.DEBUG.Printf("Database initialization took %s",
+		time.Now().Sub(migrateTimestamp).String())
 	return nil
 }
