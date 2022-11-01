@@ -262,13 +262,6 @@ func newDatabase(username, password, dbName, address,
 func migrate(db *gorm.DB) error {
 	migrateTimestamp := time.Now()
 
-	// Determine the current version of the database via basic structural checks.
-	currentVersion := 0
-	if db.Migrator().HasColumn(&ClientBloomFilter{}, "id") {
-		currentVersion = 1
-	}
-	jww.INFO.Printf("Current database version: v%d", currentVersion)
-
 	// Perform automatic migrations of basic table structure.
 	// WARNING: Order is important. Do not change without database testing.
 	err := db.AutoMigrate(&Client{}, &Round{}, &ClientRound{},
@@ -276,6 +269,20 @@ func migrate(db *gorm.DB) error {
 	if err != nil {
 		return err
 	}
+
+	// Determine the current version of the database via structural checks.
+	currentVersion := 0
+	columns, err := db.Migrator().ColumnTypes(&ClientBloomFilter{})
+	if err != nil {
+		return err
+	}
+	for _, column := range columns {
+		if isPrimaryKey, _ := column.PrimaryKey(); column.Name() == "id" && isPrimaryKey {
+			currentVersion = 1
+			break
+		}
+	}
+	jww.INFO.Printf("Current database version: v%d", currentVersion)
 
 	// Perform any required manual migrations.
 	if minVersion := 1; currentVersion < minVersion {
