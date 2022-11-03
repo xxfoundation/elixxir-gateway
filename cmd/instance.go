@@ -759,7 +759,7 @@ func (gw *Instance) clearOldStorage(threshold time.Time) error {
 	if err != nil {
 		return errors.Errorf("Could not clear bloom filters: %v", err)
 	}
-
+	jww.DEBUG.Printf("Deleted bloom filters before %d", epoch)
 	return nil
 }
 
