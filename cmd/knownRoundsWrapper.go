@@ -50,7 +50,7 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 
 	// There is no round 0
 	krw.kr.Check(0)
-	jww.DEBUG.Printf("Initial KnownRound State: %+v", krw.kr)
+	jww.TRACE.Printf("Initial KnownRound State: %+v", krw.kr)
 
 	// Save marshalled knownRounds to memory and storage
 	err := krw.saveUnsafe(store)
