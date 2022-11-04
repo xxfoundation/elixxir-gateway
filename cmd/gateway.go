@@ -18,8 +18,8 @@ import (
 	"gitlab.com/elixxir/comms/network/dataStructures"
 	"gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/cyclic"
-	"gitlab.com/elixxir/crypto/fingerprint"
 	"gitlab.com/elixxir/crypto/hash"
+	"gitlab.com/elixxir/crypto/sih"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/elixxir/primitives/format"
 	"gitlab.com/elixxir/primitives/states"
@@ -31,11 +31,13 @@ import (
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"gitlab.com/xx_network/primitives/rateLimiting"
 	"google.golang.org/protobuf/proto"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // Zeroed identity fingerprint identifies dummy messages
-var dummyIdFp = make([]byte, format.IdentityFPLen)
+var dummyIdFp = make([]byte, format.SIHLen)
 var noConnectionErr = "unable to connect to target host %s."
 var noHostErr = "unable to find target host %s."
 
@@ -59,7 +61,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 		}
 
 		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
+		if !gw.Comms.GetId().Cmp(targetID) {
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
@@ -170,7 +172,7 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 	return resp, nil
 }
 
-// Client -> Gateway handler. Looks up messages based on a userID and a roundID.
+// RequestMessages Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
 func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
@@ -189,7 +191,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 		}
 
 		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
+		if !gw.Comms.GetId().Cmp(targetID) {
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
@@ -291,7 +293,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 
 		// Check if the target is not itself (ie this gateway is a proxy to the
 		// intended recipient)
-		if !gw.Comms.Id.Cmp(targetID) {
+		if !gw.Comms.GetId().Cmp(targetID) {
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
@@ -389,7 +391,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 		}
 
 		// Check if the target is not itself
-		if !gw.Comms.Id.Cmp(targetID) {
+		if !gw.Comms.GetId().Cmp(targetID) {
 			// Check if the host exists and is connected
 			host, exists := gw.Comms.GetHost(targetID)
 			if !exists {
@@ -409,7 +411,7 @@ func (gw *Instance) PutManyMessages(messages *pb.GatewaySlots, ipAddr string) (*
 	return gw.handlePutManyMessage(messages, ipAddr)
 }
 
-// PutManyMessageProxy is the function which handles a PutManyMessage proxy from another gateway
+// PutManyMessagesProxy is the function which handles a PutManyMessage proxy from another gateway
 func (gw *Instance) PutManyMessagesProxy(msg *pb.GatewaySlots, auth *connect.Auth) (*pb.GatewaySlotResponse, error) {
 
 	// Ensure poller is properly authenticated
@@ -576,7 +578,7 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round
 		jww.FATAL.Panicf("Could not get ID: %+v", err)
 	}
 	msg.SetEphemeralRID(ephId[:])
-	msg.SetIdentityFP(dummyIdFp)
+	msg.SetSIH(dummyIdFp)
 
 	ecrMsg := cmix.ClientEncrypt(grp, msg, salt, baseKeys, roundID)
 
@@ -651,10 +653,10 @@ func (gw *Instance) UploadUnmixedBatch(roundInfo *pb.RoundInfo) {
 		go func() {
 			err = gw.GossipBatch(rid, senders, ips)
 			if err != nil {
-				jww.ERROR.Printf("Unable to rate limit gossip batch " +
+				jww.ERROR.Printf("Unable to rate limit gossip batch "+
 					"information for round %d: %+v", rid, err)
 			}
-			jww.INFO.Printf("Sent rate limit gossip for round %d," +
+			jww.INFO.Printf("Sent rate limit gossip for round %d,"+
 				" with %d ips and %d senders", rid,
 				len(ips), len(senders))
 		}()
@@ -726,12 +728,79 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) err
 			jww.INFO.Printf("Sent bloom gossip for round %d", roundID)
 		}()
 
+		received := time.Now()
+
+		// WARNING: this needs function IDENTICALLY to the code in gossipBloomFilterReceive in
+		// bloomGossip.go, but due to this being hot code, has subtle differences which
+		// lead to a different implementation
+		//Go through each of the recipients
 		go func() {
-			// Update filters in our storage system
-			errFilters := gw.UpsertFilters(recipients, roundID)
-			if err != nil {
-				jww.ERROR.Printf("Unable to update local bloom filters "+
-					"for round %d: %+v", roundID, errFilters)
+			gw.bloomFilterGossip.Lock()
+			defer gw.bloomFilterGossip.Unlock()
+			// Get epoch information
+			roundTimestamp := round.Timestamps[states.QUEUED]
+			epoch := GetEpoch(int64(roundTimestamp), gw.period)
+
+			var wg sync.WaitGroup
+
+			totalNumAttempts := uint32(0)
+			failedInsert := uint32(0)
+
+			for recipient, _ := range recipients {
+				wg.Add(1)
+				go func(recipientId ephemeral.Id) {
+					defer wg.Done()
+
+					// retry insertion into the database in the event that there is an
+					// insertion on the same ephemeral id by multiple rounds at the same
+					// time, in which case all but one will fail
+					i := 0
+					var localErr error
+					for ; i < bloomUploadRetries && (localErr != nil || i == 0); i++ {
+						localErr = gw.UpsertFilter(recipientId, roundID, epoch)
+						if localErr != nil {
+							jww.WARN.Printf("Failed to upsert recipient %d bloom as team member on "+
+								"round %d on attempt %d: %s", recipientId, roundID, i, localErr.Error())
+						}
+					}
+
+					atomic.AddUint32(&totalNumAttempts, uint32(i))
+					if localErr != nil {
+						jww.ERROR.Printf("Failed to upsert recipient %d bloom as team member on "+
+							"round %d on all attemps(%d/%d): %+v", recipientId, roundID, i, i, localErr)
+						atomic.AddUint32(&failedInsert, 1)
+					}
+				}(recipient)
+			}
+			wg.Wait()
+
+			finishedInsert := time.Now()
+			averageAttempts := float32(totalNumAttempts) / float32(len(recipients))
+
+			if failedInsert == 0 {
+				//denote the reception in known rounds
+				err = gw.krw.forceCheck(roundID, gw.storage)
+				if err != nil {
+					jww.ERROR.Printf("Local round data not recorded due to known rounds error for "+
+						"round %d with %d recipients at %s: "+
+						"\n\t inserts finished at %s, KR insert finished at %s, "+
+						"\n]t round started at ts %s, average attempts: %f (total: %d): %+v", roundID,
+						len(recipients), received, finishedInsert, time.Now(),
+						time.Unix(0, int64(roundTimestamp)), averageAttempts, totalNumAttempts, err)
+				} else {
+					jww.INFO.Printf("Local round data for round %d with %d recipients at %s: "+
+						"\n\t inserts finished at %s, KR insert finished at %s, "+
+						"\n]t round started at ts %s, average attempts: %f (total: %d)", roundID,
+						len(recipients), received, finishedInsert, time.Now(),
+						time.Unix(0, int64(roundTimestamp)), averageAttempts, totalNumAttempts)
+				}
+			} else {
+				jww.ERROR.Printf("Gossip received not recorded due to bloom upsert failures for %d recipeints"+
+					" for round %d with %d recipients at %s: "+
+					"\n\t inserts finished at %s, KR insert finished at %s, "+
+					"\n]t round started at ts %s, average attempts: %f (total: %d)", failedInsert, roundID,
+					len(recipients), received, finishedInsert, time.Now(),
+					time.Unix(0, int64(roundTimestamp)), averageAttempts, totalNumAttempts)
 			}
 		}()
 	}
@@ -784,7 +853,7 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 		serialMsg.SetPayloadB(msg.GetPayloadB())
 
 		// If IdentityFP is not zeroed, the message is not a dummy
-		if !bytes.Equal(serialMsg.GetIdentityFP(), dummyIdFp) {
+		if !bytes.Equal(serialMsg.GetSIH(), dummyIdFp) {
 			recipIdBytes := serialMsg.GetEphemeralRID()
 			recipientId, err := ephemeral.Marshal(recipIdBytes)
 			if err != nil {
@@ -815,8 +884,8 @@ func (gw *Instance) processMessages(msgs []*pb.Slot, roundID id.Round,
 			// Add new NotificationData for the message
 			notifications.Notifications = append(notifications.Notifications, &pb.NotificationData{
 				EphemeralID: recipientId.Int64(),
-				IdentityFP:  serialMsg.GetIdentityFP(),
-				MessageHash: fingerprint.GetMessageHash(serialMsg.GetContents()),
+				IdentityFP:  serialMsg.GetSIH(),
+				MessageHash: sih.GetMessageHash(serialMsg.GetContents()),
 			})
 		}
 	}

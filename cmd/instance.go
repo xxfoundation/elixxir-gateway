@@ -299,8 +299,8 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 			gw.LeakedTokens = newNdf.RateLimits.LeakedTokens
 			gw.LeakDuration = time.Duration(newNdf.RateLimits.LeakDuration)
 
-			jww.INFO.Printf("rate limit gossip updates: " +
-				"(LeakedCapacity: %d, LeakedTokens: %d, " +
+			jww.INFO.Printf("rate limit gossip updates: "+
+				"(LeakedCapacity: %d, LeakedTokens: %d, "+
 				"LeakDuration: %s)", gw.LeakedCapacity,
 				gw.LeakedTokens, gw.LeakDuration)
 
@@ -415,6 +415,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 					return errors.Errorf("failed to forceChech round %d: %+v",
 						update.ID, err)
 				}
+				jww.TRACE.Printf("Instance updated, knownrounds last checked: %d", gw.krw.getLastChecked())
 			}
 		}
 	}

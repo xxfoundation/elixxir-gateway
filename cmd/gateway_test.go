@@ -226,7 +226,7 @@ func TestGatewayImpl_SendBatch(t *testing.T) {
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	// Insert client information to database
@@ -336,7 +336,7 @@ func TestGatewayImpl_SendBatch_LargerBatchSize(t *testing.T) {
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gw.Comms.Id.Marshal(),
+		Target:  gw.Comms.GetId().Marshal(),
 	}
 
 	// Insert client information to database
@@ -399,7 +399,7 @@ func TestInstance_RequestMessages(t *testing.T) {
 	requestMessage := &pb.GetMessages{
 		ClientID: testEphId[:],
 		RoundID:  uint64(1),
-		Target:   gatewayInstance.Comms.Id.Marshal(),
+		Target:   gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(requestMessage)
@@ -436,7 +436,7 @@ func TestInstance_RequestMessages_Proxy(t *testing.T) { // Create instances
 	gw1 := makeGatewayInstance("0.0.0.0:5685", t)
 	gw2 := makeGatewayInstance("0.0.0.0:5686", t)
 
-	_, err := gw1.Comms.AddHost(gw2.Comms.Id, "0.0.0.0:5686", gatewayCert,
+	_, err := gw1.Comms.AddHost(gw2.Comms.GetId(), "0.0.0.0:5686", gatewayCert,
 		connect.GetDefaultHostParams())
 	if err != nil {
 		t.Fatalf("Failed to add host: %+v", err)
@@ -470,7 +470,7 @@ func TestInstance_RequestMessages_Proxy(t *testing.T) { // Create instances
 	requestMessage := &pb.GetMessages{
 		ClientID: testEphId[:],
 		RoundID:  uint64(1),
-		Target:   gw2.Comms.Id.Marshal(),
+		Target:   gw2.Comms.GetId().Marshal(),
 	}
 
 	receivedMsg, err := gw1.RequestMessages(requestMessage)
@@ -533,7 +533,7 @@ func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	badRequest := &pb.GetMessages{
 		ClientID: badClientId.Bytes(),
 		RoundID:  uint64(2),
-		Target:   gatewayInstance.Comms.Id.Marshal(),
+		Target:   gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
@@ -579,7 +579,7 @@ func TestInstance_RequestMessages_NoRound(t *testing.T) {
 	badRequest := &pb.GetMessages{
 		ClientID: recipientID.Bytes(),
 		RoundID:  uint64(3),
-		Target:   gatewayInstance.Comms.Id.Marshal(),
+		Target:   gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	receivedMsg, err := gatewayInstance.RequestMessages(badRequest)
@@ -711,7 +711,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	// Insert client information to database
@@ -737,7 +737,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	slotMsg = &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 	// Insert client information to database
 	newClient = &storage.Client{
@@ -756,7 +756,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	slotMsg = &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 	// Insert client information to database
 	newClient = &storage.Client{
@@ -775,7 +775,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	slotMsg = &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 	// Insert client information to database
 	newClient = &storage.Client{
@@ -796,7 +796,7 @@ func TestGatewayImpl_PutMessage_IpWhitelist(t *testing.T) {
 	slotMsg = &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 	// Insert client information to database
 	newClient = &storage.Client{
@@ -819,7 +819,7 @@ func TestGatewayImpl_PutMessage_Proxy(t *testing.T) {
 	gw1 := makeGatewayInstance("0.0.0.0:5679", t)
 	gw2 := makeGatewayInstance("0.0.0.0:5680", t)
 
-	_, err := gw1.Comms.AddHost(gw2.Comms.Id, "0.0.0.0:5680", gatewayCert,
+	_, err := gw1.Comms.AddHost(gw2.Comms.GetId(), "0.0.0.0:5680", gatewayCert,
 		connect.GetDefaultHostParams())
 	if err != nil {
 		t.Fatalf("Failed to add host: %+v", err)
@@ -831,7 +831,7 @@ func TestGatewayImpl_PutMessage_Proxy(t *testing.T) {
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gw2.Comms.Id.Marshal(),
+		Target:  gw2.Comms.GetId().Marshal(),
 	}
 
 	// Insert client information to database
@@ -878,7 +878,7 @@ func TestInstance_PutMessage_FullRound(t *testing.T) {
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	// Insert client information to database
@@ -924,7 +924,7 @@ func TestInstance_PutMessage_NonLeader(t *testing.T) {
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	// Insert client information to database
@@ -959,7 +959,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	slotMsg := &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	ri := &pb.RoundInfo{ID: rndId, BatchSize: 24}
@@ -988,7 +988,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	slotMsg = &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 	// Insert client information to database
 	newClient = &storage.Client{
@@ -1008,7 +1008,7 @@ func TestGatewayImpl_PutMessage_UserWhitelist(t *testing.T) {
 	slotMsg = &pb.GatewaySlot{
 		RoundID: rndId,
 		Message: &msg,
-		Target:  gatewayInstance.Comms.Id.Marshal(),
+		Target:  gatewayInstance.Comms.GetId().Marshal(),
 	}
 	// Insert client information to database
 	newClient = &storage.Client{
@@ -1054,7 +1054,7 @@ func TestInstance_PutManyMessages(t *testing.T) {
 		slotMsg := &pb.GatewaySlot{
 			RoundID: rndId,
 			Message: msg,
-			Target:  gatewayInstance.Comms.Id.Marshal(),
+			Target:  gatewayInstance.Comms.GetId().Marshal(),
 		}
 
 		slotMsg.MAC = generateClientMac(newClient, slotMsg)
@@ -1076,7 +1076,7 @@ func TestInstance_PutManyMessages(t *testing.T) {
 	manyMessages := &pb.GatewaySlots{
 		Messages: gatewaySlots,
 		RoundID:  rndId,
-		Target:   gatewayInstance.Comms.Id.Marshal(),
+		Target:   gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	// Try to put message
@@ -1111,7 +1111,7 @@ func TestInstance_PutManyMessage_FullRound(t *testing.T) {
 		slotMsg := &pb.GatewaySlot{
 			RoundID: rndId,
 			Message: msg,
-			Target:  gatewayInstance.Comms.Id.Marshal(),
+			Target:  gatewayInstance.Comms.GetId().Marshal(),
 		}
 
 		slotMsg.MAC = generateClientMac(newClient, slotMsg)
@@ -1142,7 +1142,7 @@ func TestInstance_PutManyMessage_FullRound(t *testing.T) {
 	manyMessages := &pb.GatewaySlots{
 		Messages: gatewaySlots,
 		RoundID:  rndId,
-		Target:   gatewayInstance.Comms.Id.Marshal(),
+		Target:   gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	// Try to put message
@@ -1159,7 +1159,7 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 	gw1 := makeGatewayInstance("0.0.0.0:5697", t)
 	gw2 := makeGatewayInstance("0.0.0.0:5698", t)
 
-	_, err := gw1.Comms.AddHost(gw2.Comms.Id, "0.0.0.0:5680", gatewayCert,
+	_, err := gw1.Comms.AddHost(gw2.Comms.GetId(), "0.0.0.0:5680", gatewayCert,
 		connect.GetDefaultHostParams())
 	if err != nil {
 		t.Fatalf("Failed to add host: %+v", err)
@@ -1192,7 +1192,7 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 		slotMsg := &pb.GatewaySlot{
 			RoundID: rndId,
 			Message: msg,
-			Target:  gatewayInstance.Comms.Id.Marshal(),
+			Target:  gatewayInstance.Comms.GetId().Marshal(),
 		}
 
 		slotMsg.MAC = generateClientMac(newClient, slotMsg)
@@ -1213,7 +1213,7 @@ func TestGatewayImpl_PutManyMessages_Proxy(t *testing.T) {
 	manyMessages := &pb.GatewaySlots{
 		Messages: gatewaySlots,
 		RoundID:  rndId,
-		Target:   gatewayInstance.Comms.Id.Marshal(),
+		Target:   gatewayInstance.Comms.GetId().Marshal(),
 	}
 
 	receivedMsg, err := gatewayInstance.PutManyMessages(manyMessages, ipAddr)

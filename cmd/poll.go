@@ -11,6 +11,7 @@ package cmd
 
 import (
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/netTime"
 	"time"
 
 	"github.com/pkg/errors"
@@ -27,6 +28,9 @@ import (
 // Handler for a client's poll to a gateway. Returns all the last updates and known rounds
 func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 	*pb.GatewayPollResponse, error) {
+	// Record the beginning of Poll processing; returned with the response
+	startTime := netTime.Now()
+
 	// Nil check to check for valid clientRequest
 	if clientRequest == nil {
 		return &pb.GatewayPollResponse{}, errors.Errorf(
@@ -81,16 +85,17 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 			"handle client poll due to invalid end timestamp")
 	}
 
-	//get the known rounds before the client filters are received, otherwise there can
-	//be a race condition because known rounds is updated after the bloom filters,
-	//so you can get a known rounds that denotes an updated bloom filter while
-	//it was not received
+	// get the known rounds before the client filters are received, otherwise there can
+	// be a race condition because known rounds is updated after the bloom filters,
+	// so you can get a known rounds that denotes an updated bloom filter while
+	// it was not received
 	var knownRounds []byte
 	if gw.krw.needsTruncated(id.Round(clientRequest.LastRound)) {
 		knownRounds = gw.krw.truncateMarshal()
 	} else {
 		knownRounds = gw.krw.getMarshal()
 	}
+	jww.TRACE.Printf("Poll retrieved knownrounds, last checked: %d", gw.krw.getLastChecked())
 
 	// These errors are suppressed, as DB errors shouldn't go to client
 	//  and if there is trouble getting filters returned, nil filters
@@ -120,6 +125,17 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		}
 	}
 
+	// Exclude the NDF and network round updates on client request
+	if clientRequest.GetDisableUpdates() {
+		return &pb.GatewayPollResponse{
+			KnownRounds:   knownRounds,
+			Filters:       filtersMsg,
+			EarliestRound: earliestRoundId,
+			ReceivedTs:    startTime.UnixNano(),
+			GatewayDelay:  int64(netTime.Now().Sub(startTime)),
+		}, nil
+	}
+
 	var netDef *pb.NDF
 	var updates []*pb.RoundInfo
 	isSame := gw.NetInf.GetPartialNdf().CompareHash(clientRequest.Partial.Hash)
@@ -142,6 +158,8 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		KnownRounds:   knownRounds,
 		Filters:       filtersMsg,
 		EarliestRound: earliestRoundId,
+		ReceivedTs:    startTime.UnixNano(),
+		GatewayDelay:  int64(netTime.Now().Sub(startTime)),
 	}, nil
 }
 
