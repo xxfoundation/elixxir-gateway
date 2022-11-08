@@ -10,6 +10,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -22,9 +23,6 @@ import (
 	"time"
 )
 
-// Determines maximum runtime (in seconds) of specific DB queries
-const DbTimeout = 3
-
 // Interface declaration for storage methods
 type database interface {
 	UpsertState(state *State) error
@@ -34,7 +32,6 @@ type database interface {
 	UpsertClient(client *Client) error
 
 	GetRound(id id.Round) (*Round, error)
-	GetRounds(ids []id.Round) ([]*Round, error)
 	UpsertRound(round *Round) error
 	deleteRound(ts time.Time) error
 
@@ -45,16 +42,19 @@ type database interface {
 
 	GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error)
 	upsertClientBloomFilter(filter *ClientBloomFilter) error
-	GetLowestBloomRound() (uint64, error)
 	DeleteClientFiltersBeforeEpoch(epoch uint32) error
+
+	// TODO: Currently not used. May want to remove.
+	GetLowestBloomRound() (uint64, error)
+	GetRounds(ids []id.Round) ([]*Round, error)
 }
 
-// Struct implementing the database Interface with an underlying DB
+// DatabaseImpl implements the database interface with an underlying DB
 type DatabaseImpl struct {
 	db *gorm.DB // Stored database connection
 }
 
-// Struct implementing the database Interface with an underlying Map
+// MapImpl implements the database interface with an underlying Map
 type MapImpl struct {
 	states           map[string]string
 	statesLock       sync.RWMutex
@@ -82,34 +82,35 @@ type MixedMessageMap struct {
 // BloomFilterMap contains a list of ClientBloomFilter sorted in a map that can key on RecipientId.
 type BloomFilterMap struct {
 	RecipientId map[int64]*ClientBloomFilterList
+	primaryKey  *uint64
 	sync.RWMutex
 }
 
 type ClientBloomFilterList struct {
-	list  []*ClientBloomFilter
+	list  [][]*ClientBloomFilter
 	start uint32
 }
 
-// Key-Value store used for persisting Gateway State information
+// State is a Key-Value store used for persisting Gateway information
 type State struct {
 	Key   string `gorm:"primaryKey"`
 	Value string `gorm:"not null"`
 }
 
-// Enumerates Keys in the State table
+// Enumerates various Keys in the State table.
 const (
 	PeriodKey      = "Period"
 	LastUpdateKey  = "LastUpdateId"
 	KnownRoundsKey = "KnownRoundsV3"
 )
 
-// Represents a Client and its associated keys
+// Client and its associated keys.
 type Client struct {
 	Id  []byte `gorm:"primaryKey"`
 	Key []byte `gorm:"not null"`
 }
 
-// Represents the Round information that is relevant to Gateways
+// Round represents the Round information that is relevant to Gateways.
 type Round struct {
 	Id          uint64 `gorm:"primaryKey;autoIncrement:false"`
 	UpdateId    uint64 `gorm:"unique;not null"`
@@ -117,7 +118,7 @@ type Round struct {
 	LastUpdated time.Time `gorm:"index;not null"` // Timestamp of most recent Update
 }
 
-// Represents the Round information that is relevant to Clients
+// ClientRound represents the Round information that is relevant to Clients.
 type ClientRound struct {
 	Id        uint64    `gorm:"primaryKey;autoIncrement:false"`
 	Timestamp time.Time `gorm:"index;not null"` // Round Realtime timestamp
@@ -125,16 +126,16 @@ type ClientRound struct {
 	Messages []MixedMessage `gorm:"foreignKey:RoundId;constraint:OnDelete:CASCADE"`
 }
 
-// Represents a ClientBloomFilter
 type ClientBloomFilter struct {
-	Epoch       uint32 `gorm:"primaryKey"`
-	RecipientId *int64 `gorm:"primaryKey"` // Pointer to enforce zero-value reading in ORM
+	Id          uint64 `gorm:"primaryKey;autoIncrement:true"`
+	Epoch       uint32 `gorm:"index;not null"`
+	RecipientId *int64 `gorm:"index;not null"` // Pointer to enforce zero-value reading in ORM
 	FirstRound  uint64 `gorm:"index;not null"`
 	RoundRange  uint32 `gorm:"not null"`
 	Filter      []byte `gorm:"not null"`
+	Uses        uint32 `gorm:"not null;default:0"` // Keep track of how many times used
 }
 
-// Represents a MixedMessage and its contents
 type MixedMessage struct {
 	Id              uint64 `gorm:"primaryKey;autoIncrement:true"`
 	RoundId         uint64 `gorm:"index;not null;references rounds(id)"`
@@ -142,7 +143,7 @@ type MixedMessage struct {
 	MessageContents []byte `gorm:"not null"`
 }
 
-// Creates a new MixedMessage object with the given attributes
+// NewMixedMessage creates a new MixedMessage object with the given attributes.
 // NOTE: Do not modify the MixedMessage.Id attribute.
 func NewMixedMessage(roundId id.Round, recipientId ephemeral.Id, messageContentsA, messageContentsB []byte) *MixedMessage {
 
@@ -157,7 +158,7 @@ func NewMixedMessage(roundId id.Round, recipientId ephemeral.Id, messageContents
 	}
 }
 
-// Return the separated message contents of the MixedMessage
+// GetMessageContents return the separated message contents of the MixedMessage.
 func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB []byte) {
 	splitPosition := len(m.MessageContents) / 2
 	messageContentsA = m.MessageContents[:splitPosition]
@@ -168,7 +169,7 @@ func (m *MixedMessage) GetMessageContents() (messageContentsA, messageContentsB 
 // Initialize the database interface with database backend
 // Returns a database interface and error
 func newDatabase(username, password, dbName, address,
-	port string, devmode bool) (database, error) {
+	port string, devMode bool) (database, error) {
 
 	var err error
 	var db *gorm.DB
@@ -200,7 +201,7 @@ func newDatabase(username, password, dbName, address,
 			jww.WARN.Printf(failReason)
 		}
 
-		if !devmode {
+		if !devMode {
 			jww.FATAL.Panicf("Gateway cannot run in production "+
 				"without a database: %s", failReason)
 		}
@@ -230,7 +231,8 @@ func newDatabase(username, password, dbName, address,
 	// Get and configure the internal database ConnPool
 	sqlDb, err := db.DB()
 	if err != nil {
-		return database(&DatabaseImpl{}), errors.Errorf("Unable to configure database connection pool: %+v", err)
+		return database(&DatabaseImpl{}), errors.Errorf(
+			"Unable to configure database connection pool: %+v", err)
 	}
 	// SetMaxIdleConns sets the maximum number of connections in the idle connection pool.
 	sqlDb.SetMaxIdleConns(10)
@@ -241,15 +243,11 @@ func newDatabase(username, password, dbName, address,
 	// SetConnMaxLifetime sets the maximum amount of time a connection may be reused.
 	sqlDb.SetConnMaxLifetime(12 * time.Hour)
 
-	// Initialize the database schema
-	// WARNING: Order is important. Do not change without database testing
-	models := []interface{}{&Client{}, &Round{}, &ClientRound{},
-		&MixedMessage{}, &ClientBloomFilter{}, State{}}
-	for _, model := range models {
-		err = db.AutoMigrate(model)
-		if err != nil {
-			return database(&DatabaseImpl{}), err
-		}
+	// Ensure database structure is up-to-date.
+	err = migrate(db)
+	if err != nil {
+		return database(&DatabaseImpl{}), errors.Errorf(
+			"Failed to migrate database: %+v", err)
 	}
 
 	// Build the interface
@@ -259,4 +257,55 @@ func newDatabase(username, password, dbName, address,
 
 	jww.INFO.Println("Database backend initialized successfully!")
 	return database(di), nil
+}
+
+// migrate is a basic database structure migrator.
+func migrate(db *gorm.DB) error {
+	migrateTimestamp := time.Now()
+
+	// Perform automatic migrations of basic table structure.
+	// WARNING: Order is important. Do not change without database testing.
+	err := db.AutoMigrate(&Client{}, &Round{}, &ClientRound{},
+		&MixedMessage{}, &ClientBloomFilter{}, State{})
+	if err != nil {
+		return err
+	}
+
+	// Determine the current version of the database via structural checks.
+	currentVersion := 0
+	columns, err := db.Migrator().ColumnTypes(&ClientBloomFilter{})
+	if err != nil {
+		return err
+	}
+	for _, column := range columns {
+		if isPrimaryKey, _ := column.PrimaryKey(); column.Name() == "id" && isPrimaryKey {
+			currentVersion = 1
+			break
+		}
+	}
+	jww.INFO.Printf("Current database version: v%d", currentVersion)
+
+	// Perform any required manual migrations.
+	if minVersion := 1; currentVersion < minVersion {
+		jww.INFO.Printf("Performing database migration from v%d -> v%d",
+			currentVersion, minVersion)
+		ctx, cancel := context.WithTimeout(context.Background(), dbTimeout*5)
+		err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			err := tx.Exec("ALTER TABLE client_bloom_filters DROP CONSTRAINT client_bloom_filters_pkey;").Error
+			if err != nil {
+				return err
+			}
+
+			// Commit
+			return tx.Exec("ALTER TABLE client_bloom_filters ADD PRIMARY KEY (id);").Error
+		})
+		cancel()
+		if err != nil {
+			return err
+		}
+		currentVersion = minVersion
+	}
+	jww.DEBUG.Printf("Database initialization took %s",
+		time.Now().Sub(migrateTimestamp).String())
+	return nil
 }
