@@ -10,14 +10,12 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
-	gitlab.com/elixxir/comms v0.0.4-0.20221101221108-04995612dd3a
-	gitlab.com/elixxir/crypto v0.0.7-0.20221028214442-29091a3c04b1
-	gitlab.com/elixxir/primitives v0.0.3-0.20221025020430-f5d2eb330fbc
-	gitlab.com/xx_network/comms v0.0.4-0.20221101215037-e226e7cf4222
-	gitlab.com/xx_network/crypto v0.0.5-0.20221025020316-517fa8f91d2c
-	gitlab.com/xx_network/primitives v0.0.4-0.20221025020003-cbec15a71b8f
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
-	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c
+	gitlab.com/elixxir/comms v0.0.4-0.20221108183306-7c473bca3cd6
+	gitlab.com/elixxir/crypto v0.0.7-0.20221108183134-3f4a29c68e97
+	gitlab.com/elixxir/primitives v0.0.3-0.20221108183049-7bdff545bf8e
+	gitlab.com/xx_network/comms v0.0.4-0.20221108183032-8732b403e506
+	gitlab.com/xx_network/crypto v0.0.5-0.20221108182939-05998dc093e9
+	gitlab.com/xx_network/primitives v0.0.4-0.20221104175439-f0d440beacd9
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
 	gorm.io/driver/postgres v1.4.5
@@ -50,6 +48,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.0 // indirect
 	github.com/pelletier/go-toml v1.8.1 // indirect
+	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/smartystreets/assertions v1.1.0 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
@@ -60,6 +59,8 @@ require (
 	github.com/zeebo/blake3 v0.1.1 // indirect
 	gitlab.com/xx_network/ring v0.0.3-0.20220902183151-a7d3b15bc981 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
+	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c // indirect
 	golang.org/x/sys v0.0.0-20220731174439-a90be440212d // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20220822174746-9e6da59bd2fc // indirect
