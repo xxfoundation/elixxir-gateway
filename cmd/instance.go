@@ -135,9 +135,8 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DevMode,
 	)
 	if err != nil {
-		eMsg := fmt.Sprintf("Could not initialize database: "+
-			"psql://%s@%s:%s/%s", params.DbUsername,
-			params.DbAddress, params.DbPort, params.DbName)
+		eMsg := fmt.Sprintf("Could not initialize database psql://%s@%s:%s/%s: %+v",
+			params.DbUsername, params.DbAddress, params.DbPort, params.DbName, err)
 		if params.DevMode {
 			jww.WARN.Printf(eMsg)
 		} else {
@@ -765,8 +764,9 @@ func (gw *Instance) clearOldStorage(threshold time.Time) error {
 
 // Set the gw.period attribute
 // NOTE: Saves the constant to storage if it does not exist
-//       or reads an existing value from storage and sets accordingly
-//       It's not great but it's structured this way as a business requirement
+//
+//	or reads an existing value from storage and sets accordingly
+//	It's not great but it's structured this way as a business requirement
 func (gw *Instance) SetPeriod() error {
 	// Get an existing Period value from storage
 	periodStr, err := gw.storage.GetStateValue(storage.PeriodKey)
