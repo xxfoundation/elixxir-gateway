@@ -10,7 +10,6 @@ package storage
 import (
 	"bytes"
 	"fmt"
-	"github.com/spf13/jwalterweatherman"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
 	"math/rand"
@@ -22,244 +21,247 @@ import (
 
 // Hidden function for one-time unit testing database implementation
 // DROP TABLE states, rounds, mixed_messages, clients, client_rounds, client_bloom_filters;
-func TestDatabaseImpl(t *testing.T) {
-	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
-	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
-
-	db, err := newDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432", false)
-	if err != nil {
-		t.Errorf(err.Error())
-		return
-	}
-
-	testBytes := []byte("tests")
-	testClientId := []byte("client")
-
-	testClient := id.NewIdFromBytes(testClientId, t)
-	testEphem, _, _, err := ephemeral.GetId(testClient, 64, time.Now().UnixNano())
-	if err != nil {
-		t.Errorf(err.Error())
-		return
-	}
-	//
-	//	testClientId2 := []byte("testclient2")
-	//	testClient2 := id.NewIdFromBytes(testClientId2, t)
-	//	testRoundId := id.Round(testRound)
-	//	testRoundId3 := id.Round(testRound3)
-	//	err = db.UpsertClient(&Client{
-	//		Id:      testClient2.Marshal(),
-	//		Key:     []byte("keystring1"),
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.UpsertState(&State{
-	//		Key:   "test",
-	//		Value: "test",
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//
-	//	err = db.UpsertClient(&Client{
-	//		Id:      testClient2.Marshal(),
-	//		Key:     []byte("keystring2"),
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//
-	//	err = db.UpsertRound(&Round{
-	//		Id:       testRound,
-	//		UpdateId: 50,
-	//		InfoBlob: testBytes,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.UpsertRound(&Round{
-	//		Id:       testRound3,
-	//		UpdateId: 51,
-	//		InfoBlob: testBytes,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.UpsertRound(&Round{
-	//		Id:       testRound3,
-	//		UpdateId: 52,
-	//		InfoBlob: testBytes2,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	re := testEphem.Int64()
-	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-		RecipientId: &re,
-		Filter:      testBytes,
-		FirstRound:  5,
-		Epoch:       1,
-	})
-	if err != nil {
-		t.Errorf(err.Error())
-		return
-	}
-	//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-	//		RecipientId:    testEphem.Int64(),
-	//		Filter:      testBytes,
-	//		Epoch: 1,
-	//		FirstRound: 10,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-	//		RecipientId:    testEphem.Int64(),
-	//		Filter:      testBytes,
-	//		Epoch: 1,
-	//		FirstRound: 7,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-	//		RecipientId:    testEphem.Int64(),
-	//		Filter:      testBytes2,
-	//		Epoch: 1,
-	//		FirstRound: 3,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-	//		RecipientId:    testEphem.Int64(),
-	//		Filter:      testBytes2,
-	//		Epoch: 3,
-	//		FirstRound: 15,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-	//		RecipientId:    testEphem.Int64(),
-	//		Filter:      []byte("00000"),
-	//		Epoch: 3,
-	//		FirstRound: 20,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
-	//		RecipientId:    testEphem.Int64(),
-	//		Filter:      testBytes2,
-	//		Epoch: 5,
-	//		FirstRound: 2,
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	firstRound, err := db.GetLowestBloomRound()
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	jwalterweatherman.INFO.Printf("%d", firstRound)
-	//	err = db.InsertMixedMessages(&ClientRound{
-	//		Id:        testRound,
-	//		Timestamp: time.Now(),
-	//		Messages: []MixedMessage{{
-	//			RoundId:         testRound,
-	//			RecipientId:     testEphem.Int64(),
-	//			MessageContents: testBytes,
-	//		}, {
-	//			RoundId:         testRound,
-	//			RecipientId:     testEphem.Int64(),
-	//			MessageContents: testBytes,
-	//		}, {
-	//			RoundId:         testRound,
-	//			RecipientId:     testEphem.Int64(),
-	//			MessageContents: testBytes2,
-	//		}},
-	//	})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	count, err := db.countMixedMessagesByRound(testRoundId)
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	if count != 3 {
-	//		t.Errorf("Unexpected count! Got %d", count)
-	//	}
-	//	err = db.InsertMixedMessages(&ClientRound{
-	//		Id:        testRound2,
-	//		Timestamp: time.Now(),
-	//		Messages: []MixedMessage{{
-	//			RoundId:         testRound2,
-	//			RecipientId:     testEphem.Int64(),
-	//			MessageContents: []byte("jinkies scoob"),
-	//		}}})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	err = db.deleteMixedMessages(time.Now().Add(1 * time.Hour))
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//
-	//	client, err := db.GetClient(testClient2)
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	jwalterweatherman.INFO.Printf("%+v", client)
-	//	round, err := db.GetRound(testRoundId)
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	jwalterweatherman.INFO.Printf("%+v", round)
-	//	rounds, err := db.GetRounds([]id.Round{testRoundId, testRoundId3})
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	jwalterweatherman.INFO.Printf("%+v", rounds[1])
-	//	messages, err := db.getMixedMessages(&testEphem, testRoundId)
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	jwalterweatherman.INFO.Printf("%+v", messages)
-	//	filters, err := db.GetClientBloomFilters(&testEphem, 1, 5)
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-	//	jwalterweatherman.INFO.Printf("%+v", filters)
-	//
-	//	err = db.DeleteClientFiltersBeforeEpoch(3)
-	//	if err != nil {
-	//		t.Errorf(err.Error())
-	//		return
-	//	}
-}
+//func TestDatabaseImpl(t *testing.T) {
+//	jwalterweatherman.SetLogThreshold(jwalterweatherman.LevelTrace)
+//	jwalterweatherman.SetStdoutThreshold(jwalterweatherman.LevelTrace)
+//
+//	db, err := newDatabase("cmix", "", "cmix_gateway", "0.0.0.0", "5432", false)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	testBytes := []byte("tests")
+//	testBytes2 := []byte("words")
+//	testClientId := []byte("client")
+//	testRound := uint64(10)
+//	testRound2 := uint64(11)
+//	testRound3 := uint64(12)
+//
+//	testClient := id.NewIdFromBytes(testClientId, t)
+//	testEphem, _, _, err := ephemeral.GetId(testClient, 64, time.Now().UnixNano())
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	testClientId2 := []byte("testclient2")
+//	testClient2 := id.NewIdFromBytes(testClientId2, t)
+//	testRoundId := id.Round(testRound)
+//	testRoundId3 := id.Round(testRound3)
+//	err = db.UpsertClient(&Client{
+//		Id:      testClient2.Marshal(),
+//		Key:     []byte("keystring1"),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertState(&State{
+//		Key:   "test",
+//		Value: "test",
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	err = db.UpsertClient(&Client{
+//		Id:      testClient2.Marshal(),
+//		Key:     []byte("keystring2"),
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	err = db.UpsertRound(&Round{
+//		Id:       testRound,
+//		UpdateId: 50,
+//		InfoBlob: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertRound(&Round{
+//		Id:       testRound3,
+//		UpdateId: 51,
+//		InfoBlob: testBytes,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.UpsertRound(&Round{
+//		Id:       testRound3,
+//		UpdateId: 52,
+//		InfoBlob: testBytes2,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes,
+//		FirstRound: 5,
+//		Epoch: 1,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes,
+//		Epoch: 1,
+//		FirstRound: 10,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes,
+//		Epoch: 1,
+//		FirstRound: 7,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes2,
+//		Epoch: 1,
+//		FirstRound: 3,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes2,
+//		Epoch: 3,
+//		FirstRound: 15,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      []byte("00000"),
+//		Epoch: 3,
+//		FirstRound: 20,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.upsertClientBloomFilter(&ClientBloomFilter{
+//		RecipientId:    testEphem.Int64(),
+//		Filter:      testBytes2,
+//		Epoch: 5,
+//		FirstRound: 2,
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	firstRound, err := db.GetLowestBloomRound()
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%d", firstRound)
+//	err = db.InsertMixedMessages(&ClientRound{
+//		Id:        testRound,
+//		Timestamp: time.Now(),
+//		Messages: []MixedMessage{{
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes,
+//		}, {
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes,
+//		}, {
+//			RoundId:         testRound,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: testBytes2,
+//		}},
+//	})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	count, err := db.countMixedMessagesByRound(testRoundId)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	if count != 3 {
+//		t.Errorf("Unexpected count! Got %d", count)
+//	}
+//	err = db.InsertMixedMessages(&ClientRound{
+//		Id:        testRound2,
+//		Timestamp: time.Now(),
+//		Messages: []MixedMessage{{
+//			RoundId:         testRound2,
+//			RecipientId:     testEphem.Int64(),
+//			MessageContents: []byte("jinkies scoob"),
+//		}}})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	err = db.deleteMixedMessages(time.Now().Add(1 * time.Hour))
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//
+//	client, err := db.GetClient(testClient2)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%+v", client)
+//	round, err := db.GetRound(testRoundId)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%+v", round)
+//	rounds, err := db.GetRounds([]id.Round{testRoundId, testRoundId3})
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%+v", rounds[1])
+//	messages, err := db.getMixedMessages(&testEphem, testRoundId)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%+v", messages)
+//	filters, err := db.GetClientBloomFilters(&testEphem, 1, 5)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//	jwalterweatherman.INFO.Printf("%+v", filters)
+//
+//	err = db.DeleteClientFiltersBeforeEpoch(3)
+//	if err != nil {
+//		t.Errorf(err.Error())
+//		return
+//	}
+//}
 
 // Happy path
 func TestNewMixedMessage(t *testing.T) {
