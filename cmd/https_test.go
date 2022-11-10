@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-func TestEnableHttps(t *testing.T) {
-
-}
-
 func TestStoreHttpsCreds(t *testing.T) {
 	db, err := storage.NewStorage("", "", "", "", "", true)
 	if err != nil {
