@@ -579,7 +579,7 @@ func (gw *Instance) InitNetwork() error {
 				// NO_NDF will be returned if the node
 				// has not retrieved an NDF from
 				// permissioning yet
-			} else if strings.Contains(eMsg, ndf.NO_NDF) {
+			} else if strings.Contains(eMsg, ndf.NO_NDF) || strings.Contains(eMsg, "EOF") {
 				continue
 			} else if strings.Contains(eMsg, ErrAuth) {
 				jww.WARN.Printf(eMsg)
