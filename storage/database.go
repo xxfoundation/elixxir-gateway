@@ -130,8 +130,8 @@ type ClientBloomFilter struct {
 	Id uint64 `gorm:"primaryKey;autoIncrement:true"`
 	// Pointer to enforce zero-value reading in ORM.
 	// Additionally, we desire to make composite indexes on the more distinct column first.
-	RecipientId *int64 `gorm:"index:idx_client_bloom_filters_epoch_recipient_id,priority:1;not null"`
-	Epoch       uint32 `gorm:"index:idx_client_bloom_filters_epoch_recipient_id,priority:2;not null"`
+	RecipientId *int64 `gorm:"index:idx_client_bloom_filters_recipient_id_epoch,priority:1;not null"`
+	Epoch       uint32 `gorm:"index:idx_client_bloom_filters_recipient_id_epoch,priority:2;not null"`
 	FirstRound  uint64 `gorm:"index;not null"`
 	RoundRange  uint32 `gorm:"not null"`
 	Filter      []byte `gorm:"not null"`
