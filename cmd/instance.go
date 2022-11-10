@@ -693,8 +693,10 @@ func (gw *Instance) InitNetwork() error {
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
-		// TODO: add authorizer host
-
+		_, err = gw.Comms.AddHost(&id.Authorizer, gw.Params.AuthorizerAddress, permissioningCert, connect.GetDefaultHostParams())
+		if err != nil {
+			return errors.WithMessage(err, "Failed to add authorizer host")
+		}
 		err = gw.StartHttpsServer()
 		if err != nil {
 			jww.ERROR.Printf("Failed to start HTTPS listener: %+v", err)
