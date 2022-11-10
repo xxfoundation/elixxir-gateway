@@ -148,9 +148,10 @@ func TestInstance_GossipVerify(t *testing.T) {
 
 	// Create a fake round info to store
 	ri := &pb.RoundInfo{
-		ID:       10,
-		UpdateID: 10,
-		Topology: topology,
+		ID:         10,
+		UpdateID:   10,
+		Topology:   topology,
+		Timestamps: []uint64{0, 1, 2, 3, 4, 5},
 	}
 
 	// Sign the round info with the mock permissioning private key
@@ -291,7 +292,6 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	// }
 }
 
-//
 func TestInstance_GossipBatch(t *testing.T) {
 	// Build the gateway instance
 	params := Params{
@@ -351,7 +351,7 @@ func TestInstance_GossipBatch(t *testing.T) {
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
 	// Init comms and host
-	_, err = gw.Comms.AddHost(gw.Comms.Id, addr, gatewayCert, connect.GetDefaultHostParams())
+	_, err = gw.Comms.AddHost(gw.Comms.GetId(), addr, gatewayCert, connect.GetDefaultHostParams())
 	if err != nil {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
@@ -360,13 +360,12 @@ func TestInstance_GossipBatch(t *testing.T) {
 		t.Errorf("Unable to get gossip protocol!")
 		return
 	}
-	err = protocol.AddGossipPeer(gw.Comms.Id)
+	err = protocol.AddGossipPeer(gw.Comms.GetId())
 	if err != nil {
 		t.Errorf("Unable to add gossip peer: %+v", err)
 	}
-	fmt.Printf("gwID: %v\n", gw.Comms.Id)
 	// Build a mock node ID for a topology
-	nodeID := gw.Comms.Id.DeepCopy()
+	nodeID := gw.Comms.GetId()
 	nodeID.SetType(id.Node)
 	topology := [][]byte{nodeID.Bytes()}
 	// Create a fake round info to store
@@ -490,7 +489,7 @@ func TestInstance_GossipBloom(t *testing.T) {
 		"0.0.0.0:4200", pub, connect.GetDefaultHostParams())
 
 	// Init comms and host
-	_, err = gw.Comms.AddHost(gw.Comms.Id, addr, gatewayCert, connect.GetDefaultHostParams())
+	_, err = gw.Comms.AddHost(gw.Comms.GetId(), addr, gatewayCert, connect.GetDefaultHostParams())
 	if err != nil {
 		t.Errorf("Unable to add test host: %+v", err)
 	}
@@ -499,13 +498,13 @@ func TestInstance_GossipBloom(t *testing.T) {
 		t.Errorf("Unable to get gossip protocol!")
 		return
 	}
-	err = protocol.AddGossipPeer(gw.Comms.Id)
+	err = protocol.AddGossipPeer(gw.Comms.GetId())
 	if err != nil {
 		t.Errorf("Unable to add gossip peer: %+v", err)
 	}
 
 	// Build a mock node ID for a topology
-	nodeID := gw.Comms.Id.DeepCopy()
+	nodeID := gw.Comms.GetId()
 	nodeID.SetType(id.Node)
 	topology := [][]byte{nodeID.Bytes()}
 	// Create a fake round info to store

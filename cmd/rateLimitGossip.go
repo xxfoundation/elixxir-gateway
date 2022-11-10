@@ -57,19 +57,18 @@ func (gw *Instance) gossipRateLimitReceive(msg *gossip.GossipMsg) error {
 		}
 		gw.idRateLimiting.LookupBucket(senderId.String()).AddWithExternalParams(1, capacity, leaked, duration)
 	}
-	for _, ipBytes := range payloadMsg.Ips{
+	for _, ipBytes := range payloadMsg.Ips {
 		ipStr, err := ipAddress.ByteToString(ipBytes)
-		if err!=nil{
-			jww.WARN.Printf("round %d rate limit gossip sent " +
+		if err != nil {
+			jww.WARN.Printf("round %d rate limit gossip sent "+
 				"an invalid ip addr %v: %s", payloadMsg.RoundID, ipBytes, err)
-		}else{
+		} else {
 			gw.idRateLimiting.LookupBucket(ipStr).AddWithExternalParams(1, capacity, leaked, duration)
 		}
 
 	}
 	return nil
 }
-
 
 // GossipBatch builds a gossip message containing all of the sender IDs
 // within the batch and gossips it to all peers
@@ -79,7 +78,7 @@ func (gw *Instance) GossipBatch(round id.Round, senders []*id.ID, ips []string) 
 	// Build the message
 	gossipMsg := &gossip.GossipMsg{
 		Tag:    RateLimitGossip,
-		Origin: gw.Comms.Id.Marshal(),
+		Origin: gw.Comms.GetId().Marshal(),
 	}
 
 	// Add the GossipMsg payload
@@ -120,22 +119,22 @@ func buildGossipPayloadRateLimit(round id.Round, senders []*id.ID, ips []string)
 	ipsBytesSlice := make([][]byte, 0, len(ips))
 	for _, ipStr := range ips {
 		ipsBytes, err := ipAddress.StringToByte(ipStr)
-		if err!=nil{
-			jww.WARN.Printf("ip %s failed to get added for round %d" +
+		if err != nil {
+			jww.WARN.Printf("ip %s failed to get added for round %d"+
 				" because : %s", ipStr, round, err)
-		}else{
-			ipsBytesSlice = append(ipsBytesSlice,ipsBytes)
+		} else {
+			ipsBytesSlice = append(ipsBytesSlice, ipsBytes)
 		}
 	}
 
 	sendersByteSlice := make([][]byte, 0, len(senders))
 	for _, sID := range senders {
-		sendersByteSlice = append(sendersByteSlice,sID.Marshal())
+		sendersByteSlice = append(sendersByteSlice, sID.Marshal())
 	}
 
 	payloadMsg := &pb.BatchSenders{
 		SenderIds: sendersByteSlice,
-		Ips: ipsBytesSlice,
+		Ips:       ipsBytesSlice,
 		RoundID:   uint64(round),
 	}
 	return proto.Marshal(payloadMsg)
