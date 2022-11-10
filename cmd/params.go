@@ -47,6 +47,10 @@ type Params struct {
 	DevMode       bool
 	DisableGossip bool
 
+	HttpsEmail        string
+	HttpsCountry      string
+	AuthorizerAddress string
+
 	cleanupInterval time.Duration
 }
 
@@ -174,6 +178,19 @@ func InitParams(vip *viper.Viper) Params {
 		}
 	}
 
+	// Get params for https provisioning
+	httpsCountryKey := "httpsCountry"
+	viper.SetDefault(httpsCountryKey, "US")
+	httpsCountry := viper.GetString(httpsCountryKey)
+
+	httpsEmailKey := "httpsEmail"
+	viper.SetDefault(httpsEmailKey, "admins@xx.network")
+	httpsEmail := viper.GetString(httpsEmailKey)
+
+	authorizerAddressKey := "authorizerAddress"
+	viper.SetDefault(authorizerAddressKey, "0.0.0.0:11420")
+	authorizerAddress := viper.GetString(authorizerAddressKey)
+
 	return Params{
 		Port:                   gwPort,
 		PublicAddress:          gwAddress,
@@ -195,5 +212,8 @@ func InitParams(vip *viper.Viper) Params {
 		DevMode:                viper.GetBool("devMode"),
 		DisableGossip:          viper.GetBool("disableGossip"),
 		cleanupInterval:        cleanupInterval,
+		HttpsCountry:           httpsCountry,
+		HttpsEmail:             httpsEmail,
+		AuthorizerAddress:      authorizerAddress,
 	}
 }

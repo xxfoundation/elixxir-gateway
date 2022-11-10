@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/golang-collections/collections/set"
+	"gitlab.com/elixxir/gateway/autocert"
 	"strconv"
 	"strings"
 	"sync"
@@ -123,6 +124,8 @@ type Instance struct {
 	earliestRoundTrackerMux sync.Mutex
 	earliestRoundUpdateChan chan EarliestRound
 	earliestRoundQuitChan   chan struct{}
+
+	autoCert autocert.Client
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -690,6 +693,16 @@ func (gw *Instance) InitNetwork() error {
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
+		_, err = gw.Comms.AddHost(&id.Authorizer, gw.Params.AuthorizerAddress, permissioningCert, connect.GetDefaultHostParams())
+		if err != nil {
+			return errors.WithMessage(err, "Failed to add authorizer host")
+		}
+		err = gw.StartHttpsServer()
+		if err != nil {
+			jww.ERROR.Printf("Failed to start HTTPS listener: %+v", err)
+			return err
+		}
+
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {
 			gw.InitRateLimitGossip()
@@ -765,8 +778,9 @@ func (gw *Instance) clearOldStorage(threshold time.Time) error {
 
 // Set the gw.period attribute
 // NOTE: Saves the constant to storage if it does not exist
-//       or reads an existing value from storage and sets accordingly
-//       It's not great but it's structured this way as a business requirement
+//
+//	or reads an existing value from storage and sets accordingly
+//	It's not great but it's structured this way as a business requirement
 func (gw *Instance) SetPeriod() error {
 	// Get an existing Period value from storage
 	periodStr, err := gw.storage.GetStateValue(storage.PeriodKey)
