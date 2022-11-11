@@ -6,12 +6,11 @@ import (
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/crypto/gatewayHttps"
+	crypto "gitlab.com/elixxir/crypto/gatewayHttps"
 	rsa2 "gitlab.com/elixxir/crypto/rsa"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/crypto/csprng"
-	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gorm.io/gorm"
 	"strings"
@@ -75,12 +74,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	// TODO there has to be a better way to do this
-	pk, err := rsa2.GetScheme().UnmarshalPrivateKeyPEM(
-		rsa.CreatePrivateKeyPem(gw.Comms.GetPrivateKey()))
-	if err != nil {
-		return nil, nil, err
-	}
+	pk := rsa2.GetScheme().Convert(&gw.Comms.GetPrivateKey().PrivateKey)
 	err = gw.autoCert.Register(pk, eabCredResp.KeyId, eabCredResp.Key,
 		gw.Params.HttpsEmail)
 	if err != nil {
@@ -102,7 +96,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 
 	// Sign ACME token
 	rng := csprng.NewSystemRNG()
-	sig, err := gatewayHttps.SignAcmeToken(rng, gw.Comms.GetPrivateKey(),
+	sig, err := crypto.SignAcmeToken(rng, gw.Comms.GetPrivateKey(),
 		gw.Params.PublicAddress, challenge, ts)
 	if err != nil {
 		return nil, nil, err
@@ -187,7 +181,7 @@ func loadHttpsCreds(db *storage.Storage) ([]byte, []byte, error) {
 // and sets the GatewayCertificate on the Instance object to be sent when
 // clients request it
 func (gw *Instance) setGatewayTlsCertificate(cert []byte) error {
-	sig, err := gatewayHttps.SignGatewayCert(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), cert)
+	sig, err := crypto.SignGatewayCert(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), cert)
 	if err != nil {
 		return err
 	}
