@@ -37,7 +37,8 @@ func (gw *Instance) StartHttpsServer() error {
 	if err != nil {
 		return err
 	}
-	return nil
+
+	return gw.SetGatewayTlsCertificate(cert)
 }
 
 // getHttpsCreds is a helper for getting the tls certificate and key to pass
@@ -191,4 +192,20 @@ func signAcmeToken(rng io.Reader, gwRsa *rsa.PrivateKey, ipAddress,
 	binary.BigEndian.PutUint64(tsBytes, timestamp)
 	h.Write(tsBytes)
 	return gwRsa.Sign(rng, h.Sum(nil), crypto.SignerOpts(hashType))
+}
+
+func (gw *Instance) SetGatewayTlsCertificate(cert []byte) error {
+	rng := csprng.NewSystemRNG()
+	hashType := hash.CMixHash
+	h := hashType.New()
+	h.Write(cert)
+	sig, err := rsa.Sign(rng, gw.Comms.GetPrivateKey(), hashType, h.Sum(nil), rsa.NewDefaultOptions())
+	if err != nil {
+		return err
+	}
+	gw.gatewayCert = &mixmessages.GatewayCertificate{
+		Certificate: cert,
+		Signature:   sig,
+	}
+	return nil
 }
