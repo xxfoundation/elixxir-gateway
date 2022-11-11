@@ -19,7 +19,7 @@ import (
 
 const (
 	// Determines maximum runtime (in seconds) of specific DB queries
-	dbTimeout = 3 * time.Second
+	dbTimeout = 10 * time.Second
 	// Determines maximum number of uses for a BloomFilter in a given period.
 	maxBloomUses = 64
 )
