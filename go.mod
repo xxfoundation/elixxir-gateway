@@ -11,11 +11,11 @@ require (
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
 	gitlab.com/elixxir/comms v0.0.4-0.20221111122257-75d48fa55a4e
-	gitlab.com/elixxir/crypto v0.0.7-0.20221108183134-3f4a29c68e97
-	gitlab.com/elixxir/primitives v0.0.3-0.20221108183049-7bdff545bf8e
+	gitlab.com/elixxir/crypto v0.0.7-0.20221111135704-4d60ed8f06d5
+	gitlab.com/elixxir/primitives v0.0.3-0.20221110181119-e83320a48b13
 	gitlab.com/xx_network/comms v0.0.4-0.20221110230330-3a63a3732f37
-	gitlab.com/xx_network/crypto v0.0.5-0.20221108182939-05998dc093e9
-	gitlab.com/xx_network/primitives v0.0.4-0.20221104175439-f0d440beacd9
+	gitlab.com/xx_network/crypto v0.0.5-0.20221110181048-76f0c556fe95
+	gitlab.com/xx_network/primitives v0.0.4-0.20221110180011-fd6ea3058225
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c
 	google.golang.org/grpc v1.49.0
