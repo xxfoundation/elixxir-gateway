@@ -45,7 +45,7 @@ const (
 	ErrAuth          = "Failed to authenticate id:"
 	gwChanLen        = 1000
 	period           = int64(1800000000000) // 30 minutes in nanoseconds
-	maxSendsInARound = 25
+	maxUnknownErrors = 20
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -138,9 +138,8 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DevMode,
 	)
 	if err != nil {
-		eMsg := fmt.Sprintf("Could not initialize database: "+
-			"psql://%s@%s:%s/%s", params.DbUsername,
-			params.DbAddress, params.DbPort, params.DbName)
+		eMsg := fmt.Sprintf("Could not initialize database psql://%s@%s:%s/%s: %+v",
+			params.DbUsername, params.DbAddress, params.DbPort, params.DbName, err)
 		if params.DevMode {
 			jww.WARN.Printf(eMsg)
 		} else {
@@ -564,6 +563,7 @@ func (gw *Instance) InitNetwork() error {
 	var serverResponse *pb.ServerPollResponse
 
 	// fixme: determine if this a proper conditional for when server is not ready
+	numUnknownErrors := 0
 	for serverResponse == nil {
 		// TODO: Probably not great to always sleep immediately
 		time.Sleep(3 * time.Second)
@@ -588,8 +588,15 @@ func (gw *Instance) InitNetwork() error {
 				jww.WARN.Printf(eMsg)
 				continue
 			} else {
-				return errors.Errorf(
-					"Error polling NDF: %+v", err)
+				numUnknownErrors++
+				if numUnknownErrors >= maxUnknownErrors {
+					return errors.Errorf(
+						"Error polling NDF %d times, bailing: %+v", numUnknownErrors, err)
+				} else {
+					jww.WARN.Printf("Error polling NDF %d/%d times: %+v",
+						numUnknownErrors, maxUnknownErrors, err)
+					continue
+				}
 			}
 		}
 
