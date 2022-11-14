@@ -17,6 +17,7 @@ import (
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/elixxir/gateway/autocert"
 	"gitlab.com/xx_network/crypto/csprng"
+	"gitlab.com/xx_network/primitives/utils"
 )
 
 var autocertCmd = &cobra.Command{
@@ -41,7 +42,7 @@ var autocertCmd = &cobra.Command{
 
 		certGetter := autocert.NewDNS()
 
-		privKeyPEM, err := os.ReadFile("certkey.pem")
+		privKeyPEM, err := utils.ReadFile("certkey.pem")
 		if os.IsNotExist(err) {
 			certKey, err := autocert.GenerateCertKey(
 				rng.GetStream())
@@ -49,8 +50,9 @@ var autocertCmd = &cobra.Command{
 				jww.FATAL.Panicf("%+v", err)
 			}
 
-			err = os.WriteFile("certkey.pem", certKey.MarshalPem(),
-				0700)
+			err = utils.WriteFile("certkey.pem",
+				certKey.MarshalPem(),
+				0700, 0755)
 			if err != nil {
 				jww.FATAL.Panicf("%+v", err)
 			}
@@ -81,7 +83,7 @@ var autocertCmd = &cobra.Command{
 			return
 		}
 
-		err = os.WriteFile("cert-csr.pem", csrPEM, 0700)
+		err = utils.WriteFile("cert-csr.pem", csrPEM, 0700, 0755)
 		if err != nil {
 			jww.FATAL.Panicf("%+v", err)
 			return
@@ -93,14 +95,14 @@ var autocertCmd = &cobra.Command{
 			return
 		}
 
-		err = os.WriteFile("cert.pem", cert, 0700)
+		err = utils.WriteFile("cert.pem", cert, 0700, 0755)
 
 		if err != nil {
 			jww.FATAL.Panicf("%+v", err)
 			return
 		}
 
-		err = os.WriteFile("certkey.pem", key, 0700)
+		err = utils.WriteFile("certkey.pem", key, 0700, 0755)
 		if err != nil {
 			jww.FATAL.Panicf("%+v", err)
 			return
