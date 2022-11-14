@@ -38,6 +38,7 @@ func Test_newKnownRoundsWrapper(t *testing.T) {
 	expected.kr.Check(0)
 	expected.marshalled = expected.kr.Marshal()
 	expected.truncated = expected.marshalled
+	expected.backupPeriod = 5 * time.Second
 	expectedData := base64.StdEncoding.EncodeToString(expected.marshalled)
 
 	krw, err := newKnownRoundsWrapper(roundCapacity, gw.storage)
@@ -78,6 +79,7 @@ func Test_knownRoundsWrapper_check(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to create new knownRoundsWrapper: %+v", err)
 	}
+	krw.backupPeriod = 0
 
 	err = krw.check(10)
 	if err != nil {
@@ -88,7 +90,7 @@ func Test_knownRoundsWrapper_check(t *testing.T) {
 		t.Errorf("check failed to save the expected marshalled bytes."+
 			"\nexpected: %+v\nreceived: %+v", krw.kr.Marshal(), krw.marshalled)
 	}
-	time.Sleep(5 * time.Second)
+	time.Sleep(time.Second)
 
 	data, err := gw.storage.GetStateValue(storage.KnownRoundsKey)
 	if err != nil {
@@ -117,18 +119,18 @@ func Test_knownRoundsWrapper_forceCheck(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to create new knownRoundsWrapper: %+v", err)
 	}
+	krw.backupPeriod = 0
 
 	err = krw.forceCheck(10)
 	if err != nil {
 		t.Errorf("forceCheck returned an error: %+v", err)
 	}
+	time.Sleep(time.Second)
 
 	if !bytes.Equal(krw.marshalled, krw.kr.Marshal()) {
 		t.Errorf("forceCheck failed to save the expected marshalled bytes."+
 			"\nexpected: %+v\nreceived: %+v", krw.kr.Marshal(), krw.marshalled)
 	}
-
-	time.Sleep(5 * time.Second)
 
 	data, err := gw.storage.GetStateValue(storage.KnownRoundsKey)
 	if err != nil {

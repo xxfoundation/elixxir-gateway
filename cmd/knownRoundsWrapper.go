@@ -34,11 +34,12 @@ const (
 )
 
 type knownRoundsWrapper struct {
-	kr         *knownRounds.KnownRounds
-	marshalled []byte
-	truncated  []byte
-	l          sync.RWMutex
-	backupChan chan bool
+	kr           *knownRounds.KnownRounds
+	marshalled   []byte
+	truncated    []byte
+	l            sync.RWMutex
+	backupChan   chan bool
+	backupPeriod time.Duration
 }
 
 // newKnownRoundsWrapper creates a new knownRoundsWrapper with a new KnownRounds
@@ -51,7 +52,7 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 		backupChan: make(chan bool, 1),
 	}
 
-	krw.backupState(store, 5*time.Second)
+	krw.backupState(store)
 
 	// There is no round 0
 	krw.kr.Check(0)
@@ -64,6 +65,8 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 	}
 
 	jww.DEBUG.Printf("Initial KnownRound Marshal: %v", krw.marshalled)
+
+	krw.backupPeriod = 5 * time.Second
 
 	return krw, nil
 }
@@ -145,7 +148,7 @@ func (krw *knownRoundsWrapper) saveUnsafe() error {
 }
 
 // Store known rounds marshalled in state at most once every 5 seconds
-func (krw *knownRoundsWrapper) backupState(store *storage.Storage, backupFrequency time.Duration) {
+func (krw *knownRoundsWrapper) backupState(store *storage.Storage) {
 	go func() {
 		for {
 			select {
@@ -158,7 +161,7 @@ func (krw *knownRoundsWrapper) backupState(store *storage.Storage, backupFrequen
 				if err != nil {
 					jww.ERROR.Printf(storageUpsertErr, err)
 				}
-				time.Sleep(backupFrequency)
+				time.Sleep(krw.backupPeriod)
 			}
 		}
 	}()

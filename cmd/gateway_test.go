@@ -1321,18 +1321,20 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
+	gw.krw.backupPeriod = 0
 	_ = gw.InitNetwork()
 	err := gw.krw.check(4)
 	if err != nil {
 		t.Errorf("Failed to check round %d: %v", 4, err)
 	}
+
+	time.Sleep(5 * time.Second)
+
 	expectedData := gw.krw.getMarshal()
 	// Attempt to save knownRounds to file
 	if err := gw.SaveKnownRounds(); err != nil {
 		t.Errorf("SaveKnownRounds() produced an error: %v", err)
 	}
-
-	time.Sleep(5 * time.Second)
 
 	// Attempt to load knownRounds from file
 	if err := gw.LoadKnownRounds(); err != nil {
