@@ -97,8 +97,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 
 	// Sign ACME token
 	rng := csprng.NewSystemRNG()
-	sig, err := crypto.SignAcmeToken(rng, gw.Comms.GetPrivateKey(),
-		gw.Params.PublicAddress, challenge, ts)
+	sig, err := crypto.SignAcmeToken(rng, gw.Comms.GetPrivateKey(), challenge, ts)
 	if err != nil {
 		return nil, nil, err
 	}
