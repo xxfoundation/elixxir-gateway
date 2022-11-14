@@ -7,7 +7,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/mixmessages"
 	crypto "gitlab.com/elixxir/crypto/gatewayHttps"
-	rsa2 "gitlab.com/elixxir/crypto/rsa"
+	"gitlab.com/elixxir/crypto/rsa"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/crypto/csprng"
@@ -74,7 +74,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	pk := rsa2.GetScheme().Convert(&gw.Comms.GetPrivateKey().PrivateKey)
+	pk := rsa.GetScheme().Convert(&gw.Comms.GetPrivateKey().PrivateKey)
 	err = gw.autoCert.Register(pk, eabCredResp.KeyId, eabCredResp.Key,
 		gw.Params.HttpsEmail)
 	if err != nil {
