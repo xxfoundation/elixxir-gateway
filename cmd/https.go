@@ -1,21 +1,18 @@
 package cmd
 
 import (
-	"crypto"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
+	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/mixmessages"
-	"gitlab.com/elixxir/crypto/hash"
-	rsa2 "gitlab.com/elixxir/crypto/rsa"
+	crypto "gitlab.com/elixxir/crypto/gatewayHttps"
+	"gitlab.com/elixxir/crypto/rsa"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/crypto/csprng"
-	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gorm.io/gorm"
-	"io"
 	"strings"
 	"time"
 )
@@ -37,7 +34,8 @@ func (gw *Instance) StartHttpsServer() error {
 	if err != nil {
 		return err
 	}
-	return nil
+
+	return gw.setGatewayTlsCertificate(cert)
 }
 
 // getHttpsCreds is a helper for getting the tls certificate and key to pass
@@ -76,12 +74,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	// TODO there has to be a better way to do this
-	pk, err := rsa2.GetScheme().UnmarshalPrivateKeyPEM(
-		rsa.CreatePrivateKeyPem(gw.Comms.GetPrivateKey()))
-	if err != nil {
-		return nil, nil, err
-	}
+	pk := rsa.GetScheme().Convert(&gw.Comms.GetPrivateKey().PrivateKey)
 	err = gw.autoCert.Register(pk, eabCredResp.KeyId, eabCredResp.Key,
 		gw.Params.HttpsEmail)
 	if err != nil {
@@ -92,17 +85,19 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 	dnsName := fmt.Sprintf(DnsTemplate, gw.Comms.GetId().String())
 
 	// Get ACME token
-	_, acmeToken, err := gw.autoCert.Request(dnsName) // TODO : do we need the key for anything?
+	chalDomain, challenge, err := gw.autoCert.Request(dnsName)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	jww.INFO.Printf("ADD TXT RECORD: %s\t%s\n", chalDomain, challenge)
 
 	ts := uint64(time.Now().UnixNano())
 
 	// Sign ACME token
 	rng := csprng.NewSystemRNG()
-	sig, err := signAcmeToken(rng, gw.Comms.GetPrivateKey(),
-		gw.Params.PublicAddress, acmeToken, ts)
+	sig, err := crypto.SignAcmeToken(rng, gw.Comms.GetPrivateKey(),
+		gw.Params.PublicAddress, challenge, ts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -112,22 +107,23 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		&mixmessages.AuthorizerCertRequest{
 			GwID:      gw.Comms.GetId().Bytes(),
 			Timestamp: ts,
-			ACMEToken: acmeToken,
+			ACMEToken: challenge,
 			Signature: sig,
 		})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// TODO : do we need the der for something?
-	csrPem, _, err := gw.autoCert.CreateCSR(dnsName, gw.Params.HttpsEmail,
+	csrPem, csrDer, err := gw.autoCert.CreateCSR(dnsName, gw.Params.HttpsEmail,
 		gw.Params.HttpsCountry, gw.Comms.GetId().String(), rng)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	jww.INFO.Printf("Received CSR from autocert:\n\t%s", string(csrPem))
+
 	// Get issued certificate and key from autoCert
-	issuedCert, issuedKey, err := gw.autoCert.Issue(csrPem)
+	issuedCert, issuedKey, err := gw.autoCert.Issue(csrDer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -160,6 +156,7 @@ func storeHttpsCreds(cert, key []byte, db *storage.Storage) error {
 	if err != nil {
 		return err
 	}
+
 	return db.UpsertState(&storage.State{
 		Key:   CertificateStateKey,
 		Value: string(marshalled),
@@ -180,15 +177,17 @@ func loadHttpsCreds(db *storage.Storage) ([]byte, []byte, error) {
 	return loaded.Cert, loaded.Key, nil
 }
 
-// signAcmeToken creates the signature sent with an AuthorizerCertRequest
-func signAcmeToken(rng io.Reader, gwRsa *rsa.PrivateKey, ipAddress,
-	acmeToken string, timestamp uint64) ([]byte, error) {
-	hashType := hash.CMixHash
-	h := hashType.New()
-	h.Write([]byte(ipAddress))
-	h.Write([]byte(acmeToken))
-	tsBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(tsBytes, timestamp)
-	h.Write(tsBytes)
-	return gwRsa.Sign(rng, h.Sum(nil), crypto.SignerOpts(hashType))
+// Helper function which accepts the certificate used for https, signs it,
+// and sets the GatewayCertificate on the Instance object to be sent when
+// clients request it
+func (gw *Instance) setGatewayTlsCertificate(cert []byte) error {
+	sig, err := crypto.SignGatewayCert(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), cert)
+	if err != nil {
+		return err
+	}
+	gw.gatewayCert = &mixmessages.GatewayCertificate{
+		Certificate: cert,
+		Signature:   sig,
+	}
+	return nil
 }

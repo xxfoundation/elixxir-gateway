@@ -125,7 +125,8 @@ type Instance struct {
 	earliestRoundUpdateChan chan EarliestRound
 	earliestRoundQuitChan   chan struct{}
 
-	autoCert autocert.Client
+	autoCert    autocert.Client
+	gatewayCert *pb.GatewayCertificate
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -220,7 +221,18 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.PutManyMessagesProxy(msgs, auth)
 	}
 
+	impl.Functions.RequestTlsCert = func(message *pb.RequestGatewayCert) (*pb.GatewayCertificate, error) {
+		return instance.RequestTlsCert(message)
+	}
+
 	return impl
+}
+
+func (gw *Instance) RequestTlsCert(_ *pb.RequestGatewayCert) (*pb.GatewayCertificate, error) {
+	if gw.gatewayCert == nil {
+		return nil, errors.New("Gateway HTTPS initialization has not finished yet")
+	}
+	return gw.gatewayCert, nil
 }
 
 // CreateNetworkInstance will generate a new network instance object given
