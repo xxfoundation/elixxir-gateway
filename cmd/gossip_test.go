@@ -151,7 +151,7 @@ func TestInstance_GossipVerify(t *testing.T) {
 		ID:         10,
 		UpdateID:   10,
 		Topology:   topology,
-		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
+		Timestamps: []uint64{0, 1, 2, 3, 4, 5},
 	}
 
 	// Sign the round info with the mock permissioning private key
@@ -292,7 +292,6 @@ func TestInstance_StartPeersThread(t *testing.T) {
 	// }
 }
 
-//
 func TestInstance_GossipBatch(t *testing.T) {
 	// Build the gateway instance
 	params := Params{

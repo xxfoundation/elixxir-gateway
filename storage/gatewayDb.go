@@ -22,7 +22,22 @@ import (
 	"time"
 )
 
-// Helper for forcing panics in the event of a CDE, otherwise acts as a pass-through
+// newContext builds a context for database operations.
+func newContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), dbTimeout)
+}
+
+// perfLog prints some basic query information to the log.
+func perfLog(queryName string, queryStart time.Time) {
+	queryTime := time.Since(queryStart)
+	jww.TRACE.Printf("Query %s took %v", queryName, queryTime)
+	if queryTime > time.Second {
+		jww.WARN.Printf("Query %s took an unexpectedly long time: %v",
+			queryName, queryTime)
+	}
+}
+
+// catchErrors forces panics in the event of a CDE, otherwise acts as a pass-through.
 func catchErrors(err error) error {
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -38,10 +53,9 @@ func catchErrors(err error) error {
 // Inserts the given State into Database if it does not exist
 // Or updates the Database State if its value does not match the given State
 func (d *DatabaseImpl) UpsertState(state *State) error {
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
-
+	queryStart := time.Now()
 	// Build a transaction to prevent race conditions
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Make a copy of the provided state
 		newState := *state
@@ -61,40 +75,43 @@ func (d *DatabaseImpl) UpsertState(state *State) error {
 		// Commit
 		return nil
 	})
+	cancel()
+	perfLog("UpsertState", queryStart)
 	return catchErrors(err)
 }
 
 // Returns a State's value from Database with the given key
 // Or an error if a matching State does not exist
 func (d *DatabaseImpl) GetStateValue(key string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
-
+	queryStart := time.Now()
 	result := &State{Key: key}
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Take(result).Error
+	cancel()
+	perfLog("GetStateValue", queryStart)
 	return result.Value, catchErrors(err)
 }
 
 // Returns a Client from database with the given id
 // Or an error if a matching Client does not exist
 func (d *DatabaseImpl) GetClient(id *id.ID) (*Client, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
-
+	queryStart := time.Now()
 	result := &Client{}
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Take(&result, "id = ?", id.Marshal()).Error
+	cancel()
+	perfLog("GetClient", queryStart)
 	return result, catchErrors(err)
 }
 
 // Upsert client into the database - replace key field if it differs so interrupted reg doesn't fail
 func (d *DatabaseImpl) UpsertClient(client *Client) error {
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
-
+	queryStart := time.Now()
 	// Make a copy of the provided client
 	newClient := *client
 
 	// Build a transaction to prevent race conditions
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Attempt to insert the client into the database,
 		// or if it already exists, replace client with the database value
@@ -112,6 +129,8 @@ func (d *DatabaseImpl) UpsertClient(client *Client) error {
 		// Commit
 		return nil
 	})
+	cancel()
+	perfLog("UpsertClient", queryStart)
 	return catchErrors(err)
 }
 
@@ -121,22 +140,6 @@ func (d *DatabaseImpl) GetRound(id id.Round) (*Round, error) {
 	result := &Round{}
 	err := d.db.Take(&result, "id = ?", uint64(id)).Error
 	return result, catchErrors(err)
-}
-
-// Returns multiple Rounds from database with the given ids
-// Or an error if no matching Rounds exist
-func (d *DatabaseImpl) GetRounds(ids []id.Round) ([]*Round, error) {
-	// Convert IDs to plain numbers
-	plainIds := make([]uint64, len(ids))
-	for i, v := range ids {
-		plainIds[i] = uint64(v)
-	}
-
-	// Execute the query
-	results := make([]*Round, 0)
-	err := d.db.Where("id IN (?)", plainIds).Find(&results).Error
-
-	return results, catchErrors(err)
 }
 
 // Inserts the given Round into database if it does not exist
@@ -175,11 +178,11 @@ func (d *DatabaseImpl) deleteRound(ts time.Time) error {
 
 // Count the number of MixedMessage in the database for the given roundId
 func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
-
+	queryStart := time.Now()
 	var roundCount int64
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Model(&ClientRound{}).Where("id = ?", uint64(roundId)).Count(&roundCount).Error
+	cancel()
 	if err != nil {
 		return 0, false, catchErrors(err)
 	}
@@ -187,9 +190,12 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, bool
 
 	var count int64
 	if hasRound {
+		ctx, cancel = newContext()
 		err = d.db.WithContext(ctx).Model(&MixedMessage{}).Where("round_id = ?", uint64(roundId)).Count(&count).Error
+		cancel()
 	}
 
+	perfLog("countMixedMessagesByRound", queryStart)
 	return uint64(count), hasRound, catchErrors(err)
 }
 
@@ -197,23 +203,25 @@ func (d *DatabaseImpl) countMixedMessagesByRound(roundId id.Round) (uint64, bool
 // with matching recipientId and roundId
 // Or an error if a matching Round does not exist
 func (d *DatabaseImpl) getMixedMessages(recipientId ephemeral.Id, roundId id.Round) ([]*MixedMessage, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
-
+	queryStart := time.Now()
 	results := make([]*MixedMessage, 0)
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Find(&results,
 		&MixedMessage{RecipientId: recipientId.Int64(),
 			RoundId: uint64(roundId)}).Error
+	cancel()
+	perfLog("getMixedMessages", queryStart)
 	return results, catchErrors(err)
 }
 
 // Inserts the given list of MixedMessage into database
 // NOTE: Do not specify Id attribute for messages, it is autogenerated
 func (d *DatabaseImpl) InsertMixedMessages(cr *ClientRound) error {
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
-
+	queryStart := time.Now()
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Create(cr).Error
+	cancel()
+	perfLog("InsertMixedMessages", queryStart)
 	return catchErrors(err)
 }
 
@@ -227,37 +235,40 @@ func (d *DatabaseImpl) deleteMixedMessages(ts time.Time) error {
 // Or an error if no matching ClientBloomFilter exist
 func (d *DatabaseImpl) GetClientBloomFilters(recipientId ephemeral.Id, startEpoch, endEpoch uint32) ([]*ClientBloomFilter, error) {
 	jww.DEBUG.Printf("Getting filters for client [%v]", recipientId)
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
+	queryStart := time.Now()
 
 	var results []*ClientBloomFilter
 	recipientIdInt := recipientId.Int64()
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Where("epoch BETWEEN ? AND ?", startEpoch, endEpoch).Find(&results, &ClientBloomFilter{RecipientId: &recipientIdInt}).Error
-	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
+	cancel()
 
+	perfLog("GetClientBloomFilters", queryStart)
+	jww.DEBUG.Printf("Returning filters [%v] for client [%v]", results, recipientId)
 	return results, catchErrors(err)
 }
 
-// Inserts the given ClientBloomFilter into database if it does not exist
-// Or updates the ClientBloomFilter in the database if the ClientBloomFilter already exists
+// upsertClientBloomFilter into database if it does not exist, or updates the
+// ClientBloomFilter in the database if the ClientBloomFilter already exists.
 func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error {
 	jww.DEBUG.Printf("Upserting filter for client %d at epoch %d", *filter.RecipientId, filter.Epoch)
-	ctx, cancel := context.WithTimeout(context.Background(), DbTimeout*time.Second)
-	defer cancel()
+	queryStart := time.Now()
 
 	// Build a transaction to prevent race conditions
+	ctx, cancel := newContext()
 	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Initialize variable for returning existing value from the database
 		oldFilter := &ClientBloomFilter{
 			Filter: make([]byte, len(filter.Filter)),
 		}
 
-		// Attempt to insert filter into the database,
-		// or if it already exists, replace oldFilter with the database value
+		// Attempt to insert filter into the database.
+		// If it already exists and hasn't reached maxBloomUses,
+		// replace oldFilter with the database value.
 		err := tx.Where(&ClientBloomFilter{
 			Epoch:       filter.Epoch,
 			RecipientId: filter.RecipientId,
-		}).FirstOrCreate(oldFilter).Error
+		}).Where("uses < ?", maxBloomUses).FirstOrCreate(oldFilter).Error
 		if err != nil {
 			return err
 		}
@@ -272,7 +283,15 @@ func (d *DatabaseImpl) upsertClientBloomFilter(filter *ClientBloomFilter) error 
 		}
 		return nil
 	}, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	cancel()
+	perfLog("upsertClientBloomFilter", queryStart)
 	return catchErrors(err)
+}
+
+// Deletes all ClientBloomFilter with Epoch <= the given epoch
+// Returns an error if no matching ClientBloomFilter exist
+func (d *DatabaseImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
+	return catchErrors(d.db.Delete(ClientBloomFilter{}, "epoch <= ?", epoch).Error)
 }
 
 // Returns the lowest FirstRound value from ClientBloomFilter
@@ -287,8 +306,18 @@ func (d *DatabaseImpl) GetLowestBloomRound() (uint64, error) {
 	return result.FirstRound, nil
 }
 
-// Deletes all ClientBloomFilter with Epoch <= the given epoch
-// Returns an error if no matching ClientBloomFilter exist
-func (d *DatabaseImpl) DeleteClientFiltersBeforeEpoch(epoch uint32) error {
-	return catchErrors(d.db.Delete(ClientBloomFilter{}, "epoch <= ?", epoch).Error)
+// Returns multiple Rounds from database with the given ids
+// Or an error if no matching Rounds exist
+func (d *DatabaseImpl) GetRounds(ids []id.Round) ([]*Round, error) {
+	// Convert IDs to plain numbers
+	plainIds := make([]uint64, len(ids))
+	for i, v := range ids {
+		plainIds[i] = uint64(v)
+	}
+
+	// Execute the query
+	results := make([]*Round, 0)
+	err := d.db.Where("id IN (?)", plainIds).Find(&results).Error
+
+	return results, catchErrors(err)
 }

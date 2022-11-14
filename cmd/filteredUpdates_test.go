@@ -26,7 +26,7 @@ func TestFilteredUpdates_RoundUpdate(t *testing.T) {
 		UpdateID:   validUpdateId,
 		State:      uint32(states.COMPLETED),
 		BatchSize:  8,
-		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
+		Timestamps: []uint64{0, 1, 2, 3, 4, 5},
 	}
 
 	ecPrivKey, err := ec.NewKeyPair(rand.Reader)
@@ -96,7 +96,7 @@ func TestFilteredUpdates_RoundUpdates(t *testing.T) {
 		UpdateID:   validUpdateId,
 		State:      uint32(states.COMPLETED),
 		BatchSize:  8,
-		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
+		Timestamps: []uint64{0, 1, 2, 3, 4, 5},
 	}
 
 	ellipticKey, err := ec.NewKeyPair(rand.Reader)
@@ -128,7 +128,7 @@ func TestFilteredUpdates_RoundUpdates(t *testing.T) {
 		UpdateID:   invalidUpdateId,
 		State:      uint32(states.PRECOMPUTING),
 		BatchSize:  8,
-		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
+		Timestamps: []uint64{0, 1},
 	}
 
 	err = testutils.SignRoundInfoEddsa(validMsg, ellipticKey, t)
@@ -189,7 +189,7 @@ func TestFilteredUpdates_GetRoundUpdate(t *testing.T) {
 		ID:         uint64(1),
 		UpdateID:   uint64(1),
 		State:      uint32(states.QUEUED),
-		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
+		Timestamps: []uint64{0, 1, 2, 3},
 	}
 	testutils.SignRoundInfoEddsa(ri, ellipticKey, t)
 	rnd := ds.NewRound(ri, nil, ellipticKey.GetPublic())
@@ -229,7 +229,7 @@ func TestFilteredUpdates_GetRoundUpdates(t *testing.T) {
 		ID:         uint64(1),
 		UpdateID:   uint64(2),
 		State:      uint32(states.QUEUED),
-		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
+		Timestamps: []uint64{0, 1, 2, 3},
 	}
 	if err = testutils.SignRoundInfoEddsa(roundInfoOne, ellipticKey, t); err != nil {
 		t.Fatalf("Failed to sign round info: %v", err)
@@ -238,7 +238,7 @@ func TestFilteredUpdates_GetRoundUpdates(t *testing.T) {
 		ID:         uint64(2),
 		UpdateID:   uint64(3),
 		State:      uint32(states.QUEUED),
-		Timestamps: []uint64{1, 2, 3, 4, 5, 6},
+		Timestamps: []uint64{0, 1, 2, 3},
 	}
 	if err = testutils.SignRoundInfoEddsa(roundInfoTwo, ellipticKey, t); err != nil {
 		t.Fatalf("Failed to sign round info: %v", err)

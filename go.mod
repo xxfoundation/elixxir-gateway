@@ -1,6 +1,6 @@
 module gitlab.com/elixxir/gateway
 
-go 1.17
+go 1.19
 
 require (
 	github.com/golang-collections/collections v0.0.0-20130729185459-604e922904d3
@@ -10,20 +10,20 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
-	gitlab.com/elixxir/comms v0.0.4-0.20221026124756-10f50e5dbaaa
-	gitlab.com/elixxir/crypto v0.0.7-0.20221025180839-3d8948607447
-	gitlab.com/elixxir/primitives v0.0.3-0.20221025020430-f5d2eb330fbc
-	gitlab.com/xx_network/comms v0.0.4-0.20221025202603-3043ba10b2a2
-	gitlab.com/xx_network/crypto v0.0.5-0.20221025020316-517fa8f91d2c
-	gitlab.com/xx_network/primitives v0.0.4-0.20221025020003-cbec15a71b8f
+	gitlab.com/elixxir/comms v0.0.4-0.20221110181420-84bca6216fe4
+	gitlab.com/elixxir/crypto v0.0.7-0.20221110181326-dd7e5293feb0
+	gitlab.com/elixxir/primitives v0.0.3-0.20221110181119-e83320a48b13
+	gitlab.com/xx_network/comms v0.0.4-0.20221110181111-4f0694876936
+	gitlab.com/xx_network/crypto v0.0.5-0.20221110181048-76f0c556fe95
+	gitlab.com/xx_network/primitives v0.0.4-0.20221110180011-fd6ea3058225
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
-	gorm.io/driver/postgres v1.0.7
-	gorm.io/gorm v1.20.12
+	gorm.io/driver/postgres v1.4.5
+	gorm.io/gorm v1.24.1-0.20221019064659-5dd2bb482755
 )
 
 require (
-	git.xx.network/elixxir/grpc-web-go-client v0.0.0-20220908170150-ef04339ffe65 // indirect
+	git.xx.network/elixxir/grpc-web-go-client v0.0.0-20221102223039-dc1f37d94e70 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
 	github.com/elliotchance/orderedmap v1.4.0 // indirect
@@ -34,21 +34,21 @@ require (
 	github.com/improbable-eng/grpc-web v0.15.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.8.0 // indirect
+	github.com/jackc/pgconn v1.13.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.0.6 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgtype v1.6.2 // indirect
-	github.com/jackc/pgx/v4 v4.10.1 // indirect
+	github.com/jackc/pgtype v1.12.0 // indirect
+	github.com/jackc/pgx/v4 v4.17.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
-	github.com/jinzhu/now v1.1.1 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.11.7 // indirect
-	github.com/lib/pq v1.9.0 // indirect
 	github.com/magiconair/properties v1.8.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.0 // indirect
 	github.com/pelletier/go-toml v1.8.1 // indirect
+	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/smartystreets/assertions v1.1.0 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
@@ -63,7 +63,6 @@ require (
 	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c // indirect
 	golang.org/x/sys v0.0.0-20220731174439-a90be440212d // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto v0.0.0-20220822174746-9e6da59bd2fc // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
