@@ -144,6 +144,7 @@ func (krw *knownRoundsWrapper) saveUnsafe() error {
 	return nil
 }
 
+// Store known rounds marshalled in state at most once every 5 seconds
 func (krw *knownRoundsWrapper) backupState(store *storage.Storage, backupFrequency time.Duration) {
 	go func() {
 		for {
