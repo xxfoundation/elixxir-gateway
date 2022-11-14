@@ -20,6 +20,7 @@ import (
 	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/xx_network/primitives/id"
 	"sync"
+	"time"
 )
 
 // Error messages.
@@ -37,6 +38,7 @@ type knownRoundsWrapper struct {
 	marshalled []byte
 	truncated  []byte
 	l          sync.RWMutex
+	backupChan chan bool
 }
 
 // newKnownRoundsWrapper creates a new knownRoundsWrapper with a new KnownRounds
@@ -46,14 +48,17 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 		kr:         knownRounds.NewKnownRound(roundCapacity),
 		marshalled: []byte{},
 		truncated:  []byte{},
+		backupChan: make(chan bool, 1),
 	}
+
+	krw.backupState(store, 5*time.Second)
 
 	// There is no round 0
 	krw.kr.Check(0)
 	jww.TRACE.Printf("Initial KnownRound State: %+v", krw.kr)
 
 	// Save marshalled knownRounds to memory and storage
-	err := krw.saveUnsafe(store)
+	err := krw.saveUnsafe()
 	if err != nil {
 		return nil, err
 	}
@@ -64,13 +69,13 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 }
 
 // check force checks the round and saves the KnownRounds.
-func (krw *knownRoundsWrapper) check(rid id.Round, store *storage.Storage) error {
+func (krw *knownRoundsWrapper) check(rid id.Round) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
 	krw.kr.Check(rid)
 
-	return krw.saveUnsafe(store)
+	return krw.saveUnsafe()
 }
 
 func (krw *knownRoundsWrapper) truncateMarshal() []byte {
@@ -91,13 +96,13 @@ func (krw *knownRoundsWrapper) getLastChecked() id.Round {
 }
 
 // forceCheck force checks the round and saves the KnownRounds.
-func (krw *knownRoundsWrapper) forceCheck(rid id.Round, store *storage.Storage) error {
+func (krw *knownRoundsWrapper) forceCheck(rid id.Round) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
 	krw.kr.ForceCheck(rid)
 
-	return krw.saveUnsafe(store)
+	return krw.saveUnsafe()
 }
 
 // getMarshal returns a copy of the marshalled bytes of the KnownRounds.
@@ -113,16 +118,16 @@ func (krw *knownRoundsWrapper) getMarshal() []byte {
 
 // save the marshalled KnownRounds to memory and storage. This
 // function is thread safe.
-func (krw *knownRoundsWrapper) save(store *storage.Storage) error {
+func (krw *knownRoundsWrapper) save() error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
-	return krw.saveUnsafe(store)
+	return krw.saveUnsafe()
 }
 
 // saveUnsafe saves the marshalled KnownRounds but the mutex must be
 // locked by the caller.
-func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
+func (krw *knownRoundsWrapper) saveUnsafe() error {
 	// Marshal and save knownRounds
 	krw.marshalled = krw.kr.Marshal()
 	if krw.kr.GetLastChecked() > knownRoundsTruncateThreshold {
@@ -131,16 +136,31 @@ func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 		krw.truncated = krw.marshalled
 	}
 
-	// Store knownRounds data
-	err := store.UpsertState(&storage.State{
-		Key:   storage.KnownRoundsKey,
-		Value: base64.StdEncoding.EncodeToString(krw.marshalled),
-	})
-	if err != nil {
-		return errors.Errorf(storageUpsertErr, err)
+	select {
+	case krw.backupChan <- true:
+	default:
 	}
 
 	return nil
+}
+
+func (krw *knownRoundsWrapper) backupState(store *storage.Storage, backupFrequency time.Duration) {
+	go func() {
+		for {
+			select {
+			case <-krw.backupChan:
+				// Store knownRounds data
+				err := store.UpsertState(&storage.State{
+					Key:   storage.KnownRoundsKey,
+					Value: base64.StdEncoding.EncodeToString(krw.marshalled),
+				})
+				if err != nil {
+					jww.ERROR.Printf(storageUpsertErr, err)
+				}
+				time.Sleep(backupFrequency)
+			}
+		}
+	}()
 }
 
 // Returns whether the given round calls for a truncated knownRound

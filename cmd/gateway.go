@@ -779,7 +779,7 @@ func (gw *Instance) ProcessCompletedBatch(msgs []*pb.Slot, roundID id.Round) err
 
 			if failedInsert == 0 {
 				//denote the reception in known rounds
-				err = gw.krw.forceCheck(roundID, gw.storage)
+				err = gw.krw.forceCheck(roundID)
 				if err != nil {
 					jww.ERROR.Printf("Local round data not recorded due to known rounds error for "+
 						"round %d with %d recipients at %s: "+

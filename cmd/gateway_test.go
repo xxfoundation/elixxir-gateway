@@ -501,7 +501,8 @@ func TestInstance_RequestMessages_Proxy(t *testing.T) { // Create instances
 }
 
 // Error path: Request a round that exists in the database but the requested user
-//  is not within this round
+//
+//	is not within this round
 func TestInstance_RequestMessages_NoUser(t *testing.T) {
 	// Create a message and insert them into a database
 	numMessages := 5
@@ -1321,7 +1322,7 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	// Create new gateway instance and modify knownRounds
 	gw := NewGatewayInstance(params)
 	_ = gw.InitNetwork()
-	err := gw.krw.check(4, gw.storage)
+	err := gw.krw.check(4)
 	if err != nil {
 		t.Errorf("Failed to check round %d: %v", 4, err)
 	}
@@ -1330,6 +1331,8 @@ func TestInstance_SaveKnownRounds_LoadKnownRounds(t *testing.T) {
 	if err := gw.SaveKnownRounds(); err != nil {
 		t.Errorf("SaveKnownRounds() produced an error: %v", err)
 	}
+
+	time.Sleep(5 * time.Second)
 
 	// Attempt to load knownRounds from file
 	if err := gw.LoadKnownRounds(); err != nil {
