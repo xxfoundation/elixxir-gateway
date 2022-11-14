@@ -47,7 +47,6 @@ type Params struct {
 	DevMode       bool
 	DisableGossip bool
 
-	HttpsEmail        string
 	HttpsCountry      string
 	AuthorizerAddress string
 
@@ -178,17 +177,9 @@ func InitParams(vip *viper.Viper) Params {
 		}
 	}
 
-	// Get params for https provisioning
-	httpsCountryKey := "httpsCountry"
-	viper.SetDefault(httpsCountryKey, "US")
-	httpsCountry := viper.GetString(httpsCountryKey)
-
-	httpsEmailKey := "httpsEmail"
-	viper.SetDefault(httpsEmailKey, "admins@xx.network")
-	httpsEmail := viper.GetString(httpsEmailKey)
-
+	// Authorizer address
 	authorizerAddressKey := "authorizerAddress"
-	viper.SetDefault(authorizerAddressKey, "0.0.0.0:11420")
+	viper.SetDefault(authorizerAddressKey, "auth.mainnet.cmix.rip:11420")
 	authorizerAddress := viper.GetString(authorizerAddressKey)
 
 	return Params{
@@ -212,8 +203,6 @@ func InitParams(vip *viper.Viper) Params {
 		DevMode:                viper.GetBool("devMode"),
 		DisableGossip:          viper.GetBool("disableGossip"),
 		cleanupInterval:        cleanupInterval,
-		HttpsCountry:           httpsCountry,
-		HttpsEmail:             httpsEmail,
 		AuthorizerAddress:      authorizerAddress,
 	}
 }

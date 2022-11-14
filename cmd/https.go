@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
@@ -19,6 +20,8 @@ import (
 
 const CertificateStateKey = "https_certificate"
 const DnsTemplate = "%s.mainnet.cmix.rip"
+const httpsEmail = "admins@xx.network"
+const httpsCountry = "US"
 
 // StartHttpsServer gets a well-formed tls certificate and provides it to
 // protocomms so it can start to listen for HTTPS
@@ -44,9 +47,7 @@ func (gw *Instance) StartHttpsServer() error {
 func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 	// Check states table for cert
 	loadedCert, loadedKey, err := loadHttpsCreds(gw.storage)
-	if err != nil &&
-		!strings.Contains(err.Error(), gorm.ErrRecordNotFound.Error()) &&
-		!strings.Contains(err.Error(), "Unable to locate state for key") {
+	if err != nil {
 		return nil, nil, err
 	}
 	if loadedCert != nil && loadedKey != nil {
@@ -76,13 +77,13 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 
 	pk := rsa.GetScheme().Convert(&gw.Comms.GetPrivateKey().PrivateKey)
 	err = gw.autoCert.Register(pk, eabCredResp.KeyId, eabCredResp.Key,
-		gw.Params.HttpsEmail)
+		httpsEmail)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Generate DNS name
-	dnsName := fmt.Sprintf(DnsTemplate, gw.Comms.GetId().String())
+	dnsName := fmt.Sprintf(DnsTemplate, base64.URLEncoding.EncodeToString(gw.Comms.GetId().Marshal()))
 
 	// Get ACME token
 	chalDomain, challenge, err := gw.autoCert.Request(dnsName)
@@ -114,8 +115,8 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	csrPem, csrDer, err := gw.autoCert.CreateCSR(dnsName, gw.Params.HttpsEmail,
-		gw.Params.HttpsCountry, gw.Comms.GetId().String(), rng)
+	csrPem, csrDer, err := gw.autoCert.CreateCSR(dnsName, httpsEmail,
+		httpsCountry, gw.Comms.GetId().String(), rng)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -166,8 +167,12 @@ func storeHttpsCreds(cert, key []byte, db *storage.Storage) error {
 // loadHttpsCreds attempts to load a cert and key from the states table
 func loadHttpsCreds(db *storage.Storage) ([]byte, []byte, error) {
 	val, err := db.GetStateValue(CertificateStateKey)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), gorm.ErrRecordNotFound.Error()) &&
+		!strings.Contains(err.Error(), "Unable to locate state for key") {
 		return nil, nil, err
+	}
+	if val == "" {
+		return nil, nil, nil
 	}
 	loaded := &storedHttpsCreds{}
 	err = json.Unmarshal([]byte(val), loaded)
