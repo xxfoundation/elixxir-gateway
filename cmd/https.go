@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/mixmessages"
-	crypto "gitlab.com/elixxir/crypto/gatewayHttps"
+	crypto "gitlab.com/elixxir/crypto/authorize"
 	"gitlab.com/elixxir/crypto/rsa"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
@@ -93,11 +93,11 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 
 	jww.INFO.Printf("ADD TXT RECORD: %s\t%s\n", chalDomain, challenge)
 
-	ts := uint64(time.Now().UnixNano())
+	ts := time.Now()
 
 	// Sign ACME token
 	rng := csprng.NewSystemRNG()
-	sig, err := crypto.SignAcmeToken(rng, gw.Comms.GetPrivateKey(), challenge, ts)
+	sig, err := crypto.SignCertRequest(rng, gw.Comms.GetPrivateKey(), challenge, ts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,7 +106,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 	_, err = gw.Comms.SendAuthorizerCertRequest(authHost,
 		&mixmessages.AuthorizerCertRequest{
 			GwID:      gw.Comms.GetId().Bytes(),
-			Timestamp: ts,
+			Timestamp: ts.UnixNano(),
 			ACMEToken: challenge,
 			Signature: sig,
 		})
