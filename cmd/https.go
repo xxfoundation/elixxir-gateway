@@ -8,10 +8,12 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/mixmessages"
 	crypto "gitlab.com/elixxir/crypto/authorize"
+	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/crypto/rsa"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/crypto/csprng"
+	rsa2 "gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gorm.io/gorm"
 	"strings"
@@ -185,7 +187,12 @@ func loadHttpsCreds(db *storage.Storage) ([]byte, []byte, error) {
 // and sets the GatewayCertificate on the Instance object to be sent when
 // clients request it
 func (gw *Instance) setGatewayTlsCertificate(cert []byte) error {
-	sig, err := crypto.SignGatewayCert(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), cert)
+	h, err := hash.NewCMixHash()
+	if err != nil {
+		return err
+	}
+	h.Write(cert)
+	sig, err := rsa2.Sign(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), hash.CMixHash, h.Sum(nil), rsa2.NewDefaultOptions())
 	if err != nil {
 		return err
 	}
