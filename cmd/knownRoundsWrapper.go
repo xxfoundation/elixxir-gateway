@@ -139,6 +139,11 @@ func (krw *knownRoundsWrapper) saveUnsafe() error {
 		krw.truncated = krw.marshalled
 	}
 
+	// Send a signal to the backup chan
+	// This is a non-blocking send to a buffered channel - this means that if
+	// there is already a waiting signal in the channel, another will not be
+	// sent.  The result is that we will run a backup at most once per interval,
+	// but will not continue backing up if no new data has been added
 	select {
 	case krw.backupChan <- true:
 	default:
@@ -152,6 +157,7 @@ func (krw *knownRoundsWrapper) backupState(store *storage.Storage) {
 	go func() {
 		for {
 			select {
+			// Wait on backup channel for triggers
 			case <-krw.backupChan:
 				// Store knownRounds data
 				err := store.UpsertState(&storage.State{
@@ -161,6 +167,9 @@ func (krw *knownRoundsWrapper) backupState(store *storage.Storage) {
 				if err != nil {
 					jww.ERROR.Printf(storageUpsertErr, err)
 				}
+				// Sleep for backupPeriod after running
+				// backupChan is buffered, so if requests come in during sleep
+				// this will run again immediately after
 				time.Sleep(krw.backupPeriod)
 			}
 		}
