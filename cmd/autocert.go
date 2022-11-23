@@ -10,6 +10,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
@@ -89,7 +90,7 @@ var autocertCmd = &cobra.Command{
 			return
 		}
 
-		cert, key, err := certGetter.Issue(csrDER)
+		cert, key, err := certGetter.Issue(csrDER, time.Hour)
 		if err != nil {
 			jww.FATAL.Panicf("%+v", err)
 			return

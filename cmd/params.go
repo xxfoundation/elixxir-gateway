@@ -47,8 +47,9 @@ type Params struct {
 	DevMode       bool
 	DisableGossip bool
 
-	HttpsCountry      string
-	AuthorizerAddress string
+	HttpsCountry         string
+	AuthorizerAddress    string
+	AutocertIssueTimeout time.Duration
 
 	cleanupInterval time.Duration
 }

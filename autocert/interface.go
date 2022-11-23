@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto"
 	"io"
+	"time"
 
 	"gitlab.com/elixxir/crypto/rsa"
 	"golang.org/x/crypto/acme"
@@ -46,7 +47,7 @@ type Client interface {
 	// Issue blocks until the challenge is accepted by the remote server,
 	// and returns a certificate based on the private key and the key in PEM
 	// format.
-	Issue(csr []byte) (cert, key []byte, err error)
+	Issue(csr []byte, timeout time.Duration) (cert, key []byte, err error)
 }
 
 // Internal client interface so we can mock tests.

@@ -15,6 +15,7 @@ import (
 	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/acme"
 	"golang.org/x/net/context"
@@ -215,7 +216,7 @@ func TestIssue(t *testing.T) {
 		t.Errorf("%+v", err)
 	}
 
-	_, _, err = n.Issue(csrDER)
+	_, _, err = n.Issue(csrDER, time.Minute)
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
