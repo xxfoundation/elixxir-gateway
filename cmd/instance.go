@@ -712,7 +712,9 @@ func (gw *Instance) InitNetwork() error {
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
-		_, err = gw.Comms.AddHost(&id.Authorizer, gw.Params.AuthorizerAddress, permissioningCert, connect.GetDefaultHostParams())
+		hp := connect.GetDefaultHostParams()
+		hp.AuthEnabled = false
+		_, err = gw.Comms.AddHost(&id.Authorizer, gw.Params.AuthorizerAddress, permissioningCert, hp)
 		if err != nil {
 			return errors.WithMessage(err, "Failed to add authorizer host")
 		}
