@@ -70,16 +70,16 @@ func (gw *Instance) StartHttpsServer() error {
 		}
 	}
 
-	// Start thread which will sleep until replaceAt - replaceWindow
-	expiry := parsedCert.NotAfter
-	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
-	gw.replaceCertificates(replaceAt)
-
 	// Pass the issued cert & key to protocomms so it can start serving https
 	err = gw.Comms.ProtoComms.ProvisionHttps(cert, key)
 	if err != nil {
 		return err
 	}
+
+	// Start thread which will sleep until replaceAt - replaceWindow
+	expiry := parsedCert.NotAfter
+	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
+	gw.replaceCertificates(replaceAt)
 
 	return gw.setGatewayTlsCertificate(cert)
 }
@@ -97,6 +97,16 @@ func (gw *Instance) replaceCertificates(replaceAt time.Time) {
 		if err != nil {
 			jww.ERROR.Printf("Failed to provision protocomms with new https credentials: %+v", err)
 		}
+
+		parsedCert, err := x509.ParseCertificate(newCert)
+		if err != nil {
+			jww.FATAL.Printf("failed to parse new https certifiate: %+v", err)
+		}
+
+		// Start thread which will sleep until the new cert needs to be replaced
+		expiry := parsedCert.NotAfter
+		nextReplaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
+		gw.replaceCertificates(nextReplaceAt)
 	}()
 }
 
