@@ -84,6 +84,8 @@ func (gw *Instance) StartHttpsServer() error {
 	return gw.setGatewayTlsCertificate(cert)
 }
 
+// replaceCertificates starts a thread which will sleep until replaceAt, then
+// call getHttpsCreds & re-provision protocomms with the new certificate
 func (gw *Instance) replaceCertificates(replaceAt time.Time) {
 	go func() {
 		time.Sleep(time.Until(replaceAt))
