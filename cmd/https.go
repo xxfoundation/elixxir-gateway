@@ -8,12 +8,14 @@ import (
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/mixmessages"
-	crypto "gitlab.com/elixxir/crypto/gatewayHttps"
+	crypto "gitlab.com/elixxir/crypto/authorize"
+	"gitlab.com/elixxir/crypto/hash"
 	"gitlab.com/elixxir/crypto/rsa"
 	"gitlab.com/elixxir/gateway/autocert"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/crypto/csprng"
+	rsa2 "gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gorm.io/gorm"
 	"math/rand"
@@ -147,10 +149,11 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 
 		jww.INFO.Printf("ADD TXT RECORD: %s\t%s\n", chalDomain, challenge)
 
+		ts := time.Now()
+
 		// Sign ACME token
 		rng := csprng.NewSystemRNG()
-		ts := uint64(time.Now().UnixNano())
-		sig, err := crypto.SignAcmeToken(rng, gw.Comms.GetPrivateKey(), challenge, ts)
+		sig, err := crypto.SignCertRequest(rng, gw.Comms.GetPrivateKey(), challenge, ts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -165,7 +168,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 			_, err = gw.Comms.SendAuthorizerCertRequest(authHost,
 				&mixmessages.AuthorizerCertRequest{
 					GwID:      gw.Comms.GetId().Bytes(),
-					Timestamp: ts,
+					Timestamp: ts.UnixNano(),
 					ACMEToken: challenge,
 					Signature: sig,
 				})
@@ -257,7 +260,12 @@ func loadHttpsCreds(db *storage.Storage) ([]byte, []byte, error) {
 // and sets the GatewayCertificate on the Instance object to be sent when
 // clients request it
 func (gw *Instance) setGatewayTlsCertificate(cert []byte) error {
-	sig, err := crypto.SignGatewayCert(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), cert)
+	h, err := hash.NewCMixHash()
+	if err != nil {
+		return err
+	}
+	h.Write(cert)
+	sig, err := rsa2.Sign(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), hash.CMixHash, h.Sum(nil), rsa2.NewDefaultOptions())
 	if err != nil {
 		return err
 	}
