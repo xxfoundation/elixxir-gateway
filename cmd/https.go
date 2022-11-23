@@ -37,7 +37,11 @@ func (gw *Instance) StartHttpsServer() error {
 	if err != nil {
 		return err
 	}
+
+	// Determine if we need to request a cert from the gateway.
+	var shouldRequestNewCreds = false
 	if cert != nil && key != nil {
+		// If cert & key were stored, parse it & check validity
 		parsedCert, err = x509.ParseCertificate(cert)
 		if err != nil {
 			return errors.WithMessage(err, "Failed to parse stored certificate")
@@ -45,13 +49,14 @@ func (gw *Instance) StartHttpsServer() error {
 
 		if time.Now().Before(parsedCert.NotBefore) || time.Now().After(parsedCert.NotAfter) {
 			jww.DEBUG.Printf("Loaded certificate has expired, requesting new credentials")
-			// Get tls certificate and key
-			cert, key, err = gw.getHttpsCreds()
-			if err != nil {
-				return err
-			}
+			shouldRequestNewCreds = true
 		}
 	} else {
+		shouldRequestNewCreds = true
+	}
+
+	// If new credentials are needed, call out to get them
+	if shouldRequestNewCreds {
 		// Get tls certificate and key
 		cert, key, err = gw.getHttpsCreds()
 		if err != nil {
@@ -62,9 +67,10 @@ func (gw *Instance) StartHttpsServer() error {
 			return errors.WithMessage(err, "Failed to parse new certificate")
 		}
 	}
+
+	// Start thread which will sleep until replaceAt - replaceWindow
 	expiry := parsedCert.NotAfter
-	replaceWindow := 30 * 24 * time.Hour
-	replaceAt := expiry.Add(-1 * replaceWindow)
+	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
 	gw.replaceCertificates(replaceAt)
 
 	// Pass the issued cert & key to protocomms so it can start serving https
