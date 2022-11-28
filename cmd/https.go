@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -43,9 +44,13 @@ func (gw *Instance) StartHttpsServer() error {
 	var shouldRequestNewCreds = false
 	if cert != nil && key != nil {
 		// If cert & key were stored, parse it & check validity
-		parsedCert, err = x509.ParseCertificate(cert)
+		parsed, err := tls.X509KeyPair(cert, key)
 		if err != nil {
-			return errors.WithMessage(err, "Failed to parse stored certificate")
+			return errors.WithMessage(err, "Failed to parse new tls keypair")
+		}
+		parsedCert, err = x509.ParseCertificate(parsed.Certificate[0])
+		if err != nil {
+			return errors.WithMessage(err, "Failed to get x509 certificate from parsed")
 		}
 
 		if time.Now().Before(parsedCert.NotBefore) || time.Now().After(parsedCert.NotAfter) {
@@ -63,9 +68,13 @@ func (gw *Instance) StartHttpsServer() error {
 		if err != nil {
 			return err
 		}
-		parsedCert, err = x509.ParseCertificate(cert)
+		parsed, err := tls.X509KeyPair(cert, key)
 		if err != nil {
-			return errors.WithMessage(err, "Failed to parse new certificate")
+			return errors.WithMessage(err, "Failed to parse new tls keypair")
+		}
+		parsedCert, err = x509.ParseCertificate(parsed.Certificate[0])
+		if err != nil {
+			return errors.WithMessage(err, "Failed to get x509 certificate from parsed")
 		}
 	}
 
@@ -87,6 +96,7 @@ func (gw *Instance) StartHttpsServer() error {
 // call getHttpsCreds & re-provision protocomms with the new certificate
 func (gw *Instance) replaceCertificates(replaceAt time.Time) {
 	go func() {
+		jww.DEBUG.Printf("Sleeping until %s to replace certificates...", replaceAt.String())
 		time.Sleep(time.Until(replaceAt))
 		newCert, newKey, err := gw.getHttpsCreds()
 		if err != nil {
@@ -97,11 +107,14 @@ func (gw *Instance) replaceCertificates(replaceAt time.Time) {
 			jww.ERROR.Printf("Failed to provision protocomms with new https credentials: %+v", err)
 		}
 
-		parsedCert, err := x509.ParseCertificate(newCert)
+		parsed, err := tls.X509KeyPair(newCert, newKey)
 		if err != nil {
-			jww.FATAL.Printf("failed to parse new https certifiate: %+v", err)
+			jww.ERROR.Printf("Failed to parse new TLS keypair: %+v", err)
 		}
-
+		parsedCert, err := x509.ParseCertificate(parsed.Certificate[0])
+		if err != nil {
+			jww.ERROR.Printf("Failed to get x509 certificate from parsed keypair: %+v", err)
+		}
 		// Start thread which will sleep until the new cert needs to be replaced
 		expiry := parsedCert.NotAfter
 		nextReplaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
