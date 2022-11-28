@@ -170,6 +170,8 @@ func NewGatewayInstance(params Params) *Instance {
 		earliestRoundQuitChan:   make(chan struct{}, 1),
 	}
 
+	i.autoCert = autocert.NewDNS()
+
 	msgRateLimitParams := &rateLimiting.MapParams{
 		Capacity:     uint32(i.LeakedCapacity),
 		LeakedTokens: uint32(i.LeakedTokens),
@@ -712,7 +714,9 @@ func (gw *Instance) InitNetwork() error {
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
-		_, err = gw.Comms.AddHost(&id.Authorizer, gw.Params.AuthorizerAddress, permissioningCert, connect.GetDefaultHostParams())
+		hp := connect.GetDefaultHostParams()
+		hp.AuthEnabled = false
+		_, err = gw.Comms.AddHost(&id.Authorizer, gw.Params.AuthorizerAddress, permissioningCert, hp)
 		if err != nil {
 			return errors.WithMessage(err, "Failed to add authorizer host")
 		}

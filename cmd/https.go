@@ -9,7 +9,7 @@ import (
 	"gitlab.com/elixxir/comms/mixmessages"
 	crypto "gitlab.com/elixxir/crypto/authorize"
 	"gitlab.com/elixxir/crypto/hash"
-	"gitlab.com/elixxir/crypto/rsa"
+	"gitlab.com/elixxir/gateway/autocert"
 	"gitlab.com/elixxir/gateway/storage"
 	"gitlab.com/xx_network/comms/connect"
 	"gitlab.com/xx_network/crypto/csprng"
@@ -56,6 +56,12 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		return loadedCert, loadedKey, nil
 	}
 
+	rng := csprng.NewSystemRNG()
+	generatedKey, err := autocert.GenerateCertKey(rng)
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "Failed to generate key for autocert")
+	}
+
 	// Get Authorizer host
 	authHost, ok := gw.Comms.GetHost(&id.Authorizer)
 	if !ok {
@@ -77,8 +83,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	pk := rsa.GetScheme().Convert(&gw.Comms.GetPrivateKey().PrivateKey)
-	err = gw.autoCert.Register(pk, eabCredResp.KeyId, eabCredResp.Key,
+	err = gw.autoCert.Register(generatedKey, eabCredResp.KeyId, eabCredResp.Key,
 		httpsEmail)
 	if err != nil {
 		return nil, nil, err
@@ -98,7 +103,6 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 	ts := time.Now()
 
 	// Sign ACME token
-	rng := csprng.NewSystemRNG()
 	sig, err := crypto.SignCertRequest(rng, gw.Comms.GetPrivateKey(), challenge, ts)
 	if err != nil {
 		return nil, nil, err
