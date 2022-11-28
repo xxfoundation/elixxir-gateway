@@ -135,10 +135,19 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 	var issuedCert, issuedKey []byte
 	for !credentialsReceived {
 		// Request EAB credentials
-		eabCredResp, err := gw.Comms.SendEABCredentialRequest(authHost,
-			&mixmessages.EABCredentialRequest{})
-		if err != nil {
-			return nil, nil, err
+		eabCredentialsReceived := false
+		var eabCredResp *mixmessages.EABCredentialResponse
+		for !eabCredentialsReceived {
+			var err error
+			eabCredResp, err = gw.Comms.SendEABCredentialRequest(authHost,
+				&mixmessages.EABCredentialRequest{})
+			if err != nil {
+				if strings.Contains(err.Error(), eabNotReadyErr) {
+					continue
+				}
+				return nil, nil, err
+			}
+			eabCredentialsReceived = true
 		}
 
 		pk := rsa.GetScheme().Convert(&gw.Comms.GetPrivateKey().PrivateKey)
@@ -185,10 +194,10 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 					Signature: sig,
 				})
 			if err != nil {
-				// If the authorizer gives a timeout/not ready err, sleep for a random amount of time & try again
-				if strings.Contains(err.Error(), eabNotReadyErr) || strings.Contains(err.Error(), gwNotReadyErr) {
-					randSleep := rand.Intn(100)
-					time.Sleep(time.Millisecond * time.Duration(randSleep))
+				// If the authorizer gives a timeout/not ready err, sleep for 3-5 seconds & try again
+				if strings.Contains(err.Error(), gwNotReadyErr) {
+					sleep := 3*time.Second + time.Duration(rand.Intn(2*int(time.Second)))
+					time.Sleep(sleep)
 					continue
 				}
 				return nil, nil, err
