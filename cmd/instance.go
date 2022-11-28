@@ -170,6 +170,8 @@ func NewGatewayInstance(params Params) *Instance {
 		earliestRoundQuitChan:   make(chan struct{}, 1),
 	}
 
+	i.autoCert = autocert.NewDNS()
+
 	msgRateLimitParams := &rateLimiting.MapParams{
 		Capacity:     uint32(i.LeakedCapacity),
 		LeakedTokens: uint32(i.LeakedTokens),
