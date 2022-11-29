@@ -409,7 +409,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				rid := id.Round(update.ID)
 				gw.UnmixedBuffer.SetAsRoundLeader(rid, update.BatchSize)
 			} else if states.Round(update.State) == states.FAILED {
-				err = gw.krw.forceCheck(id.Round(update.ID), gw.storage)
+				err = gw.krw.forceCheck(id.Round(update.ID))
 				if err != nil {
 					return errors.Errorf("failed to forceChech round %d: %+v",
 						update.ID, err)
@@ -801,7 +801,7 @@ func (gw *Instance) SetPeriod() error {
 
 // SaveKnownRounds saves the KnownRounds to a file.
 func (gw *Instance) SaveKnownRounds() error {
-	return gw.krw.save(gw.storage)
+	return gw.krw.save()
 }
 
 // LoadKnownRounds loads the KnownRounds from storage into the Instance, if a
