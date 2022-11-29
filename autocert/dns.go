@@ -28,6 +28,7 @@ import (
 )
 
 const ZeroSSLACMEURL = "https://acme.zerossl.com/v2/DV90"
+const TimedOutWaitingErr = "Timed out waiting for authorization"
 
 type dnsClient struct {
 	acmeClient
@@ -210,11 +211,14 @@ func (d *dnsClient) CreateCSR(domain, email, country, nodeID string,
 	return csrPEM, csrDER, err
 }
 
-func (d *dnsClient) Issue(csr []byte) (cert, key []byte, err error) {
+func (d *dnsClient) Issue(csr []byte, timeout time.Duration) (cert, key []byte, err error) {
 	if d.AuthzURL == "" {
 		return nil, nil, errors.Errorf("missing auth, call Request")
 	}
-	authz := waitForAuthorization(d.acmeClient, d.AuthzURL)
+	authz, err := waitForAuthorization(d.acmeClient, d.AuthzURL, timeout)
+	if err != nil {
+		return nil, nil, err
+	}
 	if authz.Status != acme.StatusValid {
 		return nil, nil, errors.Errorf("invalid status object: %v",
 			authz)
@@ -309,8 +313,14 @@ func acceptDNSChallenge(client acmeClient,
 }
 
 func waitForAuthorization(client acmeClient,
-	authzURL string) *acme.Authorization {
+	authzURL string, timeout time.Duration) (*acme.Authorization, error) {
+	to := time.NewTimer(timeout)
 	for {
+		select {
+		case <-to.C:
+			return nil, errors.New(TimedOutWaitingErr)
+		default:
+		}
 		ctx, cancelFn := context.WithTimeout(context.Background(),
 			1*time.Minute)
 		authz, err := client.WaitAuthorization(ctx, authzURL)
@@ -320,7 +330,7 @@ func waitForAuthorization(client acmeClient,
 			continue
 		}
 		cancelFn()
-		return authz
+		return authz, nil
 	}
 }
 

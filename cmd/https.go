@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 	rsa2 "gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gorm.io/gorm"
+	"math/rand"
 	"strings"
 	"time"
 )
@@ -24,14 +27,55 @@ const CertificateStateKey = "https_certificate"
 const DnsTemplate = "%s.mainnet.cmix.rip"
 const httpsEmail = "admins@xx.network"
 const httpsCountry = "US"
+const eabNotReadyErr = "EAB Credentials not yet ready, please try again"
+const gwNotReadyErr = "Authorizer DNS not yet ready, please try again"
 
 // StartHttpsServer gets a well-formed tls certificate and provides it to
 // protocomms so it can start to listen for HTTPS
 func (gw *Instance) StartHttpsServer() error {
-	// Get tls certificate and key
-	cert, key, err := gw.getHttpsCreds()
+	// Check states table for cert
+	var parsedCert *x509.Certificate
+	cert, key, err := loadHttpsCreds(gw.storage)
 	if err != nil {
 		return err
+	}
+
+	// Determine if we need to request a cert from the gateway.
+	var shouldRequestNewCreds = false
+	if cert != nil && key != nil {
+		// If cert & key were stored, parse it & check validity
+		parsed, err := tls.X509KeyPair(cert, key)
+		if err != nil {
+			return errors.WithMessage(err, "Failed to parse new tls keypair")
+		}
+		parsedCert, err = x509.ParseCertificate(parsed.Certificate[0])
+		if err != nil {
+			return errors.WithMessage(err, "Failed to get x509 certificate from parsed")
+		}
+
+		if time.Now().Before(parsedCert.NotBefore) || time.Now().After(parsedCert.NotAfter) {
+			jww.DEBUG.Printf("Loaded certificate has expired, requesting new credentials")
+			shouldRequestNewCreds = true
+		}
+	} else {
+		shouldRequestNewCreds = true
+	}
+
+	// If new credentials are needed, call out to get them
+	if shouldRequestNewCreds {
+		// Get tls certificate and key
+		cert, key, err = gw.getHttpsCreds()
+		if err != nil {
+			return err
+		}
+		parsed, err := tls.X509KeyPair(cert, key)
+		if err != nil {
+			return errors.WithMessage(err, "Failed to parse new tls keypair")
+		}
+		parsedCert, err = x509.ParseCertificate(parsed.Certificate[0])
+		if err != nil {
+			return errors.WithMessage(err, "Failed to get x509 certificate from parsed")
+		}
 	}
 
 	// Pass the issued cert & key to protocomms so it can start serving https
@@ -40,7 +84,42 @@ func (gw *Instance) StartHttpsServer() error {
 		return err
 	}
 
+	// Start thread which will sleep until replaceAt - replaceWindow
+	expiry := parsedCert.NotAfter
+	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
+	gw.replaceCertificates(replaceAt)
+
 	return gw.setGatewayTlsCertificate(cert)
+}
+
+// replaceCertificates starts a thread which will sleep until replaceAt, then
+// call getHttpsCreds & re-provision protocomms with the new certificate
+func (gw *Instance) replaceCertificates(replaceAt time.Time) {
+	go func() {
+		jww.DEBUG.Printf("Sleeping until %s to replace certificates...", replaceAt.String())
+		time.Sleep(time.Until(replaceAt))
+		newCert, newKey, err := gw.getHttpsCreds()
+		if err != nil {
+			jww.ERROR.Printf("Failed to get new https credentials: %+v", err)
+		}
+		err = gw.Comms.ProtoComms.ProvisionHttps(newCert, newKey)
+		if err != nil {
+			jww.ERROR.Printf("Failed to provision protocomms with new https credentials: %+v", err)
+		}
+
+		parsed, err := tls.X509KeyPair(newCert, newKey)
+		if err != nil {
+			jww.ERROR.Printf("Failed to parse new TLS keypair: %+v", err)
+		}
+		parsedCert, err := x509.ParseCertificate(parsed.Certificate[0])
+		if err != nil {
+			jww.ERROR.Printf("Failed to get x509 certificate from parsed keypair: %+v", err)
+		}
+		// Start thread which will sleep until the new cert needs to be replaced
+		expiry := parsedCert.NotAfter
+		nextReplaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
+		gw.replaceCertificates(nextReplaceAt)
+	}()
 }
 
 // getHttpsCreds is a helper for getting the tls certificate and key to pass
@@ -76,62 +155,96 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		}
 	}
 
-	// Request EAB credentials
-	eabCredResp, err := gw.Comms.SendEABCredentialRequest(authHost,
-		&mixmessages.EABCredentialRequest{})
-	if err != nil {
-		return nil, nil, err
-	}
+	// It is possible for SendAuthorizerCertRequest to fail silently
+	// If this happens, time out during the Issue call & start the process over
+	credentialsReceived := false
+	var issuedCert, issuedKey []byte
+	for !credentialsReceived {
+		// Request EAB credentials
+		eabCredentialsReceived := false
+		var eabCredResp *mixmessages.EABCredentialResponse
+		for !eabCredentialsReceived {
+			var err error
+			eabCredResp, err = gw.Comms.SendEABCredentialRequest(authHost,
+				&mixmessages.EABCredentialRequest{})
+			if err != nil {
+				if strings.Contains(err.Error(), eabNotReadyErr) {
+					continue
+				}
+				return nil, nil, err
+			}
+			eabCredentialsReceived = true
+		}
 
-	err = gw.autoCert.Register(generatedKey, eabCredResp.KeyId, eabCredResp.Key,
-		httpsEmail)
-	if err != nil {
-		return nil, nil, err
-	}
+		// Register w/ autocert using EAB creds from authorizer
+		err = gw.autoCert.Register(generatedKey, eabCredResp.KeyId, eabCredResp.Key,
+			httpsEmail)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	// Generate DNS name
-	dnsName := fmt.Sprintf(DnsTemplate, base64.URLEncoding.EncodeToString(gw.Comms.GetId().Marshal()))
+		// Generate DNS name
+		dnsName := fmt.Sprintf(DnsTemplate, base64.URLEncoding.EncodeToString(gw.Comms.GetId().Marshal()))
 
-	// Get ACME token
-	chalDomain, challenge, err := gw.autoCert.Request(dnsName)
-	if err != nil {
-		return nil, nil, err
-	}
+		// Get ACME token
+		chalDomain, challenge, err := gw.autoCert.Request(dnsName)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	jww.INFO.Printf("ADD TXT RECORD: %s\t%s\n", chalDomain, challenge)
+		jww.INFO.Printf("ADD TXT RECORD: %s\t%s\n", chalDomain, challenge)
 
-	ts := time.Now()
+		ts := time.Now()
 
-	// Sign ACME token
-	sig, err := crypto.SignCertRequest(rng, gw.Comms.GetPrivateKey(), challenge, ts)
-	if err != nil {
-		return nil, nil, err
-	}
+		// Sign ACME token
+		sig, err := crypto.SignCertRequest(rng, gw.Comms.GetPrivateKey(), challenge, ts)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	// Send ACME token to name server
-	_, err = gw.Comms.SendAuthorizerCertRequest(authHost,
-		&mixmessages.AuthorizerCertRequest{
-			GwID:      gw.Comms.GetId().Bytes(),
-			Timestamp: ts.UnixNano(),
-			ACMEToken: challenge,
-			Signature: sig,
-		})
-	if err != nil {
-		return nil, nil, err
-	}
+		// Authorizer code for this request is single-threaded - if another
+		// gw is being processed, it will return a not ready error.
+		// If this error is received, sleep for a random amount of time &
+		// retry the request
+		certReqComplete := false
+		for !certReqComplete {
+			// Send ACME token to name server
+			_, err = gw.Comms.SendAuthorizerCertRequest(authHost,
+				&mixmessages.AuthorizerCertRequest{
+					GwID:      gw.Comms.GetId().Bytes(),
+					Timestamp: ts.UnixNano(),
+					ACMEToken: challenge,
+					Signature: sig,
+				})
+			if err != nil {
+				// If the authorizer gives a timeout/not ready err, sleep for 3-5 seconds & try again
+				if strings.Contains(err.Error(), gwNotReadyErr) {
+					sleep := 3*time.Second + time.Duration(rand.Intn(2*int(time.Second)))
+					time.Sleep(sleep)
+					continue
+				}
+				return nil, nil, err
+			}
+			certReqComplete = true
+		}
 
-	csrPem, csrDer, err := gw.autoCert.CreateCSR(dnsName, httpsEmail,
-		httpsCountry, gw.Comms.GetId().String(), rng)
-	if err != nil {
-		return nil, nil, err
-	}
+		csrPem, csrDer, err := gw.autoCert.CreateCSR(dnsName, httpsEmail,
+			httpsCountry, gw.Comms.GetId().String(), rng)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	jww.INFO.Printf("Received CSR from autocert:\n\t%s", string(csrPem))
+		jww.INFO.Printf("Received CSR from autocert:\n\t%s", string(csrPem))
 
-	// Get issued certificate and key from autoCert
-	issuedCert, issuedKey, err := gw.autoCert.Issue(csrDer)
-	if err != nil {
-		return nil, nil, err
+		// Get issued certificate and key from autoCert
+		issuedCert, issuedKey, err = gw.autoCert.Issue(csrDer, gw.Params.AutocertIssueTimeout)
+		if err != nil {
+			if strings.Contains(err.Error(), autocert.TimedOutWaitingErr) {
+				continue
+			}
+			return nil, nil, err
+		}
+		credentialsReceived = true
 	}
 
 	// Store the issued credentials in the states table
