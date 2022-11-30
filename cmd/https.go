@@ -79,7 +79,7 @@ func (gw *Instance) StartHttpsServer() error {
 	}
 
 	// Pass the issued cert & key to protocomms so it can start serving https
-	err = gw.Comms.ProtoComms.ProvisionHttps(cert, key)
+	err = gw.Comms.ProtoComms.ServeHttps(cert, key)
 	if err != nil {
 		return err
 	}
@@ -87,14 +87,14 @@ func (gw *Instance) StartHttpsServer() error {
 	// Start thread which will sleep until replaceAt - replaceWindow
 	expiry := parsedCert.NotAfter
 	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
-	gw.replaceCertificates(replaceAt)
+	gw.handleReplaceCertificates(replaceAt)
 
 	return gw.setGatewayTlsCertificate(cert)
 }
 
 // replaceCertificates starts a thread which will sleep until replaceAt, then
 // call getHttpsCreds & re-provision protocomms with the new certificate
-func (gw *Instance) replaceCertificates(replaceAt time.Time) {
+func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 	go func() {
 		jww.DEBUG.Printf("Sleeping until %s to replace certificates...", replaceAt.String())
 		time.Sleep(time.Until(replaceAt))
@@ -102,10 +102,8 @@ func (gw *Instance) replaceCertificates(replaceAt time.Time) {
 		if err != nil {
 			jww.ERROR.Printf("Failed to get new https credentials: %+v", err)
 		}
-		err = gw.Comms.ProtoComms.ProvisionHttps(newCert, newKey)
-		if err != nil {
-			jww.ERROR.Printf("Failed to provision protocomms with new https credentials: %+v", err)
-		}
+
+		gw.replaceCertificates(newCert, newKey)
 
 		parsed, err := tls.X509KeyPair(newCert, newKey)
 		if err != nil {
@@ -118,8 +116,21 @@ func (gw *Instance) replaceCertificates(replaceAt time.Time) {
 		// Start thread which will sleep until the new cert needs to be replaced
 		expiry := parsedCert.NotAfter
 		nextReplaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
-		gw.replaceCertificates(nextReplaceAt)
+		gw.handleReplaceCertificates(nextReplaceAt)
 	}()
+}
+
+func (gw *Instance) replaceCertificates(newCert, newKey []byte) {
+	err := gw.Comms.RestartGateway()
+	if err != nil {
+		jww.FATAL.Panicf("Failed to restart gateway comms: %+v", err)
+	}
+
+	err = gw.Comms.ProtoComms.ServeHttps(newCert, newKey)
+	if err != nil {
+		jww.ERROR.Printf("Failed to provision protocomms with new https credentials: %+v", err)
+	}
+
 }
 
 // getHttpsCreds is a helper for getting the tls certificate and key to pass
