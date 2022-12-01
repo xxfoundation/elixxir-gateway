@@ -10,10 +10,10 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
-	gitlab.com/elixxir/comms v0.0.4-0.20221115191736-a3694ed480eb
+	gitlab.com/elixxir/comms v0.0.4-0.20221201225735-890b42ff6d9d
 	gitlab.com/elixxir/crypto v0.0.7-0.20221115195628-4a2d356f33ff
 	gitlab.com/elixxir/primitives v0.0.3-0.20221110181119-e83320a48b13
-	gitlab.com/xx_network/comms v0.0.4-0.20221123144815-364eeb322e51
+	gitlab.com/xx_network/comms v0.0.4-0.20221201225451-d18e40f26c87
 	gitlab.com/xx_network/crypto v0.0.5-0.20221110181048-76f0c556fe95
 	gitlab.com/xx_network/primitives v0.0.4-0.20221110180011-fd6ea3058225
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
@@ -67,4 +67,5 @@ require (
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
+	src.agwa.name/tlshacks v0.0.0-20220518131152-d2c6f4e2b780 // indirect
 )
