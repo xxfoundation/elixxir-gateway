@@ -20,6 +20,7 @@ import (
 	"gitlab.com/elixxir/primitives/knownRounds"
 	"gitlab.com/xx_network/primitives/id"
 	"sync"
+	"time"
 )
 
 // Error messages.
@@ -33,10 +34,12 @@ const (
 )
 
 type knownRoundsWrapper struct {
-	kr         *knownRounds.KnownRounds
-	marshalled []byte
-	truncated  []byte
-	l          sync.RWMutex
+	kr           *knownRounds.KnownRounds
+	marshalled   []byte
+	truncated    []byte
+	l            sync.RWMutex
+	backupChan   chan bool
+	backupPeriod time.Duration
 }
 
 // newKnownRoundsWrapper creates a new knownRoundsWrapper with a new KnownRounds
@@ -46,31 +49,36 @@ func newKnownRoundsWrapper(roundCapacity int, store *storage.Storage) (*knownRou
 		kr:         knownRounds.NewKnownRound(roundCapacity),
 		marshalled: []byte{},
 		truncated:  []byte{},
+		backupChan: make(chan bool, 1),
 	}
+
+	krw.backupState(store)
 
 	// There is no round 0
 	krw.kr.Check(0)
 	jww.TRACE.Printf("Initial KnownRound State: %+v", krw.kr)
 
 	// Save marshalled knownRounds to memory and storage
-	err := krw.saveUnsafe(store)
+	err := krw.saveUnsafe()
 	if err != nil {
 		return nil, err
 	}
 
 	jww.DEBUG.Printf("Initial KnownRound Marshal: %v", krw.marshalled)
 
+	krw.backupPeriod = 5 * time.Second
+
 	return krw, nil
 }
 
 // check force checks the round and saves the KnownRounds.
-func (krw *knownRoundsWrapper) check(rid id.Round, store *storage.Storage) error {
+func (krw *knownRoundsWrapper) check(rid id.Round) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
 	krw.kr.Check(rid)
 
-	return krw.saveUnsafe(store)
+	return krw.saveUnsafe()
 }
 
 func (krw *knownRoundsWrapper) truncateMarshal() []byte {
@@ -91,13 +99,13 @@ func (krw *knownRoundsWrapper) getLastChecked() id.Round {
 }
 
 // forceCheck force checks the round and saves the KnownRounds.
-func (krw *knownRoundsWrapper) forceCheck(rid id.Round, store *storage.Storage) error {
+func (krw *knownRoundsWrapper) forceCheck(rid id.Round) error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
 	krw.kr.ForceCheck(rid)
 
-	return krw.saveUnsafe(store)
+	return krw.saveUnsafe()
 }
 
 // getMarshal returns a copy of the marshalled bytes of the KnownRounds.
@@ -113,16 +121,16 @@ func (krw *knownRoundsWrapper) getMarshal() []byte {
 
 // save the marshalled KnownRounds to memory and storage. This
 // function is thread safe.
-func (krw *knownRoundsWrapper) save(store *storage.Storage) error {
+func (krw *knownRoundsWrapper) save() error {
 	krw.l.Lock()
 	defer krw.l.Unlock()
 
-	return krw.saveUnsafe(store)
+	return krw.saveUnsafe()
 }
 
 // saveUnsafe saves the marshalled KnownRounds but the mutex must be
 // locked by the caller.
-func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
+func (krw *knownRoundsWrapper) saveUnsafe() error {
 	// Marshal and save knownRounds
 	krw.marshalled = krw.kr.Marshal()
 	if krw.kr.GetLastChecked() > knownRoundsTruncateThreshold {
@@ -131,16 +139,41 @@ func (krw *knownRoundsWrapper) saveUnsafe(store *storage.Storage) error {
 		krw.truncated = krw.marshalled
 	}
 
-	// Store knownRounds data
-	err := store.UpsertState(&storage.State{
-		Key:   storage.KnownRoundsKey,
-		Value: base64.StdEncoding.EncodeToString(krw.marshalled),
-	})
-	if err != nil {
-		return errors.Errorf(storageUpsertErr, err)
+	// Send a signal to the backup chan
+	// This is a non-blocking send to a buffered channel - this means that if
+	// there is already a waiting signal in the channel, another will not be
+	// sent.  The result is that we will run a backup at most once per interval,
+	// but will not continue backing up if no new data has been added
+	select {
+	case krw.backupChan <- true:
+	default:
 	}
 
 	return nil
+}
+
+// Store known rounds marshalled in state at most once every 5 seconds
+func (krw *knownRoundsWrapper) backupState(store *storage.Storage) {
+	go func() {
+		for {
+			select {
+			// Wait on backup channel for triggers
+			case <-krw.backupChan:
+				// Store knownRounds data
+				err := store.UpsertState(&storage.State{
+					Key:   storage.KnownRoundsKey,
+					Value: base64.StdEncoding.EncodeToString(krw.marshalled),
+				})
+				if err != nil {
+					jww.ERROR.Printf(storageUpsertErr, err)
+				}
+				// Sleep for backupPeriod after running
+				// backupChan is buffered, so if requests come in during sleep
+				// this will run again immediately after
+				time.Sleep(krw.backupPeriod)
+			}
+		}
+	}()
 }
 
 // Returns whether the given round calls for a truncated knownRound

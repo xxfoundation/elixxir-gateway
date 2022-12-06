@@ -127,9 +127,11 @@ type ClientRound struct {
 }
 
 type ClientBloomFilter struct {
-	Id          uint64 `gorm:"primaryKey;autoIncrement:true"`
-	Epoch       uint32 `gorm:"index;not null"`
-	RecipientId *int64 `gorm:"index;not null"` // Pointer to enforce zero-value reading in ORM
+	Id uint64 `gorm:"primaryKey;autoIncrement:true"`
+	// Pointer to enforce zero-value reading in ORM.
+	// Additionally, we desire to make composite indexes on the more distinct column first.
+	RecipientId *int64 `gorm:"index:idx_client_bloom_filters_recipient_id_epoch,priority:1;not null"`
+	Epoch       uint32 `gorm:"index:idx_client_bloom_filters_recipient_id_epoch,priority:2;not null"`
 	FirstRound  uint64 `gorm:"index;not null"`
 	RoundRange  uint32 `gorm:"not null"`
 	Filter      []byte `gorm:"not null"`
@@ -283,6 +285,10 @@ func migrate(db *gorm.DB) error {
 			break
 		}
 	}
+	if !db.Migrator().HasIndex(ClientBloomFilter{}, "idx_client_bloom_filters_recipient_id") {
+		currentVersion = 2
+	}
+
 	jww.INFO.Printf("Current database version: v%d", currentVersion)
 
 	// Perform any required manual migrations.
@@ -305,6 +311,26 @@ func migrate(db *gorm.DB) error {
 		}
 		currentVersion = minVersion
 	}
+	if minVersion := 2; currentVersion < minVersion {
+		jww.INFO.Printf("Performing database migration from v%d -> v%d",
+			currentVersion, minVersion)
+		ctx, cancel := context.WithTimeout(context.Background(), dbTimeout*5)
+		err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			err := tx.Migrator().DropIndex(ClientBloomFilter{}, "idx_client_bloom_filters_epoch")
+			if err != nil {
+				return err
+			}
+
+			// Commit
+			return tx.Migrator().DropIndex(ClientBloomFilter{}, "idx_client_bloom_filters_recipient_id")
+		})
+		cancel()
+		if err != nil {
+			return err
+		}
+		currentVersion = minVersion
+	}
+
 	jww.DEBUG.Printf("Database initialization took %s",
 		time.Now().Sub(migrateTimestamp).String())
 	return nil
