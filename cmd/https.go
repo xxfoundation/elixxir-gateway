@@ -22,7 +22,6 @@ import (
 	"time"
 )
 
-const CertificateStateKey = "https_certificate"
 const httpsEmail = "admins@xx.network"
 const httpsCountry = "US"
 const eabNotReadyErr = "EAB Credentials not yet ready, please try again"
@@ -281,14 +280,14 @@ func storeHttpsCreds(cert, key []byte, db *storage.Storage) error {
 	}
 
 	return db.UpsertState(&storage.State{
-		Key:   CertificateStateKey,
+		Key:   storage.HttpsCertificateKey,
 		Value: string(marshalled),
 	})
 }
 
 // loadHttpsCreds attempts to load a cert and key from the states table
 func loadHttpsCreds(db *storage.Storage) ([]byte, []byte, error) {
-	val, err := db.GetStateValue(CertificateStateKey)
+	val, err := db.GetStateValue(storage.HttpsCertificateKey)
 	if err != nil && !strings.Contains(err.Error(), gorm.ErrRecordNotFound.Error()) &&
 		!strings.Contains(err.Error(), "Unable to locate state for key") {
 		return nil, nil, err
