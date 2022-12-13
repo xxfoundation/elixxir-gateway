@@ -56,39 +56,42 @@ func (gw *Instance) StartHttpsServer() error {
 			shouldRequestNewCreds = true
 		} else if time.Now().Before(parsedCert.NotBefore) ||
 			time.Now().After(parsedCert.NotAfter) {
-			jww.DEBUG.Printf("[HTTPS] cert expired, reissuing")
+			jww.INFO.Printf("[HTTPS] cert expired, reissuing")
 			shouldRequestNewCreds = true
 		}
 	} else {
 		shouldRequestNewCreds = true
 	}
 
-	// ADD CHECK FOR IF TH ENAME MATCHES HERE!
-	// if parsedCert.DNSNames[0] !=
+	expectedDNSName := authorizer.GetGatewayDns(gw.Comms.GetId().Marshal())
+	if parsedCert.DNSNames[0] != expectedDNSName {
+		jww.WARN.Printf("Bad DNS Name: expected '%s' != actual '%s'",
+			expectedDNSName, parsedCert.DNSNames[0])
+		shouldRequestNewCreds = true
+	}
 
 	// If new credentials are needed, call out to get them
 	if shouldRequestNewCreds {
 		// Get tls certificate and key
 		cert, key, err = gw.getHttpsCreds()
 		if err != nil {
-			jww.WARN.Printf("[HTTPS] Unable to getHttpsCreds: %v",
-				err)
-			return nil
+			return errors.WithMessage(err,
+				"[HTTPS] nable to getHttpsCreds")
 		}
 		parsed, err := tls.X509KeyPair(cert, key)
 		if err != nil {
-			jww.WARN.Printf("[HTTPS] cannot parse key: %v",
-				err)
-			return nil
+			return errors.WithMessage(err,
+				"[HTTPS] cannot parse key: %v")
 		}
 		parsedCert, err = x509.ParseCertificate(parsed.Certificate[0])
 		if err != nil {
-			jww.WARN.Printf("[HTTPS] cannot parse cert: %v", err)
-			return nil
+			return errors.WithMessage(err,
+				"[HTTPS] cannot parse cert: %v")
 		}
 	}
 
-	// Pass the issued cert & key to protocomms so it can start serving https
+	// Pass the issued cert & key to protocomms so it can start
+	// serving https
 	err = gw.Comms.ProtoComms.ServeHttps(cert, key)
 	if err != nil {
 		jww.WARN.Printf("[HTTPS] cannot server https: %v", err)
@@ -101,8 +104,7 @@ func (gw *Instance) StartHttpsServer() error {
 
 	err = gw.setGatewayTlsCertificate(cert)
 	if err != nil {
-		jww.WARN.Printf("[HTTPS] cannot store cert, will reissue: %v",
-			err)
+		return errors.WithMessage(err, "[HTTPS] cannot store cert")
 	}
 	return nil
 }
