@@ -44,7 +44,6 @@ func (gw *Instance) StartHttpsServer() error {
 	// Determine if we need to request a cert from the gateway.
 	if !shouldRequestNewCreds && cert != nil && key != nil {
 		// If cert & key were stored, parse it & check validity
-		var parsedCert *x509.Certificate
 		parsed, err := tls.X509KeyPair(cert, key)
 		if err == nil {
 			parsedCert, err = x509.ParseCertificate(
