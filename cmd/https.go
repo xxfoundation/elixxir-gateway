@@ -192,10 +192,12 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		// Get ACME token
 		chalDomain, challenge, err := gw.autoCert.Request(dnsName)
 		if err != nil {
-			return nil, nil, err
+			jww.ERROR.Printf("[HTTPS] Unable to request ACME token: %+v", err)
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
-		jww.INFO.Printf("ADD TXT RECORD: %s\t%s\n", chalDomain, challenge)
+		jww.INFO.Printf("[HTTPS] ADD TXT RECORD: %s\t%s\n", chalDomain, challenge)
 
 		ts := time.Now()
 
@@ -237,7 +239,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 			return nil, nil, err
 		}
 
-		jww.INFO.Printf("Received CSR from autocert:\n\t%s", string(csrPem))
+		jww.INFO.Printf("[HTTPS] Received CSR from autocert:\n\t%s", string(csrPem))
 
 		// Get issued certificate and key from autoCert
 		issuedCert, issuedKey, err = gw.autoCert.Issue(csrDer, gw.Params.AutocertIssueTimeout)
