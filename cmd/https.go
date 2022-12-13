@@ -30,6 +30,9 @@ const gwNotReadyErr = "Authorizer DNS not yet ready, please try again"
 // StartHttpsServer gets a well-formed tls certificate and provides it to
 // protocomms so it can start to listen for HTTPS
 func (gw *Instance) StartHttpsServer() error {
+	expectedDNSName := authorizer.GetGatewayDns(gw.Comms.GetId().Marshal())
+	jww.INFO.Printf("Attempting to start HTTPS for %s...", expectedDNSName)
+
 	// Check states table for cert
 	var parsedCert *x509.Certificate
 	cert, key, err := loadHttpsCreds(gw.storage)
@@ -50,7 +53,6 @@ func (gw *Instance) StartHttpsServer() error {
 			return errors.WithMessage(err, "Failed to get x509 certificate from parsed")
 		}
 
-		expectedDNSName := authorizer.GetGatewayDns(gw.Comms.GetId().Marshal())
 		if len(parsedCert.DNSNames) > 0 && parsedCert.DNSNames[0] != expectedDNSName {
 			jww.WARN.Printf("Bad DNS Name: expected '%s' != actual '%s'",
 				expectedDNSName, parsedCert.DNSNames[0])
