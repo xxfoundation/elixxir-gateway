@@ -148,10 +148,6 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 	}
 
 	rng := csprng.NewSystemRNG()
-	generatedKey, err := autocert.GenerateCertKey(rng)
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "Failed to generate key for autocert")
-	}
 
 	// Get Authorizer host
 	authHost, ok := gw.Comms.GetHost(&id.Authorizer)
@@ -189,6 +185,10 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		}
 
 		// Register w/ autocert using EAB creds from authorizer
+		generatedKey, err := autocert.GenerateCertKey(rng)
+		if err != nil {
+			return nil, nil, errors.WithMessage(err, "Failed to generate key for autocert")
+		}
 		err = gw.autoCert.Register(generatedKey, eabCredResp.KeyId, eabCredResp.Key,
 			httpsEmail)
 		if err != nil {
