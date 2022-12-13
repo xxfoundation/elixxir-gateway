@@ -36,9 +36,7 @@ func (gw *Instance) StartHttpsServer() error {
 	var shouldRequestNewCreds = false
 	cert, key, err := loadHttpsCreds(gw.storage)
 	if err != nil {
-		jww.WARN.Printf("[HTTPS] cannot load creds reissuing: %v",
-			err)
-		shouldRequestNewCreds = true
+		return errors.WithMessage(err, "[HTTPS] cannot load creds")
 	}
 
 	// Determine if we need to request a cert from the gateway.
@@ -64,7 +62,8 @@ func (gw *Instance) StartHttpsServer() error {
 
 	expectedDNSName := authorizer.GetGatewayDns(gw.Comms.GetId().Marshal())
 	if parsedCert.DNSNames[0] != expectedDNSName {
-		jww.WARN.Printf("Bad DNS Name: expected '%s' != actual '%s'",
+		jww.WARN.Printf("Bad DNS Name, reissuing: "+
+			"expected '%s' != actual '%s'",
 			expectedDNSName, parsedCert.DNSNames[0])
 		shouldRequestNewCreds = true
 	}
@@ -72,20 +71,21 @@ func (gw *Instance) StartHttpsServer() error {
 	// If new credentials are needed, call out to get them
 	if shouldRequestNewCreds {
 		// Get tls certificate and key
+		// NOTE: this never exits unless it's successful
 		cert, key, err = gw.getHttpsCreds()
 		if err != nil {
 			return errors.WithMessage(err,
-				"[HTTPS] nable to getHttpsCreds")
+				"[HTTPS] unable to getHttpsCreds")
 		}
 		parsed, err := tls.X509KeyPair(cert, key)
 		if err != nil {
 			return errors.WithMessage(err,
-				"[HTTPS] cannot parse key: %v")
+				"[HTTPS] cannot parse key")
 		}
 		parsedCert, err = x509.ParseCertificate(parsed.Certificate[0])
 		if err != nil {
 			return errors.WithMessage(err,
-				"[HTTPS] cannot parse cert: %v")
+				"[HTTPS] cannot parse cert")
 		}
 	}
 
@@ -93,7 +93,7 @@ func (gw *Instance) StartHttpsServer() error {
 	// serving https
 	err = gw.Comms.ProtoComms.ServeHttps(cert, key)
 	if err != nil {
-		jww.WARN.Printf("[HTTPS] cannot server https: %v", err)
+		return errors.WithMessage(err, "[HTTPS] cannot serve https: %v")
 	}
 
 	// Start thread which will sleep until replaceAt - replaceWindow
