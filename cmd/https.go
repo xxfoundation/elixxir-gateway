@@ -253,8 +253,10 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		// Get issued certificate and key from autoCert
 		issuedCert, issuedKey, err = gw.autoCert.Issue(csrDer, gw.Params.AutocertIssueTimeout)
 		if err != nil {
-			jww.ERROR.Printf("[HTTPS] Unable to get issued certificate: %+v", err)
-			continue
+			if strings.Contains(err.Error(), autocert.TimedOutWaitingErr) {
+				continue
+			}
+			return nil, nil, err
 		}
 		credentialsReceived = true
 	}
