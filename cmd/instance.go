@@ -723,7 +723,6 @@ func (gw *Instance) InitNetwork() error {
 		err = gw.StartHttpsServer()
 		if err != nil {
 			jww.ERROR.Printf("Failed to start HTTPS listener: %+v", err)
-			return err
 		}
 
 		// Turn on gossiping
