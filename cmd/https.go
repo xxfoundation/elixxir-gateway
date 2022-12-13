@@ -138,6 +138,7 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 // into protocomms. It will attempt to get a cert via zerossl if one is not found.
 func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 	rng := csprng.NewSystemRNG()
+	var err error
 
 	// Get Authorizer host
 	authHost, ok := gw.Comms.GetHost(&id.Authorizer)
@@ -162,7 +163,6 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		eabCredentialsReceived := false
 		var eabCredResp *mixmessages.EABCredentialResponse
 		for !eabCredentialsReceived {
-			var err error
 			eabCredResp, err = gw.Comms.SendEABCredentialRequest(authHost,
 				&mixmessages.EABCredentialRequest{})
 			if err != nil {
