@@ -4,6 +4,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"math/rand"
+	"strings"
+	"time"
+
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/comms/mixmessages"
@@ -17,9 +21,6 @@ import (
 	rsa2 "gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gorm.io/gorm"
-	"math/rand"
-	"strings"
-	"time"
 )
 
 const httpsEmail = "admins@xx.network"
@@ -32,53 +33,65 @@ const gwNotReadyErr = "Authorizer DNS not yet ready, please try again"
 func (gw *Instance) StartHttpsServer() error {
 	// Check states table for cert
 	var parsedCert *x509.Certificate
+	var shouldRequestNewCreds = false
 	cert, key, err := loadHttpsCreds(gw.storage)
 	if err != nil {
-		return err
+		jww.WARN.Printf("[HTTPS] cannot load creds reissuing: %v",
+			err)
+		shouldRequestNewCreds = true
 	}
 
 	// Determine if we need to request a cert from the gateway.
-	var shouldRequestNewCreds = false
-	if cert != nil && key != nil {
+	if !shouldRequestNewCreds && cert != nil && key != nil {
 		// If cert & key were stored, parse it & check validity
+		var parsedCert *x509.Certificate
 		parsed, err := tls.X509KeyPair(cert, key)
-		if err != nil {
-			return errors.WithMessage(err, "Failed to parse new tls keypair")
+		if err == nil {
+			parsedCert, err = x509.ParseCertificate(
+				parsed.Certificate[0])
 		}
-		parsedCert, err = x509.ParseCertificate(parsed.Certificate[0])
 		if err != nil {
-			return errors.WithMessage(err, "Failed to get x509 certificate from parsed")
-		}
-
-		if time.Now().Before(parsedCert.NotBefore) || time.Now().After(parsedCert.NotAfter) {
-			jww.DEBUG.Printf("Loaded certificate has expired, requesting new credentials")
+			jww.WARN.Printf("[HTTPS] cant load key and cert,"+
+				" reissuing: %v", err)
+			shouldRequestNewCreds = true
+		} else if time.Now().Before(parsedCert.NotBefore) ||
+			time.Now().After(parsedCert.NotAfter) {
+			jww.DEBUG.Printf("[HTTPS] cert expired, reissuing")
 			shouldRequestNewCreds = true
 		}
 	} else {
 		shouldRequestNewCreds = true
 	}
 
+	// ADD CHECK FOR IF TH ENAME MATCHES HERE!
+	// if parsedCert.DNSNames[0] !=
+
 	// If new credentials are needed, call out to get them
 	if shouldRequestNewCreds {
 		// Get tls certificate and key
 		cert, key, err = gw.getHttpsCreds()
 		if err != nil {
-			return err
+			jww.WARN.Printf("[HTTPS] Unable to getHttpsCreds: %v",
+				err)
+			return nil
 		}
 		parsed, err := tls.X509KeyPair(cert, key)
 		if err != nil {
-			return errors.WithMessage(err, "Failed to parse new tls keypair")
+			jww.WARN.Printf("[HTTPS] cannot parse key: %v",
+				err)
+			return nil
 		}
 		parsedCert, err = x509.ParseCertificate(parsed.Certificate[0])
 		if err != nil {
-			return errors.WithMessage(err, "Failed to get x509 certificate from parsed")
+			jww.WARN.Printf("[HTTPS] cannot parse cert: %v", err)
+			return nil
 		}
 	}
 
 	// Pass the issued cert & key to protocomms so it can start serving https
 	err = gw.Comms.ProtoComms.ServeHttps(cert, key)
 	if err != nil {
-		return err
+		jww.WARN.Printf("[HTTPS] cannot server https: %v", err)
 	}
 
 	// Start thread which will sleep until replaceAt - replaceWindow
@@ -86,7 +99,12 @@ func (gw *Instance) StartHttpsServer() error {
 	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
 	gw.handleReplaceCertificates(replaceAt)
 
-	return gw.setGatewayTlsCertificate(cert)
+	err = gw.setGatewayTlsCertificate(cert)
+	if err != nil {
+		jww.WARN.Printf("[HTTPS] cannot store cert, will reissue: %v",
+			err)
+	}
+	return nil
 }
 
 // replaceCertificates starts a thread which will sleep until replaceAt, then
