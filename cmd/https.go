@@ -135,18 +135,8 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 }
 
 // getHttpsCreds is a helper for getting the tls certificate and key to pass
-// into protocomms.  It will attempt to load from storage, or get a cert
-// via zerossl if one is not found
+// into protocomms. It will attempt to get a cert via zerossl if one is not found.
 func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
-	// Check states table for cert
-	loadedCert, loadedKey, err := loadHttpsCreds(gw.storage)
-	if err != nil {
-		return nil, nil, err
-	}
-	if loadedCert != nil && loadedKey != nil {
-		return loadedCert, loadedKey, nil
-	}
-
 	rng := csprng.NewSystemRNG()
 	generatedKey, err := autocert.GenerateCertKey(rng)
 	if err != nil {
