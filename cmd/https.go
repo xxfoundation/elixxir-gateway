@@ -190,7 +190,9 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		err = gw.autoCert.Register(generatedKey, eabCredResp.KeyId, eabCredResp.Key,
 			httpsEmail)
 		if err != nil {
-			return nil, nil, err
+			jww.ERROR.Printf("[HTTPS] Unable to register EAB: %+v", err)
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
 		// Generate DNS name
@@ -251,10 +253,8 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		// Get issued certificate and key from autoCert
 		issuedCert, issuedKey, err = gw.autoCert.Issue(csrDer, gw.Params.AutocertIssueTimeout)
 		if err != nil {
-			if strings.Contains(err.Error(), autocert.TimedOutWaitingErr) {
-				continue
-			}
-			return nil, nil, err
+			jww.ERROR.Printf("[HTTPS] Unable to get issued certificate: %+v", err)
+			continue
 		}
 		credentialsReceived = true
 	}
