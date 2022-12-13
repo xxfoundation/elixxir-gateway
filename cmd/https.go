@@ -58,6 +58,13 @@ func (gw *Instance) StartHttpsServer() error {
 		shouldRequestNewCreds = true
 	}
 
+	expectedDNSName := authorizer.GetGatewayDns(gw.Comms.GetId().Marshal())
+	if parsedCert.DNSNames[0] != expectedDNSName {
+		jww.WARN.Printf("Bad DNS Name: expected '%s' != actual '%s'",
+			expectedDNSName, parsedCert.DNSNames[0])
+		shouldRequestNewCreds = true
+	}
+
 	// If new credentials are needed, call out to get them
 	if shouldRequestNewCreds {
 		// Get tls certificate and key
