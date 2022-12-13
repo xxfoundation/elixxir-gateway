@@ -517,8 +517,8 @@ gitlab.com/xx_network/comms v0.0.4-0.20221206203158-a25a9b2e9f6d h1:AhjW+kO9zDEQ
 gitlab.com/xx_network/comms v0.0.4-0.20221206203158-a25a9b2e9f6d/go.mod h1:zmg82UaKF1DtkzD5Lz92CRTjRgtApH6JI9WG8ltuE78=
 gitlab.com/xx_network/crypto v0.0.5-0.20221121220724-8eefdbb0eb46 h1:6AHgUpWdJ72RVTTdJSvfThZiYTQNUnrPaTCl/EkRLpg=
 gitlab.com/xx_network/crypto v0.0.5-0.20221121220724-8eefdbb0eb46/go.mod h1:acWUBKCpae/XVaQF7J9RnLAlBT13i5r7gnON+mrIxBk=
-gitlab.com/xx_network/primitives v0.0.4-0.20221110180011-fd6ea3058225 h1:TAn87e6Zt9KwcSnWKyIul5eu8T0RHY9FDubCGs3G0dw=
-gitlab.com/xx_network/primitives v0.0.4-0.20221110180011-fd6ea3058225/go.mod h1:rP/2IsqIFHapuIB4mstXKItvwoJRQ9Wlms/NGeutHsk=
+gitlab.com/xx_network/primitives v0.0.4-0.20221209210320-376735467d58 h1:HpeUIf1gIIelLH3LHxEf3/GalecbbtZnOnIegJHALoc=
+gitlab.com/xx_network/primitives v0.0.4-0.20221209210320-376735467d58/go.mod h1:wUxbEBGOBJZ/RkAiVAltlC1uIlIrU0dE113Nq7HiOhw=
 gitlab.com/xx_network/ring v0.0.3-0.20220902183151-a7d3b15bc981 h1:1s0vX9BbkiD0IVXwr3LOaTBcq1wBrWcUWMBK0s8r0Z0=
 gitlab.com/xx_network/ring v0.0.3-0.20220902183151-a7d3b15bc981/go.mod h1:aLzpP2TiZTQut/PVHR40EJAomzugDdHXetbieRClXIM=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
