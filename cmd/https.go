@@ -50,18 +50,18 @@ func (gw *Instance) StartHttpsServer() error {
 			return errors.WithMessage(err, "Failed to get x509 certificate from parsed")
 		}
 
+		expectedDNSName := authorizer.GetGatewayDns(gw.Comms.GetId().Marshal())
+		if len(parsedCert.DNSNames) > 0 && parsedCert.DNSNames[0] != expectedDNSName {
+			jww.WARN.Printf("Bad DNS Name: expected '%s' != actual '%s'",
+				expectedDNSName, parsedCert.DNSNames[0])
+			shouldRequestNewCreds = true
+		}
+
 		if time.Now().Before(parsedCert.NotBefore) || time.Now().After(parsedCert.NotAfter) {
 			jww.DEBUG.Printf("Loaded certificate has expired, requesting new credentials")
 			shouldRequestNewCreds = true
 		}
 	} else {
-		shouldRequestNewCreds = true
-	}
-
-	expectedDNSName := authorizer.GetGatewayDns(gw.Comms.GetId().Marshal())
-	if parsedCert.DNSNames[0] != expectedDNSName {
-		jww.WARN.Printf("Bad DNS Name: expected '%s' != actual '%s'",
-			expectedDNSName, parsedCert.DNSNames[0])
 		shouldRequestNewCreds = true
 	}
 
