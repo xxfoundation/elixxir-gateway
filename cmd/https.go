@@ -200,20 +200,20 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 
 		jww.INFO.Printf("[HTTPS] ADD TXT RECORD: %s\t%s\n", chalDomain, challenge)
 
-		ts := time.Now()
-
-		// Sign ACME token
-		sig, err := crypto.SignCertRequest(rng, gw.Comms.GetPrivateKey(), challenge, ts)
-		if err != nil {
-			return nil, nil, err
-		}
-
 		// Authorizer code for this request is single-threaded - if another
 		// gw is being processed, it will return a not ready error.
 		// If this error is received, sleep for a random amount of time &
 		// retry the request
 		certReqComplete := false
 		for !certReqComplete {
+			// Generate timestamp & sign request (do inside loop so ts is updated)
+			ts := time.Now()
+			// Sign ACME token
+			sig, err := crypto.SignCertRequest(rng, gw.Comms.GetPrivateKey(), challenge, ts)
+			if err != nil {
+				return nil, nil, err
+			}
+
 			// Send ACME token to name server
 			_, err = gw.Comms.SendAuthorizerCertRequest(authHost,
 				&mixmessages.AuthorizerCertRequest{

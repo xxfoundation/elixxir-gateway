@@ -720,6 +720,7 @@ func (gw *Instance) InitNetwork() error {
 		if err != nil {
 			return errors.WithMessage(err, "Failed to add authorizer host")
 		}
+		// Start https server in gofunc so it doesn't block running rounds
 		go func() {
 			err = gw.StartHttpsServer()
 			if err != nil {
