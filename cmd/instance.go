@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/golang-collections/collections/set"
+	"gitlab.com/elixxir/gateway/autocert"
 	"strconv"
 	"strings"
 	"sync"
@@ -123,6 +124,9 @@ type Instance struct {
 	earliestRoundTrackerMux sync.Mutex
 	earliestRoundUpdateChan chan EarliestRound
 	earliestRoundQuitChan   chan struct{}
+
+	autoCert    autocert.Client
+	gatewayCert *pb.GatewayCertificate
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -165,6 +169,8 @@ func NewGatewayInstance(params Params) *Instance {
 		earliestRoundUpdateChan: earliestRoundUpdateChan,
 		earliestRoundQuitChan:   make(chan struct{}, 1),
 	}
+
+	i.autoCert = autocert.NewDNS()
 
 	msgRateLimitParams := &rateLimiting.MapParams{
 		Capacity:     uint32(i.LeakedCapacity),
@@ -217,7 +223,18 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.PutManyMessagesProxy(msgs, auth)
 	}
 
+	impl.Functions.RequestTlsCert = func(message *pb.RequestGatewayCert) (*pb.GatewayCertificate, error) {
+		return instance.RequestTlsCert(message)
+	}
+
 	return impl
+}
+
+func (gw *Instance) RequestTlsCert(_ *pb.RequestGatewayCert) (*pb.GatewayCertificate, error) {
+	if gw.gatewayCert == nil {
+		return nil, errors.New("Gateway HTTPS initialization has not finished yet")
+	}
+	return gw.gatewayCert, nil
 }
 
 // CreateNetworkInstance will generate a new network instance object given
@@ -696,6 +713,20 @@ func (gw *Instance) InitNetwork() error {
 		}
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
+
+		hp := connect.GetDefaultHostParams()
+		hp.AuthEnabled = false
+		_, err = gw.Comms.AddHost(&id.Authorizer, gw.Params.AuthorizerAddress, permissioningCert, hp)
+		if err != nil {
+			return errors.WithMessage(err, "Failed to add authorizer host")
+		}
+		// Start https server in gofunc so it doesn't block running rounds
+		go func() {
+			err = gw.StartHttpsServer()
+			if err != nil {
+				jww.ERROR.Printf("Failed to start HTTPS listener: %+v", err)
+			}
+		}()
 
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {

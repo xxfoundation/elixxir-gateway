@@ -126,7 +126,7 @@ The command line flags for the server can be generated `--help` as follows:
 
 
 ```
-$ go run main.go --help
+% go run main.go --help
 The cMix gateways coordinate communications between servers and clients
 
 Usage:
@@ -134,6 +134,7 @@ Usage:
   gateway [command]
 
 Available Commands:
+  autocert    automatic cert request test command
   generate    Generates version and dependency information for the xx network binary
   help        Help about any command
   version     Print the version and dependency information for the xx network binary
@@ -143,6 +144,8 @@ Flags:
       --bufferExpiration duration         How long a message record should last in the gossip buffer if it arrives before the Gateway starts handling the gossip. (default 5m0s)
       --capacity uint32                   The capacity of rate-limiting buckets in the map. (default 20)
       --certPath string                   Path to the self-signed TLS certificate for Gateway. Expects PEM format. (Required)
+      --cmixAddress string                The IP address of the machine running cMix that the Gateway communicates with. Expects an IPv4 address with a port. (Required)
+      --cmixCertPath string               Path to the self-signed TLS certificate for cMix. Expects PEM format. (Required)
   -c, --config string                     Path to load the Gateway configuration file from. (Required)
       --enableGossip                      Feature flag for in progress gossip functionality
   -h, --help                              help for gateway
@@ -154,11 +157,10 @@ Flags:
       --log string                        Path where log file will be saved. (default "log/gateway.log")
   -l, --logLevel uint                     Level of debugging to print (0 = info, 1 = debug, >1 = trace).
       --monitorThreadFrequency duration   Frequency with which to check the gossip buffer. (default 2m30s)
-      --cmixAddress string                The IP address of the machine running cMix that the Gateway communicates with. Expects an IPv4 address with a port. (Required)
-      --schedulingCertPath string         Path to the self-signed TLS certificate for the Scheduling server. Expects PEM format. (Required)
       --pollDuration duration             How often inactive buckets are removed. (default 10s)
   -p, --port int                          Port for Gateway to listen on.Gateway must be the only listener on this port. (Required) (default -1)
-      --cmixCertPath string               Path to the self-signed TLS certificate for cMix. Expects PEM format. (Required)
+      --profile-cpu string                Enable cpu profiling to this file
+      --schedulingCertPath string         Path to the self-signed TLS certificate for the Scheduling server. Expects PEM format. (Required)
 
 Use "gateway [command] --help" for more information about a command.
 ```
@@ -189,6 +191,10 @@ next section).
 $ go run main.go generate
 $ mv version_vars.go cmd
 ```
+
+The `autocert` subcommand should not be used. It allows you to make a
+ZeroSSL certificate request and returns DNS Settings which can only be
+set by the xx network technical team. This subcommand is used for testing only.
 
 ## Project Structure
 
