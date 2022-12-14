@@ -253,6 +253,8 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 		credentialsReceived = true
 	}
 
+	jww.INFO.Printf("[HTTPS] Received certificate from autocert:\n\t%s", string(issuedCert))
+
 	// Store the issued credentials in the states table
 	err = storeHttpsCreds(issuedCert, issuedKey, gw.storage)
 	if err != nil {
