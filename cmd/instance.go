@@ -720,10 +720,12 @@ func (gw *Instance) InitNetwork() error {
 		if err != nil {
 			return errors.WithMessage(err, "Failed to add authorizer host")
 		}
-		err = gw.StartHttpsServer()
-		if err != nil {
-			jww.ERROR.Printf("Failed to start HTTPS listener: %+v", err)
-		}
+		go func() {
+			err = gw.StartHttpsServer()
+			if err != nil {
+				jww.ERROR.Printf("Failed to start HTTPS listener: %+v", err)
+			}
+		}()
 
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {
