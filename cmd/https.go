@@ -35,6 +35,7 @@ func (gw *Instance) StartHttpsServer() error {
 
 	// Check states table for cert
 	var parsedCert *x509.Certificate
+	var parsed tls.Certificate
 	cert, key, err := loadHttpsCreds(gw.storage)
 	if err != nil {
 		return err
@@ -44,7 +45,7 @@ func (gw *Instance) StartHttpsServer() error {
 	var shouldRequestNewCreds = false
 	if cert != nil && key != nil {
 		// If cert & key were stored, parse it & check validity
-		parsed, err := tls.X509KeyPair(cert, key)
+		parsed, err = tls.X509KeyPair(cert, key)
 		if err != nil {
 			return errors.WithMessage(err, "Failed to parse new tls keypair")
 		}
@@ -74,7 +75,7 @@ func (gw *Instance) StartHttpsServer() error {
 		if err != nil {
 			return err
 		}
-		parsed, err := tls.X509KeyPair(cert, key)
+		parsed, err = tls.X509KeyPair(cert, key)
 		if err != nil {
 			return errors.WithMessage(err, "Failed to parse new tls keypair")
 		}
@@ -85,7 +86,7 @@ func (gw *Instance) StartHttpsServer() error {
 	}
 
 	// Pass the issued cert & key to protocomms so it can start serving https
-	err = gw.Comms.ProtoComms.ServeHttps(cert, key)
+	err = gw.Comms.ProtoComms.ServeHttps(parsed)
 	if err != nil {
 		return err
 	}
@@ -95,7 +96,7 @@ func (gw *Instance) StartHttpsServer() error {
 	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
 	gw.handleReplaceCertificates(replaceAt)
 
-	return gw.setGatewayTlsCertificate(cert)
+	return gw.setGatewayTlsCertificate(parsedCert.Raw)
 }
 
 // replaceCertificates starts a thread which will sleep until replaceAt, then
@@ -114,18 +115,23 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 			jww.FATAL.Panicf("Failed to restart gateway comms: %+v", err)
 		}
 
-		err = gw.Comms.ProtoComms.ServeHttps(newCert, newKey)
-		if err != nil {
-			jww.ERROR.Printf("Failed to provision protocomms with new https credentials: %+v", err)
-		}
-
 		parsed, err := tls.X509KeyPair(newCert, newKey)
 		if err != nil {
 			jww.ERROR.Printf("Failed to parse new TLS keypair: %+v", err)
 		}
+
+		err = gw.Comms.ProtoComms.ServeHttps(parsed)
+		if err != nil {
+			jww.ERROR.Printf("Failed to provision protocomms with new https credentials: %+v", err)
+		}
+
 		parsedCert, err := x509.ParseCertificate(parsed.Certificate[0])
 		if err != nil {
 			jww.ERROR.Printf("Failed to get x509 certificate from parsed keypair: %+v", err)
+		}
+		err = gw.setGatewayTlsCertificate(parsedCert.Raw)
+		if err != nil {
+			jww.ERROR.Printf("Failed to set tls certificate for clients: %+v", err)
 		}
 		// Start thread which will sleep until the new cert needs to be replaced
 		expiry := parsedCert.NotAfter
@@ -321,9 +327,11 @@ func (gw *Instance) setGatewayTlsCertificate(cert []byte) error {
 	if err != nil {
 		return err
 	}
+	gw.gwCertMux.Lock()
 	gw.gatewayCert = &mixmessages.GatewayCertificate{
 		Certificate: cert,
 		Signature:   sig,
 	}
+	gw.gwCertMux.Unlock()
 	return nil
 }
