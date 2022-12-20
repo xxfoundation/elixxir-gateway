@@ -95,7 +95,7 @@ func (gw *Instance) StartHttpsServer() error {
 	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
 	gw.handleReplaceCertificates(replaceAt)
 
-	return gw.setGatewayTlsCertificate(cert)
+	return gw.setGatewayTlsCertificate(parsedCert.Raw)
 }
 
 // replaceCertificates starts a thread which will sleep until replaceAt, then
