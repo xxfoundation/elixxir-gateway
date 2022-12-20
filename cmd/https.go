@@ -325,9 +325,11 @@ func (gw *Instance) setGatewayTlsCertificate(cert []byte) error {
 	if err != nil {
 		return err
 	}
+	gw.gwCertMux.Lock()
 	gw.gatewayCert = &mixmessages.GatewayCertificate{
 		Certificate: cert,
 		Signature:   sig,
 	}
+	gw.gwCertMux.Unlock()
 	return nil
 }

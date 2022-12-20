@@ -126,6 +126,7 @@ type Instance struct {
 	earliestRoundQuitChan   chan struct{}
 
 	autoCert    autocert.Client
+	gwCertMux   sync.RWMutex
 	gatewayCert *pb.GatewayCertificate
 }
 
@@ -231,6 +232,8 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 }
 
 func (gw *Instance) RequestTlsCert(_ *pb.RequestGatewayCert) (*pb.GatewayCertificate, error) {
+	gw.gwCertMux.RLock()
+	defer gw.gwCertMux.RUnlock()
 	if gw.gatewayCert == nil {
 		return nil, errors.New("Gateway HTTPS initialization has not finished yet")
 	}
