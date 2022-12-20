@@ -152,14 +152,21 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
 	}
 
+	earliestClientRound := uint64(0)
+	_, earliestClientRound, _, err = gw.GetEarliestRound()
+	if err != nil {
+		jww.DEBUG.Printf("Could not get earliest client round: %+v", err)
+	}
+
 	return &pb.GatewayPollResponse{
-		PartialNDF:    netDef,
-		Updates:       updates,
-		KnownRounds:   knownRounds,
-		Filters:       filtersMsg,
-		EarliestRound: earliestRoundId,
-		ReceivedTs:    startTime.UnixNano(),
-		GatewayDelay:  int64(netTime.Now().Sub(startTime)),
+		PartialNDF:          netDef,
+		Updates:             updates,
+		KnownRounds:         knownRounds,
+		Filters:             filtersMsg,
+		EarliestRound:       earliestRoundId,
+		ReceivedTs:          startTime.UnixNano(),
+		GatewayDelay:        int64(netTime.Now().Sub(startTime)),
+		EarliestClientRound: earliestClientRound,
 	}, nil
 }
 
