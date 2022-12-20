@@ -125,14 +125,20 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		}
 	}
 
+	_, earliestClientRound, _, err := gw.GetEarliestRound()
+	if err != nil {
+		jww.DEBUG.Printf("Could not get earliest client round: %+v", err)
+	}
+
 	// Exclude the NDF and network round updates on client request
 	if clientRequest.GetDisableUpdates() {
 		return &pb.GatewayPollResponse{
-			KnownRounds:   knownRounds,
-			Filters:       filtersMsg,
-			EarliestRound: earliestRoundId,
-			ReceivedTs:    startTime.UnixNano(),
-			GatewayDelay:  int64(netTime.Now().Sub(startTime)),
+			KnownRounds:         knownRounds,
+			Filters:             filtersMsg,
+			EarliestRound:       earliestRoundId,
+			ReceivedTs:          startTime.UnixNano(),
+			GatewayDelay:        int64(netTime.Now().Sub(startTime)),
+			EarliestClientRound: earliestClientRound,
 		}, nil
 	}
 
@@ -150,12 +156,6 @@ func (gw *Instance) Poll(clientRequest *pb.GatewayPoll) (
 		// Get the range of updates from the consensus object, with all updates
 		// and the RSA Signature
 		updates = gw.NetInf.GetRoundUpdates(int(clientRequest.LastUpdate))
-	}
-
-	earliestClientRound := uint64(0)
-	_, earliestClientRound, _, err = gw.GetEarliestRound()
-	if err != nil {
-		jww.DEBUG.Printf("Could not get earliest client round: %+v", err)
 	}
 
 	return &pb.GatewayPollResponse{
