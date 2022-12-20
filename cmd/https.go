@@ -127,6 +127,10 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 		if err != nil {
 			jww.ERROR.Printf("Failed to get x509 certificate from parsed keypair: %+v", err)
 		}
+		err = gw.setGatewayTlsCertificate(parsedCert.Raw)
+		if err != nil {
+			jww.ERROR.Printf("Failed to set tls certificate for clients: %+v", err)
+		}
 		// Start thread which will sleep until the new cert needs to be replaced
 		expiry := parsedCert.NotAfter
 		nextReplaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
