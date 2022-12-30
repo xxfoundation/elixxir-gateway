@@ -10,10 +10,10 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
-	gitlab.com/elixxir/comms v0.0.4-0.20221216150420-f5d0388cdb4d
+	gitlab.com/elixxir/comms v0.0.4-0.20221230172922-4a9bec3b39d6
 	gitlab.com/elixxir/crypto v0.0.7-0.20221214192244-6783272c04a0
 	gitlab.com/elixxir/primitives v0.0.3-0.20221214192222-988b44a6958a
-	gitlab.com/xx_network/comms v0.0.4-0.20221220185313-a942768a955a
+	gitlab.com/xx_network/comms v0.0.4-0.20221229210111-3cf0b9df563d
 	gitlab.com/xx_network/crypto v0.0.5-0.20221121220724-8eefdbb0eb46
 	gitlab.com/xx_network/primitives v0.0.4-0.20221209210320-376735467d58
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
@@ -25,7 +25,7 @@ require (
 )
 
 require (
-	git.xx.network/elixxir/grpc-web-go-client v0.0.0-20221220161254-68bee4d4a516 // indirect
+	git.xx.network/elixxir/grpc-web-go-client v0.0.0-20221221203224-436c7ab720af // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
 	github.com/elliotchance/orderedmap v1.4.0 // indirect
