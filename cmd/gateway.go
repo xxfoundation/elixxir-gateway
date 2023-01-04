@@ -150,7 +150,6 @@ func (gw *Instance) proxyRegistrationHelper(target, clientKeyRequest []byte,
 // is then handled by the gateway, storing the relationship key and clearing it
 // to ensure a proxy does not get that information.
 func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.SignedKeyResponse, error) {
-	jww.INFO.Printf("RequestClientKey")
 	// If the target is nil or empty, consider the target itself
 	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
 		// Unmarshal target ID
@@ -179,7 +178,6 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 }
 
 func (gw *Instance) requestClientKeyHelper(msg *pb.SignedClientKeyRequest) (*pb.SignedKeyResponse, error) {
-	jww.INFO.Printf("requestClientKeyHelper ")
 	// Parse serialized data into message
 	request := &pb.ClientKeyRequest{}
 	err := proto.Unmarshal(msg.ClientKeyRequest, request)
