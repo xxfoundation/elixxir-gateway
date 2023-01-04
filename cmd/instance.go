@@ -191,10 +191,6 @@ func NewGatewayInstance(params Params) *Instance {
 func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl := gateway.NewImplementation()
 
-	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (*pb.SignedKeyResponse, error) {
-		return instance.RequestClientKey(message)
-	}
-
 	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message, ipAddr)
 	}
@@ -203,6 +199,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
 		return instance.RequestClientKey(message)
+	}
+	impl.Functions.BatchNodeRegistration = func(msg *pb.SignedClientBatchKeyRequest) (*pb.SignedBatchKeyResponse, error) {
+		return instance.BatchNodeRegistration(msg)
 	}
 	// Client -> Gateway historical round request
 	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {

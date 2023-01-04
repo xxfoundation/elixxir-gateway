@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	pb "gitlab.com/elixxir/comms/mixmessages"
@@ -46,6 +47,103 @@ const RequestKeyThresholdMix = -3 * time.Minute
 const sendTimeout = time.Duration(1.3 * float64(time.Second))
 const maxManyMessages = 11
 
+// BatchNodeRegistration is the endpoint for fast registration for the client
+// It accepts a SignedClientBatchKeyRequest, and forwards the contained
+// request and signature to the gateways listed in Targets, returning a list
+// of responses after at most Timeout milliseconds.  The returned list will be
+// the same size and in the same order as the Targets list received, with
+// blank entries where not received in time
+func (gw *Instance) BatchNodeRegistration(msg *pb.SignedClientBatchKeyRequest) (*pb.SignedBatchKeyResponse, error) {
+	jww.INFO.Printf("Received batch node registration with %d targets", len(msg.Targets))
+	request := msg.GetClientKeyRequest()
+	sig := msg.GetClientKeyRequestSignature()
+
+	responses := make([]*pb.SignedKeyResponse, len(msg.Targets))
+	wg := sync.WaitGroup{}
+	for i, target := range msg.Targets {
+		wg.Add(1)
+		timeout := time.NewTimer(time.Millisecond * time.Duration(msg.Timeout))
+		internalIndex := i
+		internalTarget := target
+
+		go func() {
+			respChan := make(chan *pb.SignedKeyResponse)
+			go gw.proxyRegistrationHelper(internalTarget, request, sig, respChan)
+			select {
+			case resp := <-respChan:
+				responses[internalIndex] = resp
+				timeout.Stop()
+			case <-timeout.C:
+				jww.ERROR.Printf("Timed out waiting for registration "+
+					"response from %+v", internalTarget)
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+
+	return &pb.SignedBatchKeyResponse{
+		SignedKeys: responses,
+	}, nil
+}
+
+// proxyRegistrationHelper accepts a target and key request info, forwards to
+// the correct gateway when necessary, and returns the received response
+func (gw *Instance) proxyRegistrationHelper(target, clientKeyRequest []byte,
+	clientKeyRequestSignature *messages.RSASignature,
+	respChan chan *pb.SignedKeyResponse) {
+	ret := func(resp *pb.SignedKeyResponse) {
+		select {
+		case respChan <- resp:
+		default:
+			jww.ERROR.Printf("Failed to send SignedKeyResponse "+
+				"for %+v to channel", target)
+		}
+	}
+
+	targetID, err := id.Unmarshal(target)
+	if err != nil {
+		errStr := fmt.Sprintf("Could not unmarshal target bytes %+v: %+v", target, err)
+		jww.DEBUG.Printf(errStr)
+		ret(&pb.SignedKeyResponse{Error: errStr})
+	}
+
+	targetRequest := &pb.SignedClientKeyRequest{
+		ClientKeyRequest:          clientKeyRequest,
+		ClientKeyRequestSignature: clientKeyRequestSignature,
+		Target:                    target,
+	}
+	if !gw.Comms.GetId().Cmp(targetID) {
+		// Check if the host exists and is connected
+		host, exists := gw.Comms.GetHost(targetID)
+		if !exists {
+			errStr := errors.Errorf(noHostErr, targetID).Error()
+			ret(&pb.SignedKeyResponse{Error: errStr})
+		}
+		connected, _ := host.Connected()
+		if !connected {
+			errStr := errors.Errorf(noConnectionErr, targetID).Error()
+			ret(&pb.SignedKeyResponse{Error: errStr})
+		}
+		resp, err := gw.Comms.SendRequestClientKey(host, targetRequest, sendTimeout)
+		if err != nil {
+			errStr := fmt.Sprintf("Failed to send client key request to target: %+v", err)
+			ret(&pb.SignedKeyResponse{Error: errStr})
+		}
+		jww.DEBUG.Printf("Received node registration response %+v", resp)
+		ret(resp)
+	} else {
+		resp, err := gw.requestClientKeyHelper(targetRequest)
+		if err != nil {
+			errStr := fmt.Sprintf("Failed to process client key request: %+v", err)
+			ret(&pb.SignedKeyResponse{Error: errStr})
+		}
+		jww.DEBUG.Printf("Processed node registration, returning response %+v", resp)
+		ret(resp)
+	}
+}
+
 // RequestClientKey is the endpoint for a client trying to register with a node.
 // It checks if the request made is valid. If valid, it sends the request to
 // the node for further checks and cryptographic operations. The node's response
@@ -76,6 +174,10 @@ func (gw *Instance) RequestClientKey(msg *pb.SignedClientKeyRequest) (*pb.Signed
 		}
 	}
 
+	return gw.requestClientKeyHelper(msg)
+}
+
+func (gw *Instance) requestClientKeyHelper(msg *pb.SignedClientKeyRequest) (*pb.SignedKeyResponse, error) {
 	// Parse serialized data into message
 	request := &pb.ClientKeyRequest{}
 	err := proto.Unmarshal(msg.ClientKeyRequest, request)
