@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	crypto2 "crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -318,12 +319,11 @@ func loadHttpsCreds(db *storage.Storage) ([]byte, []byte, error) {
 // and sets the GatewayCertificate on the Instance object to be sent when
 // clients request it
 func (gw *Instance) setGatewayTlsCertificate(cert []byte) error {
-	h, err := hash.NewCMixHash()
-	if err != nil {
-		return err
-	}
+	opts := rsa2.NewDefaultOptions()
+	opts.Hash = crypto2.SHA256
+	h := opts.Hash.New()
 	h.Write(cert)
-	sig, err := rsa2.Sign(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), hash.CMixHash, h.Sum(nil), rsa2.NewDefaultOptions())
+	sig, err := rsa2.Sign(csprng.NewSystemRNG(), gw.Comms.GetPrivateKey(), hash.CMixHash, h.Sum(nil), opts)
 	if err != nil {
 		return err
 	}
