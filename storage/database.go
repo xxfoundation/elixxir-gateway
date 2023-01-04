@@ -99,9 +99,10 @@ type State struct {
 
 // Enumerates various Keys in the State table.
 const (
-	PeriodKey      = "Period"
-	LastUpdateKey  = "LastUpdateId"
-	KnownRoundsKey = "KnownRoundsV3"
+	PeriodKey           = "Period"
+	LastUpdateKey       = "LastUpdateId"
+	KnownRoundsKey      = "KnownRoundsV3"
+	HttpsCertificateKey = "HttpsCertificate"
 )
 
 // Client and its associated keys.
