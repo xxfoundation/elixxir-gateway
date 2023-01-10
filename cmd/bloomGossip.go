@@ -148,7 +148,7 @@ func (gw *Instance) gossipBloomFilterReceive(msg *gossip.GossipMsg) error {
 
 	if failedInsert == 0 {
 		//denote the reception in known rounds
-		err = gw.krw.forceCheck(roundID, gw.storage)
+		err = gw.krw.forceCheck(roundID)
 		if err != nil {
 			jww.ERROR.Printf("Gossip received not recorded due to known rounds error for "+
 				"round %d with %d recipients at %s: "+

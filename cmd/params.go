@@ -47,6 +47,11 @@ type Params struct {
 	DevMode       bool
 	DisableGossip bool
 
+	HttpsCountry           string
+	AuthorizerAddress      string
+	AutocertIssueTimeout   time.Duration
+	ReplaceHttpsCertBuffer time.Duration
+
 	cleanupInterval time.Duration
 }
 
@@ -174,6 +179,19 @@ func InitParams(vip *viper.Viper) Params {
 		}
 	}
 
+	// Authorizer address
+	authorizerAddressKey := "authorizerAddress"
+	viper.SetDefault(authorizerAddressKey, "auth.mainnet.cmix.rip:11420")
+	authorizerAddress := viper.GetString(authorizerAddressKey)
+
+	autocertTimeoutKey := "autocertIssueTimeout"
+	viper.SetDefault(autocertTimeoutKey, time.Hour)
+	autocertTimeout := viper.GetDuration(autocertTimeoutKey)
+
+	replaceHttpsCertBufferKey := "replaceHttpsCertBuffer"
+	viper.SetDefault(replaceHttpsCertBufferKey, time.Duration(30*24*time.Hour))
+	replaceHttpsCertBuffer := viper.GetDuration(replaceHttpsCertBufferKey)
+
 	return Params{
 		Port:                   gwPort,
 		PublicAddress:          gwAddress,
@@ -195,5 +213,8 @@ func InitParams(vip *viper.Viper) Params {
 		DevMode:                viper.GetBool("devMode"),
 		DisableGossip:          viper.GetBool("disableGossip"),
 		cleanupInterval:        cleanupInterval,
+		AuthorizerAddress:      authorizerAddress,
+		AutocertIssueTimeout:   autocertTimeout,
+		ReplaceHttpsCertBuffer: replaceHttpsCertBuffer,
 	}
 }

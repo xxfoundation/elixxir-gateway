@@ -12,6 +12,14 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"os"
+	"os/signal"
+	"runtime/pprof"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
@@ -21,13 +29,6 @@ import (
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/utils"
 	"google.golang.org/grpc/grpclog"
-	"os"
-	"os/signal"
-	"runtime/pprof"
-	"strconv"
-	"strings"
-	"syscall"
-	"time"
 )
 
 // Flags to import from command line or config file
@@ -58,7 +59,6 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		initConfig()
 		initLog()
-
 		profileOut := viper.GetString("profile-cpu")
 		if profileOut != "" {
 			f, err := os.Create(profileOut)
@@ -364,6 +364,7 @@ func initLog() {
 		0644)
 	if err != nil {
 		fmt.Printf("Could not open log file %s!\n", logPath)
+		jww.SetLogOutput(os.Stderr)
 	} else {
 		jww.SetLogOutput(logFile)
 	}

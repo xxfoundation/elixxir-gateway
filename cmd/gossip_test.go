@@ -326,10 +326,9 @@ func TestInstance_GossipBatch(t *testing.T) {
 	gwID := id.NewIdFromString("Samus", id.Gateway, t)
 	gw.Comms = gateway.StartGateway(gwID, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
-
+	var err error
 	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
-	var err error
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)
 	if err != nil {
 		t.Errorf("NewInstanceTesting encountered an error: %+v", err)
@@ -465,7 +464,6 @@ func TestInstance_GossipBloom(t *testing.T) {
 	gwID := id.NewIdFromString("Samus", id.Gateway, t)
 	gw.Comms = gateway.StartGateway(gwID, addr, gw,
 		gatewayCert, gatewayKey, gossip.DefaultManagerFlags())
-
 	testNDF, _ := ndf.Unmarshal(ExampleJSON)
 
 	gw.NetInf, err = network.NewInstanceTesting(gw.Comms.ProtoComms, testNDF, testNDF, grp2, grp2, t)

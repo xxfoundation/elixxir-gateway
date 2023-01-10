@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/golang-collections/collections/set"
+	"gitlab.com/elixxir/gateway/autocert"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,7 +45,7 @@ const (
 	ErrAuth          = "Failed to authenticate id:"
 	gwChanLen        = 1000
 	period           = int64(1800000000000) // 30 minutes in nanoseconds
-	maxSendsInARound = 25
+	maxUnknownErrors = 20
 )
 
 // The max number of rounds to be stored in the KnownRounds buffer.
@@ -123,6 +124,10 @@ type Instance struct {
 	earliestRoundTrackerMux sync.Mutex
 	earliestRoundUpdateChan chan EarliestRound
 	earliestRoundQuitChan   chan struct{}
+
+	autoCert    autocert.Client
+	gwCertMux   sync.RWMutex
+	gatewayCert *pb.GatewayCertificate
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -135,9 +140,8 @@ func NewGatewayInstance(params Params) *Instance {
 		params.DevMode,
 	)
 	if err != nil {
-		eMsg := fmt.Sprintf("Could not initialize database: "+
-			"psql://%s@%s:%s/%s", params.DbUsername,
-			params.DbAddress, params.DbPort, params.DbName)
+		eMsg := fmt.Sprintf("Could not initialize database psql://%s@%s:%s/%s: %+v",
+			params.DbUsername, params.DbAddress, params.DbPort, params.DbName, err)
 		if params.DevMode {
 			jww.WARN.Printf(eMsg)
 		} else {
@@ -167,6 +171,8 @@ func NewGatewayInstance(params Params) *Instance {
 		earliestRoundQuitChan:   make(chan struct{}, 1),
 	}
 
+	i.autoCert = autocert.NewDNS()
+
 	msgRateLimitParams := &rateLimiting.MapParams{
 		Capacity:     uint32(i.LeakedCapacity),
 		LeakedTokens: uint32(i.LeakedTokens),
@@ -185,10 +191,6 @@ func NewGatewayInstance(params Params) *Instance {
 func NewImplementation(instance *Instance) *gateway.Implementation {
 	impl := gateway.NewImplementation()
 
-	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (*pb.SignedKeyResponse, error) {
-		return instance.RequestClientKey(message)
-	}
-
 	impl.Functions.PutMessage = func(message *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 		return instance.PutMessage(message, ipAddr)
 	}
@@ -197,6 +199,9 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 	impl.Functions.RequestClientKey = func(message *pb.SignedClientKeyRequest) (nonce *pb.SignedKeyResponse, e error) {
 		return instance.RequestClientKey(message)
+	}
+	impl.Functions.BatchNodeRegistration = func(msg *pb.SignedClientBatchKeyRequest) (*pb.SignedBatchKeyResponse, error) {
+		return instance.BatchNodeRegistration(msg)
 	}
 	// Client -> Gateway historical round request
 	impl.Functions.RequestHistoricalRounds = func(msg *pb.HistoricalRounds) (response *pb.HistoricalRoundsResponse, err error) {
@@ -218,7 +223,20 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.PutManyMessagesProxy(msgs, auth)
 	}
 
+	impl.Functions.RequestTlsCert = func(message *pb.RequestGatewayCert) (*pb.GatewayCertificate, error) {
+		return instance.RequestTlsCert(message)
+	}
+
 	return impl
+}
+
+func (gw *Instance) RequestTlsCert(_ *pb.RequestGatewayCert) (*pb.GatewayCertificate, error) {
+	gw.gwCertMux.RLock()
+	defer gw.gwCertMux.RUnlock()
+	if gw.gatewayCert == nil {
+		return nil, errors.New("Gateway HTTPS initialization has not finished yet")
+	}
+	return gw.gatewayCert, nil
 }
 
 // CreateNetworkInstance will generate a new network instance object given
@@ -410,7 +428,7 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 				rid := id.Round(update.ID)
 				gw.UnmixedBuffer.SetAsRoundLeader(rid, update.BatchSize)
 			} else if states.Round(update.State) == states.FAILED {
-				err = gw.krw.forceCheck(id.Round(update.ID), gw.storage)
+				err = gw.krw.forceCheck(id.Round(update.ID))
 				if err != nil {
 					return errors.Errorf("failed to forceChech round %d: %+v",
 						update.ID, err)
@@ -561,6 +579,7 @@ func (gw *Instance) InitNetwork() error {
 	var serverResponse *pb.ServerPollResponse
 
 	// fixme: determine if this a proper conditional for when server is not ready
+	numUnknownErrors := 0
 	for serverResponse == nil {
 		// TODO: Probably not great to always sleep immediately
 		time.Sleep(3 * time.Second)
@@ -585,8 +604,15 @@ func (gw *Instance) InitNetwork() error {
 				jww.WARN.Printf(eMsg)
 				continue
 			} else {
-				return errors.Errorf(
-					"Error polling NDF: %+v", err)
+				numUnknownErrors++
+				if numUnknownErrors >= maxUnknownErrors {
+					return errors.Errorf(
+						"Error polling NDF %d times, bailing: %+v", numUnknownErrors, err)
+				} else {
+					jww.WARN.Printf("Error polling NDF %d/%d times: %+v",
+						numUnknownErrors, maxUnknownErrors, err)
+					continue
+				}
 			}
 		}
 
@@ -690,6 +716,20 @@ func (gw *Instance) InitNetwork() error {
 		// Enable authentication on gateway to gateway communications
 		gw.NetInf.SetGatewayAuthentication()
 
+		hp := connect.GetDefaultHostParams()
+		hp.AuthEnabled = false
+		_, err = gw.Comms.AddHost(&id.Authorizer, gw.Params.AuthorizerAddress, permissioningCert, hp)
+		if err != nil {
+			return errors.WithMessage(err, "Failed to add authorizer host")
+		}
+		// Start https server in gofunc so it doesn't block running rounds
+		go func() {
+			err = gw.StartHttpsServer()
+			if err != nil {
+				jww.ERROR.Printf("Failed to start HTTPS listener: %+v", err)
+			}
+		}()
+
 		// Turn on gossiping
 		if !gw.Params.DisableGossip {
 			gw.InitRateLimitGossip()
@@ -765,8 +805,9 @@ func (gw *Instance) clearOldStorage(threshold time.Time) error {
 
 // Set the gw.period attribute
 // NOTE: Saves the constant to storage if it does not exist
-//       or reads an existing value from storage and sets accordingly
-//       It's not great but it's structured this way as a business requirement
+//
+//	or reads an existing value from storage and sets accordingly
+//	It's not great but it's structured this way as a business requirement
 func (gw *Instance) SetPeriod() error {
 	// Get an existing Period value from storage
 	periodStr, err := gw.storage.GetStateValue(storage.PeriodKey)
@@ -793,7 +834,7 @@ func (gw *Instance) SetPeriod() error {
 
 // SaveKnownRounds saves the KnownRounds to a file.
 func (gw *Instance) SaveKnownRounds() error {
-	return gw.krw.save(gw.storage)
+	return gw.krw.save()
 }
 
 // LoadKnownRounds loads the KnownRounds from storage into the Instance, if a
