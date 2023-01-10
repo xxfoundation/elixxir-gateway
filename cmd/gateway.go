@@ -68,7 +68,7 @@ func (gw *Instance) BatchNodeRegistration(msg *pb.SignedClientBatchKeyRequest) (
 
 		go func() {
 			respChan := make(chan *pb.SignedKeyResponse)
-			go gw.proxyRegistrationHelper(internalTarget, request, sig, respChan)
+			go gw.proxyRegistrationHelper(internalTarget, request, msg.UseSHA, sig, respChan)
 			select {
 			case resp := <-respChan:
 				responses[internalIndex] = resp
@@ -91,7 +91,7 @@ func (gw *Instance) BatchNodeRegistration(msg *pb.SignedClientBatchKeyRequest) (
 // proxyRegistrationHelper accepts a target and key request info, forwards to
 // the correct gateway when necessary, and returns the received response
 func (gw *Instance) proxyRegistrationHelper(target, clientKeyRequest []byte,
-	clientKeyRequestSignature *messages.RSASignature,
+	useSha bool, clientKeyRequestSignature *messages.RSASignature,
 	respChan chan *pb.SignedKeyResponse) {
 	ret := func(resp *pb.SignedKeyResponse) {
 		select {
@@ -113,6 +113,7 @@ func (gw *Instance) proxyRegistrationHelper(target, clientKeyRequest []byte,
 		ClientKeyRequest:          clientKeyRequest,
 		ClientKeyRequestSignature: clientKeyRequestSignature,
 		Target:                    target,
+		UseSHA:                    useSha,
 	}
 	if !gw.Comms.GetId().Cmp(targetID) {
 		// Check if the host exists and is connected
