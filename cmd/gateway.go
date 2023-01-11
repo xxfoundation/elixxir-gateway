@@ -107,6 +107,7 @@ func (gw *Instance) proxyRegistrationHelper(target, clientKeyRequest []byte,
 		errStr := fmt.Sprintf("Could not unmarshal target bytes %+v: %+v", target, err)
 		jww.DEBUG.Printf(errStr)
 		ret(&pb.SignedKeyResponse{Error: errStr})
+		return
 	}
 
 	targetRequest := &pb.SignedClientKeyRequest{
@@ -121,27 +122,33 @@ func (gw *Instance) proxyRegistrationHelper(target, clientKeyRequest []byte,
 		if !exists {
 			errStr := errors.Errorf(noHostErr, targetID).Error()
 			ret(&pb.SignedKeyResponse{Error: errStr})
+			return
 		}
 		connected, _ := host.Connected()
 		if !connected {
 			errStr := errors.Errorf(noConnectionErr, targetID).Error()
 			ret(&pb.SignedKeyResponse{Error: errStr})
+			return
 		}
 		resp, err := gw.Comms.SendRequestClientKey(host, targetRequest, sendTimeout)
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to send client key request to target: %+v", err)
 			ret(&pb.SignedKeyResponse{Error: errStr})
+			return
 		}
 		jww.DEBUG.Printf("Received node registration response %+v", resp)
 		ret(resp)
+		return
 	} else {
 		resp, err := gw.requestClientKeyHelper(targetRequest)
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to process client key request: %+v", err)
 			ret(&pb.SignedKeyResponse{Error: errStr})
+			return
 		}
 		jww.DEBUG.Printf("Processed node registration, returning response %+v", resp)
 		ret(resp)
+		return
 	}
 }
 
