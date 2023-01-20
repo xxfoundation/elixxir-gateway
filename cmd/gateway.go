@@ -393,6 +393,17 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 // PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 
+	// Reject messages with too many ephemeral keys
+	numEphemeral := 0
+	for _, isEphemeral := range msg.Message.EphemeralKeys {
+		if isEphemeral {
+			numEphemeral += 1
+		}
+	}
+	if (float32(numEphemeral) / float32(len(msg.Message.EphemeralKeys))) < 0.1 {
+		return nil, errors.Errorf("Too many ephemeral keys in message")
+	}
+
 	// If the target is nil or empty, consider the target itself
 	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
 		// Unmarshal target ID
