@@ -400,7 +400,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 			numEphemeral += 1
 		}
 	}
-	if (float32(numEphemeral) / float32(len(msg.Message.EphemeralKeys))) < 0.1 {
+	if (float32(numEphemeral) / float32(len(msg.Message.EphemeralKeys))) > 0.1 {
 		return nil, errors.Errorf("Too many ephemeral keys in message")
 	}
 
