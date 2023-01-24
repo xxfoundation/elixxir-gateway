@@ -400,8 +400,9 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 			numEphemeral += 1
 		}
 	}
-	if (float32(numEphemeral) / float32(len(msg.Message.EphemeralKeys))) > 0.1 {
-		return nil, errors.Errorf("Too many ephemeral keys in message")
+	threshold := 3
+	if len(msg.Message.EphemeralKeys) > 0 && len(msg.Message.EphemeralKeys)-numEphemeral < threshold {
+		return nil, errors.Errorf("Too many ephemeral keys in message (%d/%d)", numEphemeral, len(msg.Message.EphemeralKeys))
 	}
 
 	// If the target is nil or empty, consider the target itself
@@ -709,12 +710,14 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round
 	}
 
 	KMACs := cmix.GenerateKMACs(salt, baseKeys, roundID, h)
+	ephKeys := make([]bool, len(KMACs))
 	return &pb.Slot{
-		PayloadB: ecrMsg.GetPayloadB(),
-		PayloadA: ecrMsg.GetPayloadA(),
-		Salt:     salt,
-		SenderID: id.DummyUser.Marshal(),
-		KMACs:    KMACs,
+		PayloadB:      ecrMsg.GetPayloadB(),
+		PayloadA:      ecrMsg.GetPayloadA(),
+		Salt:          salt,
+		SenderID:      id.DummyUser.Marshal(),
+		KMACs:         KMACs,
+		EphemeralKeys: ephKeys,
 	}
 }
 
