@@ -53,6 +53,8 @@ type Params struct {
 	ReplaceHttpsCertBuffer time.Duration
 
 	cleanupInterval time.Duration
+
+	MinRegisteredNodes int
 }
 
 const (
@@ -192,6 +194,10 @@ func InitParams(vip *viper.Viper) Params {
 	viper.SetDefault(replaceHttpsCertBufferKey, time.Duration(30*24*time.Hour))
 	replaceHttpsCertBuffer := viper.GetDuration(replaceHttpsCertBufferKey)
 
+	minRegisteredNodesKey := "minRegisteredNodes"
+	viper.SetDefault(minRegisteredNodesKey, 3)
+	minRegisteredNodes := viper.GetInt(minRegisteredNodesKey)
+
 	return Params{
 		Port:                   gwPort,
 		PublicAddress:          gwAddress,
@@ -216,5 +222,6 @@ func InitParams(vip *viper.Viper) Params {
 		AuthorizerAddress:      authorizerAddress,
 		AutocertIssueTimeout:   autocertTimeout,
 		ReplaceHttpsCertBuffer: replaceHttpsCertBuffer,
+		MinRegisteredNodes:     minRegisteredNodes,
 	}
 }

@@ -296,16 +296,10 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	// Update the NDFs, and update the round info, which is currently
 	// recorded but not used for anything. (maybe we should print state
 	// of each round?)
-	jww.INFO.Printf("Updating instance")
 	if newInfo.FullNDF != nil {
-		jww.INFO.Printf("New full ndf %s", newInfo.FullNDF)
 		err := gw.NetInf.UpdateFullNdf(newInfo.FullNDF)
 		if err != nil {
 			return err
-		}
-
-		for i, n := range gw.NetInf.GetFullNdf().Get().Nodes {
-			jww.INFO.Printf("Updated NDF nodes[%d] ed: %+v", i, n)
 		}
 
 		// Unmarshal NDF
@@ -381,7 +375,6 @@ func (gw *Instance) UpdateInstance(newInfo *pb.ServerPollResponse) error {
 	}
 
 	if newInfo.PartialNDF != nil {
-		jww.INFO.Printf("Updating partial ndf to %s", newInfo.PartialNDF.Ndf)
 		err := gw.NetInf.UpdatePartialNdf(newInfo.PartialNDF)
 		if err != nil {
 			return err

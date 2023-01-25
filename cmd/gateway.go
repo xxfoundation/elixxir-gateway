@@ -400,8 +400,7 @@ func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewayS
 			numEphemeral += 1
 		}
 	}
-	threshold := 1
-	if len(msg.Message.EphemeralKeys) > 0 && len(msg.Message.EphemeralKeys)-numEphemeral < threshold {
+	if len(msg.Message.EphemeralKeys) > 0 && len(msg.Message.EphemeralKeys)-numEphemeral < gw.Params.MinRegisteredNodes {
 		return nil, errors.Errorf("Too many ephemeral keys in message (%d/%d)", numEphemeral, len(msg.Message.EphemeralKeys))
 	}
 
