@@ -168,7 +168,7 @@ func PollServer(conn *gateway.Comms, pollee *connect.Host, ndf,
 	partialNdf *network.SecuredNdf, lastUpdate uint64, addr string) (
 	*pb.ServerPollResponse, error) {
 	jww.TRACE.Printf("Address being sent to server: [%v]", addr)
-
+	jww.INFO.Printf("Polling server")
 	var ndfHash, partialNdfHash *pb.NDFHash
 	ndfHash = &pb.NDFHash{
 		Hash: make([]byte, 0),
