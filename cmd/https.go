@@ -120,6 +120,7 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 		randInterval := time.Minute * time.Duration(30+rand.Intn(60))
 		replaceAfter = replaceAfter + randInterval
 		jww.DEBUG.Printf("Sleeping until %s to replace certificates...", replaceAt.String())
+		time.Sleep(replaceAfter)
 		newCert, newKey, err := gw.getHttpsCreds()
 		if err != nil {
 			retry(errors.WithMessage(err, "Failed to get new https credentials"))
