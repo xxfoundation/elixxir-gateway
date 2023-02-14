@@ -10,12 +10,12 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/viper v1.7.1
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f
-	gitlab.com/elixxir/comms v0.0.4-0.20230113232310-712ff1217195
-	gitlab.com/elixxir/crypto v0.0.7-0.20230113231934-c833bffda448
-	gitlab.com/elixxir/primitives v0.0.3-0.20230109222259-f62b2a90b62c
-	gitlab.com/xx_network/comms v0.0.4-0.20230113193654-a3a18c6bbb90
-	gitlab.com/xx_network/crypto v0.0.5-0.20230113190331-06f2eb12b97f
-	gitlab.com/xx_network/primitives v0.0.4-0.20221219230308-4b5550a9247d
+	gitlab.com/elixxir/comms v0.0.4-0.20230214180204-3aba2e6795af
+	gitlab.com/elixxir/crypto v0.0.7-0.20230214180106-72841fd1e426
+	gitlab.com/elixxir/primitives v0.0.3-0.20230214180039-9a25e2d3969c
+	gitlab.com/xx_network/comms v0.0.4-0.20230214180029-5387fb85736d
+	gitlab.com/xx_network/crypto v0.0.5-0.20230214003943-8a09396e95dd
+	gitlab.com/xx_network/primitives v0.0.4-0.20230203173415-81c2cb07da44
 	golang.org/x/crypto v0.5.0
 	golang.org/x/net v0.5.0
 	google.golang.org/grpc v1.49.0
@@ -25,7 +25,7 @@ require (
 )
 
 require (
-	git.xx.network/elixxir/grpc-web-go-client v0.0.0-20221221204132-2ed1fec765f1 // indirect
+	git.xx.network/elixxir/grpc-web-go-client v0.0.0-20230214175953-5b5a8c33d28a // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
 	github.com/elliotchance/orderedmap v1.4.0 // indirect
@@ -50,7 +50,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.0 // indirect
 	github.com/pelletier/go-toml v1.8.1 // indirect
-	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/smartystreets/assertions v1.1.0 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
