@@ -28,6 +28,7 @@ const httpsCountry = "US"
 const eabNotReadyErr = "EAB Credentials not yet ready, please try again"
 const gwNotReadyErr = "Authorizer DNS not yet ready, please try again"
 const authorizerNotAvailableError = "Failed to connect"
+const replaceCertificateErr = "Error encountered while replacing certificates, will retry after %s...\n Error text: %+v"
 
 // StartHttpsServer gets a well-formed tls certificate and provides it to
 // protocomms so it can start to listen for HTTPS
@@ -106,8 +107,7 @@ func (gw *Instance) StartHttpsServer() error {
 func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 	retry := func(err error) {
 		retryAfter := time.Minute * time.Duration(30+rand.Intn(60))
-		jww.ERROR.Printf("Error encountered while replacing certificates"+
-			", will retry after %s...\nError text: %+v", retryAfter, err)
+		jww.ERROR.Printf(replaceCertificateErr, retryAfter, err)
 		gw.handleReplaceCertificates(replaceAt.Add(retryAfter))
 	}
 
