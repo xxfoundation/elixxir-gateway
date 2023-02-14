@@ -27,7 +27,6 @@ const httpsEmail = "admins@xx.network"
 const httpsCountry = "US"
 const eabNotReadyErr = "EAB Credentials not yet ready, please try again"
 const gwNotReadyErr = "Authorizer DNS not yet ready, please try again"
-const authorizerNotAvailableError = "Failed to connect"
 const replaceCertificateErr = "[handleReplaceCertificates] Error encountered while replacing certificates, will retry after %s...\n Error text: %+v"
 
 // StartHttpsServer gets a well-formed tls certificate and provides it to
@@ -187,8 +186,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 			eabCredResp, err = gw.Comms.SendEABCredentialRequest(authHost,
 				&mixmessages.EABCredentialRequest{})
 			if err != nil {
-				if strings.Contains(err.Error(), eabNotReadyErr) ||
-					strings.Contains(err.Error(), authorizerNotAvailableError) {
+				if strings.Contains(err.Error(), eabNotReadyErr) {
 					jww.ERROR.Printf("[HTTPS] Unable to request EAB credentials from authorizer: %+v", err)
 					sleep := 3*time.Second + time.Duration(rand.Intn(2*int(time.Second)))
 					time.Sleep(sleep)
@@ -249,8 +247,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 				})
 			if err != nil {
 				// If the authorizer gives a timeout/not ready err, sleep for 3-5 seconds & try again
-				if strings.Contains(err.Error(), gwNotReadyErr) ||
-					strings.Contains(err.Error(), authorizerNotAvailableError) {
+				if strings.Contains(err.Error(), gwNotReadyErr) {
 					jww.ERROR.Printf("[HTTPS] Unable to request certificate from authorizer: %+v", err)
 					sleep := 3*time.Second + time.Duration(rand.Intn(2*int(time.Second)))
 					time.Sleep(sleep)
