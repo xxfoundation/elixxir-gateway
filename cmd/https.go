@@ -28,7 +28,7 @@ const httpsCountry = "US"
 const eabNotReadyErr = "EAB Credentials not yet ready, please try again"
 const gwNotReadyErr = "Authorizer DNS not yet ready, please try again"
 const authorizerNotAvailableError = "Failed to connect"
-const replaceCertificateErr = "Error encountered while replacing certificates, will retry after %s...\n Error text: %+v"
+const replaceCertificateErr = "[handleReplaceCertificates] Error encountered while replacing certificates, will retry after %s...\n Error text: %+v"
 
 // StartHttpsServer gets a well-formed tls certificate and provides it to
 // protocomms so it can start to listen for HTTPS
@@ -105,53 +105,53 @@ func (gw *Instance) StartHttpsServer() error {
 // replaceCertificates starts a thread which will sleep until replaceAt, then
 // call getHttpsCreds & re-provision protocomms with the new certificate
 func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
-	retry := func(err error) {
-		retryAfter := time.Minute * time.Duration(30+rand.Intn(60))
-		jww.ERROR.Printf(replaceCertificateErr, retryAfter, err)
-		gw.handleReplaceCertificates(replaceAt.Add(retryAfter))
-	}
-
 	go func() {
-		// Wait for time.Until(replaceAt)
-		jww.DEBUG.Printf("Sleeping until %s to replace certificates...", replaceAt.String())
-		time.Sleep(time.Until(replaceAt))
-		newCert, newKey, err := gw.getHttpsCreds()
-		if err != nil {
-			retry(errors.WithMessage(err, "Failed to get new https credentials"))
-			return
+		retry := func(err error) {
+			replaceAt = time.Now().Add(time.Duration(30 + rand.Intn(60)))
+			jww.ERROR.Printf(replaceCertificateErr, replaceAt, err)
 		}
+		for {
+			// Wait for time.Until(replaceAt)
+			jww.DEBUG.Printf("[handleReplaceCertificates] Sleeping until %s to replace certificates...", replaceAt.String())
+			time.Sleep(time.Until(replaceAt))
+			newCert, newKey, err := gw.getHttpsCreds()
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to get new https credentials"))
+				continue
+			}
 
-		err = gw.Comms.RestartGateway()
-		if err != nil {
-			jww.FATAL.Panicf("Failed to restart gateway comms: %+v", err)
-		}
+			err = gw.Comms.RestartGateway()
+			if err != nil {
+				jww.FATAL.Panicf("Failed to restart gateway comms: %+v", err)
+			}
 
-		parsed, err := tls.X509KeyPair(newCert, newKey)
-		if err != nil {
-			retry(errors.WithMessage(err, "Failed to parse new TLS keypair"))
-			return
-		}
+			parsed, err := tls.X509KeyPair(newCert, newKey)
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to parse new TLS keypair"))
+				continue
+			}
 
-		err = gw.Comms.ProtoComms.ServeHttps(parsed)
-		if err != nil {
-			retry(errors.WithMessage(err, "Failed to provision protocomms with new https credentials"))
-			return
-		}
+			err = gw.Comms.ProtoComms.ServeHttps(parsed)
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to provision protocomms with new https credentials"))
+				continue
+			}
 
-		parsedCert, err := x509.ParseCertificate(parsed.Certificate[0])
-		if err != nil {
-			retry(errors.WithMessage(err, "Failed to get x509 certificate from parsed keypair"))
-			return
+			parsedCert, err := x509.ParseCertificate(parsed.Certificate[0])
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to get x509 certificate from parsed keypair"))
+				continue
+			}
+			err = gw.setGatewayTlsCertificate(parsedCert.Raw)
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to set tls certificate for clients"))
+				continue
+			}
+
+			// Start thread which will sleep until the new cert needs to be replaced
+			expiry := parsedCert.NotAfter
+			replaceAt = expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
 		}
-		err = gw.setGatewayTlsCertificate(parsedCert.Raw)
-		if err != nil {
-			retry(errors.WithMessage(err, "Failed to set tls certificate for clients"))
-			return
-		}
-		// Start thread which will sleep until the new cert needs to be replaced
-		expiry := parsedCert.NotAfter
-		nextReplaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
-		gw.handleReplaceCertificates(nextReplaceAt)
 	}()
 }
 
@@ -189,6 +189,9 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 			if err != nil {
 				if strings.Contains(err.Error(), eabNotReadyErr) ||
 					strings.Contains(err.Error(), authorizerNotAvailableError) {
+					jww.ERROR.Printf("[HTTPS] Unable to request EAB credentials from authorizer: %+v", err)
+					sleep := 3*time.Second + time.Duration(rand.Intn(2*int(time.Second)))
+					time.Sleep(sleep)
 					continue
 				}
 				return nil, nil, err
@@ -248,6 +251,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 				// If the authorizer gives a timeout/not ready err, sleep for 3-5 seconds & try again
 				if strings.Contains(err.Error(), gwNotReadyErr) ||
 					strings.Contains(err.Error(), authorizerNotAvailableError) {
+					jww.ERROR.Printf("[HTTPS] Unable to request certificate from authorizer: %+v", err)
 					sleep := 3*time.Second + time.Duration(rand.Intn(2*int(time.Second)))
 					time.Sleep(sleep)
 					continue
