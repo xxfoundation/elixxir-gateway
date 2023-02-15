@@ -394,7 +394,8 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 
 	// Reject messages if client tried to use ephemeral key for first node
-	if msg.Message.EphemeralKeys[0] && gw.Params.MinRegisteredNodes != 0 {
+	if len(msg.Message.EphemeralKeys) > 0 && msg.Message.EphemeralKeys[0] &&
+		gw.Params.MinRegisteredNodes != 0 {
 		return nil, errors.Errorf("Client cannot use ephemeral keygen with first node in round")
 	}
 
