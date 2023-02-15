@@ -106,7 +106,7 @@ func (gw *Instance) StartHttpsServer() error {
 func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 	go func() {
 		retry := func(err error) {
-			replaceAt = time.Now().Add(time.Second * time.Duration(30+rand.Intn(30)))
+			replaceAt = time.Now().Add(time.Minute * time.Duration(10+rand.Intn(20)))
 			jww.ERROR.Printf(replaceCertificateErr, replaceAt, err)
 		}
 		for {
