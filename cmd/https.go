@@ -27,7 +27,7 @@ const httpsEmail = "admins@xx.network"
 const httpsCountry = "US"
 const eabNotReadyErr = "EAB Credentials not yet ready, please try again"
 const gwNotReadyErr = "Authorizer DNS not yet ready, please try again"
-const replaceCertificateErr = "[handleReplaceCertificates] Error encountered while replacing certificates, will retry after %s...\n Error text: %+v"
+const replaceCertificateErr = "[handleReplaceCertificates] Error encountered while replacing certificates, will retry at %s...\n Error text: %+v"
 
 // StartHttpsServer gets a well-formed tls certificate and provides it to
 // protocomms so it can start to listen for HTTPS
@@ -113,6 +113,15 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 			// Wait for time.Until(replaceAt)
 			jww.DEBUG.Printf("[handleReplaceCertificates] Sleeping until %s to replace certificates...", replaceAt.String())
 			time.Sleep(time.Until(replaceAt))
+
+			// Check quit channel
+			select {
+			case <-gw.replaceCertificateQuit:
+				jww.INFO.Printf("[handleReplaceCertificates] Received signal on quit channel")
+				return
+			default:
+			}
+
 			newCert, newKey, err := gw.getHttpsCreds()
 			if err != nil {
 				retry(errors.WithMessage(err, "Failed to get new https credentials"))
