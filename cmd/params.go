@@ -195,8 +195,15 @@ func InitParams(vip *viper.Viper) Params {
 	replaceHttpsCertBuffer := viper.GetDuration(replaceHttpsCertBufferKey)
 
 	minRegisteredNodesKey := "minRegisteredNodes"
-	viper.SetDefault(minRegisteredNodesKey, 3)
+	defaultMinRegisteredNodes := 3
+	viper.SetDefault(minRegisteredNodesKey, defaultMinRegisteredNodes)
 	minRegisteredNodes := viper.GetInt(minRegisteredNodesKey)
+
+	if minRegisteredNodes != defaultMinRegisteredNodes {
+		jww.ERROR.Printf("WARNING: MINIMUM REGISTERED NODES HAS BEEN "+
+			"CHANGED FROM DEFAULT (%d) TO %d",
+			defaultMinRegisteredNodes, minRegisteredNodes)
+	}
 
 	return Params{
 		Port:                   gwPort,
