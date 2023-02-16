@@ -272,7 +272,9 @@ func getDNSChallenge(client acmeClient, order *acme.Order) (*acme.Challenge,
 	for i := 0; i < len(order.AuthzURLs); i++ {
 		authzURL := order.AuthzURLs[i]
 		authz := getAuth(client, authzURL)
-		if authz.Status == acme.StatusValid {
+		if authz == nil {
+			continue
+		} else if authz.Status == acme.StatusValid {
 			return nil, authzURL, nil
 		}
 		c := findDNSChallenge(authz.Challenges)
