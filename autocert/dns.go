@@ -325,14 +325,15 @@ func waitForAuthorization(client acmeClient,
 		default:
 		}
 		ctx, cancelFn := context.WithTimeout(context.Background(),
-			1*time.Minute)
+			15*time.Second)
 		authz, err := client.WaitAuthorization(ctx, authzURL)
+		cancelFn()
 		if err != nil {
 			jww.WARN.Printf("WaitAuthorization: %s, continuing...",
 				err.Error())
+			time.Sleep(time.Second * 30)
 			continue
 		}
-		cancelFn()
 		return authz, nil
 	}
 }
