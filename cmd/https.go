@@ -93,10 +93,8 @@ func (gw *Instance) StartHttpsServer() error {
 		return err
 	}
 
-	// Start thread which will sleep until replaceAt - replaceWindow
-	expiry := parsedCert.NotAfter
-	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
-	gw.handleReplaceCertificates(replaceAt)
+	// Start thread which will sleep until approximately replaceAt - replaceWindow
+	gw.handleReplaceCertificates(getReplaceAt(parsedCert.NotAfter, gw.Params.ReplaceHttpsCertBuffer))
 
 	return gw.setGatewayTlsCertificate(parsedCert.Raw)
 }
@@ -156,11 +154,26 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 				continue
 			}
 
-			// Start thread which will sleep until the new cert needs to be replaced
-			expiry := parsedCert.NotAfter
-			replaceAt = expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
+			// Reset replaceAt based on new cert's NotAfter
+			replaceAt = getReplaceAt(parsedCert.NotAfter, gw.Params.ReplaceHttpsCertBuffer)
 		}
 	}()
+}
+
+// getReplaceAt generates a time.Time at which to replace the gateway TLS
+// certificate based on its notAfter value
+func getReplaceAt(notAfter time.Time, replaceHttpsCertBuffer time.Duration) time.Time {
+	// Random jitter between 0 and 24 hours in 15 minute intervals
+	jitter := time.Duration(rand.Intn(96) * 15)
+	finalWindow := replaceHttpsCertBuffer - (time.Minute * jitter)
+	replaceAt := notAfter.Add(-1 * finalWindow)
+	// Make sure we at least wait a short time - if we would immediately replace,
+	// set replaceAt to now - 10% of time between now and expiry
+	if replaceAt.Before(time.Now()) {
+		t := notAfter.Sub(time.Now())
+		replaceAt = time.Now().Add((t / 10).Round(time.Minute))
+	}
+	return replaceAt
 }
 
 // getHttpsCreds is a helper for getting the tls certificate and key to pass
