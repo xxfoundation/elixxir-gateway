@@ -40,4 +40,7 @@ func TestGetReplaceAt(t *testing.T) {
 	t.Log(notAfter)
 	replaceAt := getReplaceAt(notAfter, time.Hour*24*30, time.Hour*24*7)
 	t.Log(replaceAt)
+	if replaceAt.After(notAfter) {
+		t.Fatalf("Replaceat %s should be before notAfter %s", replaceAt, notAfter)
+	}
 }
