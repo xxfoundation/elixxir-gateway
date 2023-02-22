@@ -173,7 +173,7 @@ func getReplaceAt(certExpiresAt time.Time, replaceHttpsCertBuffer time.Duration,
 	startReplacingAt := certExpiresAt.Add(-1 * replaceHttpsCertBuffer)
 	if startReplacingAt.Before(time.Now()) {
 		newStartReplacingAt := time.Now()
-		jww.DEBUG.Printf("Certificated replace window began at %v, shortening window to: %v <-> %v", startReplacingAt, newStartReplacingAt, certExpiresAt)
+		jww.DEBUG.Printf("Certificate replace window began at %v, shortening window to: %v <-> %v", startReplacingAt, newStartReplacingAt, certExpiresAt)
 		startReplacingAt = newStartReplacingAt
 	}
 

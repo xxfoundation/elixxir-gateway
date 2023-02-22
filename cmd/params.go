@@ -194,7 +194,7 @@ func InitParams(vip *viper.Viper) Params {
 
 	maxCertReplaceRangeKey := "maxCertReplaceRange"
 	viper.SetDefault(maxCertReplaceRangeKey, time.Duration(7*24*time.Hour))
-	maxCertReplaceRange := viper.GetDuration(replaceHttpsCertBufferKey)
+	maxCertReplaceRange := viper.GetDuration(maxCertReplaceRangeKey)
 
 	return Params{
 		Port:                   gwPort,
