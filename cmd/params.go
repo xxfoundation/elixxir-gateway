@@ -51,8 +51,8 @@ type Params struct {
 	AuthorizerAddress      string
 	AutocertIssueTimeout   time.Duration
 	ReplaceHttpsCertBuffer time.Duration
-
-	cleanupInterval time.Duration
+	MaxCertReplaceRange    time.Duration
+	cleanupInterval        time.Duration
 }
 
 const (
@@ -192,6 +192,10 @@ func InitParams(vip *viper.Viper) Params {
 	viper.SetDefault(replaceHttpsCertBufferKey, time.Duration(30*24*time.Hour))
 	replaceHttpsCertBuffer := viper.GetDuration(replaceHttpsCertBufferKey)
 
+	maxCertReplaceRangeKey := "maxCertReplaceRange"
+	viper.SetDefault(maxCertReplaceRangeKey, time.Duration(7*24*time.Hour))
+	maxCertReplaceRange := viper.GetDuration(replaceHttpsCertBufferKey)
+
 	return Params{
 		Port:                   gwPort,
 		PublicAddress:          gwAddress,
@@ -216,5 +220,6 @@ func InitParams(vip *viper.Viper) Params {
 		AuthorizerAddress:      authorizerAddress,
 		AutocertIssueTimeout:   autocertTimeout,
 		ReplaceHttpsCertBuffer: replaceHttpsCertBuffer,
+		MaxCertReplaceRange:    maxCertReplaceRange,
 	}
 }

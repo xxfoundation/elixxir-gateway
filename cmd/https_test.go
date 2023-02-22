@@ -38,6 +38,6 @@ func TestGetReplaceAt(t *testing.T) {
 	day := time.Hour * 24
 	notAfter := time.Now().Add(90 * day)
 	t.Log(notAfter)
-	replaceAt := getReplaceAt(notAfter, time.Hour*24*30)
+	replaceAt := getReplaceAt(notAfter, time.Hour*24*30, time.Hour*24*7)
 	t.Log(replaceAt)
 }
