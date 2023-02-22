@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"gitlab.com/elixxir/gateway/storage"
 	"testing"
+	"time"
 )
 
 func TestStoreHttpsCreds(t *testing.T) {
@@ -31,4 +32,12 @@ func TestStoreHttpsCreds(t *testing.T) {
 			"\n\t\tKey: %+v\n\t\tCert: %+v\n\tReceived: \n\t\t"+
 			"Key: %+v\n\t\tCert: %+v\n", creds.Key, creds.Cert, key, cert)
 	}
+}
+
+func TestGetReplaceAt(t *testing.T) {
+	day := time.Hour * 24
+	notAfter := time.Now().Add(90 * day)
+	t.Log(notAfter)
+	replaceAt := getReplaceAt(notAfter, time.Hour*24*30)
+	t.Log(replaceAt)
 }

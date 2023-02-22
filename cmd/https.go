@@ -94,7 +94,7 @@ func (gw *Instance) StartHttpsServer() error {
 	}
 
 	// Start thread which will sleep until approximately replaceAt - replaceWindow
-	gw.handleReplaceCertificates(getReplaceAt(parsedCert.NotAfter, gw.Params.ReplaceHttpsCertBuffer))
+	gw.handleReplaceCertificates(getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.ReplaceHttpsCertBuffer))
 
 	return gw.setGatewayTlsCertificate(parsedCert.Raw)
 }
@@ -155,24 +155,39 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 			}
 
 			// Reset replaceAt based on new cert's NotAfter
-			replaceAt = getReplaceAt(parsedCert.NotAfter, gw.Params.ReplaceHttpsCertBuffer)
+			replaceAt = getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.ReplaceHttpsCertBuffer)
 		}
 	}()
 }
 
 // getReplaceAt generates a time.Time at which to replace the gateway TLS
 // certificate based on its notAfter value
-func getReplaceAt(notAfter time.Time, replaceHttpsCertBuffer time.Duration) time.Time {
-	// Random jitter between 0 and 24 hours in 15 minute intervals
-	jitter := time.Duration(rand.Intn(96) * 15)
-	finalWindow := replaceHttpsCertBuffer - (time.Minute * jitter)
-	replaceAt := notAfter.Add(-1 * finalWindow)
-	// Make sure we at least wait a short time - if we would immediately replace,
-	// set replaceAt to now - 10% of time between now and expiry
-	if replaceAt.Before(time.Now()) {
-		t := notAfter.Sub(time.Now())
-		replaceAt = time.Now().Add((t / 10).Round(time.Minute))
+func getReplaceAt(replaceBefore time.Time, replaceHttpsCertBuffer time.Duration) time.Time {
+	if replaceBefore.Before(time.Now()) {
+		jww.ERROR.Printf("Expired certificate ...")
+		return time.Now()
 	}
+
+	// We are already in the range of time in which we should have started thinking about replacing our certificated (or, second edge case, our certificate is expiring)
+	replaceAfter := replaceBefore.Add(-1 * replaceHttpsCertBuffer)
+	if replaceAfter.Before(time.Now()) {
+		jww.INFO.Print("Certificate inside replacement window...")
+		replaceAfter = time.Now()
+	}
+
+	// Should never occur due to the logic above, but best to test anyway
+	// Third edge case is our certicated expires after our start expiration time.
+	if replaceBefore.Before(replaceAfter) {
+		jww.ERROR.Printf("Unexpected range, before time: %s, after time: %s, replacing now...", replaceBefore, replaceAfter)
+		return time.Now()
+	}
+
+	replacementRange := replaceBefore.Sub(replaceAfter)
+	replacementRangeIntervals := int(replacementRange.Minutes() / 15)
+	randomReplacementInterval := time.Minute * time.Duration(15*rand.Intn(replacementRangeIntervals))
+
+	replaceAt := replaceAfter.Add(randomReplacementInterval)
+
 	return replaceAt
 }
 
