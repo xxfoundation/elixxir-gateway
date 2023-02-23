@@ -109,7 +109,6 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 		}
 		for {
 			// Wait for time.Until(replaceAt)
-			jww.DEBUG.Printf("[handleReplaceCertificates] Sleeping until %s to replace certificates...", replaceAt.String())
 			time.Sleep(time.Until(replaceAt))
 
 			// Check quit channel
@@ -199,6 +198,7 @@ func getReplaceAt(certExpiresAt time.Time, certReplaceWindow time.Duration, maxC
 
 	replaceAt := startReplacingAt.Add(randomReplacementInterval)
 
+	jww.INFO.Printf("[handleReplaceCertificates] Sleeping until %s to replace certificate expiring at %s...", replaceAt.String(), certExpiresAt)
 	return replaceAt
 }
 
