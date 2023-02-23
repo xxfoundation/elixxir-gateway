@@ -190,13 +190,13 @@ func InitParams(vip *viper.Viper) Params {
 	viper.SetDefault(autocertTimeoutKey, time.Hour)
 	autocertTimeout := viper.GetDuration(autocertTimeoutKey)
 
-	replaceHttpsCertBufferKey := "replaceHttpsCertBuffer"
-	viper.SetDefault(replaceHttpsCertBufferKey, time.Duration(30*24*time.Hour))
-	replaceHttpsCertBuffer := viper.GetDuration(replaceHttpsCertBufferKey)
+	certReplaceWindowKey := "certReplaceWindow"
+	viper.SetDefault(certReplaceWindowKey, time.Duration(30*24*time.Hour))
+	certReplaceWindow := viper.GetDuration(certReplaceWindowKey)
 
-	maxCertReplaceRangeKey := "maxCertReplaceRange"
-	viper.SetDefault(maxCertReplaceRangeKey, time.Duration(7*24*time.Hour))
-	maxCertReplaceRange := viper.GetDuration(maxCertReplaceRangeKey)
+	maxCertReplaceDelayKey := "maxCertReplaceDelay"
+	viper.SetDefault(maxCertReplaceDelayKey, time.Duration(7*24*time.Hour))
+	maxCertReplaceDelay := viper.GetDuration(maxCertReplaceDelayKey)
 
 	return Params{
 		Port:                   gwPort,
@@ -221,7 +221,7 @@ func InitParams(vip *viper.Viper) Params {
 		cleanupInterval:        cleanupInterval,
 		AuthorizerAddress:      authorizerAddress,
 		AutocertIssueTimeout:   autocertTimeout,
-		CertReplaceWindow:      replaceHttpsCertBuffer,
-		MaxCertReplaceDelay:    maxCertReplaceRange,
+		CertReplaceWindow:      certReplaceWindow,
+		MaxCertReplaceDelay:    maxCertReplaceDelay,
 	}
 }

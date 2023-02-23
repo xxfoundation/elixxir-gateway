@@ -119,11 +119,11 @@ pollDuration: 10s
 # The max age of a bucket without activity before it is removed. (Default 10s)
 bucketMaxAge: 10s
 
-# time.Duration used to calculate lower bound of when to replace TLS cert (default 30 days)
-replaceHttpsCertBuffer: 720h
+# time.Duration used to calculate lower bound of when to replace TLS cert, based on its expiry (default 30 days)
+certReplaceWindow: 720h
 
-# time.Duration used to calculate upper bound of when to replace TLS cert (default 7 days)
-maxCertReplaceRange: 168h
+# Maximum random delay for cert replacement after reaching the start of CertReplaceWindow (default 7 days)
+maxCertReplaceDelay: 168h
 ```
 
 ## Command line flags

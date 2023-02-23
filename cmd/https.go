@@ -160,8 +160,8 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 	}()
 }
 
-// getReplaceAt generates a time.Time at which to replace the gateway TLS cert
-// Generates a time to replace the certificate, with a lower bound of (certExpiresAt - replaceHttpsCertBuffer),
+// getReplaceAt generates a time.Time at which to replace the certificate,
+// with a lower bound of (certExpiresAt - replaceHttpsCertBuffer),
 // and an upper bound of min((lower bound + maxReplaceRange), certExpiresAt)
 // Accepts params:
 // certExpiresAt - time at which the certificate will expire
