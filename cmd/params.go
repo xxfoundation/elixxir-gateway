@@ -195,7 +195,7 @@ func InitParams(vip *viper.Viper) Params {
 	certReplaceWindow := viper.GetDuration(certReplaceWindowKey)
 
 	maxCertReplaceDelayKey := "maxCertReplaceDelay"
-	viper.SetDefault(maxCertReplaceDelayKey, time.Duration(7*24*time.Hour))
+	viper.SetDefault(maxCertReplaceDelayKey, time.Duration(5*24*time.Hour))
 	maxCertReplaceDelay := viper.GetDuration(maxCertReplaceDelayKey)
 
 	return Params{

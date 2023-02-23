@@ -122,8 +122,8 @@ bucketMaxAge: 10s
 # time.Duration used to calculate lower bound of when to replace TLS cert, based on its expiry (default 30 days)
 certReplaceWindow: 720h
 
-# Maximum random delay for cert replacement after reaching the start of CertReplaceWindow (default 7 days)
-maxCertReplaceDelay: 168h
+# Maximum random delay for cert replacement after reaching the start of CertReplaceWindow (default 5 days)
+maxCertReplaceDelay: 120h
 ```
 
 ## Command line flags
