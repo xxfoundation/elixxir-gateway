@@ -47,12 +47,14 @@ type Params struct {
 	DevMode       bool
 	DisableGossip bool
 
-	HttpsCountry           string
-	AuthorizerAddress      string
-	AutocertIssueTimeout   time.Duration
+	HttpsCountry         string
+	AuthorizerAddress    string
+	AutocertIssueTimeout time.Duration
+	// time.Duration used to calculate lower bound of when to replace TLS cert
 	ReplaceHttpsCertBuffer time.Duration
-	MaxCertReplaceRange    time.Duration
-	cleanupInterval        time.Duration
+	// time.Duration used to calculate upper bound of when to replace TLS cert
+	MaxCertReplaceRange time.Duration
+	cleanupInterval     time.Duration
 }
 
 const (

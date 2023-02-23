@@ -154,14 +154,19 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 				continue
 			}
 
-			// Reset replaceAt based on new cert's NotAfter
+			// Reset replaceAt based on new cert's NotAfter (minus one day for safety)
 			replaceAt = getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.ReplaceHttpsCertBuffer, gw.Params.MaxCertReplaceRange)
 		}
 	}()
 }
 
-// getReplaceAt generates a time.Time at which to replace the gateway TLS
-// certificate based on its notAfter value
+// getReplaceAt generates a time.Time at which to replace the gateway TLS cert
+// Generates a time to replace the certificate, with a lower bound of (certExpiresAt - replaceHttpsCertBuffer),
+// and an upper bound of min((lower bound + maxReplaceRange), certExpiresAt)
+// Accepts params:
+// certExpiresAt - time at which the certificate will expire
+// replaceHttpsCertBuffer - duration, used to calculate when we will start thinking about replacing the cert
+// maxReplaceRange - duration, used to limit the spread across replaceHttpsCertBuffer
 func getReplaceAt(certExpiresAt time.Time, replaceHttpsCertBuffer time.Duration, maxReplaceRange time.Duration) time.Time {
 	// If certificate is expired, return time.Now
 	if certExpiresAt.Before(time.Now()) {
