@@ -94,7 +94,7 @@ func (gw *Instance) StartHttpsServer() error {
 	}
 
 	// Start thread which will sleep until approximately replaceAt - replaceWindow
-	gw.handleReplaceCertificates(getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.ReplaceHttpsCertBuffer, gw.Params.MaxCertReplaceRange))
+	gw.handleReplaceCertificates(getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.CertReplaceWindow, gw.Params.MaxCertReplaceDelay))
 
 	return gw.setGatewayTlsCertificate(parsedCert.Raw)
 }
@@ -155,7 +155,7 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 			}
 
 			// Reset replaceAt based on new cert's NotAfter (minus one day for safety)
-			replaceAt = getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.ReplaceHttpsCertBuffer, gw.Params.MaxCertReplaceRange)
+			replaceAt = getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.CertReplaceWindow, gw.Params.MaxCertReplaceDelay)
 		}
 	}()
 }
@@ -165,9 +165,9 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 // and an upper bound of min((lower bound + maxReplaceRange), certExpiresAt)
 // Accepts params:
 // certExpiresAt - time at which the certificate will expire
-// replaceHttpsCertBuffer - duration, used to calculate when we will start thinking about replacing the cert
-// maxReplaceRange - duration, used to limit the spread across replaceHttpsCertBuffer
-func getReplaceAt(certExpiresAt time.Time, replaceHttpsCertBuffer time.Duration, maxReplaceRange time.Duration) time.Time {
+// certReplaceWindow - duration of certReplaceWindow.
+// maxCertReplaceDelay - duration, used to limit the spread across replaceHttpsCertBuffer
+func getReplaceAt(certExpiresAt time.Time, certReplaceWindow time.Duration, maxCertReplaceDelay time.Duration) time.Time {
 	// If certificate is expired, return time.Now
 	if certExpiresAt.Before(time.Now()) {
 		jww.ERROR.Printf("Certificate expired at %s...", certExpiresAt)
@@ -175,7 +175,7 @@ func getReplaceAt(certExpiresAt time.Time, replaceHttpsCertBuffer time.Duration,
 	}
 
 	// We are already in the range of time in which the cert will be replaced
-	startReplacingAt := certExpiresAt.Add(-1 * replaceHttpsCertBuffer)
+	startReplacingAt := certExpiresAt.Add(-1 * certReplaceWindow)
 	if startReplacingAt.Before(time.Now()) {
 		newStartReplacingAt := time.Now()
 		jww.DEBUG.Printf("Certificate replace window began at %v, shortening window to: %v <-> %v", startReplacingAt, newStartReplacingAt, certExpiresAt)
@@ -191,8 +191,8 @@ func getReplaceAt(certExpiresAt time.Time, replaceHttpsCertBuffer time.Duration,
 
 	// Get replacement range
 	replacementRange := certExpiresAt.Sub(startReplacingAt)
-	if replacementRange > maxReplaceRange {
-		replacementRange = maxReplaceRange
+	if replacementRange > maxCertReplaceDelay {
+		replacementRange = maxCertReplaceDelay
 	}
 	// Get random amount of time between certExpiresAt and startReplacingAt
 	randomReplacementInterval := time.Minute * time.Duration(rand.Intn(int(replacementRange.Minutes())))

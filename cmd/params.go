@@ -50,10 +50,10 @@ type Params struct {
 	HttpsCountry         string
 	AuthorizerAddress    string
 	AutocertIssueTimeout time.Duration
-	// time.Duration used to calculate lower bound of when to replace TLS cert
-	ReplaceHttpsCertBuffer time.Duration
-	// time.Duration used to calculate upper bound of when to replace TLS cert
-	MaxCertReplaceRange time.Duration
+	// time.Duration used to calculate lower bound of when to replace TLS cert, based on its expiry
+	CertReplaceWindow time.Duration
+	// Maximum random delay for cert replacement after reaching the start of CertReplaceWindow
+	MaxCertReplaceDelay time.Duration
 	cleanupInterval     time.Duration
 }
 
@@ -221,7 +221,7 @@ func InitParams(vip *viper.Viper) Params {
 		cleanupInterval:        cleanupInterval,
 		AuthorizerAddress:      authorizerAddress,
 		AutocertIssueTimeout:   autocertTimeout,
-		ReplaceHttpsCertBuffer: replaceHttpsCertBuffer,
-		MaxCertReplaceRange:    maxCertReplaceRange,
+		CertReplaceWindow:      replaceHttpsCertBuffer,
+		MaxCertReplaceDelay:    maxCertReplaceRange,
 	}
 }
