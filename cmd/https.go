@@ -93,10 +93,8 @@ func (gw *Instance) StartHttpsServer() error {
 		return err
 	}
 
-	// Start thread which will sleep until replaceAt - replaceWindow
-	expiry := parsedCert.NotAfter
-	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
-	gw.handleReplaceCertificates(replaceAt)
+	// Start thread which will sleep until approximately replaceAt - replaceWindow
+	gw.handleReplaceCertificates(getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.CertReplaceWindow, gw.Params.MaxCertReplaceDelay))
 
 	return gw.setGatewayTlsCertificate(parsedCert.Raw)
 }
@@ -111,7 +109,6 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 		}
 		for {
 			// Wait for time.Until(replaceAt)
-			jww.DEBUG.Printf("[handleReplaceCertificates] Sleeping until %s to replace certificates...", replaceAt.String())
 			time.Sleep(time.Until(replaceAt))
 
 			// Check quit channel
@@ -156,11 +153,53 @@ func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 				continue
 			}
 
-			// Start thread which will sleep until the new cert needs to be replaced
-			expiry := parsedCert.NotAfter
-			replaceAt = expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
+			// Reset replaceAt based on new cert's NotAfter (minus one day for safety)
+			replaceAt = getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.CertReplaceWindow, gw.Params.MaxCertReplaceDelay)
 		}
 	}()
+}
+
+// getReplaceAt generates a time.Time at which to replace the certificate,
+// with a lower bound of (certExpiresAt - replaceHttpsCertBuffer),
+// and an upper bound of min((lower bound + maxReplaceRange), certExpiresAt)
+// Accepts params:
+// certExpiresAt - time at which the certificate will expire
+// certReplaceWindow - duration of certReplaceWindow.
+// maxCertReplaceDelay - duration, used to limit the spread across replaceHttpsCertBuffer
+func getReplaceAt(certExpiresAt time.Time, certReplaceWindow time.Duration, maxCertReplaceDelay time.Duration) time.Time {
+	// If certificate is expired, return time.Now
+	if certExpiresAt.Before(time.Now()) {
+		jww.ERROR.Printf("Certificate expired at %s...", certExpiresAt)
+		return time.Now()
+	}
+
+	// We are already in the range of time in which the cert will be replaced
+	startReplacingAt := certExpiresAt.Add(-1 * certReplaceWindow)
+	if startReplacingAt.Before(time.Now()) {
+		newStartReplacingAt := time.Now()
+		jww.DEBUG.Printf("Certificate replace window began at %v, shortening window to: %v <-> %v", startReplacingAt, newStartReplacingAt, certExpiresAt)
+		startReplacingAt = newStartReplacingAt
+	}
+
+	// Should never occur due to the logic above, but best to test anyway
+	// Third edge case is our cert expires after our start expiration time.
+	if certExpiresAt.Before(startReplacingAt) {
+		jww.ERROR.Printf("Unexpected range, before time: %s, after time: %s, replacing now...", certExpiresAt, startReplacingAt)
+		return time.Now()
+	}
+
+	// Get replacement range
+	replacementRange := certExpiresAt.Sub(startReplacingAt)
+	if replacementRange > maxCertReplaceDelay {
+		replacementRange = maxCertReplaceDelay
+	}
+	// Get random amount of time between certExpiresAt and startReplacingAt
+	randomReplacementInterval := time.Minute * time.Duration(rand.Intn(int(replacementRange.Minutes())))
+
+	replaceAt := startReplacingAt.Add(randomReplacementInterval)
+
+	jww.INFO.Printf("[handleReplaceCertificates] Sleeping until %s to replace certificate expiring at %s...", replaceAt.String(), certExpiresAt)
+	return replaceAt
 }
 
 // getHttpsCreds is a helper for getting the tls certificate and key to pass
