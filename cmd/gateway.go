@@ -288,7 +288,7 @@ type getMessageResponse struct {
 	err  error
 }
 
-func (gw *Instance) RequestMessagesBatch(req *pb.GetMessagesBatch) (*pb.GetMessagesResponseBatch, error) {
+func (gw *Instance) RequestBatchMessages(req *pb.GetMessagesBatch) (*pb.GetMessagesResponseBatch, error) {
 	if req == nil || req.Requests == nil {
 		return &pb.GetMessagesResponseBatch{}, errors.Errorf("")
 	}

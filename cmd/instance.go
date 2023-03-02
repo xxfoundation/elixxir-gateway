@@ -230,7 +230,7 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 	}
 
 	impl.Functions.RequestBatchMessages = func(msg *pb.GetMessagesBatch) (*pb.GetMessagesResponseBatch, error) {
-		return instance.RequestMessagesBatch(msg)
+		return instance.RequestBatchMessages(msg)
 	}
 
 	return impl
