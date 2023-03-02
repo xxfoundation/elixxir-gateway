@@ -10,6 +10,7 @@ package cmd
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"github.com/pkg/errors"
@@ -282,6 +283,104 @@ func (gw *Instance) requestClientKeyHelper(msg *pb.SignedClientKeyRequest) (*pb.
 	return resp, nil
 }
 
+type getMessageResponse struct {
+	resp *pb.GetMessagesResponse
+	err  error
+}
+
+func (gw *Instance) RequestMessagesBatch(req *pb.GetMessagesBatch) (*pb.GetMessagesResponseBatch, error) {
+	if req == nil || req.Requests == nil {
+		return &pb.GetMessagesResponseBatch{}, errors.Errorf("")
+	}
+
+	jww.INFO.Printf("Received batch message pickup request %+v", req.Requests)
+
+	timeoutAt := time.Now().Add(time.Millisecond * time.Duration(req.Timeout))
+	responses := make([]*pb.GetMessagesResponse, len(req.Requests))
+	responseErrors := make([]string, len(req.Requests))
+	var wg sync.WaitGroup
+	for i, messageRequest := range req.GetRequests() {
+		wg.Add(1)
+		internalReq := messageRequest
+		internalIndex := i
+		timeout := time.NewTimer(time.Until(timeoutAt))
+		go func() {
+			respChan := make(chan getMessageResponse, 5)
+			go gw.proxyMessageRequest(internalReq, respChan)
+			select {
+			case resp := <-respChan:
+				jww.INFO.Printf("Received response %+v from proxy", resp)
+				responses[internalIndex] = resp.resp
+				if resp.err != nil {
+					responseErrors[internalIndex] = resp.err.Error()
+				}
+				timeout.Stop()
+			case <-timeout.C:
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+
+	jww.INFO.Printf("Returning responses %+v", responses)
+	return &pb.GetMessagesResponseBatch{
+		Results: responses,
+		Errors:  responseErrors,
+	}, nil
+}
+
+func (gw *Instance) proxyMessageRequest(req *pb.GetMessages,
+	respChan chan getMessageResponse) {
+	ret := func(resp *pb.GetMessagesResponse, err error) {
+		select {
+		case respChan <- getMessageResponse{resp, err}:
+		default:
+			jww.ERROR.Printf("Failed to send GetMessageResponse "+
+				"for %+v to channel", base64.StdEncoding.EncodeToString(req.GetTarget()))
+		}
+	}
+
+	if req == nil || req.Target == nil {
+		ret(&pb.GetMessagesResponse{}, errors.Errorf("Proxy get message request is malformed: %+v", req))
+	}
+
+	targetID, err := id.Unmarshal(req.GetTarget())
+	if err != nil {
+		ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "Failed to unmarshal target ID"))
+	}
+	if !gw.Comms.GetId().Cmp(targetID) {
+		// Check if the host exists and is connected
+		host, exists := gw.Comms.GetHost(targetID)
+		if !exists {
+			ret(&pb.GetMessagesResponse{}, errors.Errorf(noHostErr, targetID))
+			return
+		}
+		connected, _ := host.Connected()
+		if !connected {
+			ret(&pb.GetMessagesResponse{}, errors.Errorf(noConnectionErr, targetID))
+			return
+		}
+		resp, err := gw.Comms.SendRequestMessages(host, req, sendTimeout)
+		if err != nil {
+			ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "Failed to send client key request to target"))
+			return
+		}
+		jww.DEBUG.Printf("Received node registration response %+v", resp)
+		ret(resp, nil)
+		return
+	} else {
+		resp, err := gw.requestMessageHelper(req)
+		if err != nil {
+			ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "ailed to process client key request"))
+			return
+		}
+		jww.DEBUG.Printf("Processed node registration, returning response %+v", resp)
+		ret(resp, nil)
+		return
+	}
+}
+
 // RequestMessages Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
@@ -316,7 +415,11 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 		}
 	}
 
-	// Parse the requested clientID within the message for the database request
+	return gw.requestMessageHelper(req)
+}
+
+func (gw *Instance) requestMessageHelper(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+	// Parse the requested client`ID within the message for the database request
 	userId, err := ephemeral.Marshal(req.ClientID)
 	if err != nil {
 		return &pb.GetMessagesResponse{}, errors.Errorf("Could not parse requested user ID: %+v", err)
@@ -359,7 +462,6 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 		Messages: slots,
 		HasRound: hasRound,
 	}, nil
-
 }
 
 // RequestHistoricalRounds retrieves all rounds requested within the HistoricalRounds

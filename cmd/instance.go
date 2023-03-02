@@ -229,6 +229,10 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 		return instance.RequestTlsCert(message)
 	}
 
+	impl.Functions.RequestBatchMessages = func(msg *pb.GetMessagesBatch) (*pb.GetMessagesResponseBatch, error) {
+		return instance.RequestMessagesBatch(msg)
+	}
+
 	return impl
 }
 
