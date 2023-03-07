@@ -288,12 +288,15 @@ type getMessageResponse struct {
 	err  error
 }
 
+// RequestBatchMessages Client -> Gateway handler.  Handles a batch of message
+// requests, sending them in parallel to their targets.  Any results received
+// before the received timeout are returned.
 func (gw *Instance) RequestBatchMessages(req *pb.GetMessagesBatch) (*pb.GetMessagesResponseBatch, error) {
 	if req == nil || req.Requests == nil {
 		return &pb.GetMessagesResponseBatch{}, errors.Errorf("")
 	}
 
-	jww.INFO.Printf("Received batch message pickup request %+v", req.Requests)
+	jww.DEBUG.Printf("Received batch message pickup request %+v", req.Requests)
 
 	timeoutAt := time.Now().Add(time.Millisecond * time.Duration(req.Timeout))
 	responses := make([]*pb.GetMessagesResponse, len(req.Requests))
@@ -323,13 +326,14 @@ func (gw *Instance) RequestBatchMessages(req *pb.GetMessagesBatch) (*pb.GetMessa
 
 	wg.Wait()
 
-	jww.INFO.Printf("Returning responses %+v", responses)
 	return &pb.GetMessagesResponseBatch{
 		Results: responses,
 		Errors:  responseErrors,
 	}, nil
 }
 
+// proxyMessageRequest forwards a message request to its target, and returns
+// the result over the passed in channel.
 func (gw *Instance) proxyMessageRequest(req *pb.GetMessages,
 	respChan chan getMessageResponse) {
 	ret := func(resp *pb.GetMessagesResponse, err error) {
@@ -391,6 +395,8 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			"Please try again with a properly crafted message!")
 	}
 
+	jww.DEBUG.Printf("Received RequestMessages: %+v", req)
+
 	// If the target is nil or empty, consider the target itself
 	if req.GetTarget() != nil && len(req.GetTarget()) > 0 {
 		// Unmarshal target ID
@@ -418,6 +424,7 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 	return gw.requestMessageHelper(req)
 }
 
+// requestMessageHelper handles GetMessages requests for this gateway
 func (gw *Instance) requestMessageHelper(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 	// Parse the requested client`ID within the message for the database request
 	userId, err := ephemeral.Marshal(req.ClientID)
