@@ -432,6 +432,124 @@ func TestInstance_RequestMessages(t *testing.T) {
 	}
 }
 
+func TestInstance_RequestBatchMessages(t *testing.T) {
+	gw1 := makeGatewayInstance("0.0.0.0:5695", t)
+	gw2 := makeGatewayInstance("0.0.0.0:5696", t)
+
+	// Create a message and insert them into a database
+	numMessages := 5
+	expectedRound := id.Round(1)
+	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	testEphId, _, _, err := ephemeral.GetId(recipientID, 64, time.Now().UnixNano())
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
+
+	payload := "test"
+	clientRound := &storage.ClientRound{
+		Id:        uint64(expectedRound),
+		Timestamp: time.Now(),
+		Messages:  make([]storage.MixedMessage, numMessages),
+	}
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, testEphId, messageContents, messageContents)
+	}
+	err = gw1.storage.InsertMixedMessages(clientRound)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	// Craft the request message and send
+	requestMessage := &pb.GetMessages{
+		ClientID: testEphId[:],
+		RoundID:  uint64(1),
+		Target:   gw1.Comms.GetId().Marshal(),
+	}
+
+	proxyRecipientID := id.NewIdFromBytes([]byte("testProxy"), t)
+	proxyTestEphId, _, _, err := ephemeral.GetId(proxyRecipientID, 64, time.Now().UnixNano())
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
+
+	expectedProxyRound := id.Round(2)
+	proxyClientRound := &storage.ClientRound{
+		Id:        uint64(expectedProxyRound),
+		Timestamp: time.Now(),
+		Messages:  make([]storage.MixedMessage, numMessages),
+	}
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		proxyClientRound.Messages[i] = *storage.NewMixedMessage(expectedProxyRound, proxyTestEphId, messageContents, messageContents)
+	}
+	err = gw1.storage.InsertMixedMessages(proxyClientRound)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	// Craft the request message and send
+	proxyRequestMessage := &pb.GetMessages{
+		ClientID: testEphId[:],
+		RoundID:  uint64(1),
+		Target:   gw2.Comms.GetId().Marshal(),
+	}
+
+	requestBatchMessage := &pb.GetMessagesBatch{Requests: []*pb.GetMessages{requestMessage, proxyRequestMessage}, Timeout: 500}
+
+	receivedBatchMsg, err := gw1.RequestBatchMessages(requestBatchMessage)
+	if err != nil {
+		t.Errorf("Unexpected in happy path: %v", err)
+	}
+
+	// Check that the amount of messages returned is expected
+	receivedMsg := receivedBatchMsg.GetResults()[0]
+	if len(receivedMsg.GetMessages()) != numMessages {
+		t.Errorf("Messages returned is not expected."+
+			"\n\tReceived: %d"+
+			"\n\tExpected: %d", len(receivedMsg.Messages), numMessages)
+	}
+	// Check that the data within the messages is of expected value
+	for i, msg := range receivedMsg.Messages {
+		expectedMsg := []byte(payload)
+
+		if !bytes.Contains(msg.PayloadA, expectedMsg) {
+			t.Errorf("Received message %d did not contain expected PayloadA!"+
+				"\n\tReceived: %v"+
+				"\n\tExpected: %v", i, msg.PayloadA, expectedMsg)
+		}
+
+		if !bytes.Contains(msg.PayloadB, expectedMsg) {
+			t.Errorf("Received message %d did not contain expected PayloadB!"+
+				"\n\tReceived: %v"+
+				"\n\tExpected: %v", i, msg.PayloadB, expectedMsg)
+		}
+	}
+
+	receivedMsgProxy := receivedBatchMsg.GetResults()[1]
+	if len(receivedMsg.GetMessages()) != numMessages {
+		t.Errorf("Messages returned is not expected."+
+			"\n\tReceived: %d"+
+			"\n\tExpected: %d", len(receivedMsg.Messages), numMessages)
+	}
+	// Check that the data within the messages is of expected value
+	for i, msg := range receivedMsgProxy.Messages {
+		expectedMsg := []byte(payload)
+
+		if !bytes.Contains(msg.PayloadA, expectedMsg) {
+			t.Errorf("Received message %d did not contain expected PayloadA!"+
+				"\n\tReceived: %v"+
+				"\n\tExpected: %v", i, msg.PayloadA, expectedMsg)
+		}
+
+		if !bytes.Contains(msg.PayloadB, expectedMsg) {
+			t.Errorf("Received message %d did not contain expected PayloadB!"+
+				"\n\tReceived: %v"+
+				"\n\tExpected: %v", i, msg.PayloadB, expectedMsg)
+		}
+	}
+}
+
 func TestInstance_RequestMessages_Proxy(t *testing.T) { // Create instances
 	gw1 := makeGatewayInstance("0.0.0.0:5685", t)
 	gw2 := makeGatewayInstance("0.0.0.0:5686", t)
