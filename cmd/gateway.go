@@ -309,7 +309,7 @@ func (gw *Instance) RequestBatchMessages(req *pb.GetMessagesBatch) (*pb.GetMessa
 		timeout := time.NewTimer(time.Until(timeoutAt))
 		go func() {
 			respChan := make(chan getMessageResponse, 5)
-			go gw.proxyMessageRequest(internalReq, respChan)
+			go gw.getMessagesOverChannel(internalReq, respChan)
 			select {
 			case resp := <-respChan:
 				responses[internalIndex] = resp.resp
@@ -331,56 +331,17 @@ func (gw *Instance) RequestBatchMessages(req *pb.GetMessagesBatch) (*pb.GetMessa
 	}, nil
 }
 
-// proxyMessageRequest forwards a message request to its target, and returns
-// the result over the passed in channel.
-func (gw *Instance) proxyMessageRequest(req *pb.GetMessages,
+// getMessagesOverChannel is a helper function which wraps proxyMessageRequest,
+// calling it on the passed in pb.GetMessages request &
+// returning the results over the passed in channel.
+func (gw *Instance) getMessagesOverChannel(req *pb.GetMessages,
 	respChan chan getMessageResponse) {
-	ret := func(resp *pb.GetMessagesResponse, err error) {
-		select {
-		case respChan <- getMessageResponse{resp, err}:
-		default:
-			jww.ERROR.Printf("Failed to send GetMessageResponse "+
-				"for %+v to channel", base64.StdEncoding.EncodeToString(req.GetTarget()))
-		}
-	}
-
-	if req == nil || req.Target == nil {
-		ret(&pb.GetMessagesResponse{}, errors.Errorf("Proxy get message request is malformed: %+v", req))
-		return
-	}
-
-	targetID, err := id.Unmarshal(req.GetTarget())
-	if err != nil {
-		ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "Failed to unmarshal target ID"))
-		return
-	}
-	if !gw.Comms.GetId().Cmp(targetID) {
-		// Check if the host exists and is connected
-		host, exists := gw.Comms.GetHost(targetID)
-		if !exists {
-			ret(&pb.GetMessagesResponse{}, errors.Errorf(noHostErr, targetID))
-			return
-		}
-		connected, _ := host.Connected()
-		if !connected {
-			ret(&pb.GetMessagesResponse{}, errors.Errorf(noConnectionErr, targetID))
-			return
-		}
-		resp, err := gw.Comms.SendRequestMessages(host, req, sendTimeout)
-		if err != nil {
-			ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "Failed to send client key request to target"))
-			return
-		}
-		ret(resp, nil)
-		return
-	} else {
-		resp, err := gw.requestMessageHelper(req)
-		if err != nil {
-			ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "ailed to process client key request"))
-			return
-		}
-		ret(resp, nil)
-		return
+	resp, err := gw.requestMessageHelper(req)
+	select {
+	case respChan <- getMessageResponse{resp, err}:
+	default:
+		jww.ERROR.Printf("Failed to send GetMessageResponse "+
+			"for %+v to channel", base64.StdEncoding.EncodeToString(req.GetTarget()))
 	}
 }
 
@@ -396,7 +357,18 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 
 	jww.DEBUG.Printf("Received RequestMessages: %+v", req)
 
-	// If the target is nil or empty, consider the target itself
+	return gw.requestMessageHelper(req)
+}
+
+// requestMessageHelper handles GetMessages requests, either forwarding them
+// to the appropriate gateway, or responding if this gateway is the target.
+func (gw *Instance) requestMessageHelper(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+	// Check that the request is not nil
+	if req == nil {
+		return nil, errors.Errorf("GetMessages request is nil")
+	}
+
+	// Forward message to target if needed
 	if req.GetTarget() != nil && len(req.GetTarget()) > 0 {
 		// Unmarshal target ID
 		targetID, err := id.Unmarshal(req.GetTarget())
@@ -419,12 +391,8 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			return gw.Comms.SendRequestMessages(host, req, sendTimeout)
 		}
 	}
+	// If the target is nil or empty, consider the target itself
 
-	return gw.requestMessageHelper(req)
-}
-
-// requestMessageHelper handles GetMessages requests for this gateway
-func (gw *Instance) requestMessageHelper(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
 	// Parse the requested client`ID within the message for the database request
 	userId, err := ephemeral.Marshal(req.ClientID)
 	if err != nil {
