@@ -312,7 +312,6 @@ func (gw *Instance) RequestBatchMessages(req *pb.GetMessagesBatch) (*pb.GetMessa
 			go gw.proxyMessageRequest(internalReq, respChan)
 			select {
 			case resp := <-respChan:
-				jww.INFO.Printf("Received response %+v from proxy", resp)
 				responses[internalIndex] = resp.resp
 				if resp.err != nil {
 					responseErrors[internalIndex] = resp.err.Error()
@@ -372,7 +371,6 @@ func (gw *Instance) proxyMessageRequest(req *pb.GetMessages,
 			ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "Failed to send client key request to target"))
 			return
 		}
-		jww.DEBUG.Printf("Received node registration response %+v", resp)
 		ret(resp, nil)
 		return
 	} else {
@@ -381,7 +379,6 @@ func (gw *Instance) proxyMessageRequest(req *pb.GetMessages,
 			ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "ailed to process client key request"))
 			return
 		}
-		jww.DEBUG.Printf("Processed node registration, returning response %+v", resp)
 		ret(resp, nil)
 		return
 	}
