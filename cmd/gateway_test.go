@@ -771,6 +771,190 @@ func TestInstance_RequestMessages_NilCheck(t *testing.T) {
 
 }
 
+// Error path: Request a round that exists in the database but the requested user
+//
+//	is not within this round
+func TestInstance_RequestBatchMessages_NoUser(t *testing.T) {
+	// Create a message and insert them into a database
+	numMessages := 5
+	expectedRound := id.Round(0)
+	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	testEphId, _, _, err := ephemeral.GetId(recipientID, 64, time.Now().UnixNano())
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
+	payload := "test"
+	clientRound := &storage.ClientRound{
+		Id:        uint64(expectedRound),
+		Timestamp: time.Now(),
+		Messages:  make([]storage.MixedMessage, numMessages),
+	}
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, testEphId, messageContents, messageContents)
+	}
+	err = gatewayInstance.storage.InsertMixedMessages(clientRound)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	// Craft the request message with an unrecognized userID
+	roundBytes := make([]byte, 8)
+	badClientId := id.NewIdFromBytes([]byte("badClientId"), t)
+	binary.BigEndian.PutUint64(roundBytes, uint64(expectedRound))
+	badRequest := &pb.GetMessages{
+		ClientID: badClientId.Bytes(),
+		RoundID:  uint64(2),
+		Target:   gatewayInstance.Comms.GetId().Marshal(),
+	}
+	badBatchReq := &pb.GetMessagesBatch{Requests: []*pb.GetMessages{badRequest}, Timeout: 500}
+
+	receivedBatchMsg, err := gatewayInstance.RequestBatchMessages(badBatchReq)
+	if err != nil {
+		t.Fatalf("Should return batch normally: %+v", err)
+	}
+	receivedMsg := receivedBatchMsg.GetResults()[0]
+	if receivedMsg != nil && receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
+	}
+
+	if len(receivedMsg.Messages) != 0 {
+		t.Errorf("Received messages should be zero!")
+	}
+	if receivedBatchMsg.GetErrors()[0] == "" {
+		t.Errorf("Should have received error")
+	}
+
+}
+
+// Error path: Request a round that doesn't exist in the database
+func TestInstance_RequestBatchMessages_NoRound(t *testing.T) {
+	// Create a message and insert them into a database
+	numMessages := 5
+	expectedRound := id.Round(0)
+	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	testEphId, _, _, err := ephemeral.GetId(recipientID, 64, time.Now().UnixNano())
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
+	payload := "test"
+	clientRound := &storage.ClientRound{
+		Id:        uint64(expectedRound),
+		Timestamp: time.Now(),
+		Messages:  make([]storage.MixedMessage, numMessages),
+	}
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, testEphId, messageContents, messageContents)
+	}
+	err = gatewayInstance.storage.InsertMixedMessages(clientRound)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	// Craft the request message with an unknown round
+	roundBytes := make([]byte, 8)
+	badRoundId := id.Round(42)
+	binary.BigEndian.PutUint64(roundBytes, uint64(badRoundId))
+	badRequest := &pb.GetMessages{
+		ClientID: recipientID.Bytes(),
+		RoundID:  uint64(3),
+		Target:   gatewayInstance.Comms.GetId().Marshal(),
+	}
+	badBatchReq := &pb.GetMessagesBatch{Requests: []*pb.GetMessages{badRequest}, Timeout: 500}
+
+	receivedBatchMsg, err := gatewayInstance.RequestBatchMessages(badBatchReq)
+	if err != nil {
+		t.Fatalf("Should return batch normally: %+v", err)
+	}
+	receivedMsg := receivedBatchMsg.GetResults()[0]
+	if receivedMsg != nil && receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
+	}
+
+	if len(receivedMsg.Messages) != 0 {
+		t.Errorf("Received messages should be zero!")
+	}
+	if receivedBatchMsg.GetErrors()[0] == "" {
+		t.Errorf("Should have received error")
+	}
+
+}
+
+// Error path: Craft a nil message which should not be accepted
+func TestInstance_RequestBatchMessages_NilCheck(t *testing.T) {
+	// Create a message and insert them into a database
+	numMessages := 5
+	expectedRound := id.Round(0)
+	recipientID := id.NewIdFromBytes([]byte("test"), t)
+	testEphId, _, _, err := ephemeral.GetId(recipientID, 64, time.Now().UnixNano())
+	if err != nil {
+		t.Errorf("Could not create an ephemeral id: %v", err)
+	}
+	payload := "test"
+	clientRound := &storage.ClientRound{
+		Id:        uint64(expectedRound),
+		Timestamp: time.Now(),
+		Messages:  make([]storage.MixedMessage, numMessages),
+	}
+	for i := 0; i < numMessages; i++ {
+		messageContents := []byte(payload)
+		clientRound.Messages[i] = *storage.NewMixedMessage(expectedRound, testEphId, messageContents, messageContents)
+	}
+	err = gatewayInstance.storage.InsertMixedMessages(clientRound)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	// Craft the request message with a nil ClientID
+	badRequest := &pb.GetMessages{
+		ClientID: recipientID.Bytes(),
+		RoundID:  uint64(0),
+	}
+
+	badBatchReq := &pb.GetMessagesBatch{Requests: []*pb.GetMessages{badRequest}, Timeout: 500}
+
+	receivedBatchMsg, err := gatewayInstance.RequestBatchMessages(badBatchReq)
+	if err != nil {
+		t.Fatalf("Should return batch normally: %+v", err)
+	}
+	receivedMsg := receivedBatchMsg.GetResults()[0]
+	if receivedMsg != nil && receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
+	}
+
+	if len(receivedMsg.Messages) != 0 {
+		t.Errorf("Received messages should be zero!")
+	}
+	if receivedBatchMsg.GetErrors()[0] == "" {
+		t.Errorf("Should have received error")
+	}
+
+	// Craft the request message with a nil RoundID
+	badRequest = &pb.GetMessages{
+		ClientID: recipientID.Bytes(),
+		RoundID:  uint64(0),
+	}
+
+	badBatchReq = &pb.GetMessagesBatch{Requests: []*pb.GetMessages{badRequest}, Timeout: 500}
+
+	receivedBatchMsg, err = gatewayInstance.RequestBatchMessages(badBatchReq)
+	if err != nil {
+		t.Fatalf("Should return batch normally: %+v", err)
+	}
+	receivedMsg = receivedBatchMsg.GetResults()[0]
+	if receivedMsg != nil && receivedMsg.HasRound {
+		t.Errorf("msg.HasRound should be false")
+	}
+
+	if len(receivedMsg.Messages) != 0 {
+		t.Errorf("Received messages should be zero!")
+	}
+	if receivedBatchMsg.GetErrors()[0] == "" {
+		t.Errorf("Should have received error")
+	}
+}
+
 // Tests that messages can get through when its user ID bucket is not full and
 // checks that they are blocked when the bucket is full.
 // TODO: re-enable after user ID limiting is working

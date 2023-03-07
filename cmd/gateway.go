@@ -347,11 +347,13 @@ func (gw *Instance) proxyMessageRequest(req *pb.GetMessages,
 
 	if req == nil || req.Target == nil {
 		ret(&pb.GetMessagesResponse{}, errors.Errorf("Proxy get message request is malformed: %+v", req))
+		return
 	}
 
 	targetID, err := id.Unmarshal(req.GetTarget())
 	if err != nil {
 		ret(&pb.GetMessagesResponse{}, errors.WithMessage(err, "Failed to unmarshal target ID"))
+		return
 	}
 	if !gw.Comms.GetId().Cmp(targetID) {
 		// Check if the host exists and is connected
