@@ -10,6 +10,7 @@ package cmd
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"github.com/pkg/errors"
@@ -282,6 +283,68 @@ func (gw *Instance) requestClientKeyHelper(msg *pb.SignedClientKeyRequest) (*pb.
 	return resp, nil
 }
 
+type getMessageResponse struct {
+	resp *pb.GetMessagesResponse
+	err  error
+}
+
+// RequestBatchMessages Client -> Gateway handler.  Handles a batch of message
+// requests, sending them in parallel to their targets.  Any results received
+// before the received timeout are returned.
+func (gw *Instance) RequestBatchMessages(req *pb.GetMessagesBatch) (*pb.GetMessagesResponseBatch, error) {
+	if req == nil || req.Requests == nil {
+		return &pb.GetMessagesResponseBatch{}, errors.Errorf("")
+	}
+
+	jww.DEBUG.Printf("Received batch message pickup request %+v", req.Requests)
+
+	timeoutAt := time.Now().Add(time.Millisecond * time.Duration(req.Timeout))
+	responses := make([]*pb.GetMessagesResponse, len(req.Requests))
+	responseErrors := make([]string, len(req.Requests))
+	var wg sync.WaitGroup
+	for i, messageRequest := range req.GetRequests() {
+		wg.Add(1)
+		internalReq := messageRequest
+		internalIndex := i
+		timeout := time.NewTimer(time.Until(timeoutAt))
+		go func() {
+			respChan := make(chan getMessageResponse, 5)
+			go gw.getMessagesOverChannel(internalReq, respChan)
+			select {
+			case resp := <-respChan:
+				responses[internalIndex] = resp.resp
+				if resp.err != nil {
+					responseErrors[internalIndex] = resp.err.Error()
+				}
+				timeout.Stop()
+			case <-timeout.C:
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+
+	return &pb.GetMessagesResponseBatch{
+		Results: responses,
+		Errors:  responseErrors,
+	}, nil
+}
+
+// getMessagesOverChannel is a helper function which wraps proxyMessageRequest,
+// calling it on the passed in pb.GetMessages request &
+// returning the results over the passed in channel.
+func (gw *Instance) getMessagesOverChannel(req *pb.GetMessages,
+	respChan chan getMessageResponse) {
+	resp, err := gw.requestMessageHelper(req)
+	select {
+	case respChan <- getMessageResponse{resp, err}:
+	default:
+		jww.ERROR.Printf("Failed to send GetMessageResponse "+
+			"for %+v to channel", base64.StdEncoding.EncodeToString(req.GetTarget()))
+	}
+}
+
 // RequestMessages Client -> Gateway handler. Looks up messages based on a userID and a roundID.
 // If the gateway participated in this round, and the requested client had messages in that round,
 // we return these message(s) to the requester
@@ -292,7 +355,20 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			"Please try again with a properly crafted message!")
 	}
 
-	// If the target is nil or empty, consider the target itself
+	jww.DEBUG.Printf("Received RequestMessages: %+v", req)
+
+	return gw.requestMessageHelper(req)
+}
+
+// requestMessageHelper handles GetMessages requests, either forwarding them
+// to the appropriate gateway, or responding if this gateway is the target.
+func (gw *Instance) requestMessageHelper(req *pb.GetMessages) (*pb.GetMessagesResponse, error) {
+	// Check that the request is not nil
+	if req == nil {
+		return nil, errors.Errorf("GetMessages request is nil")
+	}
+
+	// Forward message to target if needed
 	if req.GetTarget() != nil && len(req.GetTarget()) > 0 {
 		// Unmarshal target ID
 		targetID, err := id.Unmarshal(req.GetTarget())
@@ -315,8 +391,9 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 			return gw.Comms.SendRequestMessages(host, req, sendTimeout)
 		}
 	}
+	// If the target is nil or empty, consider the target itself
 
-	// Parse the requested clientID within the message for the database request
+	// Parse the requested client`ID within the message for the database request
 	userId, err := ephemeral.Marshal(req.ClientID)
 	if err != nil {
 		return &pb.GetMessagesResponse{}, errors.Errorf("Could not parse requested user ID: %+v", err)
@@ -359,7 +436,6 @@ func (gw *Instance) RequestMessages(req *pb.GetMessages) (*pb.GetMessagesRespons
 		Messages: slots,
 		HasRound: hasRound,
 	}, nil
-
 }
 
 // RequestHistoricalRounds retrieves all rounds requested within the HistoricalRounds

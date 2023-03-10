@@ -27,6 +27,7 @@ const httpsEmail = "admins@xx.network"
 const httpsCountry = "US"
 const eabNotReadyErr = "EAB Credentials not yet ready, please try again"
 const gwNotReadyErr = "Authorizer DNS not yet ready, please try again"
+const replaceCertificateErr = "[handleReplaceCertificates] Error encountered while replacing certificates, will retry at %s...\n Error text: %+v"
 
 // StartHttpsServer gets a well-formed tls certificate and provides it to
 // protocomms so it can start to listen for HTTPS
@@ -92,10 +93,8 @@ func (gw *Instance) StartHttpsServer() error {
 		return err
 	}
 
-	// Start thread which will sleep until replaceAt - replaceWindow
-	expiry := parsedCert.NotAfter
-	replaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
-	gw.handleReplaceCertificates(replaceAt)
+	// Start thread which will sleep until approximately replaceAt - replaceWindow
+	gw.handleReplaceCertificates(getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.CertReplaceWindow, gw.Params.MaxCertReplaceDelay))
 
 	return gw.setGatewayTlsCertificate(parsedCert.Raw)
 }
@@ -104,41 +103,103 @@ func (gw *Instance) StartHttpsServer() error {
 // call getHttpsCreds & re-provision protocomms with the new certificate
 func (gw *Instance) handleReplaceCertificates(replaceAt time.Time) {
 	go func() {
-		jww.DEBUG.Printf("Sleeping until %s to replace certificates...", replaceAt.String())
-		time.Sleep(time.Until(replaceAt))
-		newCert, newKey, err := gw.getHttpsCreds()
-		if err != nil {
-			jww.ERROR.Printf("Failed to get new https credentials: %+v", err)
+		retry := func(err error) {
+			replaceAt = time.Now().Add(time.Minute * time.Duration(10+rand.Intn(20)))
+			jww.ERROR.Printf(replaceCertificateErr, replaceAt, err)
 		}
+		for {
+			// Wait for time.Until(replaceAt)
+			time.Sleep(time.Until(replaceAt))
 
-		err = gw.Comms.RestartGateway()
-		if err != nil {
-			jww.FATAL.Panicf("Failed to restart gateway comms: %+v", err)
-		}
+			// Check quit channel
+			select {
+			case <-gw.replaceCertificateQuit:
+				jww.INFO.Printf("[handleReplaceCertificates] Received signal on quit channel")
+				return
+			default:
+			}
 
-		parsed, err := tls.X509KeyPair(newCert, newKey)
-		if err != nil {
-			jww.ERROR.Printf("Failed to parse new TLS keypair: %+v", err)
-		}
+			newCert, newKey, err := gw.getHttpsCreds()
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to get new https credentials"))
+				continue
+			}
 
-		err = gw.Comms.ProtoComms.ServeHttps(parsed)
-		if err != nil {
-			jww.ERROR.Printf("Failed to provision protocomms with new https credentials: %+v", err)
-		}
+			err = gw.Comms.RestartGateway()
+			if err != nil {
+				jww.FATAL.Panicf("Failed to restart gateway comms: %+v", err)
+			}
 
-		parsedCert, err := x509.ParseCertificate(parsed.Certificate[0])
-		if err != nil {
-			jww.ERROR.Printf("Failed to get x509 certificate from parsed keypair: %+v", err)
+			parsed, err := tls.X509KeyPair(newCert, newKey)
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to parse new TLS keypair"))
+				continue
+			}
+
+			err = gw.Comms.ProtoComms.ServeHttps(parsed)
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to provision protocomms with new https credentials"))
+				continue
+			}
+
+			parsedCert, err := x509.ParseCertificate(parsed.Certificate[0])
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to get x509 certificate from parsed keypair"))
+				continue
+			}
+			err = gw.setGatewayTlsCertificate(parsedCert.Raw)
+			if err != nil {
+				retry(errors.WithMessage(err, "Failed to set tls certificate for clients"))
+				continue
+			}
+
+			// Reset replaceAt based on new cert's NotAfter (minus one day for safety)
+			replaceAt = getReplaceAt(parsedCert.NotAfter.Add(-1*time.Hour*24), gw.Params.CertReplaceWindow, gw.Params.MaxCertReplaceDelay)
 		}
-		err = gw.setGatewayTlsCertificate(parsedCert.Raw)
-		if err != nil {
-			jww.ERROR.Printf("Failed to set tls certificate for clients: %+v", err)
-		}
-		// Start thread which will sleep until the new cert needs to be replaced
-		expiry := parsedCert.NotAfter
-		nextReplaceAt := expiry.Add(-1 * gw.Params.ReplaceHttpsCertBuffer)
-		gw.handleReplaceCertificates(nextReplaceAt)
 	}()
+}
+
+// getReplaceAt generates a time.Time at which to replace the certificate,
+// with a lower bound of (certExpiresAt - replaceHttpsCertBuffer),
+// and an upper bound of min((lower bound + maxReplaceRange), certExpiresAt)
+// Accepts params:
+// certExpiresAt - time at which the certificate will expire
+// certReplaceWindow - duration of certReplaceWindow.
+// maxCertReplaceDelay - duration, used to limit the spread across replaceHttpsCertBuffer
+func getReplaceAt(certExpiresAt time.Time, certReplaceWindow time.Duration, maxCertReplaceDelay time.Duration) time.Time {
+	// If certificate is expired, return time.Now
+	if certExpiresAt.Before(time.Now()) {
+		jww.ERROR.Printf("Certificate expired at %s...", certExpiresAt)
+		return time.Now()
+	}
+
+	// We are already in the range of time in which the cert will be replaced
+	startReplacingAt := certExpiresAt.Add(-1 * certReplaceWindow)
+	if startReplacingAt.Before(time.Now()) {
+		newStartReplacingAt := time.Now()
+		jww.DEBUG.Printf("Certificate replace window began at %v, shortening window to: %v <-> %v", startReplacingAt, newStartReplacingAt, certExpiresAt)
+		startReplacingAt = newStartReplacingAt
+	}
+
+	// Should never occur due to the logic above, but best to test anyway
+	// Third edge case is our cert expires after our start expiration time.
+	if certExpiresAt.Before(startReplacingAt) {
+		jww.ERROR.Printf("Unexpected range, before time: %s, after time: %s, replacing now...", certExpiresAt, startReplacingAt)
+		return time.Now()
+	}
+
+	// Get replacement range
+	replacementRange := certExpiresAt.Sub(startReplacingAt)
+	if replacementRange > maxCertReplaceDelay {
+		replacementRange = maxCertReplaceDelay
+	}
+	// Get random amount of time between certExpiresAt and startReplacingAt
+	randomReplacementInterval := time.Minute * time.Duration(rand.Intn(int(replacementRange.Minutes())))
+
+	replaceAt := startReplacingAt.Add(randomReplacementInterval)
+
+	jww.INFO.Printf("[handleReplaceCertificates] Sleeping until %s to replace certificate expiring at %s...", replaceAt.String(), certExpiresAt)
+	return replaceAt
 }
 
 // getHttpsCreds is a helper for getting the tls certificate and key to pass
@@ -174,6 +235,9 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 				&mixmessages.EABCredentialRequest{})
 			if err != nil {
 				if strings.Contains(err.Error(), eabNotReadyErr) {
+					jww.ERROR.Printf("[HTTPS] Unable to request EAB credentials from authorizer: %+v", err)
+					sleep := 3*time.Second + time.Duration(rand.Intn(2*int(time.Second)))
+					time.Sleep(sleep)
 					continue
 				}
 				return nil, nil, err
@@ -232,6 +296,7 @@ func (gw *Instance) getHttpsCreds() ([]byte, []byte, error) {
 			if err != nil {
 				// If the authorizer gives a timeout/not ready err, sleep for 3-5 seconds & try again
 				if strings.Contains(err.Error(), gwNotReadyErr) {
+					jww.ERROR.Printf("[HTTPS] Unable to request certificate from authorizer: %+v", err)
 					sleep := 3*time.Second + time.Duration(rand.Intn(2*int(time.Second)))
 					time.Sleep(sleep)
 					continue

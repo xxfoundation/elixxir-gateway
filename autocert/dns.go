@@ -271,7 +271,11 @@ func getDNSChallenge(client acmeClient, order *acme.Order) (*acme.Challenge,
 	string, error) {
 	for i := 0; i < len(order.AuthzURLs); i++ {
 		authzURL := order.AuthzURLs[i]
-		authz := getAuth(client, authzURL)
+		authz, err := getAuth(client, authzURL)
+		if err != nil {
+			jww.WARN.Printf("unable to retrieve authz %s: %+v", authzURL, err)
+			continue
+		}
 		if authz.Status == acme.StatusValid {
 			return nil, authzURL, nil
 		}
@@ -283,15 +287,14 @@ func getDNSChallenge(client acmeClient, order *acme.Order) (*acme.Challenge,
 	return nil, "", errors.Errorf("no dns challenge available")
 }
 
-func getAuth(client acmeClient, authzURL string) *acme.Authorization {
+func getAuth(client acmeClient, authzURL string) (*acme.Authorization, error) {
 	ctx, cancelFn := getDefaultContext()
 	defer cancelFn()
 	authz, err := client.GetAuthorization(ctx, authzURL)
 	if err != nil {
-		jww.WARN.Printf("error retriving authz %s: %+v", authzURL, err)
-		return nil
+		return nil, err
 	}
-	return authz
+	return authz, nil
 }
 
 func findDNSChallenge(challenges []*acme.Challenge) *acme.Challenge {
@@ -322,14 +325,15 @@ func waitForAuthorization(client acmeClient,
 		default:
 		}
 		ctx, cancelFn := context.WithTimeout(context.Background(),
-			1*time.Minute)
+			15*time.Second)
 		authz, err := client.WaitAuthorization(ctx, authzURL)
+		cancelFn()
 		if err != nil {
-			jww.DEBUG.Printf("WaitAuthorization: %s, continuing...",
+			jww.WARN.Printf("WaitAuthorization: %s, continuing...",
 				err.Error())
+			time.Sleep(30 * time.Second)
 			continue
 		}
-		cancelFn()
 		return authz, nil
 	}
 }

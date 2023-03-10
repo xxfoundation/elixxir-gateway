@@ -47,12 +47,14 @@ type Params struct {
 	DevMode       bool
 	DisableGossip bool
 
-	HttpsCountry           string
-	AuthorizerAddress      string
-	AutocertIssueTimeout   time.Duration
-	ReplaceHttpsCertBuffer time.Duration
-
-	cleanupInterval time.Duration
+	HttpsCountry         string
+	AuthorizerAddress    string
+	AutocertIssueTimeout time.Duration
+	// time.Duration used to calculate lower bound of when to replace TLS cert, based on its expiry
+	CertReplaceWindow time.Duration
+	// Maximum random delay for cert replacement after reaching the start of CertReplaceWindow
+	MaxCertReplaceDelay time.Duration
+	cleanupInterval     time.Duration
 
 	MinRegisteredNodes int
 }
@@ -190,9 +192,13 @@ func InitParams(vip *viper.Viper) Params {
 	viper.SetDefault(autocertTimeoutKey, time.Hour)
 	autocertTimeout := viper.GetDuration(autocertTimeoutKey)
 
-	replaceHttpsCertBufferKey := "replaceHttpsCertBuffer"
-	viper.SetDefault(replaceHttpsCertBufferKey, time.Duration(30*24*time.Hour))
-	replaceHttpsCertBuffer := viper.GetDuration(replaceHttpsCertBufferKey)
+	certReplaceWindowKey := "certReplaceWindow"
+	viper.SetDefault(certReplaceWindowKey, time.Duration(30*24*time.Hour))
+	certReplaceWindow := viper.GetDuration(certReplaceWindowKey)
+
+	maxCertReplaceDelayKey := "maxCertReplaceDelay"
+	viper.SetDefault(maxCertReplaceDelayKey, time.Duration(5*24*time.Hour))
+	maxCertReplaceDelay := viper.GetDuration(maxCertReplaceDelayKey)
 
 	minRegisteredNodesKey := "minRegisteredNodes"
 	defaultMinRegisteredNodes := 3
@@ -228,7 +234,7 @@ func InitParams(vip *viper.Viper) Params {
 		cleanupInterval:        cleanupInterval,
 		AuthorizerAddress:      authorizerAddress,
 		AutocertIssueTimeout:   autocertTimeout,
-		ReplaceHttpsCertBuffer: replaceHttpsCertBuffer,
-		MinRegisteredNodes:     minRegisteredNodes,
+		CertReplaceWindow:      certReplaceWindow,
+		MaxCertReplaceDelay:    maxCertReplaceDelay,
 	}
 }

@@ -142,6 +142,12 @@ var rootCmd = &cobra.Command{
 				jww.ERROR.Println("Failed to stop earliestRoundQuitChan")
 			}
 
+			select {
+			case gateway.replaceCertificateQuit <- struct{}{}:
+			case <-time.After(20 * time.Second):
+				jww.ERROR.Println("Failed to stop replace certificate thread")
+			}
+
 			gateway.Comms.Shutdown()
 
 			if profileOut != "" {
