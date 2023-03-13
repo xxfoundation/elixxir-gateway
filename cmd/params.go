@@ -55,6 +55,8 @@ type Params struct {
 	// Maximum random delay for cert replacement after reaching the start of CertReplaceWindow
 	MaxCertReplaceDelay time.Duration
 	cleanupInterval     time.Duration
+
+	MinRegisteredNodes int
 }
 
 const (
@@ -197,6 +199,17 @@ func InitParams(vip *viper.Viper) Params {
 	maxCertReplaceDelayKey := "maxCertReplaceDelay"
 	viper.SetDefault(maxCertReplaceDelayKey, time.Duration(5*24*time.Hour))
 	maxCertReplaceDelay := viper.GetDuration(maxCertReplaceDelayKey)
+
+	minRegisteredNodesKey := "minRegisteredNodes"
+	defaultMinRegisteredNodes := 3
+	viper.SetDefault(minRegisteredNodesKey, defaultMinRegisteredNodes)
+	minRegisteredNodes := viper.GetInt(minRegisteredNodesKey)
+
+	if minRegisteredNodes != defaultMinRegisteredNodes {
+		jww.ERROR.Printf("WARNING: MINIMUM REGISTERED NODES HAS BEEN "+
+			"CHANGED FROM DEFAULT (%d) TO %d",
+			defaultMinRegisteredNodes, minRegisteredNodes)
+	}
 
 	return Params{
 		Port:                   gwPort,

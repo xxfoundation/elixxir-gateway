@@ -469,6 +469,23 @@ func (gw *Instance) RequestHistoricalRounds(msg *pb.HistoricalRounds) (*pb.Histo
 // PutMessage adds a message to the outgoing queue
 func (gw *Instance) PutMessage(msg *pb.GatewaySlot, ipAddr string) (*pb.GatewaySlotResponse, error) {
 
+	// Reject messages if client tried to use ephemeral key for first node
+	if len(msg.Message.EphemeralKeys) > 0 && msg.Message.EphemeralKeys[0] &&
+		gw.Params.MinRegisteredNodes != 0 {
+		return nil, errors.Errorf("Client cannot use ephemeral keygen with first node in round")
+	}
+
+	// Reject messages with too many ephemeral keys
+	numEphemeral := 0
+	for _, isEphemeral := range msg.Message.EphemeralKeys {
+		if isEphemeral {
+			numEphemeral += 1
+		}
+	}
+	if len(msg.Message.EphemeralKeys) > 0 && len(msg.Message.EphemeralKeys)-numEphemeral < gw.Params.MinRegisteredNodes {
+		return nil, errors.Errorf("Too many ephemeral keys in message (%d/%d)", numEphemeral, len(msg.Message.EphemeralKeys))
+	}
+
 	// If the target is nil or empty, consider the target itself
 	if msg.GetTarget() != nil && len(msg.GetTarget()) > 0 {
 		// Unmarshal target ID
@@ -670,7 +687,6 @@ func (gw *Instance) handlePutManyMessage(messages *pb.GatewaySlots, ipAddr strin
 // Helper function which processes a single gateway slot. Checks the mac for
 // a singular message
 func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotResponse, error) {
-
 	// Construct Client ID for database lookup
 	clientID, err := id.Unmarshal(message.Message.SenderID)
 	if err != nil {
@@ -682,19 +698,23 @@ func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotR
 	// Retrieve the client from the database
 	cl, err := gw.storage.GetClient(clientID)
 	if err != nil {
-		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, errors.New("Did not recognize ID. Have you registered successfully?")
-	}
-
-	// Generate the MAC and check against the message's MAC
-	clientMac := generateClientMac(cl, message)
-	if !bytes.Equal(clientMac, message.MAC) {
-		return &pb.GatewaySlotResponse{
+		if message.Message.EphemeralKeys[0] == false {
+			return &pb.GatewaySlotResponse{
 				Accepted: false,
-			}, errors.Errorf("Could not authenticate client. Is the "+
-				"client registered with this node (%s)?",
-				gw.ServerHost.GetId())
+			}, errors.New("Did not recognize ID. Have you registered successfully?")
+		} else {
+			jww.WARN.Printf("Did not recognize ID, ephemeral was used for this gateway.  Continuing...")
+		}
+	} else {
+		// Generate the MAC and check against the message's MAC
+		clientMac := generateClientMac(cl, message)
+		if !bytes.Equal(clientMac, message.MAC) {
+			return &pb.GatewaySlotResponse{
+					Accepted: false,
+				}, errors.Errorf("Could not authenticate client. Is the "+
+					"client registered with this node (%s)?",
+					gw.ServerHost.GetId())
+		}
 	}
 
 	// fixme: enable once gossip is not broken
@@ -715,6 +735,10 @@ func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotR
 // Helper function which generates the client MAC for checking the clients
 // authenticity
 func generateClientMac(cl *storage.Client, msg *pb.GatewaySlot) []byte {
+	if cl == nil {
+		jww.WARN.Printf("Attempted to generateClientMac with nil client object")
+		return nil
+	}
 	// Digest the message for the MAC generation
 	gatewaySlotDigest := network.GenerateSlotDigest(msg)
 
@@ -774,12 +798,14 @@ func GenJunkMsg(grp *cyclic.Group, numNodes int, msgNum uint32, roundID id.Round
 	}
 
 	KMACs := cmix.GenerateKMACs(salt, baseKeys, roundID, h)
+	ephKeys := make([]bool, len(KMACs))
 	return &pb.Slot{
-		PayloadB: ecrMsg.GetPayloadB(),
-		PayloadA: ecrMsg.GetPayloadA(),
-		Salt:     salt,
-		SenderID: id.DummyUser.Marshal(),
-		KMACs:    KMACs,
+		PayloadB:      ecrMsg.GetPayloadB(),
+		PayloadA:      ecrMsg.GetPayloadA(),
+		Salt:          salt,
+		SenderID:      id.DummyUser.Marshal(),
+		KMACs:         KMACs,
+		EphemeralKeys: ephKeys,
 	}
 }
 
