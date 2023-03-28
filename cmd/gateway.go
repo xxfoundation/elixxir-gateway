@@ -698,13 +698,9 @@ func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotR
 	// Retrieve the client from the database
 	cl, err := gw.storage.GetClient(clientID)
 	if err != nil {
-		if message.Message.EphemeralKeys[0] == false {
-			return &pb.GatewaySlotResponse{
-				Accepted: false,
-			}, errors.New("Did not recognize ID. Have you registered successfully?")
-		} else {
-			jww.WARN.Printf("Did not recognize ID, ephemeral was used for this gateway.  Continuing...")
-		}
+		return &pb.GatewaySlotResponse{
+			Accepted: false,
+		}, errors.New("Did not recognize ID. Have you registered successfully?")
 	} else {
 		// Generate the MAC and check against the message's MAC
 		clientMac := generateClientMac(cl, message)
