@@ -698,7 +698,7 @@ func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotR
 	// Retrieve the client from the database
 	cl, err := gw.storage.GetClient(clientID)
 	if err != nil {
-		if message.Message.EphemeralKeys[0] == false {
+		if message.Message.EphemeralKeys == nil || message.Message.EphemeralKeys[0] == false {
 			return &pb.GatewaySlotResponse{
 				Accepted: false,
 			}, errors.New("Did not recognize ID. Have you registered successfully?")
