@@ -63,7 +63,7 @@ func (gw *Instance) StartHttpsServer() error {
 		}
 
 		if time.Now().Before(parsedCert.NotBefore) || time.Now().After(parsedCert.NotAfter) {
-			jww.DEBUG.Printf("Loaded certificate has expired, requesting new credentials")
+			jww.WARN.Printf("Loaded certificate expired at %s, requesting new credentials", parsedCert.NotAfter.String())
 			shouldRequestNewCreds = true
 		}
 	} else {
