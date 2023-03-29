@@ -698,9 +698,15 @@ func (gw *Instance) processPutMessage(message *pb.GatewaySlot) (*pb.GatewaySlotR
 	// Retrieve the client from the database
 	cl, err := gw.storage.GetClient(clientID)
 	if err != nil {
-		return &pb.GatewaySlotResponse{
-			Accepted: false,
-		}, errors.New("Did not recognize ID. Have you registered successfully?")
+		if gw.Params.MinRegisteredNodes == 0 && message.Message.EphemeralKeys != nil && message.Message.EphemeralKeys[0] {
+			jww.WARN.Printf("WARNING: MIN REGISTERED NODES IS 0, " +
+				"ALLOWING UNREGISTERED CLIENT.\nThis will break rate limiting " +
+				"and should only be used in testing scenarios.\n")
+		} else {
+			return &pb.GatewaySlotResponse{
+				Accepted: false,
+			}, errors.New("Did not recognize ID. Have you registered successfully?")
+		}
 	} else {
 		// Generate the MAC and check against the message's MAC
 		clientMac := generateClientMac(cl, message)
