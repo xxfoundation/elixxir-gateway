@@ -5,7 +5,7 @@ version:
 	mv version_vars.go cmd/version_vars.go
 
 clean:
-	rm -rf vendor/
+	go mod tidy
 	go mod vendor
 
 update:
@@ -13,15 +13,14 @@ update:
 
 build:
 	go build ./...
-	go mod tidy
 
 update_release:
-	GOFLAGS="" go get gitlab.com/xx_network/primitives@release
-	GOFLAGS="" go get gitlab.com/elixxir/primitives@release
-	GOFLAGS="" go get gitlab.com/xx_network/crypto@release
-	GOFLAGS="" go get gitlab.com/elixxir/crypto@release
-	GOFLAGS="" go get gitlab.com/xx_network/comms@release
-	GOFLAGS="" go get gitlab.com/elixxir/comms@release
+	GOFLAGS="" go get gitlab.com/xx_network/primitives@XX-4707/tagDiskJson
+	GOFLAGS="" go get gitlab.com/elixxir/primitives@XX-4707/tagDiskJson
+	GOFLAGS="" go get gitlab.com/xx_network/crypto@XX-4707/tagDiskJson
+	GOFLAGS="" go get gitlab.com/elixxir/crypto@XX-4707/tagDiskJson
+	GOFLAGS="" go get gitlab.com/xx_network/comms@XX-4707/tagDiskJson
+	GOFLAGS="" go get gitlab.com/elixxir/comms@XX-4707/tagDiskJson
 	GOFLAGS="" go get gitlab.com/elixxir/bloomfilter@release
 
 update_master:
@@ -35,4 +34,4 @@ update_master:
 
 master: update_master clean build version
 
-release: update_release clean build version
+release: update_release clean build
