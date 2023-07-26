@@ -125,9 +125,10 @@ type Instance struct {
 	earliestRoundUpdateChan chan EarliestRound
 	earliestRoundQuitChan   chan struct{}
 
-	autoCert    autocert.Client
-	gwCertMux   sync.RWMutex
-	gatewayCert *pb.GatewayCertificate
+	autoCert               autocert.Client
+	gwCertMux              sync.RWMutex
+	gatewayCert            *pb.GatewayCertificate
+	replaceCertificateQuit chan struct{}
 }
 
 // NewGatewayInstance initializes a gateway Handler interface
@@ -169,6 +170,7 @@ func NewGatewayInstance(params Params) *Instance {
 		LeakedTokens:            1,
 		earliestRoundUpdateChan: earliestRoundUpdateChan,
 		earliestRoundQuitChan:   make(chan struct{}, 1),
+		replaceCertificateQuit:  make(chan struct{}, 1),
 	}
 
 	i.autoCert = autocert.NewDNS()
@@ -225,6 +227,10 @@ func NewImplementation(instance *Instance) *gateway.Implementation {
 
 	impl.Functions.RequestTlsCert = func(message *pb.RequestGatewayCert) (*pb.GatewayCertificate, error) {
 		return instance.RequestTlsCert(message)
+	}
+
+	impl.Functions.RequestBatchMessages = func(msg *pb.GetMessagesBatch) (*pb.GetMessagesResponseBatch, error) {
+		return instance.RequestBatchMessages(msg)
 	}
 
 	return impl
